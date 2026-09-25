@@ -156,6 +156,10 @@ export function findSlacks(
     const tBound = Math.min(tNext, toHour);
     const vNext = evalH(tBound, params);
 
+    // A root exactly on a bracket boundary is skipped, matching findExtremes
+    // and the Swift port: emitting it from both adjacent brackets would
+    // duplicate it, an exact float zero of a real constituent sum does not
+    // occur, and CONTRACT.md documents boundary roots as not guaranteed.
     const signChanged = vPrev !== 0 && vNext !== 0 && (vPrev > 0 ? vNext < 0 : vNext > 0);
     if (signChanged) {
       const tRoot = bisectZero(tPrev, tBound, vPrev, params);
