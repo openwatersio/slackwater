@@ -337,6 +337,14 @@ describe("slackWindows", () => {
     // Dips under the threshold and builds back the way it came: weak water.
     const windows = slackWindows([sample(0, 2), sample(1, 0.5), sample(2, 2)], 1);
     expect(windows).toEqual([]);
+
+    // Touching exactly zero without reversing is still a lull.
+    expect(slackWindows([sample(0, 2), sample(1, 0), sample(2, 2)], 1)).toEqual([]);
+  });
+
+  test("a reversal landing on an exact-zero sample still counts", () => {
+    const windows = slackWindows([sample(0, 2), sample(1, 0), sample(2, -2)], 1);
+    expect(windows.length).toBe(1);
   });
 
   test("a sub-threshold blip between two reversals stays one run", () => {

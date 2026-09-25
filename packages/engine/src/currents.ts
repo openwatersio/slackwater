@@ -354,8 +354,8 @@ export interface SlackWindow {
  * Endpoints are the interpolated ±threshold band crossings, not the nearest
  * sample. A run only counts if the velocity changes sign inside it: a lull
  * that dips under the threshold and then builds back the way it came is weak
- * water, not slack. A window still open at the frame edge is kept and ends at
- * the edge.
+ * water, not slack — including one that touches exactly zero. A window still
+ * open at the frame edge is kept and ends at the edge.
  */
 export function slackWindows(
   timeline: Pick<CurrentPoint, "time" | "speed">[],
@@ -373,6 +373,10 @@ export function slackWindows(
   const windows: SlackWindow[] = [];
   let from: Date | undefined = out(timeline[0]) <= 0 ? timeline[0].time : undefined;
   let turned = false;
+  // Sign of the most recent non-zero sample: a turn means seeing the opposite
+  // non-zero sign, so a sample touching exactly zero is not itself a reversal
+  // but does not hide one landing on it either.
+  let sign = Math.sign(timeline[0].speed);
   for (let i = 1; i < timeline.length; i++) {
     const a = timeline[i - 1];
     const b = timeline[i];
@@ -385,7 +389,9 @@ export function slackWindows(
     // Checked on the entry and exit steps too, not just the ones wholly
     // inside: at a violent gate the reversal and the band edge land in one
     // sample.
-    if ((inA || inB) && a.speed > 0 !== b.speed > 0) turned = true;
+    const bSign = Math.sign(b.speed);
+    if ((inA || inB) && sign !== 0 && bSign !== 0 && bSign !== sign) turned = true;
+    if (bSign !== 0) sign = bSign;
     if (inA && !inB) {
       if (from && turned) windows.push({ start: from, end: cross(a, b) });
       from = undefined;
