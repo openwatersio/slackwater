@@ -1,8 +1,9 @@
 import { describe, test, expect } from "vitest";
-import { stations } from "@slackwater/database";
-import { useStation } from "../src/station.js";
+import { stations, stationsById } from "@slackwater/database";
+import { useStation, useCurrentStation } from "../src/station.js";
 import mockConstituents from "./_mocks/constituents.js";
-import type { Station, StationPredictor } from "../src/station.js";
+import { loadFixture, type FixtureEvent } from "./_mocks/currents-catalog.js";
+import type { Station, StationPredictor, CurrentStation } from "../src/station.js";
 
 function findStation(query: string): StationPredictor {
   const found = stations.find((s) => s.id === query || s.source.id === query);
@@ -356,6 +357,161 @@ describe("useStation", () => {
 
         expect(rmsError(subTimeline, refTimeline) / tidalRange(refTimeline)).toBeLessThan(0.1);
       });
+    });
+  });
+});
+
+describe("useCurrentStation", () => {
+  const start = new Date("2026-06-01T00:00:00Z");
+  const end = new Date("2026-06-02T00:00:00Z");
+
+  function dbCurrentStation(id: string): CurrentStation {
+    const found = stationsById.get(id);
+    if (!found) throw new Error(`Station not found: ${id}`);
+    return found as CurrentStation;
+  }
+
+  const baseCurrentStation: CurrentStation = {
+    ...baseStation,
+    id: "test/current",
+    kind: "current",
+    datums: {},
+    chart_datum: undefined,
+    current: { flood_direction: 45, ebb_direction: 225, mean_flow: 0.1 },
+  };
+
+  describe("harmonic stations", () => {
+    // PUG1716 is a NOAA type-S station that carries its own harcon: it must
+    // be predicted harmonically, not by reduction.
+    const station = useCurrentStation(dbCurrentStation("noaa/PUG1716"));
+
+    test("predicts events with directions", () => {
+      const { events, station: reported } = station.getEventsPrediction({ start, end });
+      expect(reported.id).toBe("noaa/PUG1716");
+      expect(events.length).toBeGreaterThan(0);
+      for (const event of events) {
+        if (event.kind === "maxFlood") expect(event.direction).toBeCloseTo(38.3, 3);
+        if (event.kind === "maxEbb") expect(event.direction).toBeCloseTo(218.3, 3);
+      }
+    });
+
+    test("predicts a signed timeline in knots", () => {
+      const { timeline } = station.getTimelinePrediction({ start, end });
+      expect(timeline.length).toBe(145); // 24 h at the default 600 s step
+      expect(Math.min(...timeline.map((p) => p.speed))).toBeLessThan(0);
+      expect(Math.max(...timeline.map((p) => p.speed))).toBeGreaterThan(0);
+    });
+
+    test("nodeCorrections produce different results", () => {
+      const [iho, schureman] = (["iho", "schureman"] as const).map(
+        (nodeCorrections) =>
+          station.getTimelinePrediction({ start, end, nodeCorrections }).timeline,
+      );
+      expect(iho.map((p) => p.speed)).not.toEqual(schureman.map((p) => p.speed));
+    });
+
+    test("defaults directions and mean flow when the current block is absent", () => {
+      const bare = useCurrentStation({ ...baseCurrentStation, current: undefined });
+      const { events } = bare.getEventsPrediction({ start, end });
+      expect(events.length).toBeGreaterThan(0);
+      for (const event of events) {
+        if (event.kind !== "slack") expect([0]).toContain(event.direction);
+      }
+    });
+  });
+
+  describe("subordinate stations", () => {
+    const pct0236 = dbCurrentStation("noaa/PCT0236");
+    const reference = dbCurrentStation(pct0236.current!.offsets!.reference);
+    const station = useCurrentStation(pct0236, { reference, distance: 1.5 });
+
+    test("matches NOAA within the subordinate tolerances", () => {
+      // The database offsets are minutes; the fixture describes the same
+      // station with second offsets. Matching NOAA proves the conversion.
+      const fx = loadFixture<{ events: FixtureEvent[] }>("currents-golden-subordinate");
+      const times = fx.events.map((e) => Date.parse(e.time));
+      const { events, distance } = station.getEventsPrediction({
+        start: new Date(Math.min(...times) - 3_600_000),
+        end: new Date(Math.max(...times) + 3_600_000),
+      });
+      expect(distance).toBe(1.5);
+
+      for (const event of fx.events) {
+        if (event.kind === "slack") continue;
+        const time = Date.parse(event.time);
+        const match = events
+          .filter((e) => e.kind === event.kind)
+          .reduce((a, b) =>
+            Math.abs(a.time.getTime() - time) < Math.abs(b.time.getTime() - time) ? a : b,
+          );
+        expect(Math.abs(match.time.getTime() - time) / 60_000).toBeLessThan(30);
+        expect(Math.abs(Math.abs(match.speed) - Math.abs(event.speed))).toBeLessThan(0.4);
+      }
+    });
+
+    test("draws a half-cosine timeline through the events", () => {
+      const { timeline } = station.getTimelinePrediction({ start, end, timeFidelity: 3600 });
+      expect(timeline.length).toBe(25);
+      expect(Math.min(...timeline.map((p) => p.speed))).toBeLessThan(0);
+      expect(Math.max(...timeline.map((p) => p.speed))).toBeGreaterThan(0);
+    });
+
+    test("defaults missing offset fields to identity", () => {
+      const minimal = useCurrentStation(
+        {
+          ...baseCurrentStation,
+          harmonic_constituents: [],
+          current: { offsets: { reference: "test/reference" } },
+        },
+        { reference: baseCurrentStation },
+      );
+      const { events } = minimal.getEventsPrediction({ start, end });
+      // Identity offsets: same times as the reference, slacks zeroed. The
+      // reference list covers whole UTC days; trim it as the subordinate does.
+      const refEvents = useCurrentStation(baseCurrentStation)
+        .getEventsPrediction({ start, end })
+        .events.filter((e) => e.kind !== "slack" && e.time >= start && e.time <= end);
+      const maxima = events.filter((e) => e.kind !== "slack");
+      expect(maxima.map((e) => e.time)).toEqual(refEvents.map((e) => e.time));
+      expect(maxima.map((e) => e.speed)).toEqual(refEvents.map((e) => e.speed));
+    });
+  });
+
+  describe("unpredictable stations", () => {
+    test("throws without constituents or offsets", () => {
+      const station = useCurrentStation({
+        ...baseCurrentStation,
+        harmonic_constituents: [],
+        current: {},
+      });
+      expect(() => station.getEventsPrediction({ start, end })).toThrow(
+        /neither harmonic constituents nor subordinate offsets/,
+      );
+    });
+
+    test("throws when a subordinate's reference is not provided", () => {
+      const station = useCurrentStation({
+        ...baseCurrentStation,
+        harmonic_constituents: [],
+        current: { offsets: { reference: "test/reference" } },
+      });
+      expect(() => station.getTimelinePrediction({ start, end })).toThrow(
+        /pass that station as options\.reference/,
+      );
+    });
+
+    test("throws when the reference has no constituents", () => {
+      const station = useCurrentStation(
+        {
+          ...baseCurrentStation,
+          harmonic_constituents: [],
+          current: { offsets: { reference: "test/reference" } },
+        },
+        { reference: { ...baseCurrentStation, harmonic_constituents: [] } },
+      );
+      expect(() => station.getEventsPrediction({ start, end })).toThrow(
+        /has no harmonic constituents/,
+      );
     });
   });
 });

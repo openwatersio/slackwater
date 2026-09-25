@@ -35,6 +35,10 @@ createTidePredictor(constituents, { nodeCorrections: "schureman" });
 
 For detailed internals (XDO conversion, letter code dispatch, compound decomposition), see [packages/engine/README.md](packages/engine/README.md#architecture-internals).
 
+### Current Stations
+
+Tidal currents reuse the harmonic machinery with the result read as signed velocity in knots along the flood axis. `createCurrentPredictor` produces timelines and slack/max flood/max ebb events (extracted per UTC day so results never depend on the requested window); `createSubordinateCurrentPredictor` applies NOAA's two-slack offset reduction against a reference predictor, with offset times in seconds at the engine level. `useCurrentStation` consumes `@slackwater/database` stations with `kind === "current"`, converting the database's offset minutes and predicting harmonically whenever a station carries its own constituents. The `slackwater` package resolves a subordinate's `current.offsets.reference` id automatically. Validation runs against NOAA's own predictions via the `fixtures/currents-golden-*.json` fixtures at the tolerances in [docs/CONTRACT.md](docs/CONTRACT.md); `fixtures/generate/gen-currents.mjs` generates the TS-side parity fixture checked by `npm run fixtures:check`.
+
 ### @slackwater/api Architecture
 
 The API package (`packages/api`) exposes tide predictions via Express HTTP endpoints. Key design patterns:

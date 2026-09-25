@@ -84,6 +84,98 @@ function bisect(a: number, b: number, fa: number, params: ConstituentParam[]): n
   }
 }
 
+/** A slack instant: a value-zero of the harmonic sum h(t). */
+export interface Slack {
+  time: Date;
+  /** Residual signed speed at the bisected root — within tolerance of zero. */
+  speed: number;
+}
+
+export type FindSlacksOptions = Pick<FindExtremesOptions, "startMs" | "getParams">;
+
+/**
+ * Find root of h(t) in [a, b] where h(a) and h(b) have opposite signs.
+ * Same bisection as `bisect`, on the value rather than the derivative.
+ */
+function bisectZero(a: number, b: number, fa: number, params: ConstituentParam[]): number {
+  while (true) {
+    const mid = (a + b) / 2;
+    if (b - a < TOLERANCE_HOURS) return mid;
+
+    const fMid = evalH(mid, params);
+    if (fMid === 0) return mid;
+
+    const sameSign = fa > 0 ? fMid > 0 : fMid < 0;
+    if (sameSign) {
+      a = mid;
+      fa = fMid;
+    } else {
+      b = mid;
+    }
+  }
+}
+
+/**
+ * Find slack instants (value-zeros of h(t)) in [fromHour, toHour].
+ *
+ * Mirrors the bracket-and-bisect structure of findExtremes — the same
+ * quarter-period bracket of the fastest constituent guarantees at most one
+ * zero-crossing per step — but roots h(t) itself instead of h'(t). No
+ * prominence or temporal-gap filtering: every sign change is a real reversal.
+ */
+export function findSlacks(
+  fromHour: number,
+  toHour: number,
+  { startMs, getParams }: FindSlacksOptions,
+): Slack[] {
+  const results: Slack[] = [];
+  let params = getParams(Math.max(0, fromHour));
+
+  if (params.length === 0) return results;
+
+  let maxSpeed = 0;
+  for (const { w } of params) {
+    if (w > maxSpeed) maxSpeed = w;
+  }
+  // Z0 alone is a constant offset: no zero-crossings to find.
+  if (maxSpeed === 0) return results;
+
+  const bracket = Math.PI / (2 * maxSpeed);
+
+  let tPrev = fromHour;
+  let vPrev = evalH(tPrev, params);
+
+  for (let tNext = tPrev + bracket; tNext <= toHour + bracket; tNext += bracket) {
+    // Recompute node corrections for long spans
+    const newParams = getParams(tPrev);
+    if (newParams !== params) {
+      params = newParams;
+      vPrev = evalH(tPrev, params);
+    }
+
+    const tBound = Math.min(tNext, toHour);
+    const vNext = evalH(tBound, params);
+
+    const signChanged = vPrev !== 0 && vNext !== 0 && (vPrev > 0 ? vNext < 0 : vNext > 0);
+    if (signChanged) {
+      const tRoot = bisectZero(tPrev, tBound, vPrev, params);
+
+      if (tRoot >= fromHour && tRoot <= toHour) {
+        results.push({
+          time: new Date(startMs + tRoot * 60 * 60 * 1000),
+          speed: evalH(tRoot, params),
+        });
+      }
+    }
+
+    if (tBound >= toHour) break;
+    tPrev = tBound;
+    vPrev = vNext;
+  }
+
+  return results;
+}
+
 /**
  * Find tidal extremes in [fromHour, toHour] using derivative root-finding.
  *

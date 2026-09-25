@@ -26,21 +26,23 @@ The TypeScript `useStation` wrapper resolves a requested datum as `MSL - datum` 
 
 Subordinate tide height corrections are either a ratio applied to the reference height or a fixed value in metres. TypeScript subordinate time offsets are minutes in `ExtremeOffsets`; Swift initializer offsets are `TimeInterval` values in seconds.
 
+Subordinate current time adjustments are seconds in both low-level engines (`SubordinateCurrentOptions` and the Swift initializer). NOAA and the station database publish them in minutes; the TypeScript station layer converts. A TypeScript event's per-day search covers whole UTC days with an 8-hour margin, so an event list never depends on the requested window.
+
 ## Public API correspondence
 
-| Capability                  | TypeScript                            | Swift                                                     |
-| --------------------------- | ------------------------------------- | --------------------------------------------------------- |
-| Harmonic tide station       | `createTidePredictor` or `useStation` | `Station`                                                 |
-| Timeline heights            | `getTimelinePrediction`               | `Station.heights(from:to:step:)`                          |
-| Height at one instant       | `getWaterLevelAtTime`                 | —                                                         |
-| High and low waters         | `getExtremesPrediction`               | `Station.extremes(from:to:)`                              |
-| Tide rate                   | —                                     | `Station.rates(from:to:step:)`                            |
-| Subordinate tide station    | `ExtremeOffsets` passed to prediction | `SubordinateTideStation`                                  |
-| Harmonic current station    | #221                                  | `CurrentStation`                                          |
-| Current speed and events    | #221                                  | `CurrentStation.speeds`, `slacks`, `maxima`, and `events` |
-| Subordinate current station | #221                                  | `SubordinateStation`                                      |
-| Extreme ranking             | —                                     | `TideExtreme.ranges`, `percentileRank`, and `percentile`  |
-| Tide-derived slack          | —                                     | `DerivedSlackStation`                                     |
+| Capability                  | TypeScript                                                         | Swift                                                     |
+| --------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------- |
+| Harmonic tide station       | `createTidePredictor` or `useStation`                              | `Station`                                                 |
+| Timeline heights            | `getTimelinePrediction`                                            | `Station.heights(from:to:step:)`                          |
+| Height at one instant       | `getWaterLevelAtTime`                                              | —                                                         |
+| High and low waters         | `getExtremesPrediction`                                            | `Station.extremes(from:to:)`                              |
+| Tide rate                   | —                                                                  | `Station.rates(from:to:step:)`                            |
+| Subordinate tide station    | `ExtremeOffsets` passed to prediction                              | `SubordinateTideStation`                                  |
+| Harmonic current station    | `createCurrentPredictor` or `useCurrentStation`                    | `CurrentStation`                                          |
+| Current speed and events    | `CurrentPredictor.getTimelinePrediction` and `getEventsPrediction` | `CurrentStation.speeds`, `slacks`, `maxima`, and `events` |
+| Subordinate current station | `createSubordinateCurrentPredictor`                                | `SubordinateStation`                                      |
+| Extreme ranking             | —                                                                  | `TideExtreme.ranges`, `percentileRank`, and `percentile`  |
+| Tide-derived slack          | —                                                                  | `DerivedSlackStation`                                     |
 
 API names and return shapes do not need to match across languages. Units, signs, event kinds, and numerical results do.
 
@@ -84,8 +86,8 @@ These gates compare the Swift implementation with checked-in NOAA CO-OPS predict
 | --------------------------------------------------- | ---------- | ----- |
 | Harmonic prediction, extremes, and node corrections | yes        | yes   |
 | Subordinate tide stations                           | yes        | yes   |
-| Currents, including subordinate reduction           | #221       | yes   |
+| Currents, including subordinate reduction           | yes        | yes   |
 | Extreme ranking against a station's history         | —          | yes   |
 | Slack derived from a tide reference's lag           | —          | yes   |
 
-Asymmetric features remain outside the parity gates. They enter the shared contract when both ports implement them and a common fixture can exercise them.
+Asymmetric features remain outside the parity gates. They enter the shared contract when both ports implement them and a common fixture can exercise them. `fixtures/currents-parity.json` is generated from the TypeScript engine and carries the current timeline and event vectors for a Swift parity gate; both ports already share the NOAA golden current fixtures and their physical-accuracy tolerances above.
