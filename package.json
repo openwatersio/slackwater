@@ -28,7 +28,7 @@
     "prettier": "3.9.9",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
-    "vitest": "^4.0.15"
+    "vitest": "^5.0.1"
   },
   "workspaces": [
     "packages/engine",
