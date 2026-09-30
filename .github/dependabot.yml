@@ -5,6 +5,13 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 100
+    # vitest and every @vitest/* package pin each other's exact version, so a
+    # bump to one alone fails `npm ci` with ERESOLVE before a test runs.
+    groups:
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
