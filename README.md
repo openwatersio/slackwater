@@ -198,6 +198,35 @@ findStation("noaa/8443970"); // Boston
 findStation("9440083"); // Vancouver
 ```
 
+### Current predictions
+
+The database also carries tidal current stations. Current predictions are signed speeds in knots along the station's flood axis: positive is flood, negative is ebb, zero is slack.
+
+```typescript
+import { getCurrentEventsPrediction, getCurrentTimelinePrediction, slackWindows } from "slackwater";
+
+const options = {
+  latitude: 48.406, // Deception Pass, WA
+  longitude: -122.643,
+  start: new Date("2026-06-01T00:00:00Z"),
+  end: new Date("2026-06-02T00:00:00Z"),
+};
+
+// Slack, max flood, and max ebb events in time order. Flood and ebb events
+// carry the station's direction in degrees true.
+const { station, events } = getCurrentEventsPrediction(options);
+// { time: Date, speed: -5.2, kind: "maxEbb", direction: 281.5 }
+
+// The signed speed curve, sampled every 10 minutes by default.
+const { timeline } = getCurrentTimelinePrediction(options);
+
+// The windows where |speed| stays under a threshold around a reversal.
+const windows = slackWindows(timeline, 0.5);
+// [{ start: Date, end: Date }, ...]
+```
+
+Current stations can also be found with `nearestCurrentStation`, `currentStationsNear`, and `findCurrentStation`, mirroring the tide station functions. Subordinate current stations (time offsets and speed ratios against a reference station) are resolved automatically.
+
 ## Accuracy & Validation
 
 Slackwater is continuously validated against NOAA tidal predictions, comparing the **time** and **height** of predicted high and low tides for all NOAA tide stations.

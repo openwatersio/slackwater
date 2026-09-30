@@ -161,6 +161,52 @@ A single object is returned with:
 - `time` - A Javascript date object
 - `level` - The predicted water level
 
+## Current prediction
+
+A tidal current station is the same sum of cosines as a tide station, read as signed velocity along the flood axis in knots: positive is flood, negative is ebb, zero is slack. Constituent amplitudes are NOAA major-axis amplitudes in knots and phases are `majorPhaseGMT` in degrees.
+
+```ts
+import { createCurrentPredictor } from "@slackwater/engine";
+
+const predictor = createCurrentPredictor(constituents, {
+  floodDirection: 31.2, // degrees true
+  ebbDirection: 211.2,
+  meanFlow: -0.377, // knots, added as a constant term
+});
+
+// Signed speed samples: { time, hour, speed }
+predictor.getTimelinePrediction({ start, end, timeFidelity: 600 });
+
+// Slack, max flood, and max ebb events in time order:
+// { time, speed, kind: "slack" | "maxFlood" | "maxEbb", direction? }
+predictor.getEventsPrediction({ start, end });
+```
+
+Max flood and ebb are velocity extrema classified by the sign of velocity (NOAA's convention), and slack is the value-zero of the velocity curve. Events are extracted per UTC day with an 8-hour search margin, so an event list never depends on the requested window.
+
+Subordinate current stations have no constituents of their own; their events are a reference station's events shifted and scaled by NOAA Current-Tables offsets. Time adjustments are seconds here (NOAA publishes minutes — multiply by 60), and a slack takes the offset of the phase it precedes:
+
+```ts
+import { createSubordinateCurrentPredictor } from "@slackwater/engine";
+
+const subordinate = createSubordinateCurrentPredictor(reference, {
+  slackBeforeFloodOffset: -4080,
+  slackBeforeEbbOffset: -5280,
+  floodTimeOffset: -3840,
+  ebbTimeOffset: -5100,
+  floodSpeedRatio: 0.3,
+  ebbSpeedRatio: 0.5,
+  floodDirection: 104,
+  ebbDirection: 229,
+});
+```
+
+A subordinate's timeline is a half-cosine drawn through its event knots — a drawing of the table, not a prediction of the water between its rows. `reduceCurrentEvents(refEvents, offsets)` exposes the reduction for callers that already hold the reference's events, and `currentSpeedAt(events, time)` samples the same half-cosine at one instant.
+
+`useCurrentStation(station, { reference })` wraps a `@slackwater/database` current station (`kind: "current"`), predicting harmonically when the station has its own constituents and reducing the given reference station otherwise — the database's offset minutes are converted internally.
+
+`slackWindows(timeline, threshold)` returns the runs of time where |speed| stays below `threshold` knots around a reversal, with interpolated band crossings. A lull that never reverses is weak water, not slack, and does not count; a window still open at the frame edge is kept and ends at the edge.
+
 ## Harmonic fitting
 
 Fit tidal heights or signed current velocities to a caller-selected harmonic basis.

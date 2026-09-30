@@ -49,6 +49,16 @@ describe("harmonic prediction", () => {
       .prediction()
       .getExtremesPrediction({ labels: customLabels });
     expect(labelResults[0].label).toBe(customLabels.low);
+
+    // A partial label set falls back to the defaults for the missing kind.
+    const partialResults = harmonics({
+      harmonicConstituents: mockHarmonicConstituents,
+      offset: false,
+    })
+      .setTimeSpan(startDate, extremesEndDate)
+      .prediction()
+      .getExtremesPrediction({ labels: { high: "Super high" } });
+    expect(partialResults[0].label).toBe("Low");
   });
 
   it("it finds high and low tides with high fidelity", () => {
