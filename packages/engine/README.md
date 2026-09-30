@@ -47,6 +47,9 @@ Calling `createTidePredictor` will generate a new tide prediction object. It acc
 - `constituents` - An array of [constituent objects](#constituent-object)
 - `options` - An object with one of:
   - `offset` - A value to add to **all** values predicted. This is useful if you want to, for example, offset tides by mean high water, etc.
+  - `nodeCorrections` - The nodal correction convention: `"iho"` (default) or `"schureman"`.
+
+Use `"iho"` unless the harmonic constants were derived with the Schureman convention. Keep the convention consistent between fitting and prediction; switching conventions can change some nodal amplitude factors by about 7% for J1 and 5.5% for Mf. Slackwater's harmonic fitter uses IHO corrections.
 
 ### Tide prediction methods
 
