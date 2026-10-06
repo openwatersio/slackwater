@@ -116,19 +116,12 @@ function predictionFactory({
   constituentModels,
   start,
   fundamentals = iho,
+  // hatyan calc_HWLW's minimum prominence; NOAA's published hi/lo keeps turns smaller still.
   prominenceThreshold = 0.01,
 }: PredictionFactoryParams): Prediction {
   const baseAstro = astro(start);
   const startMs = start.getTime();
   const endHour = (timeline.items[timeline.items.length - 1].getTime() - startMs) / 3600000;
-
-  // Generalised Doodson criterion: (M4 + MS4) / M2 > 0.25 indicates a station
-  // where shallow-water overtones produce genuine double high/low waters (aggers).
-  // The temporal gap filter is disabled for these stations so real aggers are kept.
-  const m2Amp = constituents.find((c) => c.name === "M2")?.amplitude ?? 0;
-  const m4Amp = constituents.find((c) => c.name === "M4")?.amplitude ?? 0;
-  const ms4Amp = constituents.find((c) => c.name === "MS4")?.amplitude ?? 0;
-  const isDoubleTide = m2Amp > 0 && (m4Amp + ms4Amp) / m2Amp > 0.25;
 
   /**
    * Precompute flat constituent parameters with node corrections evaluated
@@ -180,7 +173,7 @@ function predictionFactory({
   }
 
   /** Options shared by both extremes call sites */
-  const extremesOptions = { startMs, isDoubleTide, prominenceThreshold };
+  const extremesOptions = { startMs, prominenceThreshold };
 
   function getExtremesPrediction({ labels, offsets }: ExtremesOptions = {}) {
     return findExtremes(0, endHour, { ...extremesOptions, getParams: correctedParams() }).map(
@@ -216,10 +209,15 @@ function predictionFactory({
     // Subordinate station interpolation: find reference extremes in a wider
     // range for proper bracketing, build keyframes, then use proportional
     // domain-mapping to rescale the reference curve.
-    const refExtremes = findExtremes(-BUFFER_HOURS, endHour + BUFFER_HOURS, {
-      ...extremesOptions,
-      getParams: correctedParams(),
-    });
+    const findRefExtremes = (threshold: number) =>
+      findExtremes(-BUFFER_HOURS, endHour + BUFFER_HOURS, {
+        ...extremesOptions,
+        prominenceThreshold: threshold,
+        getParams: correctedParams(),
+      });
+    let refExtremes = findRefExtremes(prominenceThreshold);
+    // A tide whose every turn is below the threshold still needs keyframes; use its raw turning points.
+    if (refExtremes.length < 2) refExtremes = findRefExtremes(0);
 
     // This should never happen since the input timeline should be fully bracketed by extremes,
     // but we need at least two extremes to interpolate between.

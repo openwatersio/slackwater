@@ -11,6 +11,7 @@
     "benchmarks": "run-s --continue-on-error \"benchmarks:*\"",
     "benchmarks:noaa": "node benchmarks/noaa.ts",
     "benchmarks:chs": "node benchmarks/chs.ts",
+    "benchmarks:extremes": "node benchmarks/extremes.ts",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "bash scripts/release.sh"

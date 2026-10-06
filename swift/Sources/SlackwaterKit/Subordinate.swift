@@ -28,8 +28,13 @@ public struct SubordinateTideStation: Sendable {
     /// The reference's extremes, time-shifted and height-corrected. Sorted, because
     /// unequal high/low offsets can reorder neighbours.
     public func extremes(from: Date, to: Date) -> [TideExtreme] {
+        extremes(from: from, to: to, prominenceThreshold: 0.01)
+    }
+
+    private func extremes(from: Date, to: Date, prominenceThreshold: Double) -> [TideExtreme] {
         let pad = max(abs(highTimeOffset), abs(lowTimeOffset)) + 3600
-        return reference.extremes(from: from.addingTimeInterval(-pad), to: to.addingTimeInterval(pad))
+        return reference.extremes(from: from.addingTimeInterval(-pad), to: to.addingTimeInterval(pad),
+                                  prominenceThreshold: prominenceThreshold)
             .map(correct)
             .filter { $0.time >= from && $0.time <= to }
             .sorted { $0.time < $1.time }
@@ -58,7 +63,11 @@ public struct SubordinateTideStation: Sendable {
 
     private func curve(from: Date, to: Date, step: TimeInterval) -> [(time: Date, height: Double, rate: Double)] {
         let pad = 15.0 * 3600  // longer than any gap between neighbouring extremes
-        let ex = extremes(from: from.addingTimeInterval(-pad), to: to.addingTimeInterval(pad))
+        var ex = extremes(from: from.addingTimeInterval(-pad), to: to.addingTimeInterval(pad))
+        // A tide whose every turn is below the threshold still needs knots; use its raw turning points.
+        if ex.count < 2 {
+            ex = extremes(from: from.addingTimeInterval(-pad), to: to.addingTimeInterval(pad), prominenceThreshold: 0)
+        }
         return halfCosineCurve(through: ex.map { ($0.time, $0.height) },
                                on: makeTimeline(from: from, to: to, step: step).items)
             .map { (time: $0.time, height: $0.value, rate: $0.rate) }

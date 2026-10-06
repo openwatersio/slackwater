@@ -40,12 +40,11 @@ extension Collection where Element == TideExtreme {
     ///
     /// Same-kind neighbours collapse to the run's true extreme. Between two
     /// minima of a continuous curve there is always a maximum, so two lows in a
-    /// row mean `findExtremes` *dropped* a shallow turn between them under its
-    /// prominence / minimum-gap filter — not that it kept a double low. The
-    /// engine's post-filter view of that water is one long rise, so the lower of
-    /// the two lows is where the next rise starts from. Collapsing rather than
-    /// skipping matters: at Friday Harbor the two sides of such a run differ by
-    /// up to 2.4 m, and skipping would never name the swing someone stood in.
+    /// row mean the turn between them is missing — a subordinate's unequal time
+    /// corrections reordered it, or the root finder missed it — not that the
+    /// water held a double low. That water is one long rise, so the lower of the
+    /// two lows is where the next rise starts from. Collapsing rather than
+    /// skipping keeps the swing someone actually stood in.
     ///
     /// A pair whose high sits at or below its low is dropped. That cannot happen
     /// on a harmonic station, but a subordinate corrects highs and lows

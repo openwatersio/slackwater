@@ -325,11 +325,6 @@ exports[`prediction snapshots > noaa/8723970 1`] = `
       "time": "2025-01-15T12:17:54.000Z",
     },
     {
-      "high": false,
-      "level": -0.038,
-      "time": "2025-01-15T15:43:05.000Z",
-    },
-    {
       "high": true,
       "level": 0.125,
       "time": "2025-01-15T21:40:03.000Z",
@@ -728,11 +723,6 @@ exports[`prediction snapshots > noaa/9751364 1`] = `
       "level": 0.208,
       "time": "2025-01-17T14:52:56.000Z",
     },
-    {
-      "high": false,
-      "level": 0.093,
-      "time": "2025-01-17T23:18:41.000Z",
-    },
   ],
   "name": "Christiansted Harbor",
 }
@@ -1129,8 +1119,8 @@ exports[`prediction snapshots > ticon/port_ellen_islay-isl-gbr-bodc 1`] = `
     },
     {
       "high": true,
-      "level": 1.032,
-      "time": "2025-03-03T06:52:05.000Z",
+      "level": 1.036,
+      "time": "2025-03-03T05:14:24.000Z",
     },
     {
       "high": false,

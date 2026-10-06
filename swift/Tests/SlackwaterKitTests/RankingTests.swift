@@ -109,8 +109,7 @@ private func extreme(_ hour: Double, _ height: Double, _ kind: ExtremeKind) -> T
         #expect(lows.percentileRank(of: a)! <= lows.percentileRank(of: b)!)
     }
 
-    // Every extreme but the last opens a range, minus the same-kind neighbours
-    // the double-tide filter leaves behind (16 of them across this year).
+    // Every extreme but the last opens a range, minus any same-kind neighbours.
     let ranges = extremes.ranges()
     let sameKind = zip(extremes, extremes.dropFirst()).filter { $0.kind == $1.kind }.count
     #expect(ranges.count == extremes.count - 1 - sameKind)

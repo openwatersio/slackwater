@@ -70,7 +70,7 @@ public struct DerivedSlackStation: Sendable {
     /// `slackWindowMinutes` of any slack it reads slack.
     ///
     /// Takes the caller's already-derived `slacks` rather than recomputing: the
-    /// prominence/gap filter behind `extremes` is window-relative, so a fresh
+    /// prominence filter behind `extremes` is window-relative, so a fresh
     /// derive over a different window can disagree about which slack is "next" at a
     /// diurnal transition. Mirrors current.ts `withNowCurrent`, which feeds the one
     /// event set into `derivedNowFields`.
