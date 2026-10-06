@@ -15,7 +15,8 @@ let worst = { station: "", error: 0 };
 for (const { id } of subordinates) {
   const station = findStation(id);
   const chart = station.defaultDatum;
-  if (!chart || !("MSL" in station.datums)) continue;
+  // A subordinate without a chart datum or MSL is a data error, not a station to skip.
+  if (!chart || !("MSL" in station.datums)) throw new Error(`${id} has no chart datum or MSL`);
 
   const toChart = station.datums.MSL - station.datums[chart];
   const levels = (datum: string) => [

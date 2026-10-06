@@ -263,6 +263,7 @@ describe("useStation", () => {
   describe("subordinate datums", () => {
     const start = new Date("2026-10-06T00:00:00Z");
     const end = new Date("2026-10-07T00:00:00Z");
+    const time = new Date("2026-10-06T03:09:00Z");
     const synthetic = (height: NonNullable<Station["offsets"]>["height"]): Station => ({
       ...baseStation,
       type: "subordinate",
@@ -276,6 +277,7 @@ describe("useStation", () => {
       return {
         extremes: station.getExtremesPrediction({ start, end, datum }).extremes.map(toChart),
         timeline: station.getTimelinePrediction({ start, end, datum }).timeline.map(toChart),
+        waterLevel: toChart(station.getWaterLevelAtTime({ time, datum })),
       };
     }
 
@@ -294,6 +296,7 @@ describe("useStation", () => {
         expect(other.extremes.map((e) => e.time)).toEqual(chart.extremes.map((e) => e.time));
         other.extremes.forEach((e, i) => expect(e.level).toBeCloseTo(chart.extremes[i].level, 9));
         other.timeline.forEach((p, i) => expect(p.level).toBeCloseTo(chart.timeline[i].level, 9));
+        expect(other.waterLevel.level).toBeCloseTo(chart.waterLevel.level, 9);
       });
     });
 
