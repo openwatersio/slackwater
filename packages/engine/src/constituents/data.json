@@ -672,7 +672,8 @@
     "speed": 28.4350877,
     "xdo": [2, 4, 5, 5, 5, 5, 4],
     "nodalCorrection": "x",
-    "aliases": []
+    "aliases": [],
+    "members": [["N2", 1]]
   },
   {
     "name": "N2",

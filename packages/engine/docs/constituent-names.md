@@ -113,7 +113,7 @@ To find a phase constant, add 0°, 15°, and so on up to 345° to the candidate 
 
 ## The 3N2 nodal correction
 
-3N2 uses nodal code `x`. That decomposes the name to N2, so 3N2 takes N2's `f` and `u`, which are M2's. 3L2's `x` takes L2's the same way. TICON doesn't document its nodal treatment, and a degree-3 line's true nodal modulation differs from N2's. Scores with N2's correction and with none agree, so the choice doesn't change which line TICON's constants describe.
+3N2 lists N2 as its only member in `data.json`, so it takes N2's `f` and `u`, which are M2's. The member is explicit because the name parser would read the leading 3 as a multiplier; it reaches N2 only through its single-letter fallback, which ignores the multiplier. 3L2 has no explicit member and reaches L2 through that same fallback. TICON doesn't document its nodal treatment, and a degree-3 line's true nodal modulation differs from N2's. Scores with N2's correction and with none agree, so the choice doesn't change which line TICON's constants describe.
 
 ## Open phase gaps
 
