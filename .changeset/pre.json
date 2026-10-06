@@ -9,9 +9,13 @@
     "slackwater": "1.0.0-beta.0"
   },
   "changesets": [
+    "extremes-alternate",
     "kartverket-constituents",
     "rename-to-slackwater",
     "steady-harmonics-parity",
-    "tide-database-0-10"
+    "subordinate-ratio-chart-datum",
+    "ticon-3n2-line",
+    "tide-database-0-10",
+    "water-level-exact-time"
   ]
 }

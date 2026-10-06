@@ -1,5 +1,17 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.3
+
+### Patch Changes
+
+- [#366](https://github.com/openwatersio/slackwater/pull/366) [`7719470`](https://github.com/openwatersio/slackwater/commit/77194704cc28d98272e38c61d52e50ca41d0c799) Thanks [@clarkbw](https://github.com/clarkbw)! - Fix extremes predictions that list two highs or two lows in a row. The spurious-extreme filter removes a sub-threshold low and high together, so it never leaves two of a kind side by side, and a shallow double high water reports the higher of its two highs. Extremes near the start and end of a window are judged against the tide beyond it, so a short window reports the same extremes as a longer one.
+
+- [#367](https://github.com/openwatersio/slackwater/pull/367) [`95c1fe3`](https://github.com/openwatersio/slackwater/commit/95c1fe3978549e47063a3a28e5669ef65b958100) Thanks [@clarkbw](https://github.com/clarkbw)! - Apply ratio subordinate height offsets to the height above chart datum, so a ratio subordinate predicts the same tide in every datum. A ratio subordinate whose chart datum is missing from its datums now throws.
+
+- [#365](https://github.com/openwatersio/slackwater/pull/365) [`c97fa13`](https://github.com/openwatersio/slackwater/commit/c97fa1326432edd788ea358a81daa2af7480cb59) Thanks [@clarkbw](https://github.com/clarkbw)! - Predict TICON's 3N2 on its own line at 28.4350877°/h with a 90° phase constant instead of folding it into MKS2.
+
+- [#368](https://github.com/openwatersio/slackwater/pull/368) [`36b698c`](https://github.com/openwatersio/slackwater/commit/36b698c4652b5e16f72313e5c7f0962c3f6b131e) Thanks [@clarkbw](https://github.com/clarkbw)! - `getWaterLevelAtTime` returns the water level at the requested time instead of at the preceding 10-minute mark.
+
 ## 1.0.0-beta.2
 
 ### Minor Changes
