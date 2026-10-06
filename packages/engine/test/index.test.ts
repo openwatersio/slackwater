@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import mockConstituents from "./_mocks/constituents.js";
-import { createTidePredictor } from "../src/index.js";
+import { createTidePredictor, type TidePrediction } from "../src/index.js";
+import type { ExtremeOffsets } from "../src/harmonics/index.js";
 
 const startDate = new Date("2019-09-01T00:00:00Z");
 const endDate = new Date("2019-09-01T06:00:00Z");
@@ -60,6 +61,37 @@ describe("Tidal station", () => {
       time: startDate,
     });
     expect(result.level).toBeCloseTo(-1.46903456, 4);
+  });
+
+  describe("water level between timeline steps", () => {
+    const time = new Date("2026-06-01T03:09:00Z");
+    // 03:09 lies on the one-minute grid, so this timeline's first point is unsnapped.
+    const levelAt = (predictor: TidePrediction, offsets?: ExtremeOffsets) =>
+      predictor.getTimelinePrediction({
+        start: time,
+        end: new Date(time.getTime() + 60 * 1000),
+        timeFidelity: 60,
+        offsets,
+      })[0].level;
+
+    it("evaluates a reference station at the requested time", () => {
+      const predictor = createTidePredictor([{ name: "M2", amplitude: 1, phase: 0 }]);
+      const result = predictor.getWaterLevelAtTime({ time });
+      expect(result.time).toEqual(time);
+      expect(result.level).toBeCloseTo(0.234, 3);
+      expect(result.level).toBeCloseTo(levelAt(predictor), 6);
+    });
+
+    it("evaluates a subordinate station at the requested time", () => {
+      const predictor = createTidePredictor(mockConstituents);
+      const offsets: ExtremeOffsets = {
+        height: { high: 1.1, low: 0.9, type: "ratio" },
+        time: { high: 15, low: 20 },
+      };
+      const result = predictor.getWaterLevelAtTime({ time, offsets });
+      expect(result.time).toEqual(time);
+      expect(result.level).toBeCloseTo(levelAt(predictor, offsets), 6);
+    });
   });
 
   it("it adds offset phases", () => {

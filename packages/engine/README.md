@@ -161,8 +161,8 @@ The `getWaterLevelAtTime` accepts a single object of options:
 
 A single object is returned with:
 
-- `time` - A Javascript date object
-- `level` - The predicted water level
+- `time` - The requested time
+- `level` - The predicted water level at that time
 
 ## Harmonic fitting
 
