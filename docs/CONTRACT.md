@@ -24,7 +24,7 @@ The harmonic sum is relative to mean sea level. Both low-level engines accept a 
 
 The TypeScript `useStation` wrapper resolves a requested datum as `MSL - datum` and then applies that offset to the prediction. It defaults to the station's chart datum when available and can convert the final height from metres to feet. Swift callers perform the same lookup and unit conversion before constructing `Station`. A Swift `Station.offset` is therefore an additive value in metres, not a datum identifier.
 
-Subordinate tide height corrections are either a ratio applied to the reference height or a fixed value in metres. TypeScript subordinate time offsets are minutes in `ExtremeOffsets`; Swift initializer offsets are `TimeInterval` values in seconds.
+Subordinate tide height corrections are either a ratio applied to the reference height above chart datum or a fixed value in metres. For a ratio subordinate, `useStation` predicts in the chart datum and adds `chart datum - datum` after applying the ratio, and throws if the chart datum is missing from the station's datums. Swift callers construct the reference `Station` with its chart-datum offset and add the same difference to the subordinate's results. TypeScript subordinate time offsets are minutes in `ExtremeOffsets`; Swift initializer offsets are `TimeInterval` values in seconds.
 
 ## Public API correspondence
 
