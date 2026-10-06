@@ -84,29 +84,46 @@ export function useStation(station: Station, distance?: number): StationPredicto
   const defaultDatum =
     station.chart_datum && station.chart_datum in datums ? station.chart_datum : undefined;
 
-  function getPredictor({ datum = defaultDatum, nodeCorrections }: StationPredictionOptions = {}) {
-    let offset = 0;
+  const hasRatioOffsets = station.offsets?.height && station.offsets.height.type !== "fixed";
 
-    if (datum) {
-      const datumOffset = datums?.[datum];
-      const mslOffset = datums?.["MSL"];
+  /** The offset that moves the MSL-relative harmonic sum into `datum`. */
+  function mslAbove(datum: string): number {
+    const datumOffset = datums?.[datum];
+    const mslOffset = datums?.["MSL"];
 
-      if (typeof datumOffset !== "number") {
-        throw new Error(
-          `Station ${station.id} missing ${datum} datum. Available datums: ${Object.keys(datums).join(", ")}`,
-        );
-      }
-
-      if (typeof mslOffset !== "number") {
-        throw new Error(
-          `Station ${station.id} missing MSL datum, so predictions can't be given in ${datum}.`,
-        );
-      }
-
-      offset = mslOffset - datumOffset;
+    if (typeof datumOffset !== "number") {
+      throw new Error(
+        `Station ${station.id} missing ${datum} datum. Available datums: ${Object.keys(datums).join(", ")}`,
+      );
     }
 
-    return createTidePredictor(harmonic_constituents, { offset, nodeCorrections });
+    if (typeof mslOffset !== "number") {
+      throw new Error(
+        `Station ${station.id} missing MSL datum, so predictions can't be given in ${datum}.`,
+      );
+    }
+
+    return mslOffset - datumOffset;
+  }
+
+  function getPredictor({ datum = defaultDatum, nodeCorrections }: StationPredictionOptions = {}) {
+    const offset = datum ? mslAbove(datum) : 0;
+
+    // NOAA ratio offsets multiply the height above chart datum, so shift to `datum` after them.
+    let base = offset;
+    if (hasRatioOffsets) {
+      if (!defaultDatum) {
+        throw new Error(
+          `Station ${station.id} missing chart datum, which its ratio height offsets apply to.`,
+        );
+      }
+      base = mslAbove(defaultDatum);
+    }
+
+    return {
+      predictor: createTidePredictor(harmonic_constituents, { offset: base, nodeCorrections }),
+      shift: offset - base,
+    };
   }
 
   return {
@@ -119,9 +136,10 @@ export function useStation(station: Station, distance?: number): StationPredicto
       nodeCorrections,
       ...options
     }: StationExtremesOptions) {
-      const extremes = getPredictor({ datum, nodeCorrections })
+      const { predictor, shift } = getPredictor({ datum, nodeCorrections });
+      const extremes = predictor
         .getExtremesPrediction({ ...options, offsets: station.offsets })
-        .map((e) => toPreferredUnits(e, units));
+        .map((e) => toPreferredUnits(e, units, shift));
 
       return { datum, units, station, distance, extremes };
     },
@@ -132,9 +150,10 @@ export function useStation(station: Station, distance?: number): StationPredicto
       nodeCorrections,
       ...options
     }: StationTimelineOptions) {
-      const timeline = getPredictor({ datum, nodeCorrections })
+      const { predictor, shift } = getPredictor({ datum, nodeCorrections });
+      const timeline = predictor
         .getTimelinePrediction({ ...options, offsets: station.offsets })
-        .map((e) => toPreferredUnits(e, units));
+        .map((e) => toPreferredUnits(e, units, shift));
 
       return { datum, units, station, distance, timeline };
     },
@@ -145,12 +164,11 @@ export function useStation(station: Station, distance?: number): StationPredicto
       units = defaultUnits,
       nodeCorrections,
     }: StationWaterLevelOptions) {
+      const { predictor, shift } = getPredictor({ datum, nodeCorrections });
       const prediction = toPreferredUnits(
-        getPredictor({ datum, nodeCorrections }).getWaterLevelAtTime({
-          time,
-          offsets: station.offsets,
-        }),
+        predictor.getWaterLevelAtTime({ time, offsets: station.offsets }),
         units,
+        shift,
       );
 
       return { datum, units, station, distance, ...prediction };
@@ -158,8 +176,12 @@ export function useStation(station: Station, distance?: number): StationPredicto
   };
 }
 
-function toPreferredUnits<T extends { level: number }>(prediction: T, units: Units): T {
-  let { level } = prediction;
+function toPreferredUnits<T extends { level: number }>(
+  prediction: T,
+  units: Units,
+  shift: number,
+): T {
+  let level = prediction.level + shift;
   if (units === "feet") level *= feetPerMeter;
   else if (units !== "meters") throw new Error(`Unsupported units: ${units}`);
   return { ...prediction, level };

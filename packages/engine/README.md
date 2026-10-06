@@ -226,6 +226,8 @@ Some stations do not have defined harmonic data, but do have published offsets a
   - `high` - **number** - Minutes to add to high tide times (can be negative)
   - `low` - **number** - Minutes to add to low tide times (can be negative)
 
+Ratio offsets multiply the reference height above chart datum. Set the predictor's `offset` to the reference's MSL above its chart datum, then add the difference to any other datum to the results. `useStation` does both.
+
 ```typescript
 {
   height: {
