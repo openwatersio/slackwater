@@ -12,6 +12,7 @@ const __dirname = new URL(".", import.meta.url).pathname;
 const YEAR = Number(process.env.YEAR ?? 2025);
 const start = new Date(Date.UTC(YEAR, 0, 1));
 const end = new Date(Date.UTC(YEAR + 1, 0, 1));
+const days = (end.getTime() - start.getTime()) / 86_400_000;
 
 // Stations from openwatersio/slackwater#219: micro-tidal Baltic and a Dutch river.
 const WATCHED = [
@@ -50,7 +51,7 @@ for (const id of ids) {
   stats.push({
     station: id,
     extremes: extremes.length,
-    per_day: extremes.length / 365,
+    per_day: extremes.length / days,
     same_kind: sameKind,
     min_change_m: minChange,
     min_gap_h: minGap,
