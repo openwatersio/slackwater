@@ -295,6 +295,10 @@ The IHO letter codes from `data.json` are resolved at constituent definition tim
 
 [src/constituents/compound.ts](src/constituents/compound.ts) implements the IHO Annex B algorithm: parses compound names like "MS4" into component letters, resolves signs using a progressive right-to-left algorithm, and maps each to its fundamental constituent.
 
+## Design notes
+
+The sources, judgment calls and validation behind the engine's behaviour, for both the TypeScript and Swift ports, are in [docs/](docs/README.md).
+
 # Shout out
 
 - @kevee for his work on the original version of this project.
