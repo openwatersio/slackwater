@@ -26,7 +26,7 @@ For **subordinate stations** (lack their own harmonic data), the code automatica
 
 ### Tidal Constituent & Node Correction System
 
-The predictor uses 395 harmonic constituents defined in [data.json](packages/engine/src/constituents/data.json), derived from the [IHO TWCWG standard](docs/TWCWG_Constituent_list.md). Two node correction formula sets are supported: **IHO** (default, simplified Fourier series) and **Schureman** (legacy, exact spherical geometry), selectable via options:
+The predictor uses the harmonic constituents defined in [data.json](packages/engine/src/constituents/data.json), derived from the [IHO TWCWG standard](docs/TWCWG_Constituent_list.md). Two node correction formula sets are supported: **IHO** (default, simplified Fourier series) and **Schureman** (legacy, exact spherical geometry), selectable via options:
 
 ```typescript
 createTidePredictor(constituents, { nodeCorrections: "iho" }); // default

@@ -668,6 +668,13 @@
     "aliases": []
   },
   {
+    "name": "3N2",
+    "speed": 28.4350877,
+    "xdo": [2, 4, 5, 5, 5, 5, 4],
+    "nodalCorrection": "x",
+    "aliases": []
+  },
+  {
     "name": "N2",
     "speed": 28.4397295,
     "xdo": [2, 4, 5, 6, 5, 5, 5],
@@ -812,7 +819,7 @@
     "speed": 29.0662415,
     "xdo": [2, 5, 7, 5, 5, 5, 5],
     "nodalCorrection": "x",
-    "aliases": ["3N2"]
+    "aliases": []
   },
   {
     "name": "delta2",

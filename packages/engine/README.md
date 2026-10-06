@@ -246,7 +246,7 @@ Detailed notes on the internal constituent and node correction systems. For high
 
 ## Tidal Constituent System
 
-Constituents are loaded from [src/constituents/data.json](src/constituents/data.json), which contains 395 entries derived from the [IHO TWCWG Constituent List](../../docs/TWCWG_Constituent_list.md).
+Constituents are loaded from [src/constituents/data.json](src/constituents/data.json), derived from the [IHO TWCWG Constituent List](../../docs/TWCWG_Constituent_list.md).
 
 Each entry has:
 
