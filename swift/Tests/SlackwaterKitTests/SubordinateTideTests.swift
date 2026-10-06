@@ -63,6 +63,20 @@ private func build(_ c: SubordinateFixture.Case) -> SubordinateTideStation {
     }
 }
 
+/// A reference whose every turn is under the prominence threshold still draws its
+/// own curve through identity offsets.
+@Test func subordinateCurveFollowsATideWithNoTurnAboveTheThreshold() {
+    let ref = Station(constituents: [HarmonicConstituent(name: "M2", amplitude: 0.004, phase: 20)])
+    let sub = SubordinateTideStation(reference: ref, highTimeOffset: 0, lowTimeOffset: 0,
+                                     height: .ratio(high: 1, low: 1))
+    let from = parseISO("2025-01-01T00:00:00Z"), to = parseISO("2025-01-01T04:00:00Z")
+    let subHeights = sub.heights(from: from, to: to), refHeights = ref.heights(from: from, to: to)
+    #expect(subHeights.count == refHeights.count)
+    for (s, r) in zip(subHeights, refHeights) {
+        #expect(abs(s.height - r.height) < 1e-5, "height at \(r.time): \(s.height) vs \(r.height)")
+    }
+}
+
 /// The curve passes through every shifted extreme and moves monotonically between
 /// neighbours, and the rate series shares its timeline and sign with the curve.
 @Test func subordinateCurveInterpolatesBetweenExtremes() throws {
