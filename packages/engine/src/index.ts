@@ -80,11 +80,7 @@ export function createTidePredictor(
       time: Date;
       offsets?: ExtremeOffsets;
     }): TimelinePoint => {
-      const endDate = new Date(time.getTime() + 10 * 60 * 1000);
-      return harmonics(harmonicsOptions)
-        .setTimeSpan(time, endDate)
-        .prediction()
-        .getTimelinePrediction({ offsets })[0];
+      return harmonics(harmonicsOptions).predictionAt(time).getTimelinePrediction({ offsets })[0];
     },
   };
 

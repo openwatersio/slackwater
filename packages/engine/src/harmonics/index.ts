@@ -23,6 +23,8 @@ export interface PredictionOptions {
 export interface Harmonics {
   setTimeSpan: (startTime: Date | number, endTime: Date | number) => Harmonics;
   prediction: (options?: PredictionOptions) => Prediction;
+  /** Prediction at exactly `time`; `prediction()` snaps its start to the timeline step. */
+  predictionAt: (time: Date) => Prediction;
 }
 
 const getDate = (time: Date | number): Date => {
@@ -110,6 +112,16 @@ const harmonicsFactory = ({
       prominenceThreshold: opts.prominenceThreshold ?? prominenceThreshold,
     });
   };
+
+  harmonics.predictionAt = (time: Date): Prediction =>
+    prediction({
+      timeline: { items: [time], hours: [0] },
+      constituents,
+      constituentModels,
+      start: time,
+      fundamentals,
+      prominenceThreshold,
+    });
 
   return Object.freeze(harmonics);
 };
