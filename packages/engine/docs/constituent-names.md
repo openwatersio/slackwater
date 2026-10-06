@@ -48,6 +48,22 @@ Scoring both names against raw records with the method below gives:
 
 MKS2 was scored at twelve gauges where it exceeds 4 cm, including Avonmouth, Newport, Bordeaux and Derby. 3N2 was scored at sixteen gauges where it exceeds 1 cm, including Liverpool (Nova Scotia), Spencers Island, Cardwell and Saint John. A phase sweep for 3N2 on 245.555 peaks at +90° at most of them and lands within 15° at the rest. So the engine defines MKS2 as the IHO line and 3N2 as its own entry, and the two TICON names resolve to different definitions.
 
+## The Sa row in Table 1
+
+Table 1 also lists Sa as 056.554, with a solar perigee term, where the IHO list and `data.json` use 056.555. The two lines have the same speed, but their arguments differ by p′, about 283°. TICON's published Sa follows 056.555:
+
+| Line tested           | Score          |
+| --------------------- | -------------- |
+| 056.555 (`data.json`) | 0.98 to 1.05   |
+| 056.554 (Table 1)     | −0.49 to −0.64 |
+
+Those are 17 gauges with long records and a large Sa: Moulmein, Karumba, Thursday Island, Cardwell, Cape Ferguson, Beihai, Haikou, Dongfang, Keling, Anchorage, Thevenard, Port Pirie, Avonmouth, Southampton, Le Havre, Boulogne and Aarhus. A phase error of Δ scores about 2·cos Δ − 1, so a 283° error should score about −0.55, and a phase sweep on 056.555 peaks at +0° at every one of them. Derby is the exception: 0.75 on 056.555 and 0.04 on 056.554, with its sweep peaking at +15°. TICON's Sa uses the engine's definition and needs no conversion. Like the MKS2 and 3N2 rows, Table 1 on its own isn't evidence of the convention TICON's analysis used.
+
+```sh
+npm run score-line -w packages/harmonic-analysis -- moulmein-906-mmr-uhslc_fd SA 056.555 056.554
+npm run score-line -w packages/harmonic-analysis -- moulmein-906-mmr-uhslc_fd SA 056.555 --sweep
+```
+
 ## Scoring a line against raw records
 
 This test checks which line a published constituent describes. It predicts a gauge's raw record from the station's other constituents. Then it measures how much of the leftover variance the constituent removes when placed on a candidate line. The tool is [`packages/harmonic-analysis/score-line.ts`](https://github.com/openwatersio/slackwater-database/blob/main/packages/harmonic-analysis/score-line.ts) in slackwater-database:
