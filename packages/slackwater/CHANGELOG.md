@@ -1,5 +1,14 @@
 # neaps
 
+## 1.0.0-beta.2
+
+### Patch Changes
+
+- [#368](https://github.com/openwatersio/slackwater/pull/368) [`36b698c`](https://github.com/openwatersio/slackwater/commit/36b698c4652b5e16f72313e5c7f0962c3f6b131e) Thanks [@clarkbw](https://github.com/clarkbw)! - `getWaterLevelAtTime` returns the water level at the requested time instead of at the preceding 10-minute mark.
+
+- Updated dependencies [[`7719470`](https://github.com/openwatersio/slackwater/commit/77194704cc28d98272e38c61d52e50ca41d0c799), [`95c1fe3`](https://github.com/openwatersio/slackwater/commit/95c1fe3978549e47063a3a28e5669ef65b958100), [`c97fa13`](https://github.com/openwatersio/slackwater/commit/c97fa1326432edd788ea358a81daa2af7480cb59), [`36b698c`](https://github.com/openwatersio/slackwater/commit/36b698c4652b5e16f72313e5c7f0962c3f6b131e)]:
+  - @slackwater/engine@1.0.0-beta.3
+
 ## 1.0.0-beta.1
 
 ### Major Changes
