@@ -98,7 +98,7 @@ for (const c of new Set(Object.values(constituents))) {
 }
 ```
 
-**Member speeds.** For every constituent with members, the sum of `factor × member.speed` should equal `speed`. When it doesn't, the nodal correction comes from the wrong lines, or `V0` and `ω` disagree. A constituent whose code isn't `z`, `f` or `y` but has no members gets no nodal correction at all.
+**Member speeds.** A compound's members should reproduce its speed: the sum of `factor × member.speed` should equal `speed`. Check constituents with code `x` and those that list `members` in `data.json`, including every compound with no `xdo`, whose members also supply `V0`. Skip the other letter codes, whose members only lend a nodal correction (N2 lists M2 but runs at its own speed). A few `x` and listed members are chosen for their correction the same way: the MA and MB variants borrow M2's, as Annex B says, 3N2 and 3L2 borrow N2's and L2's, and T3 borrows T2's. Any other mismatch means the nodal correction comes from the wrong lines, and for a compound with no `xdo` it also means `V0` and `ω` describe different frequencies. A constituent whose code isn't `z`, `f` or `y` but has no members gets no nodal correction at all.
 
 **Against the sources.** Compare `iho.ts` coefficient by coefficient with Annex A in the [PDF](../../../docs/TWCWG_Constituent_list.pdf). Text extracted from the PDF drops the radicals in M3 and code `g`; the `.md` transcription keeps them. Compare `schureman.ts` with the equations its comments cite. Where Schureman gives a mean-I approximation, such as equation 197, evaluating the exact formula at mean I (about 23.45°) should reproduce his coefficients.
 
