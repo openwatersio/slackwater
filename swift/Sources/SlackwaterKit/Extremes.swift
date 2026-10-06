@@ -1,7 +1,7 @@
 // Slackwater — MIT. Tidal extremes (high/low) finder.
 // Faithful port of @slackwater/engine src/harmonics/extremes.ts findExtremes:
 // bracket zeros of h'(t), bisect to sub-second, classify via h''(t), then filter
-// spurious extremes by prominence + minimum temporal gap (Hatyan / NOAA practice).
+// spurious extremes by prominence.
 import Foundation
 
 private let toleranceHours = 1.0 / 3600  // 1 second
@@ -21,7 +21,7 @@ private func bisect(_ a0: Double, _ b0: Double, _ fa0: Double, _ params: [Prepar
 }
 
 func findExtremes(fromHour: Double, toHour: Double, provider: ParamProvider,
-                  isDoubleTide: Bool, prominenceThreshold: Double) -> [RawExtreme] {
+                  prominenceThreshold: Double) -> [RawExtreme] {
     var params = provider(max(0, fromHour))
     var lastGen = provider.generation
     if params.isEmpty { return [] }
@@ -30,11 +30,6 @@ func findExtremes(fromHour: Double, toHour: Double, provider: ParamProvider,
     for p in params where p.w > maxSpeed { maxSpeed = p.w }
     if maxSpeed == 0 { return [] }
 
-    let tidalMinW = Double.pi / 15, tidalMaxW = 2 * Double.pi
-    var dominantA = 0.0, dominantW = 0.0
-    for p in params where p.w >= tidalMinW && p.w <= tidalMaxW && p.A > dominantA { dominantA = p.A; dominantW = p.w }
-    if dominantW == 0 { dominantW = maxSpeed }
-    let minGapH = isDoubleTide ? 0 : Double.pi / (1.85 * dominantW)
     let bracket = Double.pi / (2 * maxSpeed)
 
     var results: [RawExtreme] = []
@@ -61,48 +56,27 @@ func findExtremes(fromHour: Double, toHour: Double, provider: ParamProvider,
         tNext += bracket
     }
 
-    return filterExtremes(results, minGapH: minGapH, prominenceThreshold: prominenceThreshold)
+    return filterExtremes(results, prominenceThreshold: prominenceThreshold)
 }
 
-/// Greedy least-prominent-first removal of spurious extremes (prominence + gap).
-private func filterExtremes(_ results: [RawExtreme], minGapH: Double, prominenceThreshold: Double) -> [RawExtreme] {
-    let n = results.count
-    guard n > 2 else { return results }
-    var prv = Array(0..<n).map { $0 - 1 }
-    var nxt = Array(0..<n).map { $0 + 1 }
-
-    func evalProm(_ i: Int) -> (prom: Double, offending: Bool) {
-        let p = prv[i], nx = nxt[i]
-        if p < 0 || nx >= n { return (.infinity, false) }
-        let left = abs(results[i].level - results[p].level)
-        let right = abs(results[nx].level - results[i].level)
-        let prom = min(left, right)
-        let prevGapH = (results[i].time.timeIntervalSince1970 - results[p].time.timeIntervalSince1970) / 3600
-        let nextGapH = (results[nx].time.timeIntervalSince1970 - results[i].time.timeIntervalSince1970) / 3600
-        let tooClose = minGapH > 0 && ((prevGapH < minGapH && results[i].high == results[p].high)
-                                    || (nextGapH < minGapH && results[i].high == results[nx].high))
-        return (prom, prom < prominenceThreshold || tooClose)
+/// Remove spurious extremes, smallest first: while two neighbours differ by less
+/// than `prominenceThreshold` (metres), drop both, as NOAA CO-OPS drops successive
+/// high and low tides closer than its 0.030 m (Water Level Station Specifications,
+/// 2009, §1.3.2). Removing a low together with its high keeps highs and lows
+/// alternating. Two or fewer extremes are returned as they are.
+func filterExtremes(_ extremes: [RawExtreme], prominenceThreshold: Double) -> [RawExtreme] {
+    var kept = extremes
+    func change(_ i: Int) -> Double { abs(kept[i + 1].level - kept[i].level) }
+    // ponytail: O(n²) rescan per removal; a heap keyed on change() if long sub-threshold spans get slow
+    while kept.count > 2 {
+        var worst = 0
+        for i in 1..<(kept.count - 1) where change(i) < change(worst) { worst = i }
+        if change(worst) >= prominenceThreshold { break }
+        // Same-kind neighbours are one turn counted twice by the root finder; drop one copy.
+        let count = kept[worst].high == kept[worst + 1].high ? 1 : 2
+        kept.removeSubrange(worst..<(worst + count))
     }
-    func findWorst() -> Int {
-        var worstIdx = -1, worstProm = Double.infinity
-        var i = nxt[0]
-        while nxt[i] < n {
-            let (prom, offending) = evalProm(i)
-            if offending && prom < worstProm { worstProm = prom; worstIdx = i }
-            i = nxt[i]
-        }
-        return worstIdx
-    }
-    var worst = findWorst()
-    while worst != -1 {
-        let p = prv[worst], nx = nxt[worst]
-        nxt[p] = nx; prv[nx] = p
-        worst = findWorst()
-    }
-    var filtered: [RawExtreme] = []
-    var i = 0
-    while i < n { filtered.append(results[i]); i = nxt[i] }
-    return filtered
+    return kept
 }
 
 extension Station {
@@ -122,7 +96,7 @@ extension Station {
         let base = astro(Date(timeIntervalSince1970: startSec))
         let provider = ParamProvider(constituents: constituents, baseAstro: base, catalog: catalog,
                                      startMs: startSec * 1000, endHour: endHour)
-        return findExtremes(fromHour: 0, toHour: endHour, provider: provider,
-                            isDoubleTide: isDoubleTide, prominenceThreshold: 0.01)
+        // hatyan calc_HWLW's minimum prominence, the TypeScript default.
+        return findExtremes(fromHour: 0, toHour: endHour, provider: provider, prominenceThreshold: 0.01)
     }
 }

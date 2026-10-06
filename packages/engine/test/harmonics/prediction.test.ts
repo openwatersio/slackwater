@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import harmonics, { ExtremeOffsets, getTimeline } from "../../src/harmonics/index.js";
 import predictionFactory from "../../src/harmonics/prediction.js";
+import { filterExtremes } from "../../src/harmonics/extremes.js";
 import defaultConstituentModels from "../../src/constituents/index.js";
 import mockHarmonicConstituents from "../_mocks/constituents.js";
 
@@ -191,6 +192,114 @@ describe("prominence filtering", () => {
     expect(results.length).toBeGreaterThanOrEqual(7);
     expect(results.length).toBeLessThanOrEqual(9);
     expect(results[0].level).toBeCloseTo(-1.67283933, 4);
+  });
+
+  // Victoria-like mixed tide: small stands on the falling tide are common here.
+  const mixedTide = [
+    { name: "M2", amplitude: 0.37, phase: 20 },
+    { name: "S2", amplitude: 0.1, phase: 40 },
+    { name: "N2", amplitude: 0.09, phase: 355 },
+    { name: "K2", amplitude: 0.03, phase: 40 },
+    { name: "K1", amplitude: 0.63, phase: 260 },
+    { name: "O1", amplitude: 0.38, phase: 240 },
+    { name: "P1", amplitude: 0.19, phase: 258 },
+    { name: "Q1", amplitude: 0.07, phase: 235 },
+  ];
+  // (M4 + MS4) / M2 ≈ 0.3 meets the Doodson double-tide criterion.
+  const mixedDoubleTide = [
+    ...mixedTide,
+    { name: "M4", amplitude: 0.08, phase: 100 },
+    { name: "MS4", amplitude: 0.03, phase: 150 },
+  ];
+
+  it.each([
+    ["default threshold", mixedTide, undefined],
+    ["NOAA 0.03 m threshold", mixedTide, 0.03],
+    ["double tide", mixedDoubleTide, undefined],
+  ])("alternates highs and lows over a 19-year mixed tide (%s)", (_, constituents, threshold) => {
+    const results = harmonics({ harmonicConstituents: constituents, offset: false })
+      .setTimeSpan(new Date("2020-01-01T00:00:00Z"), new Date("2039-01-01T00:00:00Z"))
+      .prediction({ prominenceThreshold: threshold })
+      .getExtremesPrediction();
+
+    const repeats = results.filter((e, i) => i > 0 && e.high === results[i - 1].high);
+    expect(repeats).toEqual([]);
+  });
+});
+
+describe("filterExtremes", () => {
+  const extreme = (hour: number, level: number, high: boolean) => ({
+    time: new Date(hour * 3600000),
+    level,
+    high,
+    low: !high,
+    label: high ? "High" : "Low",
+  });
+  const levels = (extremes: { level: number }[]) => extremes.map((e) => e.level);
+
+  it("removes a stand on the falling tide as a low-high pair", () => {
+    const results = filterExtremes(
+      [
+        extreme(0, -0.926, false),
+        extreme(8, 0.945, true),
+        extreme(17, -0.112, false),
+        extreme(17.5, -0.109, true),
+        extreme(24, -0.72, false),
+      ],
+      0.01,
+    );
+    expect(levels(results)).toEqual([-0.926, 0.945, -0.72]);
+  });
+
+  it("keeps the higher high of a double high water with a shallow dip", () => {
+    const results = filterExtremes(
+      [
+        extreme(0, 0, false),
+        extreme(6, 1.002, true),
+        extreme(7, 0.995, false),
+        extreme(8, 1.0, true),
+        extreme(14, 0, false),
+      ],
+      0.01,
+    );
+    expect(levels(results)).toEqual([0, 1.002, 0]);
+  });
+
+  it("keeps a double high water whose dip clears the threshold", () => {
+    const input = [
+      extreme(0, 0, false),
+      extreme(6, 1.0, true),
+      extreme(7, 0.95, false),
+      extreme(8, 1.02, true),
+      extreme(14, 0, false),
+    ];
+    expect(filterExtremes(input, 0.01)).toEqual(input);
+  });
+
+  it("removes a stand at the start of the window together with the first extreme", () => {
+    const results = filterExtremes(
+      [
+        extreme(0, 1.0, true),
+        extreme(1, 0.999, false),
+        extreme(4, 1.5, true),
+        extreme(10, -1, false),
+      ],
+      0.01,
+    );
+    expect(levels(results)).toEqual([1.5, -1]);
+  });
+
+  it("drops one copy of a turn found twice", () => {
+    const results = filterExtremes(
+      [
+        extreme(0, -0.4, false),
+        extreme(7.6, 0.03, true),
+        extreme(7.6005, 0.03, true),
+        extreme(10.4, -0.008, false),
+      ],
+      0.01,
+    );
+    expect(results.map((e) => e.high)).toEqual([false, true, false]);
   });
 });
 

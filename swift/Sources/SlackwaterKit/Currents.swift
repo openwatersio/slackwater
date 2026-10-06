@@ -122,8 +122,7 @@ public struct CurrentStation: Sendable {
     /// that never reverses stays flood or ebb per its sign. Matches NOAA max_slack.
     public func maxima(from: Date, to: Date) -> [CurrentEvent] {
         let (p, endHour) = provider(from: from, to: to)
-        let raw = findExtremes(fromHour: 0, toHour: endHour, provider: p,
-                               isDoubleTide: false, prominenceThreshold: 0.01)
+        let raw = findExtremes(fromHour: 0, toHour: endHour, provider: p, prominenceThreshold: 0.01)
         return raw.map { CurrentEvent(time: $0.time, speed: $0.level,
                                       kind: $0.level >= 0 ? .maxFlood : .maxEbb) }
     }

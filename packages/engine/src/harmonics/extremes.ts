@@ -19,8 +19,6 @@ export interface Extreme {
 export interface FindExtremesOptions {
   /** Epoch milliseconds corresponding to hour=0 */
   startMs: number;
-  /** Whether station exhibits double tides (disables temporal gap filter) */
-  isDoubleTide: boolean;
   /** Minimum prominence in metres for spurious extreme filtering */
   prominenceThreshold: number;
   /** Function returning constituent params with node corrections for a given hour */
@@ -89,17 +87,8 @@ function bisect(a: number, b: number, fa: number, params: ConstituentParam[]): n
  *
  * Finds zeros of h'(t) by bracketing at intervals guaranteed to contain
  * at most one root, then bisecting to sub-second precision. Extremes are
- * classified via the sign of h''(t). Spurious extremes are filtered using
- * two criteria (modelled on Hatyan / NOAA CO-OPS practice):
- *   1. Absolute prominence floor (prominenceThreshold, metres): extremes
- *      whose min level change to either neighbor is below this threshold are
- *      removed (Hatyan default 0.01 m; NOAA CO-OPS 0.03 m).
- *   2. Minimum temporal gap: same-type adjacent extremes (H–H or L–L)
- *      closer in time than dominantPeriod / (2 × 1.85) are candidates for
- *      removal, where dominantPeriod is the highest-amplitude constituent in
- *      the main tidal band (1–30 h). Disabled for double-tide stations
- *      (Doodson criterion: (M4 + MS4) / M2 > 0.25) to preserve aggers.
- * Greedy iterative removal (least-prominent first) handles clusters correctly.
+ * classified via the sign of h''(t), and spurious ones are removed by
+ * filterExtremes.
  *
  * Since h(t) is a sum of cosines, it is valid for any t — including
  * hours before 0 or beyond endHour.
@@ -107,7 +96,7 @@ function bisect(a: number, b: number, fa: number, params: ConstituentParam[]): n
 export function findExtremes(
   fromHour: number,
   toHour: number,
-  { startMs, isDoubleTide, prominenceThreshold, getParams }: FindExtremesOptions,
+  { startMs, prominenceThreshold, getParams }: FindExtremesOptions,
 ): Extreme[] {
   const results: Extreme[] = [];
   let params = getParams(Math.max(0, fromHour));
@@ -123,26 +112,6 @@ export function findExtremes(
   // Z0 (mean water level offset) has speed=0: it shifts levels but h'(t)=0,
   // so it doesn't affect extreme timing. If it's the only constituent, no extremes exist.
   if (maxSpeed === 0) return results;
-
-  // Dominant tidal constituent: highest amplitude in the main tidal band (1–30 h).
-  // Used to set the minimum temporal gap between adjacent extremes.
-  const TIDAL_MIN_W = Math.PI / 15; // 2π/30 h ≈ 0.209 rad/h
-  const TIDAL_MAX_W = 2 * Math.PI; // 2π/1 h  ≈ 6.28  rad/h
-  let dominantA = 0;
-  let dominantW = 0;
-  for (const { A, w } of params) {
-    if (w >= TIDAL_MIN_W && w <= TIDAL_MAX_W && A > dominantA) {
-      dominantA = A;
-      dominantW = w;
-    }
-  }
-  if (dominantW === 0) dominantW = maxSpeed;
-
-  // Minimum gap between same-type adjacent extremes (H-H or L-L),
-  // generalizing Hatyan's M2_period/1.85 criterion to the dominant
-  // constituent using half the dominant period / 1.85.
-  // Set to 0 for double-tide stations so genuine aggers are preserved.
-  const minGapH = isDoubleTide ? 0 : Math.PI / (1.85 * dominantW);
 
   const bracket = Math.PI / (2 * maxSpeed);
 
@@ -182,72 +151,28 @@ export function findExtremes(
     dPrev = dNext;
   }
 
-  // Filter spurious extremes using two criteria (modelled on Hatyan / NOAA CO-OPS):
-  //   1. Absolute prominence floor: prominence < prominenceThreshold (metres).
-  //   2. Temporal gap: adjacent gap < minGapH (disabled for double-tide stations).
-  // Greedy: remove the least-prominent offending interior extreme each iteration.
-  // Uses prev/next index arrays (linked list over the results array) to avoid
-  // O(n) splice shifts on each removal.
-  const n = results.length;
-  if (n > 2) {
-    const prv = new Int32Array(n);
-    const nxt = new Int32Array(n);
-    for (let i = 0; i < n; i++) {
-      prv[i] = i - 1;
-      nxt[i] = i + 1;
-    }
+  return filterExtremes(results, prominenceThreshold);
+}
 
-    // Evaluate whether an interior element is spurious and its prominence.
-    function evalProm(i: number): { prom: number; offending: boolean } {
-      const p = prv[i],
-        nx = nxt[i];
-      if (p < 0 || nx >= n) return { prom: Infinity, offending: false };
-      const left = Math.abs(results[i].level - results[p].level);
-      const right = Math.abs(results[nx].level - results[i].level);
-      const prom = Math.min(left, right);
-      // Temporal gap applies only to same-type pairs (H-H or L-L), matching
-      // Hatyan's same-type distance criterion. H-L transitions can be short
-      // in mixed-semi regimes and are not physically spurious.
-      const prevGapH = (results[i].time.getTime() - results[p].time.getTime()) / 3600000;
-      const nextGapH = (results[nx].time.getTime() - results[i].time.getTime()) / 3600000;
-      const tooClose =
-        minGapH > 0 &&
-        ((prevGapH < minGapH && results[i].high === results[p].high) ||
-          (nextGapH < minGapH && results[i].high === results[nx].high));
-      return { prom, offending: prom < prominenceThreshold || tooClose };
+/**
+ * Remove spurious extremes, smallest first: while two neighbours differ by less
+ * than prominenceThreshold (metres), drop both, as NOAA CO-OPS drops successive
+ * high and low tides closer than its 0.030 m (Water Level Station Specifications,
+ * 2009, §1.3.2). Removing a low together with its high keeps highs and lows
+ * alternating. Two or fewer extremes are returned as they are.
+ */
+export function filterExtremes(extremes: Extreme[], prominenceThreshold: number): Extreme[] {
+  const kept = extremes.slice();
+  const change = (i: number) => Math.abs(kept[i + 1].level - kept[i].level);
+  // ponytail: O(n²) rescan per removal; a heap keyed on change() if long sub-threshold spans get slow
+  while (kept.length > 2) {
+    let worst = 0;
+    for (let i = 1; i < kept.length - 1; i++) {
+      if (change(i) < change(worst)) worst = i;
     }
-
-    // Find the worst offending interior extreme
-    function findWorst(): { idx: number; prom: number } {
-      let worstIdx = -1;
-      let worstProm = Infinity;
-      for (let i = nxt[0]; nxt[i] < n; i = nxt[i]) {
-        const { prom, offending } = evalProm(i);
-        if (offending && prom < worstProm) {
-          worstProm = prom;
-          worstIdx = i;
-        }
-      }
-      return { idx: worstIdx, prom: worstProm };
-    }
-
-    let worst = findWorst();
-    while (worst.idx !== -1) {
-      // Unlink the worst element
-      const p = prv[worst.idx],
-        nx = nxt[worst.idx];
-      nxt[p] = nx;
-      prv[nx] = p;
-      worst = findWorst();
-    }
-
-    // Compact: collect surviving elements in linked-list order
-    const filtered: Extreme[] = [];
-    for (let i = 0; i < n; i = nxt[i]) {
-      filtered.push(results[i]);
-    }
-    return filtered;
+    if (change(worst) >= prominenceThreshold) break;
+    // Same-kind neighbours are one turn counted twice by the root finder; drop one copy.
+    kept.splice(worst, kept[worst].high === kept[worst + 1].high ? 1 : 2);
   }
-
-  return results;
+  return kept;
 }
