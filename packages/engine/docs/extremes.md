@@ -6,7 +6,7 @@ This page explains how the TypeScript engine and the Swift port turn a harmonic 
 
 The predicted height is a sum of cosines, h(t) = Σ A·cos(ω·t + φ), so its first and second derivatives have closed forms. High and low waters are the roots of h'(t).
 
-`findExtremes` walks the requested window in fixed brackets, each a quarter period of the fastest constituent long: π / (2·ω_max). It evaluates h' at every bracket boundary. When h' has opposite signs at the two ends of a bracket, it bisects that bracket to within one second and classifies the root by the sign of h''(t): negative is a high, positive is a low. Z0, the mean-level offset, has zero speed, so it shifts heights without moving any root.
+`findExtremes` walks the requested window, plus 25 hours of context on each side, in fixed brackets, each a quarter period of the fastest constituent long: π / (2·ω_max). The context is a whole number of brackets, so the bracket boundaries inside the window fall where they would without it. It evaluates h' at every bracket boundary. When h' has opposite signs at the two ends of a bracket, it bisects that bracket to within one second and classifies the root by the sign of h''(t): negative is a high, positive is a low. Z0, the mean-level offset, has zero speed, so it shifts heights without moving any root.
 
 The sign test only sees an odd number of roots in a bracket. Two roots inside one bracket, such as a short stand on a rising tide, are both missed, and three are reported as one. The code comment that says h' has at most one zero crossing per quarter period is wrong, and [#362](https://github.com/openwatersio/slackwater/issues/362) tracks it. A turn missed this way is narrower than a bracket, so it tends to be shallow, but nothing guarantees it would fall below the filter threshold.
 
@@ -21,7 +21,7 @@ Fresh parameters take effect at the first bracket boundary at or after each 24-h
 What this looks like in practice:
 
 - A missed high-low pair leaves two lows or two highs next to each other. In 2025, every same-kind pair that `benchmarks/extremes.ts` finds spans one of these refreshes.
-- The same water can give different answers in different windows. At Patos Island the high of 0.72 m on 2025-10-24 at 00:35 UTC appears in a one-day or a seven-day search, but not in a search of the whole year.
+- The same water can give different answers in different windows. At Patos Island the high at 00:35 UTC on 2025-10-24 appears in a one-day or a seven-day search, but not in a search of the whole year.
 - The filter drops one copy of a turn that was counted twice (see below). It cannot restore a turn that was never found.
 
 In Swift, `ranges()` in `Ranking.swift` collapses a same-kind run to its true extreme. That covers these misses and the reordering that unequal subordinate time offsets can cause.
@@ -30,13 +30,25 @@ In Swift, `ranges()` in `Ranking.swift` collapses a same-kind run to its true ex
 
 A harmonic curve has many tiny turning points, such as stands where the tide pauses and wiggles from small shallow-water constituents. `filterExtremes` removes the ones too small to matter:
 
-1. Find the pair of neighbouring extremes with the smallest difference in height.
+1. Among neighbouring pairs that include neither the first nor the last extreme, find the one with the smallest difference in height.
 2. If that difference is below `prominenceThreshold`, remove both. If the two are the same kind (one turn the root finder counted twice), remove one of them.
-3. Repeat until every neighbouring pair differs by at least the threshold. Two or fewer extremes are returned as they are.
+3. Repeat until every such pair differs by at least the threshold.
 
-This is the same as removing the least prominent extreme together with its neighbour on its low-prominence side, where an extreme's prominence is the smaller of its height differences to its two neighbours.
+The first and last extremes are never removed. Each has one neighbour outside the list, so there is nothing to judge it against, and removing it could take the real high of a double high water whose second high lies just outside. As a result, a list of two or more extremes always keeps at least two.
+
+Away from the ends, this is the same as removing the least prominent extreme together with its neighbour on its low-prominence side, where an extreme's prominence is the smaller of its height differences to its two neighbours.
 
 Removing both members of a pair keeps highs and lows alternating, because raw turning points alternate. A small stand on a falling tide produces a low and a high a few millimetres apart. Removing only the low would leave the high stranded between the real high and the next low, often near mid-tide, where its prominence against its new neighbours is large and nothing removes it. The list would then show two highs in a row ([#357](https://github.com/openwatersio/slackwater/issues/357)). Pair removal also lets a sub-threshold run keep its true extreme: the smaller height difference always sits next to the less extreme member, so that member is the one removed.
+
+### Context beyond the window
+
+The filter judges each extreme against its neighbours, so an extreme near the edge of the requested window needs the neighbours that lie outside it. `findExtremes` therefore searches 25 hours past each end, just over a lunar day of 24.84 hours, filters that longer list, and then crops it to the window. Every extreme in the window is filtered against the same neighbours as in a longer search. A window that starts or ends inside a shallow double high reports the same high as a run of several days does. Filtered on its own, the window could lose that high or keep the lower one.
+
+The limit is a run of sub-threshold turns longer than the context, which can still filter differently from a longer search. A one-day search costs about twice as much as it would without the context, and a year-long search costs the same.
+
+### Subordinate stations
+
+A subordinate station's curve is drawn between the reference station's extremes: the TypeScript timeline maps the reference curve between neighbouring keyframes, and the Swift port draws a half-cosine between corrected extremes. Both need at least two. When every turn of the reference tide is below the threshold, the cropped list can hold fewer than two, and both ports fall back to the reference's raw turning points (`prominenceThreshold` of 0). With identity offsets, the subordinate curve then matches the reference curve. A reference with no turning points at all, such as one that is only a mean-level offset, still has nothing to interpolate between, and the TypeScript timeline throws.
 
 ### Where the rule comes from
 

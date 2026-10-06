@@ -150,9 +150,9 @@ extension CurrentStation {
     /// Events over whole UTC days covering `from...to`, each day searched on
     /// its own with `dayMargin` either side and trimmed to the day. The list
     /// for any range is therefore a concatenation of per-day lists and never
-    /// depends on the range asked for — `events(from:to:)` does: the extrema
-    /// filter skips a window holding two or fewer results, so an 8 h search
-    /// and a 24 h one can disagree on a sparse-event station. A subordinate
+    /// depends on the range asked for — `events(from:to:)` can: the extrema
+    /// search refreshes node corrections every 24 h from its own start, so two
+    /// searches can disagree at a flat turn near a refresh. A subordinate
     /// reduces these, and so can a caller holding them for many subordinates.
     public func eventsByDay(from: Date, to: Date) -> [CurrentEvent] {
         let day = 86_400.0

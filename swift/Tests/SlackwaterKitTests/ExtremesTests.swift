@@ -56,6 +56,45 @@ private func raw(_ hour: Double, _ level: Double, _ high: Bool) -> RawExtreme {
     #expect(got.map(\.level) == [0, 1.002, 0])
 }
 
+@Test func filterNeverRemovesTheFirstOrLastExtreme() {
+    let input = [raw(0, 1.0, true), raw(1, 0.999, false), raw(4, 1.5, true), raw(10, -1, false), raw(11, -0.9995, true)]
+    #expect(filterExtremes(input, prominenceThreshold: 0.01).map(\.level) == input.map(\.level))
+}
+
+@Test func filterKeepsADoubleHighsFirstHighWhenItsSecondLiesPastTheEnd() {
+    let got = filterExtremes([raw(0, 0, false), raw(6, 1.002, true), raw(7, 0.995, false)], prominenceThreshold: 0.01)
+    #expect(got.map(\.level).contains(1.002))
+}
+
+@Test func filterKeepsADoubleHighsSecondHighWhenItsFirstLiesBeforeTheStart() {
+    let got = filterExtremes([raw(7, 0.995, false), raw(8, 1.0, true), raw(14, 0, false)], prominenceThreshold: 0.01)
+    #expect(got.map(\.level).contains(1.0))
+}
+
+// M4 just over a quarter of M2 and in opposition splits every high into two with a
+// dip of a few millimetres; the faint M8 shortens the bracket enough to resolve it.
+private let doubleHigh = Station(constituents: [
+    HarmonicConstituent(name: "M2", amplitude: 1, phase: 0),
+    HarmonicConstituent(name: "M4", amplitude: 0.29, phase: 180.5),
+    HarmonicConstituent(name: "M8", amplitude: 0.001, phase: 0),
+])
+
+// On 2025-01-01 the double highs fall at 00:18 / 01:18 / 02:04 and 12:43 / 13:44 / 14:29:
+// windows that start before and after a dip, then end before and after one.
+@Test(arguments: zip(["2025-01-01T01:00:00Z", "2025-01-01T02:00:00Z", "2025-01-01T06:00:00Z", "2025-01-01T06:00:00Z"],
+                     ["2025-01-01T10:00:00Z", "2025-01-01T10:00:00Z", "2025-01-01T13:10:00Z", "2025-01-01T14:00:00Z"]))
+func extremesNearADoubleHighMatchALongerRun(start: String, end: String) {
+    let from = parseISO(start), to = parseISO(end)
+    let long = doubleHigh.extremes(from: parseISO("2024-12-31T00:00:00Z"), to: parseISO("2025-01-03T00:00:00Z"))
+        .filter { $0.time >= from && $0.time <= to }
+    let short = doubleHigh.extremes(from: from, to: to)
+    #expect(short.map(\.kind) == long.map(\.kind))
+    for (s, l) in zip(short, long) {
+        #expect(abs(s.time.timeIntervalSince1970 - l.time.timeIntervalSince1970) < 5, "time at \(l.time)")
+        #expect(abs(s.height - l.height) < 1e-4, "height at \(l.time)")
+    }
+}
+
 @Test func filterDropsOneCopyOfATurnFoundTwice() {
     let got = filterExtremes([raw(0, -0.4, false), raw(7.6, 0.03, true), raw(7.6005, 0.03, true),
                               raw(10.4, -0.008, false)], prominenceThreshold: 0.01)

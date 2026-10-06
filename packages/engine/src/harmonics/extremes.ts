@@ -82,13 +82,18 @@ function bisect(a: number, b: number, fa: number, params: ConstituentParam[]): n
   }
 }
 
+/** Hours searched beyond each end of the window, just over a lunar day (24.84 h). */
+const CONTEXT_HOURS = 25;
+
 /**
  * Find tidal extremes in [fromHour, toHour] using derivative root-finding.
  *
  * Finds zeros of h'(t) by bracketing at intervals guaranteed to contain
  * at most one root, then bisecting to sub-second precision. Extremes are
  * classified via the sign of h''(t), and spurious ones are removed by
- * filterExtremes.
+ * filterExtremes. The search runs CONTEXT_HOURS past each end of the window
+ * so every extreme in the window is filtered against its real neighbours,
+ * then the result is cropped to the window.
  *
  * Since h(t) is a sum of cosines, it is valid for any t — including
  * hours before 0 or beyond endHour.
@@ -114,11 +119,15 @@ export function findExtremes(
   if (maxSpeed === 0) return results;
 
   const bracket = Math.PI / (2 * maxSpeed);
+  // Whole brackets keep the bracket boundaries inside the window where they would be without context.
+  // ponytail: a sub-threshold run longer than the context can still filter differently from a longer search
+  const context = Math.ceil(CONTEXT_HOURS / bracket) * bracket;
+  const searchTo = toHour + context;
 
-  let tPrev = fromHour;
+  let tPrev = fromHour - context;
   let dPrev = evalHPrime(tPrev, params);
 
-  for (let tNext = tPrev + bracket; tNext <= toHour + bracket; tNext += bracket) {
+  for (let tNext = tPrev + bracket; tNext <= searchTo + bracket; tNext += bracket) {
     // Recompute node corrections for long spans
     const newParams = getParams(tPrev);
     if (newParams !== params) {
@@ -126,32 +135,33 @@ export function findExtremes(
       dPrev = evalHPrime(tPrev, params);
     }
 
-    const tBound = Math.min(tNext, toHour);
+    const tBound = Math.min(tNext, searchTo);
     const dNext = evalHPrime(tBound, params);
 
     const signChanged = dPrev !== 0 && dNext !== 0 && (dPrev > 0 ? dNext < 0 : dNext > 0);
     if (signChanged) {
       const tRoot = bisect(tPrev, tBound, dPrev, params);
+      const isHigh = evalHDoublePrime(tRoot, params) < 0;
 
-      if (tRoot >= fromHour && tRoot <= toHour) {
-        const isHigh = evalHDoublePrime(tRoot, params) < 0;
-
-        results.push({
-          time: new Date(startMs + tRoot * 60 * 60 * 1000),
-          level: evalH(tRoot, params),
-          high: isHigh,
-          low: !isHigh,
-          label: isHigh ? "High" : "Low",
-        });
-      }
+      results.push({
+        time: new Date(startMs + tRoot * 60 * 60 * 1000),
+        level: evalH(tRoot, params),
+        high: isHigh,
+        low: !isHigh,
+        label: isHigh ? "High" : "Low",
+      });
     }
 
-    if (tBound >= toHour) break;
+    if (tBound >= searchTo) break;
     tPrev = tBound;
     dPrev = dNext;
   }
 
-  return filterExtremes(results, prominenceThreshold);
+  const fromMs = startMs + fromHour * 3600000;
+  const toMs = startMs + toHour * 3600000;
+  return filterExtremes(results, prominenceThreshold).filter(
+    ({ time }) => time.getTime() >= fromMs && time.getTime() <= toMs,
+  );
 }
 
 /**
@@ -159,15 +169,16 @@ export function findExtremes(
  * than prominenceThreshold (metres), drop both, as NOAA CO-OPS drops successive
  * high and low tides closer than its 0.030 m (Water Level Station Specifications,
  * 2009, §1.3.2). Removing a low together with its high keeps highs and lows
- * alternating. Two or fewer extremes are returned as they are.
+ * alternating. The first and last extremes are never removed: their other
+ * neighbour lies outside the list, so there is nothing to judge them against.
  */
 export function filterExtremes(extremes: Extreme[], prominenceThreshold: number): Extreme[] {
   const kept = extremes.slice();
   const change = (i: number) => Math.abs(kept[i + 1].level - kept[i].level);
   // ponytail: O(n²) rescan per removal; a heap keyed on change() if long sub-threshold spans get slow
-  while (kept.length > 2) {
-    let worst = 0;
-    for (let i = 1; i < kept.length - 1; i++) {
+  while (kept.length > 3) {
+    let worst = 1;
+    for (let i = 2; i < kept.length - 2; i++) {
       if (change(i) < change(worst)) worst = i;
     }
     if (change(worst) >= prominenceThreshold) break;
