@@ -1,5 +1,11 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.5
+
+### Patch Changes
+
+- [#374](https://github.com/openwatersio/slackwater/pull/374) [`ac0f9e0`](https://github.com/openwatersio/slackwater/commit/ac0f9e07edbf132a18bc0bbff35a05d9b48ad86b) Thanks [@clarkbw](https://github.com/clarkbw)! - Locate each extreme with Illinois regula falsi instead of bisection. It needs about 4 evaluations per extreme instead of 12, which makes long extremes searches about 20% faster, and it places extremes closer to the true turn.
+
 ## 1.0.0-beta.4
 
 ### Patch Changes
