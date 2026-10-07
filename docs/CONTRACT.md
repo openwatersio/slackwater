@@ -80,7 +80,7 @@ These gates compare the Swift implementation with checked-in NOAA CO-OPS predict
 
 ## What a ranking window can claim
 
-`percentileRank` will rank anything handed to it. What the result *means* depends on the window, and the two kinds of claim a window supports do not have the same requirement.
+`percentileRank` will rank anything handed to it. What the result _means_ depends on the window, and the two kinds of claim a window supports do not have the same requirement.
 
 **A claim about level** — "the lowest low of the year", or any distance to LAT or HAT — needs the seasonal terms. Sa and Ssa raise and lower mean sea level across the year, so without them a year-long window returns two confident numbers that do not mean what the sentence would claim. Gate those on a non-zero `Sa` or `Ssa`, never on the data source.
 
@@ -95,7 +95,7 @@ Measured over `@slackwater/database`'s NOAA harmonic sets, monthly span (highest
 | Portland ME   | yes         | 1.16×        |
 | Winterport    | **no**      | 1.15×        |
 
-All four peak near the solstices and trough in September, and the stations without the annual constituent are not the weaker signal. The same holds for currents, which matters more there: only 5 of 855 NOAA current reference stations carry a non-zero `Sa` or `Ssa`, but their 25-term sets carry the declination, so a seasonal *range* question is answerable at all of them.
+All four peak near the solstices and trough in September, and the stations without the annual constituent are not the weaker signal. The same holds for currents, which matters more there: only 5 of 855 NOAA current reference stations carry a non-zero `Sa` or `Ssa`, but their 25-term sets carry the declination, so a seasonal _range_ question is answerable at all of them.
 
 A consumer that gates a range claim on the annual constituent will hide it at every station fitted from a short series — every CHS on-device fit, and about a fifth of NOAA's harmonic references. slackwater-ios shipped that mistake and reverted it (openwatersio/slackwater-ios#640, #641).
 
