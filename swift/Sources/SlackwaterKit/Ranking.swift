@@ -7,9 +7,20 @@
 // the output of `extremes()` and a "king tide" falls out as a top-percentile
 // low — including the local distortion an astronomical rule would miss.
 //
-// The window is the caller's to choose, and it is a real choice: ranking over a
-// year only means something when the constituents resolve a year. A fitted set
-// with no Sa/Ssa can speak to the fortnight and not to the season.
+// The window is the caller's to choose, and it is a real choice — but it turns
+// on WHICH claim is being made, not on the window's length alone.
+//
+// A claim about LEVEL ("the lowest low of the year", any distance to LAT or
+// HAT) needs Sa and Ssa: they carry seasonal mean sea level, and without them a
+// year-long window returns two confident numbers that do not mean what the
+// sentence would claim.
+//
+// A claim about RANGE ("when does the water run widest", "is this swing beyond
+// normal") does not. Within a month the seasonal offset lifts that month's
+// highest high and its lowest low together and cancels out of the span; what
+// widens the range across a year is the solar and declinational structure,
+// which every constituent set carries. A fitted set with no Sa/Ssa can speak to
+// the season about range and not about level. See docs/CONTRACT.md.
 import Foundation
 
 /// Two adjacent extremes of opposite kind — one rise, or one fall.
