@@ -104,6 +104,30 @@ describe("validate.bbox", () => {
   test("throws for non-numeric values", () => {
     expect(() => validate.bbox({ bbox: "a,b,c,d" })).toThrow(validate.ValidationError);
   });
+
+  test.each([
+    "-181,0,0,1",
+    "181,0,0,1",
+    "0,0,-181,1",
+    "0,0,181,1",
+    "0,-91,1,0",
+    "0,91,1,90",
+    "0,-90,1,-91",
+    "0,0,1,91",
+    "-71.2,999,-70,1000",
+    "-71.2,42,-70,41.2",
+  ])("rejects impossible bbox %s with its expected axis order", (bbox) => {
+    expect(() => validate.bbox({ bbox })).toThrow(/minLon,minLat,maxLon,maxLat/);
+  });
+
+  test.each([
+    [-180, -90, 180, 90],
+    [170, -20, -170, 20],
+    [0, 0, 0, 0],
+    [41.2, -71.2, 42, -70],
+  ])("preserves valid coordinates %j,%j,%j,%j", (...coordinates) => {
+    expect(validate.bbox({ bbox: coordinates.join(",") })).toEqual(coordinates);
+  });
 });
 
 describe("ValidationError", () => {
