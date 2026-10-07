@@ -11,6 +11,7 @@
   "changesets": [
     "extremes-alternate",
     "heap-filter-extremes",
+    "illinois-root-finding",
     "kartverket-constituents",
     "lazy-extremes-timeline",
     "rename-to-slackwater",
