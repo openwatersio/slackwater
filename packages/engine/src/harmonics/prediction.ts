@@ -94,11 +94,13 @@ function getExtremeLabel(label: "high" | "low", highLowLabels?: ExtremeLabels): 
 }
 
 interface PredictionFactoryParams {
-  timeline: Timeline;
+  timeline: () => Timeline;
   constituents: HarmonicConstituent[];
   constituentModels: Record<string, Constituent>;
   fundamentals?: Fundamentals;
   start: Date;
+  /** Last timeline step; extremes are searched over [start, end]. */
+  end: Date;
   prominenceThreshold?: number;
 }
 
@@ -111,17 +113,18 @@ function interpolate(fraction: number, a: number, b: number): number {
 }
 
 function predictionFactory({
-  timeline,
+  timeline: getTimeline,
   constituents,
   constituentModels,
   start,
+  end,
   fundamentals = iho,
   // hatyan calc_HWLW's minimum prominence; NOAA's published hi/lo keeps turns smaller still.
   prominenceThreshold = 0.01,
 }: PredictionFactoryParams): Prediction {
   const baseAstro = astro(start);
   const startMs = start.getTime();
-  const endHour = (timeline.items[timeline.items.length - 1].getTime() - startMs) / 3600000;
+  const endHour = (end.getTime() - startMs) / 3600000;
 
   /**
    * Precompute flat constituent parameters with node corrections evaluated
@@ -190,6 +193,7 @@ function predictionFactory({
   const BUFFER_HOURS = 36;
 
   function getTimelinePrediction({ offsets }: TimelinePredictionOptions = {}): TimelinePoint[] {
+    const timeline = getTimeline();
     if (!offsets) {
       const getParams = correctedParams();
       const results: TimelinePoint[] = [];
