@@ -929,12 +929,16 @@ describe("Runtime validation (without the OpenAPI validator)", () => {
     expect(response.body.errors[0].path).toBe("maxResults");
   });
 
-  test("rejects a malformed bbox", async () => {
-    const response = await request(app).get("/stations").query({ bbox: "1,2,3" });
+  test.each(["1,2,3", "-71.2,999,-70,1000", "-181,0,0,1", "-71.2,42,-70,41.2"])(
+    "rejects invalid bbox %s",
+    async (bbox) => {
+      const response = await request(app).get("/stations").query({ bbox });
 
-    expect(response.status).toBe(400);
-    expect(response.body.errors[0].path).toBe("bbox");
-  });
+      expect(response.status).toBe(400);
+      expect(response.body.errors[0].path).toBe("bbox");
+      expect(response.body.message).toMatch(/minLon,minLat,maxLon,maxLat/);
+    },
+  );
 
   test("coerces and predicts on valid input", async () => {
     const response = await request(app)

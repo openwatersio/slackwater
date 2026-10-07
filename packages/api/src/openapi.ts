@@ -202,7 +202,8 @@ export default {
           {
             name: "bbox",
             in: "query",
-            description: "Bounding box as comma-separated values: minLon,minLat,maxLon,maxLat",
+            description:
+              "Bounding box in GeoJSON order: minLon,minLat,maxLon,maxLat (longitude first). Longitudes must be within -180..180, latitudes within -90..90, and minLat <= maxLat. minLon > maxLon denotes an antimeridian crossing.",
             required: false,
             schema: {
               type: "string",
