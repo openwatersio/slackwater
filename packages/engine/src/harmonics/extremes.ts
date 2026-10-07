@@ -173,17 +173,68 @@ export function findExtremes(
  * neighbour lies outside the list, so there is nothing to judge them against.
  */
 export function filterExtremes(extremes: Extreme[], prominenceThreshold: number): Extreme[] {
-  const kept = extremes.slice();
-  const change = (i: number) => Math.abs(kept[i + 1].level - kept[i].level);
-  // ponytail: O(n²) rescan per removal; a heap keyed on change() if long sub-threshold spans get slow
-  while (kept.length > 3) {
-    let worst = 1;
-    for (let i = 2; i < kept.length - 2; i++) {
-      if (change(i) < change(worst)) worst = i;
+  const n = extremes.length;
+  const prev = Array.from({ length: n }, (_, i) => i - 1);
+  const next = Array.from({ length: n }, (_, i) => i + 1);
+  const alive = new Array<boolean>(n).fill(true);
+  let count = n;
+
+  // Min-heap of neighbour pairs [left, right], smallest change first and the earlier pair on a tie,
+  // so removals happen in the same order as rescanning the whole list each time. A pair is stale
+  // once either side is removed.
+  const heap: [number, number, number][] = [];
+  const before = (x: [number, number, number], y: [number, number, number]) =>
+    x[0] < y[0] || (x[0] === y[0] && x[1] < y[1]);
+  const push = (a: number, b: number) => {
+    // The first and last extremes never pair for removal.
+    if (a <= 0 || b >= n - 1) return;
+    heap.push([Math.abs(extremes[b].level - extremes[a].level), a, b]);
+    for (let i = heap.length - 1; i > 0;) {
+      const p = (i - 1) >> 1;
+      if (!before(heap[i], heap[p])) break;
+      [heap[i], heap[p]] = [heap[p], heap[i]];
+      i = p;
     }
-    if (change(worst) >= prominenceThreshold) break;
+  };
+  const pop = () => {
+    const top = heap[0];
+    const last = heap.pop()!;
+    if (heap.length > 0) {
+      heap[0] = last;
+      for (let i = 0; ;) {
+        const l = 2 * i + 1;
+        const r = l + 1;
+        let m = i;
+        if (l < heap.length && before(heap[l], heap[m])) m = l;
+        if (r < heap.length && before(heap[r], heap[m])) m = r;
+        if (m === i) break;
+        [heap[i], heap[m]] = [heap[m], heap[i]];
+        i = m;
+      }
+    }
+    return top;
+  };
+
+  for (let i = 0; i + 1 < n; i++) push(i, i + 1);
+  while (count > 3 && heap.length > 0) {
+    const [change, a, b] = heap[0];
+    if (!alive[a] || !alive[b]) {
+      pop();
+      continue;
+    }
+    if (change >= prominenceThreshold) break;
+    pop();
     // Same-kind neighbours are one turn counted twice by the root finder; drop one copy.
-    kept.splice(worst, kept[worst].high === kept[worst + 1].high ? 1 : 2);
+    const last = extremes[a].high === extremes[b].high ? a : b;
+    for (let i = a; i !== next[last]; i = next[i]) {
+      alive[i] = false;
+      count--;
+    }
+    const p = prev[a];
+    const q = next[last];
+    next[p] = q;
+    prev[q] = p;
+    push(p, q);
   }
-  return kept;
+  return extremes.filter((_, i) => alive[i]);
 }

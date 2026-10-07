@@ -326,6 +326,29 @@ describe("filterExtremes", () => {
     );
     expect(results.map((e) => e.high)).toEqual([false, true, false]);
   });
+
+  it("removes in the same order as rescanning for the smallest change", () => {
+    const rescan = (input: ReturnType<typeof extreme>[], threshold: number) => {
+      const kept = input.slice();
+      const change = (i: number) => Math.abs(kept[i + 1].level - kept[i].level);
+      while (kept.length > 3) {
+        let worst = 1;
+        for (let i = 2; i < kept.length - 2; i++) if (change(i) < change(worst)) worst = i;
+        if (change(worst) >= threshold) break;
+        kept.splice(worst, kept[worst].high === kept[worst + 1].high ? 1 : 2);
+      }
+      return kept;
+    };
+    // Coarse levels force ties; random kinds force same-kind neighbours.
+    let seed = 1;
+    const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    for (let run = 0; run < 500; run++) {
+      const input = Array.from({ length: 2 + Math.floor(random() * 40) }, (_, i) =>
+        extreme(i, Math.round(random() * 20) / 100, random() < 0.5),
+      );
+      expect(filterExtremes(input, 0.05)).toEqual(rescan(input, 0.05));
+    }
+  });
 });
 
 describe("extremes at the edges of the window", () => {
