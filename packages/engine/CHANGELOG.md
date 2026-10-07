@@ -1,5 +1,13 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.4
+
+### Patch Changes
+
+- [#373](https://github.com/openwatersio/slackwater/pull/373) [`b70f1c6`](https://github.com/openwatersio/slackwater/commit/b70f1c634fbed88cc6a937d812caf8bf1ebf3250) Thanks [@clarkbw](https://github.com/clarkbw)! - Filter spurious extremes with a heap instead of rescanning the list after every removal, so a multi-year search over a station with many small turns no longer slows quadratically.
+
+- [#373](https://github.com/openwatersio/slackwater/pull/373) [`8faa6a8`](https://github.com/openwatersio/slackwater/commit/8faa6a88c931989f1dc49b72c9c9c2c4c9e92e65) Thanks [@clarkbw](https://github.com/clarkbw)! - Find extremes without building the prediction timeline, so a 19-year extremes search no longer allocates a million unused timestamps.
+
 ## 1.0.0-beta.3
 
 ### Patch Changes
