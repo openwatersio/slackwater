@@ -25,7 +25,7 @@ export interface FindExtremesOptions {
   getParams: (hour: number) => ConstituentParam[];
 }
 
-/** Tolerance for bisection root-finding: 1 second in hours */
+/** Tolerance for root-finding: 1 second in hours */
 const TOLERANCE_HOURS = 1 / 3600;
 
 /** Evaluate h(t) = Σ Aᵢ·cos(ωᵢ·t + φᵢ) */
@@ -59,25 +59,40 @@ function evalHDoublePrime(t: number, params: ConstituentParam[]): number {
 }
 
 /**
- * Find root of h'(t) in [a, b] where h'(a) and h'(b) have opposite signs.
- * Uses bisection for guaranteed convergence to within TOLERANCE_HOURS.
+ * Find the root of h'(t) in [a, b], where fa = h'(a) and fb = h'(b) have
+ * opposite signs, to within TOLERANCE_HOURS.
+ *
+ * Illinois regula falsi: each step interpolates linearly between the bracket
+ * ends and keeps the side whose sign differs. Halving the value at an end that
+ * survives twice stops it from sticking, so both ends close in. It needs about
+ * 4 evaluations of h' per root where bisection needs 12, and the root always
+ * stays bracketed.
  */
-function bisect(a: number, b: number, fa: number, params: ConstituentParam[]): number {
-  // Bisection halves the interval each iteration; convergence is guaranteed.
-  // A 3-hour bracket reaches 1-second tolerance in ~13 iterations.
-  while (true) {
-    const mid = (a + b) / 2;
-    if (b - a < TOLERANCE_HOURS) return mid;
+function findRoot(
+  a: number,
+  b: number,
+  fa: number,
+  fb: number,
+  params: ConstituentParam[],
+): number {
+  let kept = 0; // -1 when b was kept by the last step, 1 when a was
+  for (;;) {
+    const t = (a * fb - b * fa) / (fb - fa);
+    if (b - a < TOLERANCE_HOURS) return t;
 
-    const fMid = evalHPrime(mid, params);
-    if (fMid === 0) return mid;
+    const ft = evalHPrime(t, params);
+    if (ft === 0) return t;
 
-    const sameSign = fa > 0 ? fMid > 0 : fMid < 0;
-    if (sameSign) {
-      a = mid;
-      fa = fMid;
+    if (fa > 0 ? ft > 0 : ft < 0) {
+      a = t;
+      fa = ft;
+      if (kept === -1) fb /= 2;
+      kept = -1;
     } else {
-      b = mid;
+      b = t;
+      fb = ft;
+      if (kept === 1) fa /= 2;
+      kept = 1;
     }
   }
 }
@@ -89,7 +104,7 @@ const CONTEXT_HOURS = 25;
  * Find tidal extremes in [fromHour, toHour] using derivative root-finding.
  *
  * Finds zeros of h'(t) by bracketing at intervals guaranteed to contain
- * at most one root, then bisecting to sub-second precision. Extremes are
+ * at most one root, then narrowing each to sub-second precision. Extremes are
  * classified via the sign of h''(t), and spurious ones are removed by
  * filterExtremes. The search runs CONTEXT_HOURS past each end of the window
  * so every extreme in the window is filtered against its real neighbours,
@@ -140,7 +155,7 @@ export function findExtremes(
 
     const signChanged = dPrev !== 0 && dNext !== 0 && (dPrev > 0 ? dNext < 0 : dNext > 0);
     if (signChanged) {
-      const tRoot = bisect(tPrev, tBound, dPrev, params);
+      const tRoot = findRoot(tPrev, tBound, dPrev, dNext, params);
       const isHigh = evalHDoublePrime(tRoot, params) < 0;
 
       results.push({

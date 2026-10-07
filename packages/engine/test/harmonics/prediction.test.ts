@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import harmonics, { ExtremeOffsets, getTimeline } from "../../src/harmonics/index.js";
 import predictionFactory from "../../src/harmonics/prediction.js";
-import { filterExtremes } from "../../src/harmonics/extremes.js";
+import { filterExtremes, findExtremes } from "../../src/harmonics/extremes.js";
 import { createTidePredictor } from "../../src/index.js";
 import defaultConstituentModels from "../../src/constituents/index.js";
 import mockHarmonicConstituents from "../_mocks/constituents.js";
@@ -387,6 +387,26 @@ describe("extremes at the edges of the window", () => {
 });
 
 describe("extremes edge cases", () => {
+  it("places every extreme within a second of where h' changes sign", () => {
+    // A strong M4 skews the curve, so plain regula falsi would stall at one end of each bracket.
+    const params = [
+      { A: 1, w: 0.5059, phi: 0.3 },
+      { A: 0.4, w: 1.0118, phi: 2.1 },
+    ];
+    const dh = (t: number) =>
+      params.reduce((sum, { A, w, phi }) => sum - A * w * Math.sin(w * t + phi), 0);
+    const extremes = findExtremes(0, 24 * 30, {
+      startMs: 0,
+      prominenceThreshold: 0,
+      getParams: () => params,
+    });
+    expect(extremes.length).toBeGreaterThan(100);
+    for (const { time } of extremes) {
+      const t = time.getTime() / 3600000;
+      expect(Math.sign(dh(t - 1 / 3600))).toBe(-Math.sign(dh(t + 1 / 3600)));
+    }
+  });
+
   it("returns empty for zero-amplitude constituents", () => {
     const timeline = getTimeline(startDate, endDate);
     const constituents = [{ name: "M2", amplitude: 0, phase: 0 }];

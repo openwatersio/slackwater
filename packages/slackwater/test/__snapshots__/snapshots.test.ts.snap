@@ -22,7 +22,7 @@ exports[`prediction snapshots > noaa/1610367 1`] = `
     {
       "high": false,
       "level": 0.006,
-      "time": "2025-01-15T22:11:36.000Z",
+      "time": "2025-01-15T22:11:37.000Z",
     },
     {
       "high": true,
@@ -37,7 +37,7 @@ exports[`prediction snapshots > noaa/1610367 1`] = `
     {
       "high": true,
       "level": 0.484,
-      "time": "2025-01-16T15:33:37.000Z",
+      "time": "2025-01-16T15:33:38.000Z",
     },
     {
       "high": false,
@@ -91,7 +91,7 @@ exports[`prediction snapshots > noaa/1612340 1`] = `
     {
       "high": false,
       "level": 0.007,
-      "time": "2025-01-15T22:22:36.000Z",
+      "time": "2025-01-15T22:22:37.000Z",
     },
     {
       "high": true,
@@ -106,7 +106,7 @@ exports[`prediction snapshots > noaa/1612340 1`] = `
     {
       "high": true,
       "level": 0.628,
-      "time": "2025-01-16T15:49:37.000Z",
+      "time": "2025-01-16T15:49:38.000Z",
     },
     {
       "high": false,
@@ -150,7 +150,7 @@ exports[`prediction snapshots > noaa/6835001 1`] = `
     {
       "high": false,
       "level": 0.182,
-      "time": "2025-01-15T13:32:20.000Z",
+      "time": "2025-01-15T13:32:21.000Z",
     },
     {
       "high": true,
@@ -165,7 +165,7 @@ exports[`prediction snapshots > noaa/6835001 1`] = `
     {
       "high": true,
       "level": 0.965,
-      "time": "2025-01-17T04:12:23.000Z",
+      "time": "2025-01-17T04:12:24.000Z",
     },
     {
       "high": false,
@@ -209,12 +209,12 @@ exports[`prediction snapshots > noaa/8410140 1`] = `
     {
       "high": false,
       "level": 0.225,
-      "time": "2025-01-16T11:19:35.000Z",
+      "time": "2025-01-16T11:19:34.000Z",
     },
     {
       "high": true,
       "level": 5.957,
-      "time": "2025-01-16T17:20:19.000Z",
+      "time": "2025-01-16T17:20:18.000Z",
     },
     {
       "high": false,
@@ -224,7 +224,7 @@ exports[`prediction snapshots > noaa/8410140 1`] = `
     {
       "high": true,
       "level": 5.545,
-      "time": "2025-01-17T05:48:08.000Z",
+      "time": "2025-01-17T05:48:09.000Z",
     },
     {
       "high": false,
@@ -258,7 +258,7 @@ exports[`prediction snapshots > noaa/8518750 1`] = `
     {
       "high": true,
       "level": 1.546,
-      "time": "2025-01-15T13:59:20.000Z",
+      "time": "2025-01-15T13:59:21.000Z",
     },
     {
       "high": false,
@@ -283,7 +283,7 @@ exports[`prediction snapshots > noaa/8518750 1`] = `
     {
       "high": false,
       "level": -0.162,
-      "time": "2025-01-16T21:12:47.000Z",
+      "time": "2025-01-16T21:12:48.000Z",
     },
     {
       "high": true,
@@ -322,7 +322,7 @@ exports[`prediction snapshots > noaa/8723970 1`] = `
     {
       "high": false,
       "level": -0.073,
-      "time": "2025-01-15T12:17:54.000Z",
+      "time": "2025-01-15T12:17:55.000Z",
     },
     {
       "high": true,
@@ -342,12 +342,12 @@ exports[`prediction snapshots > noaa/8723970 1`] = `
     {
       "high": false,
       "level": -0.055,
-      "time": "2025-01-16T12:58:44.000Z",
+      "time": "2025-01-16T12:58:43.000Z",
     },
     {
       "high": true,
       "level": 0.13,
-      "time": "2025-01-16T22:04:43.000Z",
+      "time": "2025-01-16T22:04:42.000Z",
     },
     {
       "high": false,
@@ -420,7 +420,7 @@ exports[`prediction snapshots > noaa/8771450 1`] = `
     {
       "high": true,
       "level": 0.28,
-      "time": "2025-01-15T00:35:58.000Z",
+      "time": "2025-01-15T00:35:59.000Z",
     },
     {
       "high": false,
@@ -450,7 +450,7 @@ exports[`prediction snapshots > noaa/8771450 1`] = `
     {
       "high": true,
       "level": 0.252,
-      "time": "2025-01-16T09:01:34.000Z",
+      "time": "2025-01-16T09:01:35.000Z",
     },
     {
       "high": false,
@@ -489,7 +489,7 @@ exports[`prediction snapshots > noaa/9414290 1`] = `
     {
       "high": false,
       "level": -0.342,
-      "time": "2025-01-15T01:56:15.000Z",
+      "time": "2025-01-15T01:56:16.000Z",
     },
     {
       "high": true,
@@ -499,17 +499,17 @@ exports[`prediction snapshots > noaa/9414290 1`] = `
     {
       "high": false,
       "level": 0.872,
-      "time": "2025-01-15T13:49:34.000Z",
+      "time": "2025-01-15T13:49:33.000Z",
     },
     {
       "high": true,
       "level": 1.901,
-      "time": "2025-01-15T19:44:05.000Z",
+      "time": "2025-01-15T19:44:04.000Z",
     },
     {
       "high": false,
       "level": -0.262,
-      "time": "2025-01-16T02:33:55.000Z",
+      "time": "2025-01-16T02:33:56.000Z",
     },
     {
       "high": true,
@@ -519,7 +519,7 @@ exports[`prediction snapshots > noaa/9414290 1`] = `
     {
       "high": false,
       "level": 0.825,
-      "time": "2025-01-16T14:37:15.000Z",
+      "time": "2025-01-16T14:37:16.000Z",
     },
     {
       "high": true,
@@ -539,12 +539,12 @@ exports[`prediction snapshots > noaa/9414290 1`] = `
     {
       "high": false,
       "level": 0.78,
-      "time": "2025-01-17T15:26:14.000Z",
+      "time": "2025-01-17T15:26:13.000Z",
     },
     {
       "high": true,
       "level": 1.619,
-      "time": "2025-01-17T21:10:26.000Z",
+      "time": "2025-01-17T21:10:27.000Z",
     },
   ],
   "name": "San Francisco (Golden Gate)",
@@ -558,7 +558,7 @@ exports[`prediction snapshots > noaa/9447130 1`] = `
     {
       "high": true,
       "level": 3.234,
-      "time": "2025-01-15T00:06:03.000Z",
+      "time": "2025-01-15T00:06:02.000Z",
     },
     {
       "high": false,
@@ -573,12 +573,12 @@ exports[`prediction snapshots > noaa/9447130 1`] = `
     {
       "high": false,
       "level": 2.173,
-      "time": "2025-01-15T20:26:14.000Z",
+      "time": "2025-01-15T20:26:13.000Z",
     },
     {
       "high": true,
       "level": 3.12,
-      "time": "2025-01-16T00:56:47.000Z",
+      "time": "2025-01-16T00:56:48.000Z",
     },
     {
       "high": false,
@@ -603,7 +603,7 @@ exports[`prediction snapshots > noaa/9447130 1`] = `
     {
       "high": false,
       "level": -0.185,
-      "time": "2025-01-17T08:29:31.000Z",
+      "time": "2025-01-17T08:29:32.000Z",
     },
     {
       "high": true,
@@ -637,7 +637,7 @@ exports[`prediction snapshots > noaa/9451600 1`] = `
     {
       "high": false,
       "level": 1.072,
-      "time": "2025-01-15T16:27:31.000Z",
+      "time": "2025-01-15T16:27:30.000Z",
     },
     {
       "high": true,
@@ -647,7 +647,7 @@ exports[`prediction snapshots > noaa/9451600 1`] = `
     {
       "high": false,
       "level": -0.39,
-      "time": "2025-01-16T05:05:08.000Z",
+      "time": "2025-01-16T05:05:09.000Z",
     },
     {
       "high": true,
@@ -800,7 +800,7 @@ exports[`prediction snapshots > ticon/bournemouth-bou-gbr-bodc 1`] = `
     {
       "high": false,
       "level": 0.455,
-      "time": "2025-01-16T17:07:13.000Z",
+      "time": "2025-01-16T17:07:14.000Z",
     },
     {
       "high": true,
@@ -840,7 +840,7 @@ exports[`prediction snapshots > ticon/bournemouth-bou-gbr-bodc 1`] = `
     {
       "high": false,
       "level": 0.545,
-      "time": "2025-01-17T17:45:47.000Z",
+      "time": "2025-01-17T17:45:46.000Z",
     },
     {
       "high": true,
@@ -864,7 +864,7 @@ exports[`prediction snapshots > ticon/buenos_aires-285a-arg-uhslc_rq 1`] = `
     {
       "high": true,
       "level": 0.893,
-      "time": "2025-01-15T10:24:14.000Z",
+      "time": "2025-01-15T10:24:15.000Z",
     },
     {
       "high": false,
@@ -923,7 +923,7 @@ exports[`prediction snapshots > ticon/cabo_san_lucas-034-mex-uhslc_fd 1`] = `
     {
       "high": true,
       "level": 1.437,
-      "time": "2025-01-15T04:56:06.000Z",
+      "time": "2025-01-15T04:56:05.000Z",
     },
     {
       "high": false,
@@ -1149,7 +1149,7 @@ exports[`prediction snapshots > ticon/sydney_fort_denison-60370-aus-bom 1`] = `
     {
       "high": true,
       "level": 1.279,
-      "time": "2025-01-15T11:49:57.000Z",
+      "time": "2025-01-15T11:49:58.000Z",
     },
     {
       "high": false,
@@ -1208,7 +1208,7 @@ exports[`prediction snapshots > ticon/vancouver_bc-7735-can-meds 1`] = `
     {
       "high": true,
       "level": 3.663,
-      "time": "2025-01-15T00:47:00.000Z",
+      "time": "2025-01-15T00:46:59.000Z",
     },
     {
       "high": false,
@@ -1253,7 +1253,7 @@ exports[`prediction snapshots > ticon/vancouver_bc-7735-can-meds 1`] = `
     {
       "high": false,
       "level": 0.568,
-      "time": "2025-01-17T09:27:07.000Z",
+      "time": "2025-01-17T09:27:06.000Z",
     },
     {
       "high": true,
