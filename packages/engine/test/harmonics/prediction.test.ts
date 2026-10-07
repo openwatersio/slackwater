@@ -28,10 +28,12 @@ describe("harmonic prediction", () => {
     expect(lastResult?.level).toBeCloseTo(2.83490872, 3);
   });
 
-  it("keeps the span it was created with after a later setTimeSpan", () => {
+  it("keeps the span it was created with after a later setTimeSpan or a mutated Date", () => {
     const harmonic = harmonics({ harmonicConstituents: mockHarmonicConstituents, offset: false });
-    const testPrediction = harmonic.setTimeSpan(startDate, endDate).prediction();
+    const end = new Date(endDate);
+    const testPrediction = harmonic.setTimeSpan(startDate, end).prediction();
     harmonic.setTimeSpan(extremesEndDate, new Date("2019-09-04T00:00:00Z"));
+    end.setUTCHours(12);
     const results = testPrediction.getTimelinePrediction();
     expect(results[0].time).toEqual(startDate);
     expect(results[results.length - 1].time).toEqual(endDate);

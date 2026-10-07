@@ -107,7 +107,8 @@ const harmonicsFactory = ({
   harmonics.prediction = (options?: PredictionOptions): Prediction => {
     const opts = typeof options !== "undefined" ? options : { timeFidelity: 10 * 60 };
     const seconds = opts.timeFidelity ?? 10 * 60;
-    const [from, to] = [start, end];
+    // Copies, so a later setTimeSpan or a caller mutating its Dates can't move the span.
+    const [from, to] = [new Date(start), new Date(end)];
     return prediction({
       // Built only on demand: extremes need just the span, and a 19-year timeline is a million Dates.
       timeline: () => getTimeline(from, to, seconds),
