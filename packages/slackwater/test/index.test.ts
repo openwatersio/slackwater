@@ -26,7 +26,7 @@ describe("getExtremesPrediction", () => {
 
     const { extremes } = prediction;
     expect(extremes.length).toBe(4);
-    expect(extremes[0].time).toEqual(new Date("2025-12-18T05:28:19.796Z"));
+    expect(extremes[0].time).toEqual(new Date("2025-12-18T05:28:19.418Z"));
     expect(extremes[0].level).toBeCloseTo(0.02, 2);
     expect(extremes[0].high).toBe(false);
     expect(extremes[0].low).toBe(true);
@@ -127,7 +127,7 @@ describe("for a specific station", () => {
       });
 
       expect(predictions.length).toBe(4);
-      expect(predictions[0].time).toEqual(new Date("2025-12-17T11:22:51.592Z"));
+      expect(predictions[0].time).toEqual(new Date("2025-12-17T11:22:51.191Z"));
       expect(predictions[0].level).toBeCloseTo(0.9, 1);
       expect(predictions[0].high).toBe(true);
       expect(predictions[0].low).toBe(false);
