@@ -28,6 +28,17 @@ describe("harmonic prediction", () => {
     expect(lastResult?.level).toBeCloseTo(2.83490872, 3);
   });
 
+  it("keeps the span it was created with after a later setTimeSpan or a mutated Date", () => {
+    const harmonic = harmonics({ harmonicConstituents: mockHarmonicConstituents, offset: false });
+    const end = new Date(endDate);
+    const testPrediction = harmonic.setTimeSpan(startDate, end).prediction();
+    harmonic.setTimeSpan(extremesEndDate, new Date("2019-09-04T00:00:00Z"));
+    end.setUTCHours(12);
+    const results = testPrediction.getTimelinePrediction();
+    expect(results[0].time).toEqual(startDate);
+    expect(results[results.length - 1].time).toEqual(endDate);
+  });
+
   it("it finds high and low tides", () => {
     const results = harmonics({
       harmonicConstituents: mockHarmonicConstituents,
@@ -81,10 +92,11 @@ describe("unknown constituent handling", () => {
     ];
 
     const prediction = predictionFactory({
-      timeline,
+      timeline: () => timeline,
       constituents,
       constituentModels: defaultConstituentModels,
       start: startDate,
+      end: timeline.items[timeline.items.length - 1],
     });
 
     // Should not throw — unknown constituent is silently skipped in prepare()
@@ -316,6 +328,29 @@ describe("filterExtremes", () => {
     );
     expect(results.map((e) => e.high)).toEqual([false, true, false]);
   });
+
+  it("removes in the same order as rescanning for the smallest change", () => {
+    const rescan = (input: ReturnType<typeof extreme>[], threshold: number) => {
+      const kept = input.slice();
+      const change = (i: number) => Math.abs(kept[i + 1].level - kept[i].level);
+      while (kept.length > 3) {
+        let worst = 1;
+        for (let i = 2; i < kept.length - 2; i++) if (change(i) < change(worst)) worst = i;
+        if (change(worst) >= threshold) break;
+        kept.splice(worst, kept[worst].high === kept[worst + 1].high ? 1 : 2);
+      }
+      return kept;
+    };
+    // Coarse levels force ties; random kinds force same-kind neighbours.
+    let seed = 1;
+    const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    for (let run = 0; run < 500; run++) {
+      const input = Array.from({ length: 2 + Math.floor(random() * 40) }, (_, i) =>
+        extreme(i, Math.round(random() * 20) / 100, random() < 0.5),
+      );
+      expect(filterExtremes(input, 0.05)).toEqual(rescan(input, 0.05));
+    }
+  });
 });
 
 describe("extremes at the edges of the window", () => {
@@ -356,10 +391,11 @@ describe("extremes edge cases", () => {
     const timeline = getTimeline(startDate, endDate);
     const constituents = [{ name: "M2", amplitude: 0, phase: 0 }];
     const prediction = predictionFactory({
-      timeline,
+      timeline: () => timeline,
       constituents,
       constituentModels: defaultConstituentModels,
       start: startDate,
+      end: timeline.items[timeline.items.length - 1],
     });
     expect(prediction.getExtremesPrediction()).toEqual([]);
   });
@@ -369,10 +405,11 @@ describe("extremes edge cases", () => {
     const timeline = getTimeline(startDate, endDate);
     const constituents = [{ name: "Z0", amplitude: 1.5, phase: 0 }];
     const prediction = predictionFactory({
-      timeline,
+      timeline: () => timeline,
       constituents,
       constituentModels: defaultConstituentModels,
       start: startDate,
+      end: timeline.items[timeline.items.length - 1],
     });
     expect(prediction.getExtremesPrediction()).toEqual([]);
   });

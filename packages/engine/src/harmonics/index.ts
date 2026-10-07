@@ -37,10 +37,14 @@ const getDate = (time: Date | number): Date => {
   throw new Error("Invalid date format, should be a Date object, or timestamp");
 };
 
+/** Snap a time to a multiple of `seconds`, in epoch seconds. */
+const snap = (time: Date, seconds: number, round: (x: number) => number) =>
+  round(time.getTime() / 1000 / seconds) * seconds;
+
 const getTimeline = (start: Date, end: Date, seconds: number = 10 * 60) => {
   const items: Date[] = [];
-  const endTime = Math.ceil(end.getTime() / 1000 / seconds) * seconds;
-  const startTime = Math.floor(start.getTime() / 1000 / seconds) * seconds;
+  const endTime = snap(end, seconds, Math.ceil);
+  const startTime = snap(start, seconds, Math.floor);
   let lastTime = startTime;
   const hours: number[] = [];
   while (lastTime <= endTime) {
@@ -102,12 +106,16 @@ const harmonicsFactory = ({
 
   harmonics.prediction = (options?: PredictionOptions): Prediction => {
     const opts = typeof options !== "undefined" ? options : { timeFidelity: 10 * 60 };
-    const timeline = getTimeline(start, end, opts.timeFidelity);
+    const seconds = opts.timeFidelity ?? 10 * 60;
+    // Copies, so a later setTimeSpan or a caller mutating its Dates can't move the span.
+    const [from, to] = [new Date(start), new Date(end)];
     return prediction({
-      timeline,
+      // Built only on demand: extremes need just the span, and a 19-year timeline is a million Dates.
+      timeline: () => getTimeline(from, to, seconds),
       constituents,
       constituentModels,
-      start: timeline.items[0] ?? start,
+      start: new Date(snap(from, seconds, Math.floor) * 1000),
+      end: new Date(snap(to, seconds, Math.ceil) * 1000),
       fundamentals,
       prominenceThreshold: opts.prominenceThreshold ?? prominenceThreshold,
     });
@@ -115,10 +123,11 @@ const harmonicsFactory = ({
 
   harmonics.predictionAt = (time: Date): Prediction =>
     prediction({
-      timeline: { items: [time], hours: [0] },
+      timeline: () => ({ items: [time], hours: [0] }),
       constituents,
       constituentModels,
       start: time,
+      end: time,
       fundamentals,
       prominenceThreshold,
     });
