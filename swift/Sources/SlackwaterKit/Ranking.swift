@@ -18,9 +18,9 @@
 // A claim about RANGE ("when does the water run widest", "is this swing beyond
 // normal") does not. Within a month the seasonal offset lifts that month's
 // highest high and its lowest low together and cancels out of the span; what
-// widens the range across a year is the solar and declinational structure,
-// which every constituent set carries. A fitted set with no Sa/Ssa can speak to
-// the season about range and not about level. See docs/CONTRACT.md.
+// widens the range across a year is the solar and declinational structure in the
+// fitted basis. A set with no Sa/Ssa can speak to the season about range when
+// that structure is present, and not about level. See docs/CONTRACT.md.
 import Foundation
 
 /// Two adjacent extremes of opposite kind — one rise, or one fall.

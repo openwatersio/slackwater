@@ -84,7 +84,7 @@ These gates compare the Swift implementation with checked-in NOAA CO-OPS predict
 
 **A claim about level** — "the lowest low of the year", or any distance to LAT or HAT — needs the seasonal terms. Sa and Ssa raise and lower mean sea level across the year, so without them a year-long window returns two confident numbers that do not mean what the sentence would claim. Gate those on a non-zero `Sa` or `Ssa`, never on the data source.
 
-**A claim about range** — "when does the water here run widest", "is this swing beyond normal" — does not. Within a single month the seasonal offset lifts the month's highest high and its lowest low together, so it cancels out of the span. What widens the range across a year is the solar and declinational structure, which every constituent set carries.
+**A claim about range** — "when does the water here run widest", "is this swing beyond normal" — does not inherently require Sa/Ssa. For a monthly span, the seasonal offset is often nearly common to the month's extrema, while the seasonal pattern primarily comes from the solar and declinational structure present in the fitted basis.
 
 Measured over `@slackwater/database`'s NOAA harmonic sets, monthly span (highest high − lowest low) across 2026:
 
