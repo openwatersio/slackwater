@@ -8,7 +8,7 @@ Slackwater is a TypeScript tide prediction engine split into multiple `packages/
 
 1. **`@slackwater/engine`** - Core harmonic calculation engine (astronomy coefficients, tidal constituents, node corrections)
 2. **`slackwater`** - User-facing API that wraps the predictor and integrates with `@slackwater/database` for station lookups
-3. **`@slackwater/api`** - HTTP JSON API server built with Express, provides REST endpoints for tide predictions with OpenAPI validation
+3. **`@slackwater/api`** - HTTP JSON API server built with Express, provides REST endpoints for tide and tidal current predictions with OpenAPI validation
 4. **`@slackwater/cli`** - Command line interface built with Commander, distributed as npm package, Homebrew formula, and standalone SEA binaries
 
 ## Critical Architecture Patterns
@@ -41,12 +41,12 @@ Tidal currents reuse the harmonic machinery with the result read as signed veloc
 
 ### @slackwater/api Architecture
 
-The API package (`packages/api`) exposes tide predictions via Express HTTP endpoints. Key design patterns:
+The API package (`packages/api`) exposes tide and tidal current predictions via Express HTTP endpoints. Key design patterns:
 
 - **Routes** (`src/routes.ts`) - Handles Express request/response for all endpoints
 - **OpenAPI specification** (`src/openapi.ts`) - Full 3.0.3 schema with validation middleware
 - **Request validation** - Uses `express-openapi-validator` to enforce OpenAPI schema for all requests/responses
-- **Wrapper integration** - Calls `slackwater` package functions (`getExtremesPrediction`, `getTimelinePrediction`, `findStation`, `stationsNear`) to perform predictions
+- **Wrapper integration** - Calls `slackwater` package functions (`getExtremesPrediction`, `getTimelinePrediction`, `findStation`, `stationsNear`, and `findCurrentStation`, `parseCurrentBin`, `currentStationUnavailable` for currents) to perform predictions
 
 **Endpoints:**
 
@@ -59,22 +59,30 @@ The API package (`packages/api`) exposes tide predictions via Express HTTP endpo
 - `GET /stations/:source/:id/extremes` - Get extremes for a specific station
 - `GET /stations/:source/:id/timeline` - Get timeline for a specific station
 
-**Prefix mounting:** `createApp` accepts a `prefix` option (default: `/tides`) that controls the URL path where routes are mounted. The OpenAPI spec and validator are automatically configured for the prefix.
+**Current endpoints** (a sibling route group, `/currents` by default):
+
+- `GET /currents/events`, `GET /currents/timeline` - Current events (slack, max flood, max ebb) or signed speed timeline near coordinates
+- `GET /currents/stations`, `GET /currents/stations/:source/:id[/events|/timeline]` - Current station lookup and per-station predictions
+
+Current routes live in `src/currents.ts` with their own spec (`currentsOpenapi` in `src/openapi.ts`, sharing the tide spec's parameters and schemas). `src/router.ts` gives both route groups the same JSON parsing, `/` and `/openapi.json` routes, and error handler. A station ID without a bin is the station's primary bin; `@N` selects bin N (`noaa/EPT0003@11`). Listings show each station once with its `bins`. Bin parsing and the rule for which stations can be served come from `slackwater` (`parseCurrentBin`, `currentStationUnavailable`). Stations whose predictions can't be served (CHS, whose terms forbid redistribution, and records with no model) are flagged `predictions: false` in every listing mode and refused by the prediction endpoints (451 for CHS, 404 for no model). The location endpoints look up stations through `@slackwater/database` directly rather than `nearestCurrentStation`: they skip stations with no model, but a CHS station that is nearest still decides and is refused with 451, so they never answer for a different channel farther away. The curated CHS and Boundary Pass records have no source prefix, so single-segment `/currents/stations/:id` routes serve them. The tide `/extremes` and `/timeline` likewise skip tide stations with no harmonic constituents or offsets, which covers the CHS ports.
+
+**Prefix mounting:** `createApp` mounts the tide routes at `prefix` (default: `/tides`) and the current routes at `currentsPrefix` (default: `/currents`). Each group's OpenAPI document sets `servers` to wherever it is mounted.
 
 ```typescript
 // Standalone server with default /tides prefix
 import { createApp } from "@slackwater/api";
-const app = createApp(); // routes at /tides/extremes, /tides/stations, etc.
+const app = createApp(); // /tides/extremes, /tides/stations, ... and /currents/events, ...
 app.listen(3000);
 
 // Mount at root
-const app = createApp({ prefix: "/" }); // routes at /extremes, /stations, etc.
+const app = createApp({ prefix: "/" }); // /extremes, /stations, ... and /currents/events, ...
 
 // Mount routes into an existing Express app
-import { createRoutes } from "@slackwater/api";
+import { createRoutes, createCurrentRoutes } from "@slackwater/api";
 import express from "express";
 const app = express();
-app.use("/api", createRoutes({ prefix: "/api" }));
+app.use("/api/tides", createRoutes());
+app.use("/api/currents", createCurrentRoutes());
 ```
 
 ### @slackwater/cli Architecture
