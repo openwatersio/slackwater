@@ -36,8 +36,9 @@ export function createApp({
   // Express matches paths case-insensitively and ignores a trailing slash.
   const tides = prefix.replace(/\/+$/, "").toLowerCase();
   const currents = currentsPrefix.replace(/\/+$/, "").toLowerCase();
-  // Currents mount first, so a currentsPrefix that equals or contains prefix would shadow the tide routes.
-  if (tides === currents || tides.startsWith(`${currents}/`)) {
+  // Currents mount first, so a currentsPrefix that equals or contains prefix would shadow the tide
+  // routes. A root currentsPrefix ("" once trimmed) contains every prefix.
+  if (currents === "" || tides === currents || tides.startsWith(`${currents}/`)) {
     throw new Error(
       `currentsPrefix "${currentsPrefix}" must not equal or contain prefix "${prefix}"`,
     );
