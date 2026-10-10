@@ -1,0 +1,27 @@
+name: Lockfile
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # A pull request can slip a package in through package-lock.json, which
+  # reviewers rarely read. npm keeps existing resolved URLs when it regenerates,
+  # so the diff alone misses a swapped tarball; lockfile-lint catches that.
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Check the lockfile regenerates from package.json
+        run: |
+          npm install --package-lock-only --ignore-scripts
+          git diff --exit-code -- package-lock.json
+      - name: Check every package resolves from the npm registry
+        run: npx -y lockfile-lint@5.0.1 --path package-lock.json --allowed-hosts npm --validate-https --validate-integrity --validate-package-names
