@@ -106,12 +106,32 @@ tar xzf "${TMPDIR}/${ARCHIVE}" -C "$TMPDIR"
 
 # Install
 if [ -w "$INSTALL_DIR" ]; then
-  mv "${TMPDIR}/slackwater" "${INSTALL_DIR}/slackwater"
+  SUDO=""
 else
   echo "Writing to ${INSTALL_DIR} requires elevated permissions."
-  sudo mv "${TMPDIR}/slackwater" "${INSTALL_DIR}/slackwater"
+  SUDO="sudo"
 fi
 
-chmod +x "${INSTALL_DIR}/slackwater"
+$SUDO mv "${TMPDIR}/slackwater" "${INSTALL_DIR}/slackwater"
+$SUDO chmod +x "${INSTALL_DIR}/slackwater"
 
 echo "Installed slackwater to ${INSTALL_DIR}/slackwater"
+
+# The binary embeds the station database, whose attribution terms are in NOTICE
+if [ -f "${TMPDIR}/NOTICE" ]; then
+  RELEASE_URL="https://github.com/${REPO}/releases/tag/${TAG}"
+  case "$INSTALL_DIR" in
+    /bin | /bin/ | /*/bin | /*/bin/)
+      PREFIX="$(dirname "$INSTALL_DIR")"
+      DOC_DIR="${PREFIX%/}/share/doc/slackwater"
+      if $SUDO mkdir -p "$DOC_DIR" 2>/dev/null && $SUDO cp "${TMPDIR}/LICENSE" "${TMPDIR}/NOTICE" "$DOC_DIR/"; then
+        echo "Installed license and data attribution to ${DOC_DIR}"
+      else
+        echo "Could not write to ${DOC_DIR}; LICENSE and NOTICE are in the ${ARCHIVE} download at ${RELEASE_URL}" >&2
+      fi
+      ;;
+    *)
+      echo "LICENSE and NOTICE (data attribution) are in the ${ARCHIVE} download at ${RELEASE_URL}"
+      ;;
+  esac
+fi

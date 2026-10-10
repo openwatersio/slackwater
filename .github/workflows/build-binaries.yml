@@ -92,14 +92,17 @@ jobs:
           fi
           echo "Build is reproducible: $HASH1"
 
+      - name: Smoke test SEA binary
+        run: npm run smoke:sea --workspace=packages/cli
+
       - name: Package binary (Unix)
         if: matrix.target != 'win-x64'
-        run: tar czf packages/cli/slackwater-${{ matrix.target }}.tar.gz -C packages/cli/dist slackwater
+        run: tar czf packages/cli/slackwater-${{ matrix.target }}.tar.gz -C packages/cli/dist slackwater LICENSE NOTICE
 
       - name: Package binary (Windows)
         if: matrix.target == 'win-x64'
         shell: pwsh
-        run: Compress-Archive -Path packages/cli/dist/slackwater.exe -DestinationPath packages/cli/slackwater-${{ matrix.target }}.zip
+        run: Compress-Archive -Path packages/cli/dist/slackwater.exe, packages/cli/dist/LICENSE, packages/cli/dist/NOTICE -DestinationPath packages/cli/slackwater-${{ matrix.target }}.zip
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
