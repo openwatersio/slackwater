@@ -9,7 +9,10 @@
     "slackwater": "1.0.0-beta.0"
   },
   "changesets": [
+    "api-currents",
+    "current-stations",
     "extremes-alternate",
+    "family-metadata",
     "heap-filter-extremes",
     "illinois-root-finding",
     "kartverket-constituents",

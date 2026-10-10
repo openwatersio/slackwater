@@ -1,5 +1,15 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.6
+
+### Minor Changes
+
+- [#347](https://github.com/openwatersio/slackwater/pull/347) [`d5f2c5e`](https://github.com/openwatersio/slackwater/commit/d5f2c5ea5306348923e8a027210f1ddb82453c38) Thanks [@bkeepers](https://github.com/bkeepers)! - Add tidal current prediction: harmonic current stations (`createCurrentPredictor`, `useCurrentStation`), NOAA subordinate reductions (`createSubordinateCurrentPredictor`), slack/max flood/max ebb events, signed speed timelines in knots, and the `slackWindows` helper. The `slackwater` package gains `getCurrentEventsPrediction`, `getCurrentTimelinePrediction`, `nearestCurrentStation`, `currentStationsNear`, `findCurrentStation`, `currentStationUnavailable`, and `parseCurrentBin`. Location lookups skip secondary depth bins and stations that can't be predicted, such as Canadian Hydrographic Service stations. Flood and ebb directions are optional, and events leave out a direction the station doesn't publish.
+
+### Patch Changes
+
+- [#383](https://github.com/openwatersio/slackwater/pull/383) [`63efbad`](https://github.com/openwatersio/slackwater/commit/63efbad5cadf10cc1b9db69e500379725936013f) Thanks [@bkeepers](https://github.com/bkeepers)! - Package descriptions, keywords, and homepages present each package as part of the Slackwater family, with the docs at https://openwaters.io/tides/slackwater/. `slackwater` ships a README on npm.
+
 ## 1.0.0-beta.5
 
 ### Patch Changes
