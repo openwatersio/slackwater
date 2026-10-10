@@ -8,7 +8,7 @@ export function positiveNumber(value: string, name: string): number {
 
 export function positiveInteger(value: string, name: string): number {
   const number = Number(value);
-  if (!/^\d+$/.test(value) || number <= 0) {
+  if (!/^\d+$/.test(value) || !Number.isSafeInteger(number) || number <= 0) {
     throw new Error(`Invalid ${name}: "${value}". Expected a positive whole number.`);
   }
   return number;

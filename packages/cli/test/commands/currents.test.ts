@@ -583,6 +583,12 @@ describe("slackwater currents stations", () => {
     expect(error!.message).toBe('Invalid limit: "0x10". Expected a positive whole number.');
   });
 
+  test("errors on a --limit too large to be a whole number", async () => {
+    const limit = "9".repeat(400);
+    const { error } = await run(["currents", "stations", "--limit", limit]);
+    expect(error!.message).toBe(`Invalid limit: "${limit}". Expected a positive whole number.`);
+  });
+
   test("leaves the region blank for stations without one", async () => {
     const { stdout } = await run(["currents", "stations", "noaa/ACT8296"]);
     expect(stdout).toMatch(/noaa\/ACT8296\s*│\s*Southeast Channel\s*│\s*│/);
