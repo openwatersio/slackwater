@@ -50,8 +50,8 @@ const records = new Map(sample.stations.map((s) => [s.id, s]));
 
 function harmonic(record: SampleStation): CurrentPredictor {
   return createCurrentPredictor(record.constituents ?? [], {
-    floodDirection: record.floodDirection ?? 0,
-    ebbDirection: record.ebbDirection ?? 0,
+    floodDirection: record.floodDirection,
+    ebbDirection: record.ebbDirection,
     meanFlow: record.offset ?? 0,
   });
 }
@@ -83,8 +83,8 @@ export function catalogStation(id: string): CatalogStation | undefined {
     ebbTimeOffset: record.ebbTimeOffset ?? 0,
     floodSpeedRatio: record.floodSpeedRatio ?? 1,
     ebbSpeedRatio: record.ebbSpeedRatio ?? 1,
-    floodDirection: record.floodDirection ?? 0,
-    ebbDirection: record.ebbDirection ?? 0,
+    floodDirection: record.floodDirection,
+    ebbDirection: record.ebbDirection,
   };
   return {
     type: "subordinate",

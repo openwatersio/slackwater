@@ -54,6 +54,7 @@ API names and return shapes do not need to match across languages. Units, signs,
 - High water is a local maximum and low water is a local minimum. Flood and ebb current events are classified from the sign of velocity, not from alternating labels.
 - Fixed subordinate corrections add to height; ratio corrections multiply height. Unequal high and low time corrections may reorder events, so results are returned in time order.
 - A subordinate current uses the offset for the phase following each slack: slack-before-flood or slack-before-ebb.
+- Some current stations publish no flood or ebb direction. TypeScript takes directions as optional and leaves `direction` off events for a phase without one, because 0 would read as due north. Swift current events carry no direction, and the Swift `CurrentStation` and `SubordinateStation` initializers require one, so a Swift caller without a published direction passes a placeholder and must not display it.
 - Current validation applies strict event tolerances only at navigationally significant speeds of at least 0.75 kn. Weak, nearly flat extrema have unstable event times and are reported without gating the suite.
 
 ## Cross-port parity
