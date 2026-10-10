@@ -1,5 +1,11 @@
 # @neaps/cli
 
+## 1.0.0-beta.2
+
+### Patch Changes
+
+- [#384](https://github.com/openwatersio/slackwater/pull/384) [`683a3e6`](https://github.com/openwatersio/slackwater/commit/683a3e6d61eb4e792bc1eeca5c989ddf90a59814) Thanks [@bkeepers](https://github.com/bkeepers)! - The standalone `slackwater` binaries start up again. They crashed on launch with `TypeError: Invalid URL` because the station database could not be found inside the binary.
+
 ## 1.0.0-beta.1
 
 ### Major Changes
