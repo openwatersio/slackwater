@@ -3,11 +3,13 @@
   "version": "1.0.0-beta.1",
   "description": "React components for tide predictions",
   "keywords": [
+    "slackwater",
     "tides",
+    "tide-prediction",
     "react",
     "components"
   ],
-  "homepage": "https://openwaters.io/tides/slackwater",
+  "homepage": "https://openwaters.io/tides/slackwater/",
   "bugs": {
     "url": "https://github.com/openwatersio/slackwater/issues"
   },

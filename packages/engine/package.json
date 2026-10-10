@@ -1,7 +1,15 @@
 {
   "name": "@slackwater/engine",
   "version": "1.0.0-beta.5",
-  "description": "Tide predictor",
+  "description": "Harmonic engine for tide predictions",
+  "keywords": [
+    "slackwater",
+    "tides",
+    "tide-prediction",
+    "harmonics",
+    "harmonic-analysis"
+  ],
+  "homepage": "https://openwaters.io/tides/slackwater/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/openwatersio/slackwater.git",

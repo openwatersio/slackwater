@@ -1,6 +1,6 @@
 # @slackwater/react
 
-React components for tide predictions powered by [Slackwater](https://openwaters.io/tides/slackwater).
+React components for tide predictions powered by [Slackwater](https://openwaters.io/tides/slackwater/).
 
 ## Installation
 

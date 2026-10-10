@@ -1,0 +1,45 @@
+/*
+ * Slackwater color tokens. The iOS app's Palette.swift (openwatersio/slackwater-ios)
+ * is the source of truth, except for page and chart-*, which come from
+ * slackwater.xyz. The site uses the same names under Tailwind's --color-*
+ * namespace. See brand/README.md for usage rules.
+ *
+ * Color is state, form is kind: color something by what it is doing, not by
+ * what it is. Green means slack and nothing else.
+ */
+:root {
+  /* Grounds. The app is dark-only. */
+  --color-sw-navy-deep: #00183c;
+  --color-sw-canvas: #05122a;
+  --color-sw-canvas-glow: #0a2140;
+  --color-sw-page: #00121f;
+  --color-sw-night: #00101f;
+
+  /* Ink */
+  --color-sw-paper: #fcfcfc; /* the wordmark, and only the wordmark */
+  --color-sw-foam: #e4f0e4; /* body and secondary text */
+
+  /* State. Not decoration: do not reuse these for UI chrome. */
+  --color-sw-flood: #4a9fd8; /* flood, rising */
+  --color-sw-ebb: #e8a33d; /* ebb, falling */
+  --color-sw-go: #88b868; /* slack, and only slack */
+  --color-sw-leaf: #88b868; /* accents, eyebrows, section labels */
+  --color-sw-steel: #5888a8; /* state unknown, never a kind */
+  --color-sw-amber: #ef6f4a; /* warning; red-leaning so it cannot read as ebb */
+
+  /* Sun and moon */
+  --color-sw-sun: #f0c860;
+  --color-sw-sunrise: #f0d890;
+  --color-sw-sunset: #c8a86a;
+
+  /* Current speed ramp. Never enters green, because green means slack. */
+  --color-sw-ramp-0: #f5c96b;
+  --color-sw-ramp-1: #f5c96b;
+  --color-sw-ramp-2: #e8763c;
+  --color-sw-ramp-3: #c93a32;
+
+  /* The map inverts to a paper chart */
+  --color-sw-chart-land: #f5ecd7;
+  --color-sw-chart-water: #e9f7ff;
+  --color-sw-chart-ink: #0b1a2b;
+}
