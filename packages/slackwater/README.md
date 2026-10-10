@@ -1,6 +1,6 @@
 # slackwater
 
-Tide predictions for anywhere in the world, with the station database built in. Give it a position or a station ID and it finds the station and runs the prediction.
+Tide and current predictions for anywhere in the world, with the station database built in. Give it a position or a station ID and it finds the station and runs the prediction.
 
 `slackwater` is the batteries-included entry point to the Slackwater engine. It bundles [`@slackwater/engine`](https://www.npmjs.com/package/@slackwater/engine), the harmonic engine, with [`@slackwater/database`](https://github.com/openwatersio/slackwater-database), the station database.
 
@@ -32,7 +32,27 @@ for (const { time, level, label } of prediction.extremes) {
 }
 ```
 
-The package also gets water level timelines (`getTimelinePrediction`), the level at one moment (`getWaterLevelAtTime`), and station lookup (`nearestStation`, `stationsNear`, `findStation`). The [repository README](https://github.com/openwatersio/slackwater#readme) covers each one with examples.
+### Currents
+
+Current predictions are signed speeds in knots along the station's flood axis: positive is flood, negative is ebb, zero is slack.
+
+```typescript
+import { getCurrentEventsPrediction } from "slackwater";
+
+const prediction = getCurrentEventsPrediction({
+  lat: 48.4,
+  lon: -122.64,
+  start: new Date("2025-12-17"),
+  end: new Date("2025-12-18"),
+});
+
+console.log(prediction.station.name);
+for (const { time, kind, speed } of prediction.events) {
+  console.log(time.toISOString(), kind, speed.toFixed(2));
+}
+```
+
+The package also gets water level timelines (`getTimelinePrediction`), the level at one moment (`getWaterLevelAtTime`), station lookup (`nearestStation`, `stationsNear`, `findStation`), current speed timelines (`getCurrentTimelinePrediction`), slack windows (`slackWindows`), and current station lookup (`nearestCurrentStation`, `currentStationsNear`, `findCurrentStation`). The [repository README](https://github.com/openwatersio/slackwater#readme) covers each one with examples.
 
 ## Documentation
 

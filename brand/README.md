@@ -14,16 +14,16 @@ In prose, "the Slackwater engine" means the whole prediction stack. In code, `@s
 
 The master line is **Tide and current predictions**. Each surface adds its own noun:
 
-| Surface                | Line                                                      |
-| ---------------------- | --------------------------------------------------------- |
-| Slackwater for iPhone  | Tide and current predictions on iPhone, offline           |
-| `slackwater`           | Tide predictions, with a built-in global station database |
-| `@slackwater/engine`   | Harmonic engine for tide predictions                      |
-| SlackwaterKit          | Swift engine for tide and current predictions             |
-| `@slackwater/cli`      | Command line interface for tide predictions               |
-| `@slackwater/api`      | HTTP API for tide predictions                             |
-| `@slackwater/react`    | React components for tide predictions                     |
-| `@slackwater/database` | Station database for tide and current predictions         |
+| Surface                | Line                                                                  |
+| ---------------------- | --------------------------------------------------------------------- |
+| Slackwater for iPhone  | Tide and current predictions on iPhone, offline                       |
+| `slackwater`           | Tide and current predictions, with a built-in global station database |
+| `@slackwater/engine`   | Harmonic engine for tide and current predictions                      |
+| SlackwaterKit          | Swift engine for tide and current predictions                         |
+| `@slackwater/cli`      | Command line interface for tide predictions                           |
+| `@slackwater/api`      | HTTP API for tide predictions                                         |
+| `@slackwater/react`    | React components for tide predictions                                 |
+| `@slackwater/database` | Station database for tide and current predictions                     |
 
 Say "tide and current" only where a surface predicts currents. The TypeScript packages predict tides today; their lines change when they gain currents.
 

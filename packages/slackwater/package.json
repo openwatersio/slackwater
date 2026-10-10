@@ -1,11 +1,13 @@
 {
   "name": "slackwater",
   "version": "1.0.0-beta.2",
-  "description": "Tide predictions, with a built-in global station database",
+  "description": "Tide and current predictions, with a built-in global station database",
   "keywords": [
     "slackwater",
     "tides",
     "tide-prediction",
+    "currents",
+    "tidal-currents",
     "harmonics",
     "stations"
   ],

@@ -7,7 +7,7 @@
   </picture>
 </h1>
 
-Tide and current predictions. This repository holds the Slackwater engine for TypeScript and Swift, and the packages built on it. The Swift engine predicts tides and currents; the TypeScript packages predict tides. Documentation lives at [openwaters.io/tides/slackwater](https://openwaters.io/tides/slackwater/).
+Tide and current predictions. This repository holds the Slackwater engine for TypeScript and Swift, and the packages built on it. The engine predicts tides and currents in both TypeScript and Swift; the CLI, API, and React packages predict tides. Documentation lives at [openwaters.io/tides/slackwater](https://openwaters.io/tides/slackwater/).
 
 > [!WARNING]
 > **Not for navigational use**
@@ -21,8 +21,8 @@ Slackwater is one name for everything Open Waters publishes about tides and curr
 | Surface  | Package                                                                       | What it is                                                                                                 |
 | -------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | App      | [Slackwater for iPhone](https://slackwater.xyz)                               | Tide and current predictions on iPhone, offline ([source](https://github.com/openwatersio/slackwater-ios)) |
-| Engine   | [`slackwater`](packages/slackwater)                                           | Tide predictions with the station database built in, for TypeScript                                        |
-|          | [`@slackwater/engine`](packages/engine)                                       | The harmonic engine for TypeScript, with no station data attached                                          |
+| Engine   | [`slackwater`](packages/slackwater)                                           | Tide and current predictions with the station database built in, for TypeScript                            |
+|          | [`@slackwater/engine`](packages/engine)                                       | The harmonic tide and current engine for TypeScript, with no station data attached                         |
 |          | [SlackwaterKit](swift)                                                        | The harmonic tide and current engine for Swift                                                             |
 | CLI      | [`@slackwater/cli`](packages/cli)                                             | Tide predictions in your terminal: `brew install openwatersio/tap/slackwater`                              |
 | API      | [`@slackwater/api`](packages/api)                                             | HTTP API for tide predictions, hosted at [api.openwaters.io/tides](https://api.openwaters.io/tides/)       |
