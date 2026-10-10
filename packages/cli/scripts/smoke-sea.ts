@@ -1,6 +1,7 @@
 /**
  * Smoke-test the single executable built by build-sea.ts: it must start,
- * report its version, and predict tides from the embedded station database.
+ * report its version, and predict tides and currents from the embedded station
+ * database.
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -52,4 +53,27 @@ if (!Array.isArray(nearby) || !nearby.some((s) => s.id === "noaa/9447130")) {
   throw new Error("stations --near 47.6,-122.34 did not include noaa/9447130");
 }
 
-console.log(`OK: ${binary} ${version}, ${extremes.length} extremes for ${station.id}`);
+// Deception Pass turns about four times a day
+const currents = JSON.parse(
+  run([
+    "currents",
+    "--station",
+    "noaa/PUG1701",
+    "--start",
+    "2026-06-01T00:00:00Z",
+    "--end",
+    "2026-06-02T00:00:00Z",
+    "--format",
+    "json",
+  ]),
+);
+const slacks = currents.events?.filter((e: { kind: string }) => e.kind === "slack") ?? [];
+if (currents.station?.id !== "noaa/PUG1701" || slacks.length < 3) {
+  throw new Error(
+    `currents returned ${slacks.length} slacks for ${currents.station?.id}, expected at least 3 for noaa/PUG1701`,
+  );
+}
+
+console.log(
+  `OK: ${binary} ${version}, ${extremes.length} extremes for ${station.id}, ${slacks.length} slacks for ${currents.station.id}`,
+);

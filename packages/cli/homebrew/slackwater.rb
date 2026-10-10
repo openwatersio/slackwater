@@ -1,5 +1,5 @@
 class Slackwater < Formula
-  desc "Tide prediction command-line interface"
+  desc "Tide and current prediction command-line interface"
   homepage "https://github.com/{{REPO}}"
   version "{{VERSION}}"
   license "MIT"

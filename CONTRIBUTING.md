@@ -87,14 +87,16 @@ app.use("/api/currents", createCurrentRoutes());
 
 ### @slackwater/cli Architecture
 
-The CLI package (`packages/cli`) provides a terminal interface for tide predictions. Key design patterns:
+The CLI package (`packages/cli`) provides a terminal interface for tide and current predictions. Key design patterns:
 
 - **Commander** for command parsing with `exitOverride()` for testability
 - **Formatters** (`src/formatters/`) - Pluggable output formatters (`text`, `json`) with an ASCII chart for timeline
 - **Station resolution** (`src/lib/station.ts`) - Shared logic for `--station`, `--near`, and `--ip` options across commands
 - **SEA binaries** - Built via `scripts/build-sea.ts` using Node.js Single Executable Applications for standalone distribution. The station database is embedded as an SEA asset, because `@slackwater/database` normally reads it from disk, and its attribution ships as `NOTICE` in each release archive. `npm run smoke:sea` runs the built binary, and CI runs it before any binary is uploaded.
 
-**Commands:** `extremes`, `timeline`, `stations`, `serve`
+- **Current stations** (`src/lib/currents.ts`) - Resolves `--station` (with `@N` bins), `--near`, and `--ip` for the `currents` subcommands and shapes their output like the `@slackwater/api` current endpoints. `--near` follows the API's rule: it skips stations with no model, but a nearest CHS station is refused rather than replaced by one farther away.
+
+**Commands:** `extremes`, `timeline`, `stations`, `currents` (`events` by default, `timeline`, `slack`, `stations`), `serve`
 
 **Distribution:** npm (`@slackwater/cli`), Homebrew (`openwatersio/tap/slackwater`), shell installer (`install.sh`), and pre-built binaries on GitHub Releases.
 

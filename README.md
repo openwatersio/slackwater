@@ -7,7 +7,7 @@
   </picture>
 </h1>
 
-Tide and current predictions. This repository holds the Slackwater engine for TypeScript and Swift, and the packages built on it. The engine predicts tides and currents in both TypeScript and Swift; the CLI and React packages predict tides. Documentation lives at [openwaters.io/tides/slackwater](https://openwaters.io/tides/slackwater/).
+Tide and current predictions. This repository holds the Slackwater engine for TypeScript and Swift, and the packages built on it. The engine predicts tides and currents in both TypeScript and Swift; the CLI predicts both, and the React package predicts tides. Documentation lives at [openwaters.io/tides/slackwater](https://openwaters.io/tides/slackwater/).
 
 > [!WARNING]
 > **Not for navigational use**
@@ -24,7 +24,7 @@ Slackwater is one name for everything Open Waters publishes about tides and curr
 | Engine   | [`slackwater`](packages/slackwater)                                           | Tide and current predictions with the station database built in, for TypeScript                                  |
 |          | [`@slackwater/engine`](packages/engine)                                       | The harmonic tide and current engine for TypeScript, with no station data attached                               |
 |          | [SlackwaterKit](swift)                                                        | The harmonic tide and current engine for Swift                                                                   |
-| CLI      | [`@slackwater/cli`](packages/cli)                                             | Tide predictions in your terminal: `brew install openwatersio/tap/slackwater`                                    |
+| CLI      | [`@slackwater/cli`](packages/cli)                                             | Tide and current predictions in your terminal: `brew install openwatersio/tap/slackwater`                        |
 | API      | [`@slackwater/api`](packages/api)                                             | HTTP API for tide and current predictions, hosted at [api.openwaters.io/tides](https://api.openwaters.io/tides/) |
 | React    | [`@slackwater/react`](packages/react)                                         | React components for tide predictions                                                                            |
 | Database | [`@slackwater/database`](https://github.com/openwatersio/slackwater-database) | The tide and current station database                                                                            |
@@ -36,7 +36,7 @@ The name, logo, and colors are in [brand](brand).
 
 ### CLI
 
-Install the command line tool to get tide predictions from your terminal. Homebrew covers Apple Silicon macOS and x86_64 Linux; on other platforms, use npm (`npm install -g @slackwater/cli`).
+Install the command line tool to get tide and current predictions from your terminal. Homebrew covers Apple Silicon macOS and x86_64 Linux; on other platforms, use npm (`npm install -g @slackwater/cli`).
 
 ```sh
 brew install openwatersio/tap/slackwater
@@ -47,7 +47,9 @@ slackwater help                             # Show help and available commands
 slackwater extremes --near 37.8,-122.5      # High/low tides near San Francisco
 slackwater timeline --station noaa/9414290  # Water level timeline
 slackwater stations "portland"              # Search for stations
-slackwater serve                            # Start the REST API server
+slackwater currents --near 48.406,-122.643  # Slack water and max currents at Deception Pass
+slackwater currents stations "deception"    # Search for current stations
+slackwater serve                            # Start the REST API server for tides and currents
 ```
 
 See the [CLI README](packages/cli) for full usage and installation options.

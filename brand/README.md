@@ -20,12 +20,12 @@ The master line is **Tide and current predictions**. Each surface adds its own n
 | `slackwater`           | Tide and current predictions, with a built-in global station database |
 | `@slackwater/engine`   | Harmonic engine for tide and current predictions                      |
 | SlackwaterKit          | Swift engine for tide and current predictions                         |
-| `@slackwater/cli`      | Command line interface for tide predictions                           |
+| `@slackwater/cli`      | Command line interface for tide and current predictions               |
 | `@slackwater/api`      | HTTP API for tide and current predictions                             |
 | `@slackwater/react`    | React components for tide predictions                                 |
 | `@slackwater/database` | Station database for tide and current predictions                     |
 
-Say "tide and current" only where a surface predicts currents. The TypeScript packages predict tides today; their lines change when they gain currents.
+Say "tide and current" only where a surface predicts currents. `@slackwater/react` predicts tides today; its line changes when it gains currents.
 
 ## Mark
 
