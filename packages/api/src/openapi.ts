@@ -6,7 +6,7 @@ export default {
   info: {
     title: "Slackwater Tide Prediction API",
     version: pkg.version,
-    description: "HTTP API for tide predictions using harmonic constituents",
+    description: pkg.description,
     license: {
       name: "MIT",
     },
