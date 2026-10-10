@@ -121,8 +121,9 @@ echo "Installed slackwater to ${INSTALL_DIR}/slackwater"
 if [ -f "${TMPDIR}/NOTICE" ]; then
   RELEASE_URL="https://github.com/${REPO}/releases/tag/${TAG}"
   case "$INSTALL_DIR" in
-    /*/bin | /*/bin/)
-      DOC_DIR="$(dirname "$INSTALL_DIR")/share/doc/slackwater"
+    /bin | /bin/ | /*/bin | /*/bin/)
+      PREFIX="$(dirname "$INSTALL_DIR")"
+      DOC_DIR="${PREFIX%/}/share/doc/slackwater"
       if $SUDO mkdir -p "$DOC_DIR" 2>/dev/null && $SUDO cp "${TMPDIR}/LICENSE" "${TMPDIR}/NOTICE" "$DOC_DIR/"; then
         echo "Installed license and data attribution to ${DOC_DIR}"
       else
