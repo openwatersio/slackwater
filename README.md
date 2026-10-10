@@ -198,6 +198,37 @@ findStation("noaa/8443970"); // Boston
 findStation("9440083"); // Vancouver
 ```
 
+### Current predictions
+
+The database also carries tidal current stations. Current predictions are signed speeds in knots along the station's flood axis: positive is flood, negative is ebb, zero is slack.
+
+```typescript
+import { getCurrentEventsPrediction, getCurrentTimelinePrediction, slackWindows } from "slackwater";
+
+const options = {
+  latitude: 48.406, // Deception Pass, WA
+  longitude: -122.643,
+  start: new Date("2026-06-01T00:00:00Z"),
+  end: new Date("2026-06-02T00:00:00Z"),
+};
+
+// Slack, max flood, and max ebb events in time order. Flood and ebb events
+// carry the station's direction in degrees true when it publishes one.
+const { station, events } = getCurrentEventsPrediction(options);
+// { time: Date, speed: -5.2, kind: "maxEbb", direction: 281.5 }
+
+// The signed speed curve, sampled every 10 minutes by default.
+const { timeline } = getCurrentTimelinePrediction(options);
+
+// The windows where |speed| stays under a threshold around a reversal.
+const windows = slackWindows(timeline, 0.5);
+// [{ start: Date, end: Date }, ...]
+```
+
+Current stations can also be found with `nearestCurrentStation`, `currentStationsNear`, and `findCurrentStation`, mirroring the tide station functions. Subordinate current stations (time offsets and speed ratios against a reference station) are resolved automatically.
+
+Lookups by position only return stations that can be predicted, and only a station's primary depth bin. `findCurrentStation` also finds the rest by id: secondary bins such as `noaa/EPT0003@11`, and stations that can't be predicted, whose prediction methods throw the reason. `currentStationUnavailable(station)` gives that reason up front: `redistribution` for Canadian Hydrographic Service stations, whose terms don't allow their predictions to be redistributed (get them from [tides.gc.ca](https://tides.gc.ca/en/tides-currents-and-water-levels)), or `no-model` for a station with no constituents or offsets. `parseCurrentBin(id)` splits a bin id into its station and bin number.
+
 ## Accuracy & Validation
 
 Slackwater is continuously validated against NOAA tidal predictions, comparing the **time** and **height** of predicted high and low tides for all NOAA tide stations.
