@@ -14,7 +14,7 @@
     "benchmarks:extremes": "node benchmarks/extremes.ts",
     "benchmarks:subordinate-datums": "node benchmarks/subordinate-datums.ts",
     "changeset": "changeset",
-    "version": "changeset version",
+    "version": "changeset version && npm install --package-lock-only --ignore-scripts",
     "release": "bash scripts/release.sh"
   },
   "devDependencies": {

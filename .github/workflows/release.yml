@@ -29,7 +29,7 @@ jobs:
           node-version: "24"
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build
         run: npm run build
@@ -38,6 +38,10 @@ jobs:
         id: changesets
         uses: changesets/action@v1.9.0
         with:
+          # changeset version bumps workspace versions without touching
+          # package-lock.json; the version script refreshes it so the release
+          # PR passes the lockfile check.
+          version: npm run version
           publish: npm run release
         env:
           NPM_CONFIG_PROVENANCE: true

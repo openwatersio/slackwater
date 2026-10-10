@@ -11,6 +11,5 @@ junit.xml
 .swiftpm
 DerivedData
 *.tsbuildinfo
-package-lock.json
 benchmarks/*.csv
 storybook-static
