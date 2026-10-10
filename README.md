@@ -36,7 +36,7 @@ The name, logo, and colors are in [brand](brand).
 
 ### CLI
 
-Install the command line tool to get tide predictions from your terminal:
+Install the command line tool to get tide predictions from your terminal. Homebrew covers Apple Silicon macOS and x86_64 Linux; on other platforms, use npm (`npm install -g @slackwater/cli`).
 
 ```sh
 brew install openwatersio/tap/slackwater

@@ -4,13 +4,13 @@ Command line interface for tide predictions. Search for stations, view high/low 
 
 ## Install
 
-### Homebrew (macOS / Linux)
+### Homebrew (Apple Silicon macOS / x86_64 Linux)
 
 ```sh
 brew install openwatersio/tap/slackwater
 ```
 
-### Shell script (macOS / Linux)
+### Shell script (Apple Silicon macOS / x86_64 Linux)
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/openwatersio/slackwater/main/install.sh | sh
@@ -24,7 +24,7 @@ npm install -g @slackwater/cli
 
 ### Download binary
 
-Pre-built binaries for macOS (Apple Silicon), Linux, and Windows are available on the [GitHub Releases](https://github.com/openwatersio/slackwater/releases) page.
+Pre-built binaries for macOS (Apple Silicon), Linux (x86_64), and Windows (x64) are available on the [GitHub Releases](https://github.com/openwatersio/slackwater/releases) page.
 
 ## Usage
 
