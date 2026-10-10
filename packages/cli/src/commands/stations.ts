@@ -2,8 +2,9 @@ import { Command, Option } from "commander";
 import { search, stations as allStations, near, type Station } from "@slackwater/database";
 import getFormat, { type Formats, type StationResult } from "../formatters/index.js";
 import { resolveCoordinates } from "../lib/station.js";
+import { stationLimit } from "../lib/options.js";
 
-// The database also carries current stations; this CLI predicts tides.
+// The database also carries current stations, which `currents stations` lists.
 const tideOnly = (station: Station) => station.kind === "tide";
 
 export default new Command("stations")
@@ -17,30 +18,32 @@ export default new Command("stations")
     new Option("-f, --format <format>", "output format").choices(["text", "json"]).default("text"),
   )
   .action(async (query: string | undefined, opts) => {
-    const limit = opts.all ? Infinity : parseInt(opts.limit, 10);
+    const limit = stationLimit(opts);
     let results: StationResult[];
 
     if (opts.near || opts.ip) {
       const coords = await resolveCoordinates(opts);
       let filter: (s: Station) => boolean = tideOnly;
       if (query) {
-        const matches = new Set(search(query, { filter: tideOnly }).map((s) => s.id));
+        const matches = new Set(
+          search(query, { filter: tideOnly, maxResults: Infinity }).map((s) => s.id),
+        );
         filter = (s) => matches.has(s.id);
       }
       const nearby = near({
         ...coords,
-        maxResults: limit === Infinity ? undefined : limit,
+        maxResults: limit,
         filter,
       });
       results = nearby.map(([station, distance]) => ({ ...station, distance }));
     } else if (query) {
       results = search(query, {
-        maxResults: limit === Infinity ? undefined : limit,
+        maxResults: limit,
         filter: tideOnly,
       });
     } else {
       const tideStations = allStations.filter(tideOnly);
-      results = limit === Infinity ? tideStations : tideStations.slice(0, limit);
+      results = tideStations.slice(0, limit);
     }
 
     if (!results.length) {

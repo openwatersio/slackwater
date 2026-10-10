@@ -1,11 +1,12 @@
 {
   "name": "@slackwater/cli",
   "version": "1.0.0-beta.3",
-  "description": "Command line interface for tide predictions",
+  "description": "Command line interface for tide and current predictions",
   "keywords": [
     "slackwater",
     "tides",
     "tide-prediction",
+    "tidal-currents",
     "cli"
   ],
   "homepage": "https://openwaters.io/tides/slackwater/",
