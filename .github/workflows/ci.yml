@@ -9,6 +9,7 @@ jobs:
       typescript: ${{ steps.filter.outputs.typescript }}
       swift: ${{ steps.filter.outputs.swift }}
       fixtures: ${{ steps.filter.outputs.fixtures }}
+      homebrew: ${{ steps.filter.outputs.homebrew }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -20,6 +21,7 @@ jobs:
             echo 'typescript=true' >> "$GITHUB_OUTPUT"
             echo 'swift=true' >> "$GITHUB_OUTPUT"
             echo 'fixtures=true' >> "$GITHUB_OUTPUT"
+            echo 'homebrew=true' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           changed=$(git diff --name-only origin/main...HEAD)
@@ -28,6 +30,7 @@ jobs:
             echo 'typescript=false' >> "$GITHUB_OUTPUT"
             echo 'swift=false' >> "$GITHUB_OUTPUT"
             echo 'fixtures=false' >> "$GITHUB_OUTPUT"
+            echo 'homebrew=false' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if printf '%s\n' "$changed" | grep -qEv '^(swift/|Package\.swift$)'; then
@@ -45,6 +48,44 @@ jobs:
           else
             echo 'fixtures=false' >> "$GITHUB_OUTPUT"
           fi
+          if printf '%s\n' "$changed" | grep -qE '^(packages/cli/homebrew/|\.github/workflows/)'; then
+            echo 'homebrew=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'homebrew=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  homebrew:
+    # brew tap loads every formula for every OS and CPU, and one that fails to load breaks
+    # the whole tap, so check the release template before a release renders and pushes it
+    needs: changes
+    if: needs.changes.outputs.homebrew == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Render formula
+        run: |
+          sed \
+            -e "s|{{TAG}}|@slackwater/cli@1.0.0-beta.1|g" \
+            -e "s|{{VERSION}}|1.0.0-beta.1|g" \
+            -e "s|{{REPO}}|${GITHUB_REPOSITORY}|g" \
+            -e "s|{{SHA256_DARWIN_ARM64}}|$(printf '0%.0s' {1..64})|g" \
+            -e "s|{{SHA256_LINUX_X64}}|$(printf '1%.0s' {1..64})|g" \
+            packages/cli/homebrew/slackwater.rb > slackwater.rb
+          if grep -n '{{' slackwater.rb; then exit 1; fi
+
+      - name: Check formula
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: |
+          brew update --quiet
+          tap="$(brew --repository)/Library/Taps/openwatersio/homebrew-check"
+          mkdir -p "$tap/Formula"
+          cp slackwater.rb "$tap/Formula/slackwater.rb"
+          git -C "$tap" init --quiet
+          brew trust openwatersio/check
+          brew style "$tap/Formula/slackwater.rb"
+          brew readall --os=all --arch=all openwatersio/check
 
   changeset:
     needs: changes
