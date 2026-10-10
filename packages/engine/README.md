@@ -185,7 +185,7 @@ predictor.getTimelinePrediction({ start, end, timeFidelity: 600 });
 predictor.getEventsPrediction({ start, end });
 ```
 
-Max flood and ebb are velocity extrema classified by the sign of velocity (NOAA's convention), and slack is the value-zero of the velocity curve. Events are extracted per UTC day with an 8-hour search margin, so an event list never depends on the requested window.
+Max flood and ebb are velocity extrema classified by the sign of velocity (NOAA's convention), and slack is the value-zero of the velocity curve. Both directions are optional: leave one out when the station doesn't publish it, and events for that phase carry no `direction`. Events are extracted per UTC day with an 8-hour search margin, so an event list never depends on the requested window.
 
 Subordinate current stations have no constituents of their own; their events are a reference station's events shifted and scaled by NOAA Current-Tables offsets. Time adjustments are seconds here (NOAA publishes minutes — multiply by 60), and a slack takes the offset of the phase it precedes:
 

@@ -267,8 +267,8 @@ export function useCurrentStation(
   function harmonic(s: CurrentStation, nodeCorrections?: "iho" | "schureman") {
     if (s.harmonic_constituents.length === 0) return undefined;
     return createCurrentPredictor(s.harmonic_constituents, {
-      floodDirection: s.current?.flood_direction ?? 0,
-      ebbDirection: s.current?.ebb_direction ?? 0,
+      floodDirection: s.current?.flood_direction,
+      ebbDirection: s.current?.ebb_direction,
       meanFlow: s.current?.mean_flow ?? 0,
       nodeCorrections,
     });
@@ -302,8 +302,8 @@ export function useCurrentStation(
       ebbTimeOffset: (offsets.ebb_time ?? 0) * 60,
       floodSpeedRatio: offsets.flood_speed_ratio ?? 1,
       ebbSpeedRatio: offsets.ebb_speed_ratio ?? 1,
-      floodDirection: station.current?.flood_direction ?? 0,
-      ebbDirection: station.current?.ebb_direction ?? 0,
+      floodDirection: station.current?.flood_direction,
+      ebbDirection: station.current?.ebb_direction,
     });
   }
 

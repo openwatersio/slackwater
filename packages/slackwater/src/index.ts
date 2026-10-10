@@ -33,11 +33,83 @@ const kindFilter =
   (station) =>
     station.kind === kind && (filter?.(station) ?? true);
 const tideFilter = (filter?: Filter) => kindFilter("tide", filter);
-const currentFilter = (filter?: Filter) => kindFilter("current", filter);
+
+/**
+ * Location lookups only pick a station's primary bin, and only stations that
+ * can be predicted. Secondary bins and unpredictable stations are still found
+ * by id.
+ */
+const currentFilter = (filter?: Filter) =>
+  kindFilter(
+    "current",
+    (station) =>
+      parseCurrentBin(station.id).bin === undefined &&
+      currentStationUnavailable(station) === undefined &&
+      (filter?.(station) ?? true),
+  );
+
+/**
+ * Split a current station id into its station and depth bin. NOAA stations
+ * with several depth bins list each one as its own station: `noaa/EPT0003@11`
+ * is bin 11 of `noaa/EPT0003`, and the bare id is the station's primary bin.
+ */
+export function parseCurrentBin(id: string): { base: string; bin?: number } {
+  const match = /^(.*)@(0|[1-9]\d*)$/.exec(id);
+  return match ? { base: match[1], bin: Number(match[2]) } : { base: id };
+}
+
+/** Why a current station can't be predicted. */
+export type CurrentStationUnavailable = {
+  /**
+   * `redistribution`: the source's terms forbid re-serving its predictions.
+   * `no-model`: the station has no constituents or subordinate offsets.
+   */
+  reason: "redistribution" | "no-model";
+  message: string;
+};
+
+const CHS = "Canadian Hydrographic Service";
+
+/** The station fields `currentStationUnavailable` reads. */
+type CurrentStationFields = Pick<DatabaseStation, "name" | "harmonic_constituents" | "current"> & {
+  source: Pick<DatabaseStation["source"], "name">;
+};
+
+/**
+ * Why predictions for this current station can't be made, or undefined when
+ * they can. CHS terms forbid redistributing its predictions, so its records
+ * carry identity only and clients fetch predictions from CHS directly.
+ */
+export function currentStationUnavailable(
+  station: CurrentStationFields,
+): CurrentStationUnavailable | undefined {
+  if (station.source.name === CHS) {
+    return {
+      reason: "redistribution",
+      message: `Predictions for ${station.name} are published by the ${CHS}, whose terms do not allow them to be redistributed. Get them from https://tides.gc.ca/en/tides-currents-and-water-levels`,
+    };
+  }
+  if (station.harmonic_constituents.length > 0) return undefined;
+  const referenceId = station.current?.offsets?.reference;
+  if (referenceId === undefined) {
+    return {
+      reason: "no-model",
+      message: `${station.name} has no harmonic constituents or subordinate offsets to predict from`,
+    };
+  }
+  if (!stationsById.get(referenceId)?.harmonic_constituents.length) {
+    return {
+      reason: "no-model",
+      message: `${station.name} is subordinate to ${referenceId}, which has no harmonic constituents to predict from`,
+    };
+  }
+  return undefined;
+}
 
 /**
  * Wrap a database current station in an engine predictor, resolving the
- * reference station a subordinate reduces from.
+ * reference station a subordinate reduces from. A station that can't be
+ * predicted keeps its record, and its prediction methods throw why.
  */
 function useCurrent(station: DatabaseStation, distance?: number): CurrentStationPredictor {
   const current = station as CurrentStation;
@@ -45,7 +117,14 @@ function useCurrent(station: DatabaseStation, distance?: number): CurrentStation
   const reference = referenceId
     ? (stationsById.get(referenceId) as CurrentStation | undefined)
     : undefined;
-  return useCurrentStation(current, { reference, distance });
+  const predictor = useCurrentStation(current, { reference, distance });
+
+  const unavailable = currentStationUnavailable(station);
+  if (!unavailable) return predictor;
+  const refuse = () => {
+    throw new Error(unavailable.message);
+  };
+  return { ...predictor, getEventsPrediction: refuse, getTimelinePrediction: refuse };
 }
 
 /**
@@ -148,7 +227,8 @@ export function getCurrentTimelinePrediction(
 }
 
 /**
- * Find the nearest current station to the given position.
+ * Find the nearest current station to the given position that can be
+ * predicted, skipping secondary depth bins.
  */
 export function nearestCurrentStation(options: NearestOptions) {
   const data = nearest({ ...options, filter: currentFilter(options.filter) });
@@ -157,7 +237,8 @@ export function nearestCurrentStation(options: NearestOptions) {
 }
 
 /**
- * Find current stations near the given position.
+ * Find current stations near the given position that can be predicted,
+ * skipping secondary depth bins.
  * @param limit Maximum number of stations to return (default: 10)
  */
 export function currentStationsNear(options: NearOptions) {
@@ -167,7 +248,10 @@ export function currentStationsNear(options: NearOptions) {
 }
 
 /**
- * Find a specific current station by its ID or source ID.
+ * Find a specific current station by its ID or source ID, including secondary
+ * depth bins (`noaa/EPT0003@11`). A station that can't be predicted is still
+ * found; its prediction methods throw the reason `currentStationUnavailable`
+ * gives.
  */
 export function findCurrentStation(query: string): CurrentStationPredictor {
   const found =

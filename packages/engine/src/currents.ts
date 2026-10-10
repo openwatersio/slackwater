@@ -26,15 +26,18 @@ export interface CurrentEvent {
   /** Signed knots. Slack events carry the residual near-zero root value. */
   speed: number;
   kind: CurrentEventKind;
-  /** Flood or ebb direction in degrees true; absent for slack. */
+  /**
+   * Flood or ebb direction in degrees true. Absent for slack, and absent
+   * when the station publishes no direction for that phase.
+   */
   direction?: number;
 }
 
 export interface CurrentPredictionOptions {
-  /** Major-axis flood direction, degrees true (NOAA `meanFloodDir`/azimuth). */
-  floodDirection: number;
-  /** Ebb direction, degrees true. */
-  ebbDirection: number;
+  /** Major-axis flood direction, degrees true (NOAA `meanFloodDir`/azimuth). Omit when unknown. */
+  floodDirection?: number;
+  /** Ebb direction, degrees true. Omit when unknown. */
+  ebbDirection?: number;
   /** Mean flow in knots, added as a Z0 term (NOAA major mean speed). */
   meanFlow?: number;
   /** Nodal correction fundamentals. Defaults to 'iho'. */
@@ -47,8 +50,8 @@ export interface CurrentTimelineInput extends TimeSpan {
 }
 
 export interface CurrentPredictor {
-  floodDirection: number;
-  ebbDirection: number;
+  floodDirection?: number;
+  ebbDirection?: number;
   /** Signed major-axis velocity in knots at regular intervals. */
   getTimelinePrediction: (input: CurrentTimelineInput) => CurrentPoint[];
   /** Slack, max flood, and max ebb events in time order. */
@@ -71,6 +74,10 @@ const DAY_MS = 86_400_000;
 const DAY_MARGIN_MS = 8 * 3_600_000;
 
 const byTime = (a: CurrentEvent, b: CurrentEvent) => a.time.getTime() - b.time.getTime();
+
+/** A `direction` field to spread into an event, or nothing when it's unknown. */
+const withDirection = (direction: number | undefined) =>
+  direction === undefined ? {} : { direction };
 
 function checkTimeSpan({ start, end }: TimeSpan): void {
   if (start.getTime() >= end.getTime()) {
@@ -125,8 +132,8 @@ export function createCurrentPredictor(
       getParams: correctedParams(),
     }).map(({ time, level }): CurrentEvent =>
       level >= 0
-        ? { time, speed: level, kind: "maxFlood", direction: floodDirection }
-        : { time, speed: level, kind: "maxEbb", direction: ebbDirection },
+        ? { time, speed: level, kind: "maxFlood", ...withDirection(floodDirection) }
+        : { time, speed: level, kind: "maxEbb", ...withDirection(ebbDirection) },
     );
 
     const slacks = findSlacks(0, endHour, { startMs, getParams: correctedParams() }).map(
@@ -199,10 +206,10 @@ export interface SubordinateCurrentOptions {
   floodSpeedRatio: number;
   /** Speed scale at max ebb. */
   ebbSpeedRatio: number;
-  /** Mean flood direction at the subordinate, degrees true. */
-  floodDirection: number;
-  /** Mean ebb direction at the subordinate, degrees true. */
-  ebbDirection: number;
+  /** Mean flood direction at the subordinate, degrees true. Omit when unknown. */
+  floodDirection?: number;
+  /** Mean ebb direction at the subordinate, degrees true. Omit when unknown. */
+  ebbDirection?: number;
 }
 
 /**
@@ -226,14 +233,14 @@ export function reduceCurrentEvents(
             time: shift(event.time, offsets.floodTimeOffset),
             speed: event.speed * offsets.floodSpeedRatio,
             kind: "maxFlood",
-            direction: offsets.floodDirection,
+            ...withDirection(offsets.floodDirection),
           };
         case "maxEbb":
           return {
             time: shift(event.time, offsets.ebbTimeOffset),
             speed: event.speed * offsets.ebbSpeedRatio,
             kind: "maxEbb",
-            direction: offsets.ebbDirection,
+            ...withDirection(offsets.ebbDirection),
           };
         case "slack": {
           const next = refEvents.slice(i + 1).find((e) => e.kind !== "slack");

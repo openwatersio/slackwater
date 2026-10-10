@@ -92,6 +92,19 @@ describe("createCurrentPredictor", () => {
     }
   });
 
+  test("events leave out directions that aren't given", () => {
+    const station = createCurrentPredictor([{ name: "M2", amplitude: 2.0, phase: 40 }], {});
+    expect(station.floodDirection).toBeUndefined();
+    expect(station.ebbDirection).toBeUndefined();
+    const events = station.getEventsPrediction({
+      start: new Date("2026-03-01T00:00:00Z"),
+      end: new Date("2026-03-02T00:00:00Z"),
+    });
+    expect(events.some((e) => e.kind === "maxFlood")).toBe(true);
+    expect(events.some((e) => e.kind === "maxEbb")).toBe(true);
+    for (const event of events) expect(event).not.toHaveProperty("direction");
+  });
+
   test("events are trimmed to the requested days", () => {
     const station = createCurrentPredictor([{ name: "M2", amplitude: 2.0, phase: 40 }], {
       floodDirection: 100,
@@ -275,6 +288,18 @@ describe("reduceCurrentEvents", () => {
       kind: "maxEbb",
       direction: 290,
     });
+  });
+
+  test("peaks leave out directions the subordinate doesn't give", () => {
+    const { floodDirection: _flood, ebbDirection: _ebb, ...noDirections } = offsets;
+    const reduced = reduceCurrentEvents(
+      [
+        { time: at(3), speed: 2, kind: "maxFlood", direction: 45 },
+        { time: at(9), speed: -1, kind: "maxEbb", direction: 225 },
+      ],
+      noDirections,
+    );
+    for (const event of reduced) expect(event).not.toHaveProperty("direction");
   });
 
   test("re-sorts when unequal offsets reorder neighbours", () => {

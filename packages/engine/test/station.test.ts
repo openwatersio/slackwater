@@ -458,12 +458,22 @@ describe("useCurrentStation", () => {
       expect(iho.map((p) => p.speed)).not.toEqual(schureman.map((p) => p.speed));
     });
 
-    test("defaults directions and mean flow when the current block is absent", () => {
+    test("leaves directions out when the current block is absent", () => {
       const bare = useCurrentStation({ ...baseCurrentStation, current: undefined });
       const { events } = bare.getEventsPrediction({ start, end });
-      expect(events.length).toBeGreaterThan(0);
+      expect(events.some((e) => e.kind !== "slack")).toBe(true);
+      for (const event of events) expect(event).not.toHaveProperty("direction");
+    });
+
+    test("leaves out only the direction the station doesn't publish", () => {
+      const floodOnly = useCurrentStation({
+        ...baseCurrentStation,
+        current: { flood_direction: 45 },
+      });
+      const { events } = floodOnly.getEventsPrediction({ start, end });
       for (const event of events) {
-        if (event.kind !== "slack") expect([0]).toContain(event.direction);
+        if (event.kind === "maxFlood") expect(event.direction).toBe(45);
+        else expect(event).not.toHaveProperty("direction");
       }
     });
   });
@@ -522,6 +532,9 @@ describe("useCurrentStation", () => {
       const maxima = events.filter((e) => e.kind !== "slack");
       expect(maxima.map((e) => e.time)).toEqual(refEvents.map((e) => e.time));
       expect(maxima.map((e) => e.speed)).toEqual(refEvents.map((e) => e.speed));
+      // The subordinate publishes no directions, so its events carry none,
+      // not the reference's and not 0.
+      for (const event of events) expect(event).not.toHaveProperty("direction");
     });
   });
 
