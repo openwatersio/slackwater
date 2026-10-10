@@ -1,4 +1,4 @@
-// Neaps - MIT. Harmonic least squares, ported from @sailingnaturali/chs-constituents.
+// Slackwater — MIT. Harmonic least squares, ported from @sailingnaturali/chs-constituents.
 // Copyright (c) 2026 Bryan Clark. See swift/LICENSE.
 #if canImport(Accelerate)
 import Accelerate

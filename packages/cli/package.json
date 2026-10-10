@@ -1,13 +1,14 @@
 {
   "name": "@slackwater/cli",
   "version": "1.0.0-beta.2",
-  "description": "Command line interface for Slackwater tide prediction",
+  "description": "Command line interface for tide predictions",
   "keywords": [
+    "slackwater",
     "tides",
-    "harmonics",
+    "tide-prediction",
     "cli"
   ],
-  "homepage": "https://github.com/openwatersio/slackwater#readme",
+  "homepage": "https://openwaters.io/tides/slackwater/",
   "bugs": {
     "url": "https://github.com/openwatersio/slackwater/issues"
   },

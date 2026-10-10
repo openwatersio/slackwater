@@ -10,6 +10,7 @@ const API_PORT = 6007;
 const config: StorybookConfig = {
   stories: ["../src/**/*.stories.@(ts|tsx)"],
   addons: ["@storybook/addon-themes"],
+  staticDirs: [{ from: "../../../brand", to: "/brand" }],
   framework: {
     name: "@storybook/react-vite",
     options: {},

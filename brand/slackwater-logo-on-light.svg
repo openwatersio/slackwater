@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="330" height="64" viewBox="0 0 330 64" role="img" aria-labelledby="title">
+  <title id="title">Slackwater</title>
+  <g transform="scale(0.0625)">
+  <defs>
+    <clipPath id="sw-squircle"><rect width="1024" height="1024" rx="229"/></clipPath>
+    <radialGradient id="sw-field" cx="512" cy="102.4" r="972.8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#082d51"/>
+      <stop offset="1" stop-color="#041838"/>
+    </radialGradient>
+    <linearGradient id="sw-flood" x1="0" y1="276.48" x2="0" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#59afe0" stop-opacity="0.6"/>
+      <stop offset="1" stop-color="#59afe0" stop-opacity="0.05"/>
+    </linearGradient>
+    <linearGradient id="sw-ebb" x1="0" y1="512" x2="0" y2="747.52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#eeb24d" stop-opacity="0.05"/>
+      <stop offset="1" stop-color="#eeb24d" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#sw-squircle)">
+    <rect width="1024" height="1024" fill="url(#sw-field)"/>
+    <path d="M0 512H1024" stroke="#e9f3e9" stroke-opacity="0.2" stroke-width="7"/>
+    <path d="M-61.44 512C-37.55 481.17 -13.65 450.35 10.24 421.87C34.13 393.39 58.03 367.26 81.92 345.46C105.81 323.66 129.71 306.21 153.6 294.41C177.49 282.61 201.39 276.48 225.28 276.48C249.17 276.48 273.07 282.61 296.96 294.41C320.85 306.21 344.75 323.66 368.64 345.46C392.53 367.26 416.43 393.39 440.32 421.87C464.21 450.35 488.11 481.17 512 512Z" fill="url(#sw-flood)"/>
+    <path d="M512 512C535.89 542.83 559.79 573.65 583.68 602.13C607.57 630.61 631.47 656.74 655.36 678.54C679.25 700.34 703.15 717.79 727.04 729.59C750.93 741.39 774.83 747.52 798.72 747.52C822.61 747.52 846.51 741.39 870.4 729.59C894.29 717.79 918.19 700.34 942.08 678.54C965.97 656.74 989.87 630.61 1013.76 602.13C1037.65 573.65 1061.55 542.83 1085.44 512Z" fill="url(#sw-ebb)"/>
+    <path d="M-61.44 512C-37.55 481.17 -13.65 450.35 10.24 421.87C34.13 393.39 58.03 367.26 81.92 345.46C105.81 323.66 129.71 306.21 153.6 294.41C177.49 282.61 201.39 276.48 225.28 276.48C249.17 276.48 273.07 282.61 296.96 294.41C320.85 306.21 344.75 323.66 368.64 345.46C392.53 367.26 416.43 393.39 440.32 421.87C464.21 450.35 488.11 481.17 512 512C535.89 542.83 559.79 573.65 583.68 602.13C607.57 630.61 631.47 656.74 655.36 678.54C679.25 700.34 703.15 717.79 727.04 729.59C750.93 741.39 774.83 747.52 798.72 747.52C822.61 747.52 846.51 741.39 870.4 729.59C894.29 717.79 918.19 700.34 942.08 678.54C965.97 656.74 989.87 630.61 1013.76 602.13C1037.65 573.65 1061.55 542.83 1085.44 512" fill="none" stroke="#cbdfe9" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="512" cy="512" r="135" fill="#98c27b" fill-opacity="0.28"/>
+    <circle cx="512" cy="512" r="66" fill="#98c27b" stroke="#041838" stroke-width="14.52"/>
+  </g>
+  </g>
+  <text x="80" y="45" fill="#00183c" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" font-size="40" font-weight="600" letter-spacing="-1">Slackwater</text>
+</svg>

@@ -1,13 +1,23 @@
 {
   "name": "@slackwater/api",
   "version": "1.0.0-beta.2",
-  "description": "HTTP JSON API for tide and tidal current predictions",
+  "description": "HTTP API for tide and current predictions",
+  "keywords": [
+    "slackwater",
+    "tides",
+    "tide-prediction",
+    "currents",
+    "tidal-currents",
+    "api",
+    "openapi",
+    "express"
+  ],
+  "homepage": "https://openwaters.io/tides/slackwater/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/openwatersio/slackwater.git",
     "directory": "packages/api"
   },
-  "homepage": "https://openwaters.io/api",
   "author": "Brandon Keepers <brandon@openwaters.io>",
   "license": "MIT",
   "type": "module",

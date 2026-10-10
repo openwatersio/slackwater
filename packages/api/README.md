@@ -1,6 +1,6 @@
 # @slackwater/api
 
-HTTP JSON API for tide and tidal current predictions using [slackwater](https://github.com/openwatersio/slackwater).
+HTTP API for tide and current predictions, built on [Slackwater](https://openwaters.io/tides/slackwater/). A hosted instance runs at [api.openwaters.io/tides](https://api.openwaters.io/tides/).
 
 ## Installation
 

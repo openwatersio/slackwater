@@ -4,7 +4,7 @@ Contributing guidelines for humans and AI agents.
 
 ## Project Overview
 
-Slackwater is a TypeScript tide prediction engine split into multiple `packages/*` in a monorepo:
+Slackwater is a TypeScript tide and current prediction engine split into multiple `packages/*` in a monorepo:
 
 1. **`@slackwater/engine`** - Core harmonic calculation engine (astronomy coefficients, tidal constituents, node corrections)
 2. **`slackwater`** - User-facing API that wraps the predictor and integrates with `@slackwater/database` for station lookups

@@ -1,6 +1,6 @@
 # @slackwater/engine
 
-A tide harmonic calculator written in TypeScript.
+The harmonic engine behind [Slackwater](https://openwaters.io/tides/slackwater/), written in TypeScript. It predicts and fits from harmonic constituents with no station data attached; for station lookup, use [`slackwater`](https://www.npmjs.com/package/slackwater).
 
 <!-- START DOCS -->
 

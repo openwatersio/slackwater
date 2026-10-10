@@ -6,7 +6,7 @@ const tides = {
   info: {
     title: "Slackwater Tide Prediction API",
     version: pkg.version,
-    description: "HTTP JSON API for tide predictions using harmonic constituents",
+    description: pkg.description,
     license: {
       name: "MIT",
     },
