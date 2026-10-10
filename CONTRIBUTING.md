@@ -35,6 +35,10 @@ createTidePredictor(constituents, { nodeCorrections: "schureman" });
 
 For detailed internals (XDO conversion, letter code dispatch, compound decomposition), see [packages/engine/README.md](packages/engine/README.md#architecture-internals).
 
+### Current Stations
+
+Tidal currents reuse the harmonic machinery with the result read as signed velocity in knots along the flood axis. `createCurrentPredictor` produces timelines and slack/max flood/max ebb events (extracted per UTC day so results never depend on the requested window); `createSubordinateCurrentPredictor` applies NOAA's two-slack offset reduction against a reference predictor, with offset times in seconds at the engine level. `useCurrentStation` consumes `@slackwater/database` stations with `kind === "current"`, converting the database's offset minutes and predicting harmonically whenever a station carries its own constituents. Flood and ebb directions are optional throughout; an event for a phase without a published direction has no `direction`. The `slackwater` package resolves a subordinate's `current.offsets.reference` id automatically. Its location lookups skip secondary depth bins (`@N` ids) and stations `currentStationUnavailable` refuses (CHS stations, matched by `source.name`, and stations with no model); `findCurrentStation` still finds them by id, and their prediction methods throw the reason. Validation runs against NOAA's own predictions via the `fixtures/currents-golden-*.json` fixtures at the tolerances in [docs/CONTRACT.md](docs/CONTRACT.md); `fixtures/generate/gen-currents.mjs` generates the TS-side parity fixture checked by `npm run fixtures:check`.
+
 ### @slackwater/api Architecture
 
 The API package (`packages/api`) exposes tide predictions via Express HTTP endpoints. Key design patterns:
@@ -80,7 +84,7 @@ The CLI package (`packages/cli`) provides a terminal interface for tide predicti
 - **Commander** for command parsing with `exitOverride()` for testability
 - **Formatters** (`src/formatters/`) - Pluggable output formatters (`text`, `json`) with an ASCII chart for timeline
 - **Station resolution** (`src/lib/station.ts`) - Shared logic for `--station`, `--near`, and `--ip` options across commands
-- **SEA binaries** - Built via `scripts/build-sea.ts` using Node.js Single Executable Applications for standalone distribution
+- **SEA binaries** - Built via `scripts/build-sea.ts` using Node.js Single Executable Applications for standalone distribution. The station database is embedded as an SEA asset, because `@slackwater/database` normally reads it from disk, and its attribution ships as `NOTICE` in each release archive. `npm run smoke:sea` runs the built binary, and CI runs it before any binary is uploaded.
 
 **Commands:** `extremes`, `timeline`, `stations`, `serve`
 

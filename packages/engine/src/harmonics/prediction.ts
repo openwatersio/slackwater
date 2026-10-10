@@ -1,8 +1,7 @@
-import astro from "../astronomy/index.js";
-import { d2r } from "../astronomy/constants.js";
 import type { Constituent } from "../constituents/types.js";
 import { iho, type Fundamentals } from "../node-corrections/index.js";
-import { findExtremes, evalH, type ConstituentParam, type Extreme } from "./extremes.js";
+import { findExtremes, evalH, type Extreme } from "./extremes.js";
+import { createParamsFactory } from "./params.js";
 
 export type { ConstituentParam, Extreme } from "./extremes.js";
 
@@ -104,9 +103,6 @@ interface PredictionFactoryParams {
   prominenceThreshold?: number;
 }
 
-/** Recompute node corrections daily for long spans */
-const CORRECTION_INTERVAL_HOURS = 24;
-
 /** Linear interpolation between two keyframe values */
 function interpolate(fraction: number, a: number, b: number): number {
   return a + fraction * (b - a);
@@ -122,58 +118,16 @@ function predictionFactory({
   // hatyan calc_HWLW's minimum prominence; NOAA's published hi/lo keeps turns smaller still.
   prominenceThreshold = 0.01,
 }: PredictionFactoryParams): Prediction {
-  const baseAstro = astro(start);
   const startMs = start.getTime();
   const endHour = (end.getTime() - startMs) / 3600000;
 
-  /**
-   * Precompute flat constituent parameters with node corrections evaluated
-   * at a given time. Node corrections vary on the 18.6-year nodal cycle
-   * and change by <0.01% per day.
-   */
-  function prepareParams(correctionTime: Date): ConstituentParam[] {
-    const correctionAstro = astro(correctionTime);
-    const params: ConstituentParam[] = [];
-
-    for (const constituent of constituents) {
-      if (constituent.amplitude === 0) continue;
-
-      const model = constituentModels[constituent.name];
-      if (!model) continue;
-
-      const V0 = d2r * model.value(baseAstro);
-      const speed = d2r * model.speed;
-      const correction = model.correction(correctionAstro, fundamentals);
-
-      params.push({
-        A: constituent.amplitude * correction.f,
-        w: speed,
-        phi: V0 + d2r * correction.u - constituent.phase,
-      });
-    }
-
-    return params;
-  }
-
-  /**
-   * Create a function that returns constituent params with node corrections
-   * recomputed at CORRECTION_INTERVAL_HOURS. Returns a new array reference
-   * when corrections are recomputed, so callers can detect changes via `!==`.
-   */
-  function correctedParams(): (hour: number) => ConstituentParam[] {
-    const firstChunkEnd = Math.min(CORRECTION_INTERVAL_HOURS, endHour);
-    let params = prepareParams(new Date(startMs + (firstChunkEnd / 2) * 3600000));
-    let nextCorrectionAt = CORRECTION_INTERVAL_HOURS;
-
-    return (hour: number): ConstituentParam[] => {
-      if (hour >= nextCorrectionAt) {
-        const chunkEnd = Math.min(nextCorrectionAt + CORRECTION_INTERVAL_HOURS, endHour);
-        params = prepareParams(new Date(startMs + ((nextCorrectionAt + chunkEnd) / 2) * 3600000));
-        nextCorrectionAt += CORRECTION_INTERVAL_HOURS;
-      }
-      return params;
-    };
-  }
+  const correctedParams = createParamsFactory({
+    constituents,
+    constituentModels,
+    fundamentals,
+    start,
+    endHour,
+  });
 
   /** Options shared by both extremes call sites */
   const extremesOptions = { startMs, prominenceThreshold };

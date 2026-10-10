@@ -1,6 +1,6 @@
 {
   "name": "@slackwater/cli",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "description": "Command line interface for tide predictions",
   "keywords": [
     "slackwater",
@@ -36,6 +36,7 @@
   "scripts": {
     "build": "tsdown",
     "build:sea": "node scripts/build-sea.ts",
+    "smoke:sea": "node scripts/smoke-sea.ts",
     "prepack": "npm run build",
     "test": "vitest"
   },
