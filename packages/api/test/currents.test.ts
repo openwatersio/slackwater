@@ -3,7 +3,13 @@ import express from "express";
 import request from "supertest";
 import { middleware as openApiValidator } from "express-openapi-validator";
 import { stations as dbStations } from "@slackwater/database";
-import { createApp, createRoutes, createCurrentRoutes, currentsOpenapi } from "../src/index.js";
+import {
+  createApp,
+  createRoutes,
+  createCurrentRoutes,
+  openapi,
+  currentsOpenapi,
+} from "../src/index.js";
 
 // Every request and response is validated against the OpenAPI spec, as in index.test.ts.
 const app = createApp({
@@ -52,14 +58,44 @@ describe("GET /currents/events", () => {
     }
   });
 
-  test("skips stations whose predictions can't be served", async () => {
+  test.each(["events", "timeline"])(
+    "refuses %s when the nearest station is CHS instead of answering for another",
+    async (kind) => {
+      const response = await request(app)
+        .get(`/currents/${kind}`)
+        .query({ ...activePass, ...span });
+
+      expect(response.status).toBe(451);
+      expect(response.body.message).toMatch(/Predictions for Active Pass/);
+    },
+  );
+
+  test("refuses at a CHS pass whose next station is far away", async () => {
+    // Seymour Narrows: the nearest NOAA station is about 195 km south.
     const response = await request(app)
       .get("/currents/events")
-      .query({ ...activePass, ...span });
+      .query({ latitude: 50.1306, longitude: -125.3561, ...span });
+
+    expect(response.status).toBe(451);
+  });
+
+  test("skips a nearest station that has no model", async () => {
+    // noaa-boundary-pass has no model and sits 1.5 m from noaa/PUG1717 (Turn Point).
+    const boundary = dbStations.find((s) => s.id === "noaa-boundary-pass")!;
+    const response = await request(app)
+      .get("/currents/events")
+      .query({ latitude: boundary.latitude, longitude: boundary.longitude, ...span });
 
     expect(response.status).toBe(200);
-    expect(response.body.station.source.name).not.toBe("Canadian Hydrographic Service");
-    expect(response.body.station.predictions).toBe(true);
+    expect(response.body.station.id).toBe("noaa/PUG1717");
+  });
+
+  test("validates the span before refusing", async () => {
+    const response = await request(app)
+      .get("/currents/events")
+      .query({ ...activePass, start: span.end, end: span.start });
+
+    expect(response.status).toBe(400);
   });
 
   test("never resolves to a secondary bin", async () => {
@@ -153,6 +189,17 @@ describe("GET /currents/stations", () => {
     expect(estes.bins).toEqual([{ id: "noaa/EPT0003" }, { id: "noaa/EPT0003@11", bin: 11 }]);
   });
 
+  test("flags stations whose predictions can't be served near coordinates", async () => {
+    const response = await request(app)
+      .get("/currents/stations")
+      .query({ ...activePass, maxResults: 3 });
+
+    expect(response.status).toBe(200);
+    expect(response.body[0].id).toBe("chs-active-pass");
+    expect(response.body[0].predictions).toBe(false);
+    expect(response.body[0].distance).toBeLessThan(1);
+  });
+
   test("flags stations whose predictions can't be served", async () => {
     const response = await request(app).get("/currents/stations").query({ query: "Active Pass" });
 
@@ -176,6 +223,14 @@ describe("GET /currents/stations", () => {
       .query({ query: "Pass", maxResults: 2 });
 
     expect(response.body).toHaveLength(2);
+  });
+
+  test("returns 400 for a repeated query parameter", async () => {
+    // Without a validator in front, so the route's own check answers.
+    const response = await request(createApp()).get("/currents/stations?query=Pass&query=Rapids");
+
+    expect(response.status).toBe(400);
+    expect(response.body.errors[0].path).toBe("query");
   });
 
   test("returns more than the search default of 20 when maxResults asks", async () => {
@@ -399,6 +454,18 @@ describe("stations whose predictions can't be served", () => {
     expect(response.body.message).toMatch(/no harmonic constituents or subordinate offsets/);
   });
 
+  test.each(["", "/events"])(
+    "lists the bins for an unknown bin of an unprefixed id%s",
+    async (suffix) => {
+      const response = await request(app).get(`/currents/stations/chs-active-pass@1${suffix}`);
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toBe(
+        "chs-active-pass has no bin 1. Available: chs-active-pass",
+      );
+    },
+  );
+
   test("returns 404 for an unknown unprefixed id", async () => {
     const response = await request(app).get("/currents/stations/nope");
 
@@ -449,6 +516,29 @@ describe("mounting", () => {
 
     expect((await request(custom).get("/api/currents/stations/noaa/PUG1701")).status).toBe(200);
     expect((await request(custom).get("/api/tides/stations/noaa/8722588")).status).toBe(200);
+  });
+
+  test.each([
+    ["/", "/"],
+    ["/api", "/api/"],
+    ["/Tides", "/tides"],
+    ["/tides", "/"],
+    ["/api/tides", "/api"],
+  ])("createApp rejects prefix %s under currentsPrefix %s", (prefix, currentsPrefix) => {
+    expect(() => createApp({ prefix, currentsPrefix })).toThrow(/must not equal or contain/);
+  });
+
+  test("a tide-spec validator mounted at the root never sees current requests", async () => {
+    const validated = createApp({
+      prefix: "/",
+      middleware: openApiValidator({
+        apiSpec: { ...openapi, servers: [{ url: "/" }] } as never,
+        validateRequests: { coerceTypes: true },
+        validateResponses: true,
+      }),
+    });
+
+    expect((await request(validated).get("/currents/stations/noaa/PUG1701")).status).toBe(200);
   });
 
   test("createRoutes serves tides only", async () => {

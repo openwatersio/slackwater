@@ -957,6 +957,13 @@ describe("Runtime validation (without the OpenAPI validator)", () => {
     expect(response.body.errors[0].path).toBe("datum");
   });
 
+  test("rejects a repeated query parameter", async () => {
+    const response = await request(app).get("/stations?query=harbor&query=bay");
+
+    expect(response.status).toBe(400);
+    expect(response.body.errors[0].path).toBe("query");
+  });
+
   test("rejects an out-of-range maxResults", async () => {
     const response = await request(app)
       .get("/stations")

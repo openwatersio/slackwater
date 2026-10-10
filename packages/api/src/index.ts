@@ -33,6 +33,15 @@ export function createApp({
   middleware = [],
   currentsMiddleware = [],
 }: CreateAppOptions = {}) {
+  // Express matches paths case-insensitively and ignores a trailing slash.
+  const tides = prefix.replace(/\/+$/, "").toLowerCase();
+  const currents = currentsPrefix.replace(/\/+$/, "").toLowerCase();
+  // Currents mount first, so a currentsPrefix that equals or contains prefix would shadow the tide routes.
+  if (tides === currents || tides.startsWith(`${currents}/`)) {
+    throw new Error(
+      `currentsPrefix "${currentsPrefix}" must not equal or contain prefix "${prefix}"`,
+    );
+  }
   const app = express();
 
   // Configure CORS
@@ -65,7 +74,7 @@ export function createApp({
   // edge runtimes (e.g. Cloudflare Workers), which compress at the edge anyway.
   if (compress) app.use(compression());
   // Currents go first: with `prefix: "/"` the tide routes, and any tide-spec
-  // validator in `middleware`, would otherwise see every /currents request.
+  // validator in `middleware`, would otherwise see requests for current routes.
   app.use(currentsPrefix, createCurrentRoutes({ middleware: currentsMiddleware }));
   app.use(prefix, createRoutes({ middleware }));
   return app;

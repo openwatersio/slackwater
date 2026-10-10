@@ -55,7 +55,7 @@ export function createRoutes(options: RouterOptions = {}) {
 
     router.get("/stations", (req: Request, res: Response) => {
       const { latitude, longitude } = positionOptions(req);
-      const query = req.query.query as string | undefined;
+      const query = validate.string(req.query, "query");
       const maxResults = validate.number(req.query, "maxResults", {
         integer: true,
         min: 1,

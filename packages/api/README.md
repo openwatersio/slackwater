@@ -32,9 +32,13 @@ const mainApp = express();
 
 // Mount the API at a specific path: /api/tides/... and /api/currents/...
 mainApp.use("/api", createApp());
+
+mainApp.listen(3000, () => {
+  console.log("Server listening on port 3000");
+});
 ```
 
-`createApp` mounts the tide routes at `prefix` (default `/tides`) and the current routes at `currentsPrefix` (default `/currents`):
+`createApp` mounts the tide routes at `prefix` (default `/tides`) and the current routes at `currentsPrefix` (default `/currents`). `currentsPrefix` must not equal or contain `prefix`, since the current routes are mounted first:
 
 ```typescript
 createApp({ prefix: "/", currentsPrefix: "/currents" }); // /extremes, /stations, ... and /currents/events, ...
@@ -46,13 +50,11 @@ createApp({ prefix: "/", currentsPrefix: "/currents" }); // /extremes, /stations
 
 ```typescript
 import { createRoutes, createCurrentRoutes } from "@slackwater/api";
+import express from "express";
 
+const app = express();
 app.use("/api/tides", createRoutes());
 app.use("/api/currents", createCurrentRoutes());
-
-mainApp.listen(3000, () => {
-  console.log("Server listening on port 3000");
-});
 ```
 
 ## API Endpoints
@@ -150,7 +152,7 @@ Current predictions are a sibling route group, served at `/currents/...` next to
 
 ### GET /currents/events
 
-Get slack water, maximum flood, and maximum ebb for the nearest current station that can be predicted.
+Get slack water, maximum flood, and maximum ebb for the nearest current station.
 
 **Query Parameters:**
 
@@ -196,7 +198,7 @@ Get signed current speed every 10 minutes for the nearest current station. Retur
 
 Search current stations, find them near a location, or list all of them. Takes the same query parameters as `/tides/stations`.
 
-Each station appears once, at its primary bin. As with `/tides/stations`, a location search returns full station records and the other modes return summaries. Every current station also carries:
+Each station appears once, at its primary bin. As with `/tides/stations`, a location search returns full station records with `distance` and the other modes return summaries. Every mode includes stations whose predictions can't be served. Every current station also carries:
 
 - `bins`: each depth bin of the station, primary first, e.g. `[{ "id": "noaa/EPT0003" }, { "id": "noaa/EPT0003@11", "bin": 11 }]`
 - `predictions`: whether this API can serve predictions for the station
@@ -219,7 +221,7 @@ An unknown bin returns 404 with the bins that exist. Keep the slash between sour
 
 Get events or a timeline for a specific station and bin. They take `start` and `end`.
 
-Canadian Hydrographic Service stations are listed so clients can show them, but CHS terms don't allow its predictions to be redistributed. Their prediction endpoints return **451** with a link to the official CHS predictions, and `/currents/events` and `/currents/timeline` skip them when picking the nearest station. A station with no harmonic constituents or subordinate offsets returns **404**.
+Canadian Hydrographic Service stations are listed so clients can show them, but CHS terms don't allow its predictions to be redistributed. Their prediction endpoints return **451** with a link to the official CHS predictions. `/currents/events` and `/currents/timeline` use the nearest station even when it is a CHS station, and return its 451 instead of answering for a station farther away. They skip stations with no model. A station with no harmonic constituents or subordinate offsets returns **404**.
 
 ## Development
 

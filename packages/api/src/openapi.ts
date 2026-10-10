@@ -686,7 +686,7 @@ export const currentsOpenapi = {
       get: {
         summary: "Get current events for a location",
         description:
-          "Returns slack water, maximum flood, and maximum ebb between start and end for the nearest current station that can be predicted. Stations whose predictions can't be served are skipped. end must be within 366 days of start.",
+          "Returns slack water, maximum flood, and maximum ebb between start and end for the nearest current station, skipping stations with no model. When that station's source forbids redistributing its predictions the request is refused with 451 rather than answered from a station farther away. end must be within 366 days of start.",
         parameters: [
           { $ref: "#/components/parameters/latitude" },
           { $ref: "#/components/parameters/longitude" },
@@ -706,6 +706,11 @@ export const currentsOpenapi = {
             description: "Invalid parameters",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
+          "451": {
+            description:
+              "The nearest current station's source does not allow its predictions to be redistributed",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
         },
       },
     },
@@ -713,7 +718,7 @@ export const currentsOpenapi = {
       get: {
         summary: "Get current speed timeline for a location",
         description:
-          "Returns signed current speed every 10 minutes for the nearest current station that can be predicted. end must be within 366 days of start.",
+          "Returns signed current speed every 10 minutes for the nearest current station, skipping stations with no model and refused with 451 when that station's source forbids redistributing its predictions. end must be within 366 days of start.",
         parameters: [
           { $ref: "#/components/parameters/latitude" },
           { $ref: "#/components/parameters/longitude" },
@@ -731,6 +736,11 @@ export const currentsOpenapi = {
           },
           "400": {
             description: "Invalid parameters",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "451": {
+            description:
+              "The nearest current station's source does not allow its predictions to be redistributed",
             content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
           },
         },
