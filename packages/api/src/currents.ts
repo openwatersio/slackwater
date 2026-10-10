@@ -1,4 +1,4 @@
-import { Router, type Request, type Response, type RequestHandler } from "express";
+import type { Request, Response, RequestHandler } from "express";
 import {
   stations,
   search,
@@ -8,6 +8,8 @@ import {
 } from "@slackwater/database";
 import { nearestCurrentStation, currentStationsNear, findCurrentStation } from "slackwater";
 import * as validate from "./validate.js";
+import { currentsOpenapi } from "./openapi.js";
+import { createApiRouter, type RouterOptions } from "./router.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -208,76 +210,74 @@ function timeline(predictor: Predictor, req: Request) {
   };
 }
 
-/** Current routes, mounted at `/currents` inside the API router. */
-export function createCurrentRoutes() {
-  const router = Router();
-
-  router.get("/events", (req: Request, res: Response) => {
-    res.json(events(nearest(req), req));
-  });
-
-  router.get("/timeline", (req: Request, res: Response) => {
-    res.json(timeline(nearest(req), req));
-  });
-
-  router.get("/stations", (req: Request, res: Response) => {
-    const query = req.query.query as string | undefined;
-    const latitude = validate.number(req.query, "latitude", { min: -90, max: 90 });
-    const longitude = validate.number(req.query, "longitude", { min: -180, max: 180 });
-    const maxResults = validate.number(req.query, "maxResults", {
-      integer: true,
-      min: 1,
-      max: 100,
-      default: 10,
+/** The tidal current routes. */
+export function createCurrentRoutes(options: RouterOptions = {}) {
+  return createApiRouter(currentsOpenapi, options, (router) => {
+    router.get("/events", (req: Request, res: Response) => {
+      res.json(events(nearest(req), req));
     });
-    const maxDistance = validate.number(req.query, "maxDistance", { min: 0 });
-    const bboxParam = validate.bbox(req.query);
-    const filter: Filter = (station) => station.kind === "current" && isPrimaryBin(station);
 
-    if (query) {
-      return res.json(search(query, { filter, maxResults }).map(summarize));
-    }
+    router.get("/timeline", (req: Request, res: Response) => {
+      res.json(timeline(nearest(req), req));
+    });
 
-    if (bboxParam) {
-      return res.json(bboxQuery(bboxParam, { filter }).map(summarize));
-    }
+    router.get("/stations", (req: Request, res: Response) => {
+      const query = req.query.query as string | undefined;
+      const latitude = validate.number(req.query, "latitude", { min: -90, max: 90 });
+      const longitude = validate.number(req.query, "longitude", { min: -180, max: 180 });
+      const maxResults = validate.number(req.query, "maxResults", {
+        integer: true,
+        min: 1,
+        max: 100,
+        default: 10,
+      });
+      const maxDistance = validate.number(req.query, "maxDistance", { min: 0 });
+      const bboxParam = validate.bbox(req.query);
+      const filter: Filter = (station) => station.kind === "current" && isPrimaryBin(station);
 
-    if (latitude === undefined || longitude === undefined) {
-      return res.json(currentStations.filter(isPrimaryBin).map(summarize));
-    }
+      if (query) {
+        return res.json(search(query, { filter, maxResults }).map(summarize));
+      }
 
-    res.json(
-      currentStationsNear({ latitude, longitude, maxResults, maxDistance, filter }).map(
-        (station) => ({ ...station, ...describe(station) }),
-      ),
-    );
+      if (bboxParam) {
+        return res.json(bboxQuery(bboxParam, { filter }).map(summarize));
+      }
+
+      if (latitude === undefined || longitude === undefined) {
+        return res.json(currentStations.filter(isPrimaryBin).map(summarize));
+      }
+
+      res.json(
+        currentStationsNear({ latitude, longitude, maxResults, maxDistance, filter }).map(
+          (station) => ({ ...station, ...describe(station) }),
+        ),
+      );
+    });
+
+    const show: RequestHandler = (req, res) => {
+      const station = find(req);
+      res.json({ ...station, ...describe(station) });
+    };
+    const showEvents: RequestHandler = (req, res) => {
+      const station = find(req);
+      assertPredictable(station);
+      res.json(events(station, req));
+    };
+    const showTimeline: RequestHandler = (req, res) => {
+      const station = find(req);
+      assertPredictable(station);
+      res.json(timeline(station, req));
+    };
+    // Ids without a source prefix (CHS) are a single path segment. Anything else
+    // falls through to the source/id routes, which share the two-segment shape.
+    const unprefixedOnly: RequestHandler = (req, _res, next) =>
+      next(unprefixedIds.has(req.params.id as string) ? undefined : "route");
+
+    router.get("/stations/:id", show);
+    router.get("/stations/:id/events", unprefixedOnly, showEvents);
+    router.get("/stations/:id/timeline", unprefixedOnly, showTimeline);
+    router.get("/stations/:source/:id", show);
+    router.get("/stations/:source/:id/events", showEvents);
+    router.get("/stations/:source/:id/timeline", showTimeline);
   });
-
-  const show: RequestHandler = (req, res) => {
-    const station = find(req);
-    res.json({ ...station, ...describe(station) });
-  };
-  const showEvents: RequestHandler = (req, res) => {
-    const station = find(req);
-    assertPredictable(station);
-    res.json(events(station, req));
-  };
-  const showTimeline: RequestHandler = (req, res) => {
-    const station = find(req);
-    assertPredictable(station);
-    res.json(timeline(station, req));
-  };
-  // Ids without a source prefix (CHS) are a single path segment. Anything else
-  // falls through to the source/id routes, which share the two-segment shape.
-  const unprefixedOnly: RequestHandler = (req, _res, next) =>
-    next(unprefixedIds.has(req.params.id as string) ? undefined : "route");
-
-  router.get("/stations/:id", show);
-  router.get("/stations/:id/events", unprefixedOnly, showEvents);
-  router.get("/stations/:id/timeline", unprefixedOnly, showTimeline);
-  router.get("/stations/:source/:id", show);
-  router.get("/stations/:source/:id/events", showEvents);
-  router.get("/stations/:source/:id/timeline", showTimeline);
-
-  return router;
 }

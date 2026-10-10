@@ -58,27 +58,31 @@ The API package (`packages/api`) exposes tide and tidal current predictions via 
 - `GET /stations/:source/:id` - Get a specific station by source and ID
 - `GET /stations/:source/:id/extremes` - Get extremes for a specific station
 - `GET /stations/:source/:id/timeline` - Get timeline for a specific station
+
+**Current endpoints** (a sibling route group, `/currents` by default):
+
 - `GET /currents/events`, `GET /currents/timeline` - Current events (slack, max flood, max ebb) or signed speed timeline near coordinates
 - `GET /currents/stations`, `GET /currents/stations/:source/:id[/events|/timeline]` - Current station lookup and per-station predictions
 
-Current routes live in `src/currents.ts`, mounted at `currents/` inside the same router, so they share the prefix, CORS, caching, and OpenAPI document with the tide routes. A station ID without a bin is the station's primary bin; `@N` selects bin N (`noaa/EPT0003@11`). Listings show each station once with its `bins`. Stations whose predictions can't be served (CHS, whose terms forbid redistribution, and records with no model) are flagged `predictions: false` in listings, skipped by the location endpoints, and refused by the per-station prediction endpoints (451 for CHS, 404 for no model). CHS IDs have no source prefix, so single-segment `/currents/stations/:id` routes serve them. The tide `/extremes` and `/timeline` likewise skip tide stations with no harmonic constituents or offsets, which covers the CHS ports.
+Current routes live in `src/currents.ts` with their own spec (`currentsOpenapi` in `src/openapi.ts`, sharing the tide spec's parameters and schemas). `src/router.ts` gives both route groups the same JSON parsing, `/` and `/openapi.json` routes, and error handler. A station ID without a bin is the station's primary bin; `@N` selects bin N (`noaa/EPT0003@11`). Listings show each station once with its `bins`. Stations whose predictions can't be served (CHS, whose terms forbid redistribution, and records with no model) are flagged `predictions: false` in listings, skipped by the location endpoints, and refused by the per-station prediction endpoints (451 for CHS, 404 for no model). CHS IDs have no source prefix, so single-segment `/currents/stations/:id` routes serve them. The tide `/extremes` and `/timeline` likewise skip tide stations with no harmonic constituents or offsets, which covers the CHS ports.
 
-**Prefix mounting:** `createApp` accepts a `prefix` option (default: `/tides`) that controls the URL path where routes are mounted. The OpenAPI spec and validator are automatically configured for the prefix.
+**Prefix mounting:** `createApp` mounts the tide routes at `prefix` (default: `/tides`) and the current routes at `currentsPrefix` (default: `/currents`). Each group's OpenAPI document sets `servers` to wherever it is mounted.
 
 ```typescript
 // Standalone server with default /tides prefix
 import { createApp } from "@slackwater/api";
-const app = createApp(); // routes at /tides/extremes, /tides/stations, etc.
+const app = createApp(); // /tides/extremes, /tides/stations, ... and /currents/events, ...
 app.listen(3000);
 
 // Mount at root
-const app = createApp({ prefix: "/" }); // routes at /extremes, /stations, etc.
+const app = createApp({ prefix: "/" }); // /extremes, /stations, ... and /currents/events, ...
 
 // Mount routes into an existing Express app
-import { createRoutes } from "@slackwater/api";
+import { createRoutes, createCurrentRoutes } from "@slackwater/api";
 import express from "express";
 const app = express();
-app.use("/api", createRoutes({ prefix: "/api" }));
+app.use("/api/tides", createRoutes());
+app.use("/api/currents", createCurrentRoutes());
 ```
 
 ### @slackwater/cli Architecture

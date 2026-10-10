@@ -1,12 +1,12 @@
 import pkg from "../package.json" with { type: "json" };
 import { datums } from "@slackwater/database";
 
-export default {
+const tides = {
   openapi: "3.0.3",
   info: {
-    title: "Slackwater Tide and Current Prediction API",
+    title: "Slackwater Tide Prediction API",
     version: pkg.version,
-    description: "HTTP JSON API for tide and tidal current predictions using harmonic constituents",
+    description: "HTTP JSON API for tide predictions using harmonic constituents",
     license: {
       name: "MIT",
     },
@@ -279,270 +279,6 @@ export default {
         },
       },
     },
-    "/currents/events": {
-      get: {
-        summary: "Get current events for a location",
-        description:
-          "Returns slack water, maximum flood, and maximum ebb between start and end for the nearest current station that can be predicted. Stations whose predictions can't be served are skipped. end must be within 366 days of start.",
-        parameters: [
-          { $ref: "#/components/parameters/latitude" },
-          { $ref: "#/components/parameters/longitude" },
-          { $ref: "#/components/parameters/start" },
-          { $ref: "#/components/parameters/end" },
-        ],
-        responses: {
-          "200": {
-            description: "Successful prediction",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/CurrentEventsResponse" },
-              },
-            },
-          },
-          "400": {
-            description: "Invalid parameters",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-        },
-      },
-    },
-    "/currents/timeline": {
-      get: {
-        summary: "Get current speed timeline for a location",
-        description:
-          "Returns signed current speed every 10 minutes for the nearest current station that can be predicted. end must be within 366 days of start.",
-        parameters: [
-          { $ref: "#/components/parameters/latitude" },
-          { $ref: "#/components/parameters/longitude" },
-          { $ref: "#/components/parameters/start" },
-          { $ref: "#/components/parameters/end" },
-        ],
-        responses: {
-          "200": {
-            description: "Successful prediction",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/CurrentTimelineResponse" },
-              },
-            },
-          },
-          "400": {
-            description: "Invalid parameters",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-        },
-      },
-    },
-    "/currents/stations": {
-      get: {
-        summary: "Find current stations",
-        description:
-          "Search current stations by name/ID, find them near the given coordinates, or list all. Each station appears once, at its primary bin, with its other bins listed in `bins`. Stations whose predictions can't be served are included with `predictions: false`.",
-        parameters: [
-          { $ref: "#/components/parameters/stationQuery" },
-          { $ref: "#/components/parameters/optionalLatitude" },
-          { $ref: "#/components/parameters/optionalLongitude" },
-          { $ref: "#/components/parameters/maxResults" },
-          { $ref: "#/components/parameters/maxDistance" },
-          { $ref: "#/components/parameters/bbox" },
-        ],
-        responses: {
-          "200": {
-            description: "Current stations found",
-            content: {
-              "application/json": {
-                schema: {
-                  anyOf: [
-                    { type: "array", items: { $ref: "#/components/schemas/CurrentStation" } },
-                    {
-                      type: "array",
-                      items: { $ref: "#/components/schemas/CurrentStationSummary" },
-                    },
-                  ],
-                },
-              },
-            },
-          },
-          "400": {
-            description: "Invalid parameters",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-        },
-      },
-    },
-    "/currents/stations/{source}/{id}": {
-      get: {
-        summary: "Get current station by ID",
-        description:
-          "Find a current station by its ID. An ID without a bin is the station's primary bin; append `@N` for bin N.",
-        parameters: [
-          { $ref: "#/components/parameters/stationSource" },
-          { $ref: "#/components/parameters/currentStationId" },
-        ],
-        responses: {
-          "200": {
-            description: "Station found",
-            content: {
-              "application/json": { schema: { $ref: "#/components/schemas/CurrentStation" } },
-            },
-          },
-          "404": {
-            description: "Station or bin not found",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-        },
-      },
-    },
-    "/currents/stations/{id}": {
-      get: {
-        summary: "Get current station by ID",
-        description:
-          "Find a current station by its ID. An ID without a bin is the station's primary bin; append `@N` for bin N.",
-        parameters: [{ $ref: "#/components/parameters/unprefixedCurrentStationId" }],
-        responses: {
-          "200": {
-            description: "Station found",
-            content: {
-              "application/json": { schema: { $ref: "#/components/schemas/CurrentStation" } },
-            },
-          },
-          "404": {
-            description: "Station or bin not found",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-        },
-      },
-    },
-    "/currents/stations/{source}/{id}/events": {
-      get: {
-        summary: "Get current events for a specific station",
-        parameters: [
-          { $ref: "#/components/parameters/stationSource" },
-          { $ref: "#/components/parameters/currentStationId" },
-          { $ref: "#/components/parameters/start" },
-          { $ref: "#/components/parameters/end" },
-        ],
-        responses: {
-          "200": {
-            description: "Successful prediction",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/CurrentEventsResponse" },
-              },
-            },
-          },
-          "400": {
-            description: "Invalid parameters",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-          "404": {
-            description: "Station or bin not found, or the station has no model to predict from",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-          "451": {
-            description: "The station's source does not allow its predictions to be redistributed",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-        },
-      },
-    },
-    "/currents/stations/{id}/events": {
-      get: {
-        summary: "Get current events for a specific station",
-        parameters: [
-          { $ref: "#/components/parameters/unprefixedCurrentStationId" },
-          { $ref: "#/components/parameters/start" },
-          { $ref: "#/components/parameters/end" },
-        ],
-        responses: {
-          "200": {
-            description: "Successful prediction",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/CurrentEventsResponse" },
-              },
-            },
-          },
-          "400": {
-            description: "Invalid parameters",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-          "404": {
-            description: "Station or bin not found, or the station has no model to predict from",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-          "451": {
-            description: "The station's source does not allow its predictions to be redistributed",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-        },
-      },
-    },
-    "/currents/stations/{source}/{id}/timeline": {
-      get: {
-        summary: "Get current speed timeline for a specific station",
-        parameters: [
-          { $ref: "#/components/parameters/stationSource" },
-          { $ref: "#/components/parameters/currentStationId" },
-          { $ref: "#/components/parameters/start" },
-          { $ref: "#/components/parameters/end" },
-        ],
-        responses: {
-          "200": {
-            description: "Successful prediction",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/CurrentTimelineResponse" },
-              },
-            },
-          },
-          "400": {
-            description: "Invalid parameters",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-          "404": {
-            description: "Station or bin not found, or the station has no model to predict from",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-          "451": {
-            description: "The station's source does not allow its predictions to be redistributed",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-        },
-      },
-    },
-    "/currents/stations/{id}/timeline": {
-      get: {
-        summary: "Get current speed timeline for a specific station",
-        parameters: [
-          { $ref: "#/components/parameters/unprefixedCurrentStationId" },
-          { $ref: "#/components/parameters/start" },
-          { $ref: "#/components/parameters/end" },
-        ],
-        responses: {
-          "200": {
-            description: "Successful prediction",
-            content: {
-              "application/json": {
-                schema: { $ref: "#/components/schemas/CurrentTimelineResponse" },
-              },
-            },
-          },
-          "400": {
-            description: "Invalid parameters",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-          "404": {
-            description: "Station or bin not found, or the station has no model to predict from",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-          "451": {
-            description: "The station's source does not allow its predictions to be redistributed",
-            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
-          },
-        },
-      },
-    },
     "/openapi.json": {
       get: {
         summary: "Get OpenAPI specification",
@@ -640,25 +376,6 @@ export default {
         in: "path",
         required: true,
         description: "Station ID within the source (e.g., '8722588', 'some-dash-string')",
-        schema: {
-          type: "string",
-        },
-      },
-      currentStationId: {
-        name: "id",
-        in: "path",
-        required: true,
-        description:
-          "Current station ID within the source, optionally with a depth bin (e.g. 'EPT0003' for the primary bin, 'EPT0003@11' for bin 11)",
-        schema: {
-          type: "string",
-        },
-      },
-      unprefixedCurrentStationId: {
-        name: "id",
-        in: "path",
-        required: true,
-        description: "Current station ID with no source prefix (e.g. 'chs-active-pass')",
         schema: {
           type: "string",
         },
@@ -925,6 +642,336 @@ export default {
           },
         },
       },
+      Error: {
+        type: "object",
+        properties: {
+          message: {
+            type: "string",
+          },
+          errors: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                path: { type: "string" },
+                message: { type: "string" },
+                errorCode: { type: "string" },
+              },
+            },
+          },
+        },
+        required: ["message"],
+      },
+    },
+  },
+} as const;
+
+export default tides;
+
+/** The current routes' spec. Shares the tide spec's parameters and schemas. */
+export const currentsOpenapi = {
+  openapi: "3.0.3",
+  info: {
+    title: "Slackwater Current Prediction API",
+    version: pkg.version,
+    description: "HTTP JSON API for tidal current predictions using harmonic constituents",
+    license: {
+      name: "MIT",
+    },
+  },
+  paths: {
+    "/": tides.paths["/"],
+    "/openapi.json": tides.paths["/openapi.json"],
+    "/events": {
+      get: {
+        summary: "Get current events for a location",
+        description:
+          "Returns slack water, maximum flood, and maximum ebb between start and end for the nearest current station that can be predicted. Stations whose predictions can't be served are skipped. end must be within 366 days of start.",
+        parameters: [
+          { $ref: "#/components/parameters/latitude" },
+          { $ref: "#/components/parameters/longitude" },
+          { $ref: "#/components/parameters/start" },
+          { $ref: "#/components/parameters/end" },
+        ],
+        responses: {
+          "200": {
+            description: "Successful prediction",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CurrentEventsResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid parameters",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/timeline": {
+      get: {
+        summary: "Get current speed timeline for a location",
+        description:
+          "Returns signed current speed every 10 minutes for the nearest current station that can be predicted. end must be within 366 days of start.",
+        parameters: [
+          { $ref: "#/components/parameters/latitude" },
+          { $ref: "#/components/parameters/longitude" },
+          { $ref: "#/components/parameters/start" },
+          { $ref: "#/components/parameters/end" },
+        ],
+        responses: {
+          "200": {
+            description: "Successful prediction",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CurrentTimelineResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid parameters",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/stations": {
+      get: {
+        summary: "Find current stations",
+        description:
+          "Search current stations by name/ID, find them near the given coordinates, or list all. Each station appears once, at its primary bin, with its other bins listed in `bins`. Stations whose predictions can't be served are included with `predictions: false`.",
+        parameters: [
+          { $ref: "#/components/parameters/stationQuery" },
+          { $ref: "#/components/parameters/optionalLatitude" },
+          { $ref: "#/components/parameters/optionalLongitude" },
+          { $ref: "#/components/parameters/maxResults" },
+          { $ref: "#/components/parameters/maxDistance" },
+          { $ref: "#/components/parameters/bbox" },
+        ],
+        responses: {
+          "200": {
+            description: "Current stations found",
+            content: {
+              "application/json": {
+                schema: {
+                  anyOf: [
+                    { type: "array", items: { $ref: "#/components/schemas/CurrentStation" } },
+                    {
+                      type: "array",
+                      items: { $ref: "#/components/schemas/CurrentStationSummary" },
+                    },
+                  ],
+                },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid parameters",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/stations/{source}/{id}": {
+      get: {
+        summary: "Get current station by ID",
+        description:
+          "Find a current station by its ID. An ID without a bin is the station's primary bin; append `@N` for bin N.",
+        parameters: [
+          { $ref: "#/components/parameters/stationSource" },
+          { $ref: "#/components/parameters/currentStationId" },
+        ],
+        responses: {
+          "200": {
+            description: "Station found",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/CurrentStation" } },
+            },
+          },
+          "404": {
+            description: "Station or bin not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/stations/{id}": {
+      get: {
+        summary: "Get current station by ID",
+        description:
+          "Find a current station by its ID. An ID without a bin is the station's primary bin; append `@N` for bin N.",
+        parameters: [{ $ref: "#/components/parameters/unprefixedCurrentStationId" }],
+        responses: {
+          "200": {
+            description: "Station found",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/CurrentStation" } },
+            },
+          },
+          "404": {
+            description: "Station or bin not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/stations/{source}/{id}/events": {
+      get: {
+        summary: "Get current events for a specific station",
+        parameters: [
+          { $ref: "#/components/parameters/stationSource" },
+          { $ref: "#/components/parameters/currentStationId" },
+          { $ref: "#/components/parameters/start" },
+          { $ref: "#/components/parameters/end" },
+        ],
+        responses: {
+          "200": {
+            description: "Successful prediction",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CurrentEventsResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid parameters",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Station or bin not found, or the station has no model to predict from",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "451": {
+            description: "The station's source does not allow its predictions to be redistributed",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/stations/{id}/events": {
+      get: {
+        summary: "Get current events for a specific station",
+        parameters: [
+          { $ref: "#/components/parameters/unprefixedCurrentStationId" },
+          { $ref: "#/components/parameters/start" },
+          { $ref: "#/components/parameters/end" },
+        ],
+        responses: {
+          "200": {
+            description: "Successful prediction",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CurrentEventsResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid parameters",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Station or bin not found, or the station has no model to predict from",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "451": {
+            description: "The station's source does not allow its predictions to be redistributed",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/stations/{source}/{id}/timeline": {
+      get: {
+        summary: "Get current speed timeline for a specific station",
+        parameters: [
+          { $ref: "#/components/parameters/stationSource" },
+          { $ref: "#/components/parameters/currentStationId" },
+          { $ref: "#/components/parameters/start" },
+          { $ref: "#/components/parameters/end" },
+        ],
+        responses: {
+          "200": {
+            description: "Successful prediction",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CurrentTimelineResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid parameters",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Station or bin not found, or the station has no model to predict from",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "451": {
+            description: "The station's source does not allow its predictions to be redistributed",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+    "/stations/{id}/timeline": {
+      get: {
+        summary: "Get current speed timeline for a specific station",
+        parameters: [
+          { $ref: "#/components/parameters/unprefixedCurrentStationId" },
+          { $ref: "#/components/parameters/start" },
+          { $ref: "#/components/parameters/end" },
+        ],
+        responses: {
+          "200": {
+            description: "Successful prediction",
+            content: {
+              "application/json": {
+                schema: { $ref: "#/components/schemas/CurrentTimelineResponse" },
+              },
+            },
+          },
+          "400": {
+            description: "Invalid parameters",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "404": {
+            description: "Station or bin not found, or the station has no model to predict from",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+          "451": {
+            description: "The station's source does not allow its predictions to be redistributed",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
+  },
+  components: {
+    parameters: {
+      ...tides.components.parameters,
+      currentStationId: {
+        name: "id",
+        in: "path",
+        required: true,
+        description:
+          "Current station ID within the source, optionally with a depth bin (e.g. 'EPT0003' for the primary bin, 'EPT0003@11' for bin 11)",
+        schema: {
+          type: "string",
+        },
+      },
+      unprefixedCurrentStationId: {
+        name: "id",
+        in: "path",
+        required: true,
+        description: "Current station ID with no source prefix (e.g. 'chs-active-pass')",
+        schema: {
+          type: "string",
+        },
+      },
+    },
+    schemas: {
+      ...tides.components.schemas,
       CurrentBin: {
         type: "object",
         properties: {
@@ -1066,26 +1113,6 @@ export default {
             required: ["timeline"],
           },
         ],
-      },
-      Error: {
-        type: "object",
-        properties: {
-          message: {
-            type: "string",
-          },
-          errors: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                path: { type: "string" },
-                message: { type: "string" },
-                errorCode: { type: "string" },
-              },
-            },
-          },
-        },
-        required: ["message"],
       },
     },
   },

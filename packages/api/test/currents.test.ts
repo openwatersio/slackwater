@@ -3,13 +3,12 @@ import express from "express";
 import request from "supertest";
 import { middleware as openApiValidator } from "express-openapi-validator";
 import { stations as dbStations } from "@slackwater/database";
-import { createApp, createRoutes, openapi } from "../src/index.js";
+import { createApp, createRoutes, createCurrentRoutes, currentsOpenapi } from "../src/index.js";
 
 // Every request and response is validated against the OpenAPI spec, as in index.test.ts.
 const app = createApp({
-  prefix: "/",
-  middleware: openApiValidator({
-    apiSpec: { ...openapi, servers: [{ url: "/" }] } as never,
+  currentsMiddleware: openApiValidator({
+    apiSpec: { ...currentsOpenapi, servers: [{ url: "/currents" }] } as never,
     validateRequests: { coerceTypes: true },
     validateResponses: true,
   }),
@@ -428,20 +427,64 @@ describe("stations whose predictions can't be served", () => {
   });
 });
 
-describe("mounted with createRoutes", () => {
-  const parent = express();
-  parent.use("/api", createRoutes());
+describe("mounting", () => {
+  test("createApp serves tides and currents as sibling prefixes", async () => {
+    const defaults = createApp();
 
-  test("serves currents under the mount path", async () => {
-    const response = await request(parent).get("/api/currents/stations/noaa/PUG1701");
-
-    expect(response.status).toBe(200);
-    expect(response.body.id).toBe("noaa/PUG1701");
+    expect((await request(defaults).get("/currents/stations/noaa/PUG1701")).status).toBe(200);
+    expect((await request(defaults).get("/tides/stations/noaa/8722588")).status).toBe(200);
+    expect((await request(defaults).get("/tides/currents/stations/noaa/PUG1701")).status).toBe(404);
   });
 
-  test("lists current paths in the OpenAPI document", async () => {
-    const response = await request(parent).get("/api/openapi.json");
+  test("currents stay at /currents when tides are mounted at the root", async () => {
+    // The CLI's `slackwater serve` mounts tides at "/".
+    const root = createApp({ prefix: "/" });
 
-    expect(Object.keys(response.body.paths)).toContain("/currents/events");
+    expect((await request(root).get("/currents/stations/noaa/PUG1701")).status).toBe(200);
+    expect((await request(root).get("/stations/noaa/8722588")).status).toBe(200);
+  });
+
+  test("currentsPrefix moves the current routes", async () => {
+    const custom = createApp({ prefix: "/api/tides", currentsPrefix: "/api/currents" });
+
+    expect((await request(custom).get("/api/currents/stations/noaa/PUG1701")).status).toBe(200);
+    expect((await request(custom).get("/api/tides/stations/noaa/8722588")).status).toBe(200);
+  });
+
+  test("createRoutes serves tides only", async () => {
+    // signalk-tides mounts createRoutes() at its own tides path.
+    const parent = express();
+    parent.use("/tides", createRoutes());
+
+    expect((await request(parent).get("/tides/currents/stations/noaa/PUG1701")).status).toBe(404);
+    const spec = await request(parent).get("/tides/openapi.json");
+    expect(Object.keys(spec.body.paths).some((path) => path.includes("current"))).toBe(false);
+  });
+
+  describe("createCurrentRoutes", () => {
+    const parent = express();
+    parent.use("/api/currents", createCurrentRoutes());
+
+    test("serves currents under the mount path", async () => {
+      const response = await request(parent).get("/api/currents/stations/noaa/PUG1701");
+
+      expect(response.status).toBe(200);
+      expect(response.body.id).toBe("noaa/PUG1701");
+    });
+
+    test("serves its own OpenAPI document", async () => {
+      const response = await request(parent).get("/api/currents/openapi.json");
+
+      expect(response.body.info.title).toBe("Slackwater Current Prediction API");
+      expect(response.body.servers).toEqual([{ url: "/api/currents" }]);
+      expect(Object.keys(response.body.paths)).toContain("/events");
+    });
+
+    test("describes itself at its root", async () => {
+      const response = await request(parent).get("/api/currents/");
+
+      expect(response.body.name).toBe("Slackwater Current Prediction API");
+      expect(response.body.docs).toBe("/api/currents/openapi.json");
+    });
   });
 });

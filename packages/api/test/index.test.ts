@@ -629,10 +629,13 @@ describe("Error handling", () => {
     expect(response.body.errors.length).toBeGreaterThan(0);
   });
 
-  test("error handler returns next() when no error", async () => {
-    // This tests the error handler's !err branch by making a successful request
-    const response = await request(app).get("/openapi.json");
-    expect(response.status).toBe(200);
+  test("error handler formats an error with no status or message", async () => {
+    const parent = express();
+    parent.use(createRoutes({ middleware: [(_req, _res, next) => next({})] }));
+
+    const response = await request(parent).get("/extremes");
+    expect(response.status).toBe(500);
+    expect(response.body.message).toBe("Unknown error");
   });
 
   test("error handler handles non-validation errors", async () => {
