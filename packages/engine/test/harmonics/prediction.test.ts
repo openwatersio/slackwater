@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import harmonics, { ExtremeOffsets, getTimeline } from "../../src/harmonics/index.js";
 import predictionFactory from "../../src/harmonics/prediction.js";
+import { filterExtremes, findExtremes } from "../../src/harmonics/extremes.js";
+import { createTidePredictor } from "../../src/index.js";
 import defaultConstituentModels from "../../src/constituents/index.js";
 import mockHarmonicConstituents from "../_mocks/constituents.js";
 
@@ -24,6 +26,17 @@ describe("harmonic prediction", () => {
     const lastResult = results.pop();
     expect(results[0].level).toBeCloseTo(-1.46903456, 3);
     expect(lastResult?.level).toBeCloseTo(2.83490872, 3);
+  });
+
+  it("keeps the span it was created with after a later setTimeSpan or a mutated Date", () => {
+    const harmonic = harmonics({ harmonicConstituents: mockHarmonicConstituents, offset: false });
+    const end = new Date(endDate);
+    const testPrediction = harmonic.setTimeSpan(startDate, end).prediction();
+    harmonic.setTimeSpan(extremesEndDate, new Date("2019-09-04T00:00:00Z"));
+    end.setUTCHours(12);
+    const results = testPrediction.getTimelinePrediction();
+    expect(results[0].time).toEqual(startDate);
+    expect(results[results.length - 1].time).toEqual(endDate);
   });
 
   it("it finds high and low tides", () => {
@@ -89,10 +102,11 @@ describe("unknown constituent handling", () => {
     ];
 
     const prediction = predictionFactory({
-      timeline,
+      timeline: () => timeline,
       constituents,
       constituentModels: defaultConstituentModels,
       start: startDate,
+      end: timeline.items[timeline.items.length - 1],
     });
 
     // Should not throw — unknown constituent is silently skipped in prepare()
@@ -202,17 +216,216 @@ describe("prominence filtering", () => {
     expect(results.length).toBeLessThanOrEqual(9);
     expect(results[0].level).toBeCloseTo(-1.67283933, 4);
   });
+
+  // Victoria-like mixed tide: small stands on the falling tide are common here.
+  const mixedTide = [
+    { name: "M2", amplitude: 0.37, phase: 20 },
+    { name: "S2", amplitude: 0.1, phase: 40 },
+    { name: "N2", amplitude: 0.09, phase: 355 },
+    { name: "K2", amplitude: 0.03, phase: 40 },
+    { name: "K1", amplitude: 0.63, phase: 260 },
+    { name: "O1", amplitude: 0.38, phase: 240 },
+    { name: "P1", amplitude: 0.19, phase: 258 },
+    { name: "Q1", amplitude: 0.07, phase: 235 },
+  ];
+  // (M4 + MS4) / M2 ≈ 0.3 meets the Doodson double-tide criterion.
+  const mixedDoubleTide = [
+    ...mixedTide,
+    { name: "M4", amplitude: 0.08, phase: 100 },
+    { name: "MS4", amplitude: 0.03, phase: 150 },
+  ];
+
+  it.each([
+    ["default threshold", mixedTide, undefined],
+    ["NOAA 0.03 m threshold", mixedTide, 0.03],
+    ["double tide", mixedDoubleTide, undefined],
+  ])("alternates highs and lows over a 19-year mixed tide (%s)", (_, constituents, threshold) => {
+    const results = harmonics({ harmonicConstituents: constituents, offset: false })
+      .setTimeSpan(new Date("2020-01-01T00:00:00Z"), new Date("2039-01-01T00:00:00Z"))
+      .prediction({ prominenceThreshold: threshold })
+      .getExtremesPrediction();
+
+    const repeats = results.filter((e, i) => i > 0 && e.high === results[i - 1].high);
+    expect(repeats).toEqual([]);
+  });
+});
+
+describe("filterExtremes", () => {
+  const extreme = (hour: number, level: number, high: boolean) => ({
+    time: new Date(hour * 3600000),
+    level,
+    high,
+    low: !high,
+    label: high ? "High" : "Low",
+  });
+  const levels = (extremes: { level: number }[]) => extremes.map((e) => e.level);
+
+  it("removes a stand on the falling tide as a low-high pair", () => {
+    const results = filterExtremes(
+      [
+        extreme(0, -0.926, false),
+        extreme(8, 0.945, true),
+        extreme(17, -0.112, false),
+        extreme(17.5, -0.109, true),
+        extreme(24, -0.72, false),
+      ],
+      0.01,
+    );
+    expect(levels(results)).toEqual([-0.926, 0.945, -0.72]);
+  });
+
+  it("keeps the higher high of a double high water with a shallow dip", () => {
+    const results = filterExtremes(
+      [
+        extreme(0, 0, false),
+        extreme(6, 1.002, true),
+        extreme(7, 0.995, false),
+        extreme(8, 1.0, true),
+        extreme(14, 0, false),
+      ],
+      0.01,
+    );
+    expect(levels(results)).toEqual([0, 1.002, 0]);
+  });
+
+  it("keeps a double high water whose dip clears the threshold", () => {
+    const input = [
+      extreme(0, 0, false),
+      extreme(6, 1.0, true),
+      extreme(7, 0.95, false),
+      extreme(8, 1.02, true),
+      extreme(14, 0, false),
+    ];
+    expect(filterExtremes(input, 0.01)).toEqual(input);
+  });
+
+  it("never removes the first or last extreme", () => {
+    const input = [
+      extreme(0, 1.0, true),
+      extreme(1, 0.999, false),
+      extreme(4, 1.5, true),
+      extreme(10, -1, false),
+      extreme(11, -0.9995, true),
+    ];
+    expect(filterExtremes(input, 0.01)).toEqual(input);
+  });
+
+  it("keeps a double high's first high when its second lies past the end", () => {
+    const results = filterExtremes(
+      [extreme(0, 0, false), extreme(6, 1.002, true), extreme(7, 0.995, false)],
+      0.01,
+    );
+    expect(levels(results)).toContain(1.002);
+  });
+
+  it("keeps a double high's second high when its first lies before the start", () => {
+    const results = filterExtremes(
+      [extreme(7, 0.995, false), extreme(8, 1.0, true), extreme(14, 0, false)],
+      0.01,
+    );
+    expect(levels(results)).toContain(1.0);
+  });
+
+  it("drops one copy of a turn found twice", () => {
+    const results = filterExtremes(
+      [
+        extreme(0, -0.4, false),
+        extreme(7.6, 0.03, true),
+        extreme(7.6005, 0.03, true),
+        extreme(10.4, -0.008, false),
+      ],
+      0.01,
+    );
+    expect(results.map((e) => e.high)).toEqual([false, true, false]);
+  });
+
+  it("removes in the same order as rescanning for the smallest change", () => {
+    const rescan = (input: ReturnType<typeof extreme>[], threshold: number) => {
+      const kept = input.slice();
+      const change = (i: number) => Math.abs(kept[i + 1].level - kept[i].level);
+      while (kept.length > 3) {
+        let worst = 1;
+        for (let i = 2; i < kept.length - 2; i++) if (change(i) < change(worst)) worst = i;
+        if (change(worst) >= threshold) break;
+        kept.splice(worst, kept[worst].high === kept[worst + 1].high ? 1 : 2);
+      }
+      return kept;
+    };
+    // Coarse levels force ties; random kinds force same-kind neighbours.
+    let seed = 1;
+    const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+    for (let run = 0; run < 500; run++) {
+      const input = Array.from({ length: 2 + Math.floor(random() * 40) }, (_, i) =>
+        extreme(i, Math.round(random() * 20) / 100, random() < 0.5),
+      );
+      expect(filterExtremes(input, 0.05)).toEqual(rescan(input, 0.05));
+    }
+  });
+});
+
+describe("extremes at the edges of the window", () => {
+  // M4 just over a quarter of M2 and in opposition splits every high into two with a
+  // dip of a few millimetres; the faint M8 shortens the bracket enough to resolve it.
+  const doubleHigh = [
+    { name: "M2", amplitude: 1, phase: 0 },
+    { name: "M4", amplitude: 0.29, phase: 180.5 },
+    { name: "M8", amplitude: 0.001, phase: 0 },
+  ];
+  const extremesBetween = (start: string, end: string) =>
+    harmonics({ harmonicConstituents: doubleHigh, offset: false })
+      .setTimeSpan(new Date(start), new Date(end))
+      .prediction()
+      .getExtremesPrediction();
+  const long = extremesBetween("2024-12-31T00:00:00Z", "2025-01-03T00:00:00Z");
+
+  // On 2025-01-01 the double highs fall at 00:18 / 01:18 / 02:04 and 12:43 / 13:44 / 14:29.
+  it.each([
+    ["starts before the dip", "2025-01-01T01:00:00Z", "2025-01-01T10:00:00Z"],
+    ["starts after the dip", "2025-01-01T02:00:00Z", "2025-01-01T10:00:00Z"],
+    ["ends before the dip", "2025-01-01T06:00:00Z", "2025-01-01T13:10:00Z"],
+    ["ends after the dip", "2025-01-01T06:00:00Z", "2025-01-01T14:00:00Z"],
+  ])("matches a longer run when the window %s of a double high", (_, start, end) => {
+    const short = extremesBetween(start, end);
+    const expected = long.filter((e) => e.time >= new Date(start) && e.time <= new Date(end));
+
+    expect(short.map((e) => e.high)).toEqual(expected.map((e) => e.high));
+    short.forEach((e, i) => {
+      expect(Math.abs(e.time.getTime() - expected[i].time.getTime())).toBeLessThan(5000);
+      expect(e.level).toBeCloseTo(expected[i].level, 4);
+    });
+  });
 });
 
 describe("extremes edge cases", () => {
+  it("places every extreme within a second of where h' changes sign", () => {
+    // A strong M4 skews the curve, so plain regula falsi would stall at one end of each bracket.
+    const params = [
+      { A: 1, w: 0.5059, phi: 0.3 },
+      { A: 0.4, w: 1.0118, phi: 2.1 },
+    ];
+    const dh = (t: number) =>
+      params.reduce((sum, { A, w, phi }) => sum - A * w * Math.sin(w * t + phi), 0);
+    const extremes = findExtremes(0, 24 * 30, {
+      startMs: 0,
+      prominenceThreshold: 0,
+      getParams: () => params,
+    });
+    expect(extremes.length).toBeGreaterThan(100);
+    for (const { time } of extremes) {
+      const t = time.getTime() / 3600000;
+      expect(Math.sign(dh(t - 1 / 3600))).toBe(-Math.sign(dh(t + 1 / 3600)));
+    }
+  });
+
   it("returns empty for zero-amplitude constituents", () => {
     const timeline = getTimeline(startDate, endDate);
     const constituents = [{ name: "M2", amplitude: 0, phase: 0 }];
     const prediction = predictionFactory({
-      timeline,
+      timeline: () => timeline,
       constituents,
       constituentModels: defaultConstituentModels,
       start: startDate,
+      end: timeline.items[timeline.items.length - 1],
     });
     expect(prediction.getExtremesPrediction()).toEqual([]);
   });
@@ -222,10 +435,11 @@ describe("extremes edge cases", () => {
     const timeline = getTimeline(startDate, endDate);
     const constituents = [{ name: "Z0", amplitude: 1.5, phase: 0 }];
     const prediction = predictionFactory({
-      timeline,
+      timeline: () => timeline,
       constituents,
       constituentModels: defaultConstituentModels,
       start: startDate,
+      end: timeline.items[timeline.items.length - 1],
     });
     expect(prediction.getExtremesPrediction()).toEqual([]);
   });
@@ -329,6 +543,25 @@ describe("Secondary stations", () => {
     expect(subTimeline.length).toBe(refTimeline.length);
     for (let i = 0; i < refTimeline.length; i++) {
       expect(subTimeline[i].time.getTime()).toBe(refTimeline[i].time.getTime());
+      expect(subTimeline[i].level).toBeCloseTo(refTimeline[i].level, 10);
+    }
+  });
+
+  it("subordinate timeline from a tide with no turn above the threshold matches reference", () => {
+    const predictor = createTidePredictor([{ name: "M2", amplitude: 0.004, phase: 20 }]);
+    const span = {
+      start: new Date("2025-01-01T00:00:00Z"),
+      end: new Date("2025-01-01T04:00:00Z"),
+    };
+
+    const refTimeline = predictor.getTimelinePrediction(span);
+    const subTimeline = predictor.getTimelinePrediction({
+      ...span,
+      offsets: { height: { type: "ratio", high: 1, low: 1 } },
+    });
+
+    expect(subTimeline.length).toBe(refTimeline.length);
+    for (let i = 0; i < refTimeline.length; i++) {
       expect(subTimeline[i].level).toBeCloseTo(refTimeline[i].level, 10);
     }
   });

@@ -78,5 +78,15 @@ export function bbox(query: Query): [number, number, number, number] | undefined
   if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) {
     fail("bbox", "bbox must be four comma-separated numbers: minLon,minLat,maxLon,maxLat");
   }
+  const [minLon, minLat, maxLon, maxLat] = parts;
+  try {
+    number({ minLon }, "minLon", { min: -180, max: 180 });
+    number({ minLat }, "minLat", { min: -90, max: 90 });
+    number({ maxLon }, "maxLon", { min: -180, max: 180 });
+    number({ maxLat }, "maxLat", { min: -90, max: 90 });
+    if (minLat > maxLat) fail("bbox", "minLat must be <= maxLat");
+  } catch (error) {
+    fail("bbox", `bbox must use minLon,minLat,maxLon,maxLat order: ${(error as Error).message}`);
+  }
   return parts as [number, number, number, number];
 }

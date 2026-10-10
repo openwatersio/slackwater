@@ -7,7 +7,7 @@ The TypeScript and Swift engines implement the same harmonic tide model. The fix
 - Inputs and outputs are absolute instants. TypeScript uses `Date`; Swift uses `Foundation.Date`.
 - Fixture timestamps are ISO 8601 UTC strings ending in `Z`. Engines must not apply a local time zone during prediction.
 - Constituent phase is relative to GMT. Current constituents use NOAA `majorPhaseGMT`.
-- Timeline sampling floors the start and ceils the end to the requested step, including both resulting timestamps. Event searches return detected roots inside the search window; roots exactly on a boundary are not guaranteed. Timeline steps are seconds in Swift, and TypeScript uses the same unit for `timeFidelity`.
+- Timeline sampling floors the start and ceils the end to the requested step, including both resulting timestamps. Event searches return detected roots inside the search window; roots exactly on a boundary are not guaranteed. Timeline steps are seconds in Swift, and TypeScript uses the same unit for `timeFidelity`. A height at one instant is evaluated at that instant, without timeline snapping.
 - Node corrections are recalculated through long prediction windows. Results at the fixture timestamps remain the compatibility boundary even if each port organizes that calculation differently.
 
 ## Values and coordinates
@@ -24,7 +24,7 @@ The harmonic sum is relative to mean sea level. Both low-level engines accept a 
 
 The TypeScript `useStation` wrapper resolves a requested datum as `MSL - datum` and then applies that offset to the prediction. It defaults to the station's chart datum when available and can convert the final height from metres to feet. Swift callers perform the same lookup and unit conversion before constructing `Station`. A Swift `Station.offset` is therefore an additive value in metres, not a datum identifier.
 
-Subordinate tide height corrections are either a ratio applied to the reference height or a fixed value in metres. TypeScript subordinate time offsets are minutes in `ExtremeOffsets`; Swift initializer offsets are `TimeInterval` values in seconds.
+Subordinate tide height corrections are either a ratio applied to the reference height above chart datum or a fixed value in metres. For a ratio subordinate, `useStation` predicts in the chart datum and adds `chart datum - datum` after applying the ratio, and throws if the chart datum is missing from the station's datums. Swift callers construct the reference `Station` with its chart-datum offset and add the same difference to the subordinate's results. TypeScript subordinate time offsets are minutes in `ExtremeOffsets`; Swift initializer offsets are `TimeInterval` values in seconds.
 
 Subordinate current time adjustments are seconds in both low-level engines (`SubordinateCurrentOptions` and the Swift initializer). NOAA and the station database publish them in minutes; the TypeScript station layer converts. A TypeScript event's per-day search covers whole UTC days with an 8-hour margin, so an event list never depends on the requested window.
 
@@ -79,6 +79,27 @@ These gates compare the Swift implementation with checked-in NOAA CO-OPS predict
 | Harmonic currents              | PUG1741                                         | `< 20 min`; `< 0.30 kn` | `9.7 min`; `0.055 kn`    |
 | Significant home-pass currents | Six Salish Sea stations, events `>= 0.75 kn`    | `< 20 min`; `< 0.35 kn` | `15.3 min`; `0.278 kn`   |
 | Subordinate currents           | PCT0236 and nine-station batch                  | `< 30 min`; `< 0.40 kn` | `7.7 min`; `0.101 kn`    |
+
+## What a ranking window can claim
+
+`percentileRank` will rank anything handed to it. What the result _means_ depends on the window, and the two kinds of claim a window supports do not have the same requirement.
+
+**A claim about level** — "the lowest low of the year", or any distance to LAT or HAT — needs the seasonal terms. Sa and Ssa raise and lower mean sea level across the year, so without them a year-long window returns two confident numbers that do not mean what the sentence would claim. Gate those on a non-zero `Sa` or `Ssa`, never on the data source.
+
+**A claim about range** — "when does the water here run widest", "is this swing beyond normal" — does not inherently require Sa/Ssa. For a monthly span, the seasonal offset is often nearly common to the month's extrema, while the seasonal pattern primarily comes from the solar and declinational structure present in the fitted basis.
+
+Measured over `@slackwater/database`'s NOAA harmonic sets, monthly span (highest high − lowest low) across 2026:
+
+| Station       | has LAT/HAT | max/min span |
+| ------------- | ----------- | ------------ |
+| Friday Harbor | yes         | 1.43×        |
+| Chignik       | **no**      | **1.24×**    |
+| Portland ME   | yes         | 1.16×        |
+| Winterport    | **no**      | 1.15×        |
+
+All four peak near the solstices and trough in September, and the stations without the annual constituent are not the weaker signal. The same holds for currents, which matters more there: only 5 of 855 NOAA current reference stations carry a non-zero `Sa` or `Ssa`, but their 25-term sets carry the declination, so a seasonal _range_ question is answerable at all of them.
+
+A consumer that gates a range claim on the annual constituent will hide it at every station fitted from a short series — every CHS on-device fit, and about a fifth of NOAA's harmonic references. slackwater-ios shipped that mistake and reverted it (openwatersio/slackwater-ios#640, #641).
 
 ## Intentional asymmetry
 

@@ -1,5 +1,11 @@
 # @neaps/api
 
+## 1.0.0-beta.2
+
+### Patch Changes
+
+- [#371](https://github.com/openwatersio/slackwater/pull/371) [`072a6d1`](https://github.com/openwatersio/slackwater/commit/072a6d19149f840ec0b12e325d4be8f215189d2e) Thanks [@clarkbw](https://github.com/clarkbw)! - Reject out-of-range bounding box coordinates and inverted latitude bounds with HTTP 400. Clarify the GeoJSON longitude-first coordinate order in errors and the OpenAPI specification.
+
 ## 1.0.0-beta.1
 
 ### Major Changes

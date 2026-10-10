@@ -110,10 +110,12 @@ describe("Base constituent definitions", () => {
     expect(constituents["3L2"].coefficients).toEqual([2, 1, 0, 0, 0, 0, 0]);
   });
 
-  it("has correct properties for 3N2 (alias of MKS2)", () => {
-    expect(constituents["3N2"]).toBeDefined();
-    expect(constituents["3N2"]).toBe(constituents.MKS2);
-    expect(constituents["3N2"].speed).toBeCloseTo(29.0662415, 4);
+  // TICON-4's manual lists 3N2 at MKS2's Doodson number, but its published phases fit 245.555 + 90°
+  it("has correct properties for 3N2 (TICON degree-3 semidiurnal)", () => {
+    expect(constituents["3N2"]).not.toBe(constituents.MKS2);
+    expect(constituents["3N2"].speed).toBeCloseTo(28.4350877, 7);
+    expect(constituents["3N2"].coefficients).toEqual([2, -1, 0, 0, 0, 0, 1]);
+    expect(constituents["3N2"].members).toEqual([{ constituent: constituents.N2, factor: 1 }]);
   });
 
   it("has correct properties for S3 (solar terdiurnal)", () => {

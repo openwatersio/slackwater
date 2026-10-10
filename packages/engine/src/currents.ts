@@ -115,14 +115,12 @@ export function createCurrentPredictor(
    * All events inside one search window. Maxima are velocity extrema
    * (slope-zeros) classified by the SIGN of velocity, NOAA's convention: a
    * relaxation extremum that never reverses stays flood or ebb per its sign.
-   * Double-tide handling is a height concept and is forced off.
    */
   function eventsInWindow(from: Date, to: Date): CurrentEvent[] {
     const { startMs, endHour, correctedParams } = windowParams(from, to);
 
     const maxima = findExtremes(0, endHour, {
       startMs,
-      isDoubleTide: false,
       prominenceThreshold: PROMINENCE_THRESHOLD,
       getParams: correctedParams(),
     }).map(({ time, level }): CurrentEvent =>

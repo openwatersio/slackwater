@@ -47,6 +47,9 @@ Calling `createTidePredictor` will generate a new tide prediction object. It acc
 - `constituents` - An array of [constituent objects](#constituent-object)
 - `options` - An object with one of:
   - `offset` - A value to add to **all** values predicted. This is useful if you want to, for example, offset tides by mean high water, etc.
+  - `nodeCorrections` - The nodal correction convention: `"iho"` (default) or `"schureman"`.
+
+Use `"iho"` unless the harmonic constants were derived with the Schureman convention. Keep the convention consistent between fitting and prediction; switching conventions can change some nodal amplitude factors by about 7% for J1 and 5.5% for Mf. Slackwater's harmonic fitter uses IHO corrections.
 
 ### Tide prediction methods
 
@@ -158,8 +161,8 @@ The `getWaterLevelAtTime` accepts a single object of options:
 
 A single object is returned with:
 
-- `time` - A Javascript date object
-- `level` - The predicted water level
+- `time` - The requested time
+- `level` - The predicted water level at that time
 
 ## Current prediction
 
@@ -269,6 +272,8 @@ Some stations do not have defined harmonic data, but do have published offsets a
   - `high` - **number** - Minutes to add to high tide times (can be negative)
   - `low` - **number** - Minutes to add to low tide times (can be negative)
 
+Ratio offsets multiply the reference height above chart datum. Set the predictor's `offset` to the reference's MSL above its chart datum, then add the difference to any other datum to the results. `useStation` does both.
+
 ```typescript
 {
   height: {
@@ -289,7 +294,7 @@ Detailed notes on the internal constituent and node correction systems. For high
 
 ## Tidal Constituent System
 
-Constituents are loaded from [src/constituents/data.json](src/constituents/data.json), which contains 395 entries derived from the [IHO TWCWG Constituent List](../../docs/TWCWG_Constituent_list.md).
+Constituents are loaded from [src/constituents/data.json](src/constituents/data.json), derived from the [IHO TWCWG Constituent List](../../docs/TWCWG_Constituent_list.md).
 
 Each entry has:
 
@@ -335,6 +340,10 @@ The IHO letter codes from `data.json` are resolved at constituent definition tim
 ### Compound constituent decomposition
 
 [src/constituents/compound.ts](src/constituents/compound.ts) implements the IHO Annex B algorithm: parses compound names like "MS4" into component letters, resolves signs using a progressive right-to-left algorithm, and maps each to its fundamental constituent.
+
+## Design notes
+
+The sources, judgment calls and validation behind the engine's behaviour, for both the TypeScript and Swift ports, are in [docs/](docs/README.md).
 
 # Shout out
 

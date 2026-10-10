@@ -1,6 +1,6 @@
 {
   "name": "@slackwater/api",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "description": "HTTP JSON API for tide predictions",
   "repository": {
     "type": "git",

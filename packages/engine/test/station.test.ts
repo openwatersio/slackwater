@@ -261,6 +261,54 @@ describe("useStation", () => {
     });
   });
 
+  describe("subordinate datums", () => {
+    const start = new Date("2026-10-06T00:00:00Z");
+    const end = new Date("2026-10-07T00:00:00Z");
+    const time = new Date("2026-10-06T03:09:00Z");
+    const synthetic = (height: NonNullable<Station["offsets"]>["height"]): Station => ({
+      ...baseStation,
+      type: "subordinate",
+      offsets: { height, time: { high: 20, low: -15 } },
+    });
+
+    // Every level converted back to chart datum, which is where NOAA applies ratio offsets.
+    function inChartDatum(station: StationPredictor, datum: string) {
+      const shift = station.datums[datum] - station.datums[station.chart_datum!];
+      const toChart = <T extends { level: number }>(p: T) => ({ ...p, level: p.level + shift });
+      return {
+        extremes: station.getExtremesPrediction({ start, end, datum }).extremes.map(toChart),
+        timeline: station.getTimelinePrediction({ start, end, datum }).timeline.map(toChart),
+        waterLevel: toChart(station.getWaterLevelAtTime({ time, datum })),
+      };
+    }
+
+    describe.each([
+      ["ratio", useStation(synthetic({ high: 1.5, low: 0.5 }))],
+      ["fixed", useStation(synthetic({ high: 0.3, low: -0.2, type: "fixed" }))],
+      ["Chinook (ratio)", findStation("noaa/9440573")],
+      ["King Salmon (ratio)", findStation("noaa/9465149")],
+    ])("%s offsets", (_, station) => {
+      const chart = inChartDatum(station, station.chart_datum!);
+      const datums = ["MSL", "MHHW", "LAT", "NAVD88"].filter((datum) => datum in station.datums);
+
+      test.each(datums)("predict the same tide in %s", (datum) => {
+        const other = inChartDatum(station, datum);
+
+        expect(other.extremes.map((e) => e.time)).toEqual(chart.extremes.map((e) => e.time));
+        other.extremes.forEach((e, i) => expect(e.level).toBeCloseTo(chart.extremes[i].level, 9));
+        other.timeline.forEach((p, i) => expect(p.level).toBeCloseTo(chart.timeline[i].level, 9));
+        expect(other.waterLevel.level).toBeCloseTo(chart.waterLevel.level, 9);
+      });
+    });
+
+    test("throws for ratio offsets without a chart datum", () => {
+      const { chart_datum: _, ...station } = synthetic({ high: 1.5, low: 0.5 });
+      expect(() => useStation(station).getExtremesPrediction({ start, end, datum: "MSL" })).toThrow(
+        /chart datum/,
+      );
+    });
+  });
+
   describe("subordinate vs reference curve comparison", () => {
     const start = new Date("2025-01-15T00:00:00Z");
     const end = new Date("2025-01-18T00:00:00Z");

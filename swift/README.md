@@ -49,6 +49,8 @@ sub.heights(from: start, to: end); sub.extremes(from: start, to: end); sub.rates
 Harmonic constants come from public sources — NOAA (public domain, bundled) and, online,
 CHS/IWLS for Canadian waters.
 
+Clients can construct `TidePoint(time:height:)`, `TideRatePoint(time:rate:)`, and `TideExtreme(time:height:kind:)` from downloaded predictions for their own sampled-data views. Heights are in meters and rates are in meters per hour; interpolation, event detection, and coverage checks belong to the client.
+
 ### Currents
 
 Signed major-axis velocity (knots), plus slack / max-flood / max-ebb events. The engine

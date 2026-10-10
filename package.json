@@ -11,6 +11,8 @@
     "benchmarks": "run-s --continue-on-error \"benchmarks:*\"",
     "benchmarks:noaa": "node benchmarks/noaa.ts",
     "benchmarks:chs": "node benchmarks/chs.ts",
+    "benchmarks:extremes": "node benchmarks/extremes.ts",
+    "benchmarks:subordinate-datums": "node benchmarks/subordinate-datums.ts",
     "changeset": "changeset",
     "version": "changeset version",
     "release": "bash scripts/release.sh"
@@ -25,7 +27,7 @@
     "npm-run-all": "^4.1.5",
     "oxlint": "^1.74.0",
     "pkg-pr-new": "^0.0.88",
-    "prettier": "3.9.7",
+    "prettier": "3.9.9",
     "tsdown": "^0.23.0",
     "typescript": "^7.0.2",
     "vitest": "^4.0.15"

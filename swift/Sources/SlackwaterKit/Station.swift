@@ -13,10 +13,25 @@ public struct HarmonicConstituent: Sendable {
     }
 }
 
-public struct TidePoint: Sendable { public let time: Date; public let height: Double }
-public struct TideRatePoint: Sendable { public let time: Date; public let rate: Double }
+public struct TidePoint: Sendable {
+    public let time: Date
+    public let height: Double
+    public init(time: Date, height: Double) { self.time = time; self.height = height }
+}
+public struct TideRatePoint: Sendable {
+    public let time: Date
+    public let rate: Double
+    public init(time: Date, rate: Double) { self.time = time; self.rate = rate }
+}
 public enum ExtremeKind: Sendable { case high, low }
-public struct TideExtreme: Sendable { public let time: Date; public let height: Double; public let kind: ExtremeKind }
+public struct TideExtreme: Sendable {
+    public let time: Date
+    public let height: Double
+    public let kind: ExtremeKind
+    public init(time: Date, height: Double, kind: ExtremeKind) {
+        self.time = time; self.height = height; self.kind = kind
+    }
+}
 
 /// A tide/current station: a set of harmonic constituents plus a datum offset (m).
 /// Predictions are fully offline and deterministic — no network, any date.
@@ -64,13 +79,5 @@ public struct Station: Sendable {
         return zip(timeline.items, timeline.hours).map { item, hour in
             TideRatePoint(time: item, rate: evalHPrime(hour, provider(hour)))
         }
-    }
-
-    /// Doodson double-tide criterion: (M4 + MS4) / M2 > 0.25 (disables the
-    /// min-gap filter so aggers/double-tides are preserved).
-    var isDoubleTide: Bool {
-        func amp(_ name: String) -> Double { constituents.first { $0.name == name }?.amplitude ?? 0 }
-        let m2 = amp("M2")
-        return m2 > 0 && (amp("M4") + amp("MS4")) / m2 > 0.25
     }
 }

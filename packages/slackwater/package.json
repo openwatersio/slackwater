@@ -1,6 +1,6 @@
 {
   "name": "slackwater",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "description": "Tide predictions",
   "keywords": [
     "tides",
@@ -34,6 +34,6 @@
   },
   "dependencies": {
     "@slackwater/database": "^1.0.0-beta.0",
-    "@slackwater/engine": "^1.0.0-beta.1"
+    "@slackwater/engine": "^1.0.0-beta.3"
   }
 }

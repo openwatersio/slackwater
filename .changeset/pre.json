@@ -9,9 +9,17 @@
     "slackwater": "1.0.0-beta.0"
   },
   "changesets": [
+    "extremes-alternate",
+    "heap-filter-extremes",
+    "illinois-root-finding",
     "kartverket-constituents",
+    "lazy-extremes-timeline",
     "rename-to-slackwater",
     "steady-harmonics-parity",
-    "tide-database-0-10"
+    "subordinate-ratio-chart-datum",
+    "ticon-3n2-line",
+    "tide-database-0-10",
+    "tidy-bbox-validation",
+    "water-level-exact-time"
   ]
 }
