@@ -8,7 +8,7 @@ Slackwater is a TypeScript tide prediction engine split into multiple `packages/
 
 1. **`@slackwater/engine`** - Core harmonic calculation engine (astronomy coefficients, tidal constituents, node corrections)
 2. **`slackwater`** - User-facing API that wraps the predictor and integrates with `@slackwater/database` for station lookups
-3. **`@slackwater/api`** - HTTP JSON API server built with Express, provides REST endpoints for tide predictions with OpenAPI validation
+3. **`@slackwater/api`** - HTTP JSON API server built with Express, provides REST endpoints for tide and tidal current predictions with OpenAPI validation
 4. **`@slackwater/cli`** - Command line interface built with Commander, distributed as npm package, Homebrew formula, and standalone SEA binaries
 
 ## Critical Architecture Patterns
@@ -41,12 +41,12 @@ Tidal currents reuse the harmonic machinery with the result read as signed veloc
 
 ### @slackwater/api Architecture
 
-The API package (`packages/api`) exposes tide predictions via Express HTTP endpoints. Key design patterns:
+The API package (`packages/api`) exposes tide and tidal current predictions via Express HTTP endpoints. Key design patterns:
 
 - **Routes** (`src/routes.ts`) - Handles Express request/response for all endpoints
 - **OpenAPI specification** (`src/openapi.ts`) - Full 3.0.3 schema with validation middleware
 - **Request validation** - Uses `express-openapi-validator` to enforce OpenAPI schema for all requests/responses
-- **Wrapper integration** - Calls `slackwater` package functions (`getExtremesPrediction`, `getTimelinePrediction`, `findStation`, `stationsNear`) to perform predictions
+- **Wrapper integration** - Calls `slackwater` package functions (`getExtremesPrediction`, `getTimelinePrediction`, `findStation`, `stationsNear`, and `nearestCurrentStation`, `currentStationsNear`, `findCurrentStation` for currents) to perform predictions
 
 **Endpoints:**
 
@@ -58,6 +58,10 @@ The API package (`packages/api`) exposes tide predictions via Express HTTP endpo
 - `GET /stations/:source/:id` - Get a specific station by source and ID
 - `GET /stations/:source/:id/extremes` - Get extremes for a specific station
 - `GET /stations/:source/:id/timeline` - Get timeline for a specific station
+- `GET /currents/events`, `GET /currents/timeline` - Current events (slack, max flood, max ebb) or signed speed timeline near coordinates
+- `GET /currents/stations`, `GET /currents/stations/:source/:id[/events|/timeline]` - Current station lookup and per-station predictions
+
+Current routes live in `src/currents.ts`, mounted at `currents/` inside the same router, so they share the prefix, CORS, caching, and OpenAPI document with the tide routes. A station ID without a bin is the station's primary bin; `@N` selects bin N (`noaa/EPT0003@11`). Listings show each station once with its `bins`. Stations whose predictions can't be served (CHS, whose terms forbid redistribution, and records with no model) are flagged `predictions: false` in listings, skipped by the location endpoints, and refused by the per-station prediction endpoints (451 for CHS, 404 for no model). CHS IDs have no source prefix, so single-segment `/currents/stations/:id` routes serve them. The tide `/extremes` and `/timeline` likewise skip tide stations with no harmonic constituents or offsets, which covers the CHS ports.
 
 **Prefix mounting:** `createApp` accepts a `prefix` option (default: `/tides`) that controls the URL path where routes are mounted. The OpenAPI spec and validator are automatically configured for the prefix.
 

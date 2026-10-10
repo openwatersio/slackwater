@@ -1,6 +1,6 @@
 # @slackwater/api
 
-HTTP JSON API for tide predictions using [slackwater](https://github.com/openwatersio/slackwater).
+HTTP JSON API for tide and tidal current predictions using [slackwater](https://github.com/openwatersio/slackwater).
 
 ## Installation
 
@@ -126,6 +126,83 @@ Get timeline prediction for a specific station.
 ### GET /tides/openapi.json
 
 Get the OpenAPI 3.0 specification for this API.
+
+## Tidal Current Endpoints
+
+Current predictions live under `currents/` inside the same prefix, so the standalone server serves them at `/tides/currents/...`. Speeds are signed knots along the station's flood axis: positive is flood, negative is ebb.
+
+### GET /tides/currents/events
+
+Get slack water, maximum flood, and maximum ebb for the nearest current station that can be predicted.
+
+**Query Parameters:**
+
+- `latitude` (required): Latitude (-90 to 90)
+- `longitude` (required): Longitude (-180 to 180)
+- `start` (optional): Start date/time in ISO 8601 format, defaults to now
+- `end` (optional): End date/time in ISO 8601 format, defaults to 7 days after `start`. At most 366 days after `start`.
+
+**Example:**
+
+```bash
+curl "http://localhost:3000/tides/currents/events?latitude=48.406&longitude=-122.643&start=2026-06-01T00:00:00Z&end=2026-06-02T00:00:00Z"
+```
+
+```json
+{
+  "units": "knots",
+  "floodDirection": 101.5,
+  "ebbDirection": 281.5,
+  "station": {
+    "id": "noaa/PUG1701",
+    "name": "Deception Pass (Narrows)",
+    "bins": [{ "id": "noaa/PUG1701" }],
+    "predictions": true
+  },
+  "distance": 0.02,
+  "events": [
+    { "time": "2026-06-01T00:04:37.920Z", "speed": 0.0002, "kind": "slack" },
+    { "time": "2026-06-01T03:25:37.661Z", "speed": -5.17, "kind": "maxEbb", "direction": 281.5 }
+  ]
+}
+```
+
+`station` is the full station record, shortened here. `kind` is `slack`, `maxFlood`, or `maxEbb`. `direction` is in degrees true and is absent for slack, and for stations that don't publish that direction. `distance` is in kilometers.
+
+### GET /tides/currents/timeline
+
+Get signed current speed every 10 minutes for the nearest current station. Returns `timeline: [{ time, hour, speed }]` in place of `events`. A subordinate station's timeline is a curve drawn through its predicted events, not a harmonic sum.
+
+**Query Parameters:** Same as `/currents/events`
+
+### GET /tides/currents/stations
+
+Search current stations, find them near a location, or list all of them. Takes the same query parameters as `/tides/stations`.
+
+Each station appears once, at its primary bin. As with `/tides/stations`, a location search returns full station records and the other modes return summaries. Every current station also carries:
+
+- `bins`: each depth bin of the station, primary first, e.g. `[{ "id": "noaa/EPT0003" }, { "id": "noaa/EPT0003@11", "bin": 11 }]`
+- `predictions`: whether this API can serve predictions for the station
+- `unavailable`: why not, when `predictions` is `false`
+
+### GET /tides/currents/stations/:source/:id
+
+Get a current station by ID. An ID with no bin is the station's primary bin, the one NOAA predicts by default. Append `@N` to select bin N:
+
+```bash
+curl "http://localhost:3000/tides/currents/stations/noaa/EPT0003"     # primary bin
+curl "http://localhost:3000/tides/currents/stations/noaa/EPT0003@11"  # bin 11
+```
+
+An unknown bin returns 404 with the bins that exist. Keep the slash between source and ID literal: `noaa%2FEPT0003` is not found. IDs without a source prefix, such as `chs-active-pass`, are a single path segment: `/tides/currents/stations/chs-active-pass`.
+
+### GET /tides/currents/stations/:source/:id/events
+
+### GET /tides/currents/stations/:source/:id/timeline
+
+Get events or a timeline for a specific station and bin. They take `start` and `end`.
+
+Canadian Hydrographic Service stations are listed so clients can show them, but CHS terms don't allow its predictions to be redistributed. Their prediction endpoints return **451** with a link to the official CHS predictions, and `/currents/events` and `/currents/timeline` skip them when picking the nearest station. A station with no harmonic constituents or subordinate offsets returns **404**.
 
 ## Development
 

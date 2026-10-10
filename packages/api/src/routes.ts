@@ -15,9 +15,14 @@ import {
 } from "slackwater";
 import openapi from "./openapi.js";
 import * as validate from "./validate.js";
+import { createCurrentRoutes } from "./currents.js";
 
-// The database also carries current stations; this API serves tides.
+// The database also carries current stations, which the /currents routes serve.
 const tideOnly = (station: Station) => station.kind === "tide";
+// CHS tide stations carry identity only, since CHS terms forbid re-serving its
+// predictions; picking one by location would serve a flat zero tide.
+const hasTideModel = (station: Station) =>
+  station.harmonic_constituents.length > 0 || station.offsets !== undefined;
 
 interface CreateRoutesOptions {
   middleware?: RequestHandler[];
@@ -44,11 +49,14 @@ export function createRoutes({ middleware = [] }: CreateRoutesOptions = {}) {
     res.json({ ...openapi, servers: [{ url: req.baseUrl || "/" }] });
   });
 
+  router.use("/currents", createCurrentRoutes());
+
   router.get("/extremes", (req: Request, res: Response) => {
     res.json(
       getExtremesPrediction({
         ...positionOptions(req, { required: true }),
         ...predictionOptions(req),
+        filter: hasTideModel,
       }),
     );
   });
@@ -59,6 +67,7 @@ export function createRoutes({ middleware = [] }: CreateRoutesOptions = {}) {
     const options = {
       ...positionOptions(req, { required: true }),
       ...predictionOptions(req),
+      filter: hasTideModel,
     };
     try {
       res.json(getTimelinePrediction(options));
@@ -88,8 +97,7 @@ export function createRoutes({ middleware = [] }: CreateRoutesOptions = {}) {
     const bboxParam = validate.bbox(req.query);
 
     if (query) {
-      const results = search(query, { filter: tideOnly }).map(stripStationDetails);
-      return res.json(results.slice(0, maxResults));
+      return res.json(search(query, { filter: tideOnly, maxResults }).map(stripStationDetails));
     }
 
     if (bboxParam) {

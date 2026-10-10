@@ -121,6 +121,33 @@ describe("GET /extremes", () => {
   });
 });
 
+describe("tide stations without a model", () => {
+  // CHS tide stations carry identity only; a location query near one must pick a station that predicts.
+  const chs = dbStations.find((s) => s.id === "chs-campbell-river")!;
+  const query = {
+    latitude: chs.latitude,
+    longitude: chs.longitude,
+    start: "2026-06-01T00:00:00Z",
+    end: "2026-06-02T00:00:00Z",
+  };
+
+  test("are skipped by /extremes", async () => {
+    const response = await request(app).get("/extremes").query(query);
+
+    expect(response.status).toBe(200);
+    expect(response.body.station.id).not.toBe(chs.id);
+    expect(response.body.extremes.length).toBeGreaterThan(0);
+  });
+
+  test("are skipped by /timeline", async () => {
+    const response = await request(app).get("/timeline").query(query);
+
+    expect(response.status).toBe(200);
+    expect(response.body.station.id).not.toBe(chs.id);
+    expect(response.body.timeline.some((p: { level: number }) => p.level !== 0)).toBe(true);
+  });
+});
+
 describe("GET /timeline", () => {
   test("returns timeline for valid coordinates", async () => {
     const response = await request(app).get("/timeline").query({
@@ -323,6 +350,13 @@ describe("GET /stations", () => {
     expect(response.status).toBe(200);
     expect(Array.isArray(response.body)).toBe(true);
     expect(response.body.length).toBeLessThanOrEqual(2);
+  });
+
+  test("returns more than the search default of 20 when maxResults asks", async () => {
+    const response = await request(app).get("/stations").query({ query: "harbor", maxResults: 50 });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toHaveLength(50);
   });
 
   test("defaults maxResults to 10 for query searches", async () => {
