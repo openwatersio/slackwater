@@ -1,6 +1,6 @@
 {
   "name": "@slackwater/api",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "HTTP API for tide and current predictions",
   "keywords": [
     "slackwater",
@@ -43,7 +43,7 @@
     "compression": "^1.7.4",
     "cors": "^2.8.5",
     "express": "^5.2.1",
-    "slackwater": "^1.0.0-beta.1"
+    "slackwater": "^1.0.0-beta.3"
   },
   "devDependencies": {
     "@types/compression": "^1.7.5",

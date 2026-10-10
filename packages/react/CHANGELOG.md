@@ -1,5 +1,11 @@
 # @neaps/react
 
+## 1.0.0-beta.2
+
+### Patch Changes
+
+- [#383](https://github.com/openwatersio/slackwater/pull/383) [`63efbad`](https://github.com/openwatersio/slackwater/commit/63efbad5cadf10cc1b9db69e500379725936013f) Thanks [@bkeepers](https://github.com/bkeepers)! - Package descriptions, keywords, and homepages present each package as part of the Slackwater family, with the docs at https://openwaters.io/tides/slackwater/. `slackwater` ships a README on npm.
+
 ## 1.0.0-beta.1
 
 ### Major Changes
