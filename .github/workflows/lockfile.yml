@@ -21,6 +21,7 @@ jobs:
           node-version: 24
       - name: Check the lockfile regenerates from package.json
         run: |
+          git ls-files --error-unmatch package-lock.json
           npm install --package-lock-only --ignore-scripts
           git diff --exit-code -- package-lock.json
       - name: Check every package resolves from the npm registry
