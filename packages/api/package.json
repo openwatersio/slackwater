@@ -1,11 +1,13 @@
 {
   "name": "@slackwater/api",
   "version": "1.0.0-beta.2",
-  "description": "HTTP API for tide predictions",
+  "description": "HTTP API for tide and current predictions",
   "keywords": [
     "slackwater",
     "tides",
     "tide-prediction",
+    "currents",
+    "tidal-currents",
     "api",
     "openapi",
     "express"

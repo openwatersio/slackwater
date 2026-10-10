@@ -49,6 +49,14 @@ export function number(query: Query, name: string, opts: NumberOptions = {}): nu
   return value;
 }
 
+// A repeated query parameter arrives as an array.
+export function string(query: Query, name: string): string | undefined {
+  const raw = query[name];
+  if (raw === undefined || raw === "") return undefined;
+  if (typeof raw !== "string") fail(name, `${name} must be given once`);
+  return raw;
+}
+
 export function date(query: Query, name: string, fallback: () => Date): Date {
   const raw = query[name];
   if (raw === undefined || raw === "") return fallback();

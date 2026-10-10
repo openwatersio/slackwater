@@ -21,7 +21,7 @@ The master line is **Tide and current predictions**. Each surface adds its own n
 | `@slackwater/engine`   | Harmonic engine for tide and current predictions                      |
 | SlackwaterKit          | Swift engine for tide and current predictions                         |
 | `@slackwater/cli`      | Command line interface for tide predictions                           |
-| `@slackwater/api`      | HTTP API for tide predictions                                         |
+| `@slackwater/api`      | HTTP API for tide and current predictions                             |
 | `@slackwater/react`    | React components for tide predictions                                 |
 | `@slackwater/database` | Station database for tide and current predictions                     |
 
