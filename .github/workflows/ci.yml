@@ -83,6 +83,7 @@ jobs:
           mkdir -p "$tap/Formula"
           cp slackwater.rb "$tap/Formula/slackwater.rb"
           git -C "$tap" init --quiet
+          # readall skips an untrusted tap with a warning and exits 0, so without this the check passes vacuously
           brew trust openwatersio/check
           brew style "$tap/Formula/slackwater.rb"
           brew readall --os=all --arch=all openwatersio/check
