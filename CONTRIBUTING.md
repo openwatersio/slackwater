@@ -80,7 +80,7 @@ The CLI package (`packages/cli`) provides a terminal interface for tide predicti
 - **Commander** for command parsing with `exitOverride()` for testability
 - **Formatters** (`src/formatters/`) - Pluggable output formatters (`text`, `json`) with an ASCII chart for timeline
 - **Station resolution** (`src/lib/station.ts`) - Shared logic for `--station`, `--near`, and `--ip` options across commands
-- **SEA binaries** - Built via `scripts/build-sea.ts` using Node.js Single Executable Applications for standalone distribution
+- **SEA binaries** - Built via `scripts/build-sea.ts` using Node.js Single Executable Applications for standalone distribution. The station database is embedded as an SEA asset, because `@slackwater/database` normally reads it from disk, and its attribution ships as `NOTICE` in each release archive. `npm run smoke:sea` runs the built binary, and CI runs it before any binary is uploaded.
 
 **Commands:** `extremes`, `timeline`, `stations`, `serve`
 

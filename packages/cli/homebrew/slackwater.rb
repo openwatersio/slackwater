@@ -16,6 +16,7 @@ class Slackwater < Formula
 
   def install
     bin.install "slackwater"
+    prefix.install "LICENSE", "NOTICE"
   end
 
   test do
