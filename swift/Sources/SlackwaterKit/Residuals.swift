@@ -36,7 +36,8 @@ public enum ResidualError: Error, Equatable, Sendable {
 private let residualHour = 3600.0
 
 private func validateResidualTime(_ time: Date, previous: Double) throws -> Double {
-    let instant = time.timeIntervalSince1970
+    // Use Date's native epoch so validation and support checks share the same precision.
+    let instant = time.timeIntervalSinceReferenceDate
     guard instant.isFinite, instant > previous else { throw ResidualError.invalidSamples }
     return instant
 }

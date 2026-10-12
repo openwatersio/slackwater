@@ -113,6 +113,15 @@ private struct ResidualFixture: Decodable {
     #expect(input[0].value == 1e6)
 }
 
+@Test func residualRejectsCadenceHiddenByUnixEpochRounding() throws {
+    let start = Date(timeIntervalSinceReferenceDate: pow(2, 29) - 48 * residualHour + 0.12300006)
+    let samples = (0..<97).map {
+        ResidualSample(time: start.addingTimeInterval(Double($0) * residualHour), value: 0.15)
+    }
+    #expect(throws: ResidualError.invalidCadence) { try filterResiduals(samples: samples) }
+    #expect(throws: ResidualError.invalidCadence) { try residualTrend(samples: samples) }
+}
+
 @Test func residualRejectsInvalidSamplesCadenceAndOverflow() throws {
     let zero = Date(timeIntervalSince1970: 0)
     for invalid in [Double.nan, .infinity, -.infinity] {
