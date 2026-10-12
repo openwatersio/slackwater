@@ -210,6 +210,30 @@ A subordinate's timeline is a half-cosine drawn through its event knots — a dr
 
 `slackWindows(timeline, threshold)` returns the runs of time where |speed| stays below `threshold` knots around a reversal, with interpolated band crossings. A lull that never reverses is weak water, not slack, and does not count; a window still open at the frame edge is kept and ends at the edge.
 
+## Water-level residuals
+
+Compare observed and predicted water levels in metres, paired at the same UTC instant and on the same datum:
+
+```ts
+import { residuals, filterResiduals, residualTrend } from "@slackwater/engine";
+
+// readings: { time: Date, observed: number, predicted: number }[]
+const raw = residuals(readings);
+const filtered = filterResiduals(raw);
+const trend = residualTrend(filtered);
+// trend: { time, slopePerHour, direction: "rising" | "steady" | "falling" } | undefined
+```
+
+`residuals` subtracts predicted from observed without rounding. Datum compatibility is the caller's responsibility; numeric validation cannot detect it. A subordinate uses its reference gauge's residual.
+
+The filter requires hourly `ResidualSample` values (`{ time: Date, value: number }`). The grid may begin at any instant, including a half-hour or millisecond offset. Positive whole-hour gaps split the series; only complete windows within each segment produce results. Three moving means of 24, 24, and 25 samples require 71 consecutive samples. Each output retains the center timestamp, 35 hours before its newest supporting observation. Thus 97 hourly samples spanning 96 hours produce 27 outputs, and the latest filtered value describes an older anomaly. Six-minute observations require a separate hourly conversion policy before filtering.
+
+`residualTrend` fits the final 25 consecutive hourly samples over 24 elapsed hours. Insufficient recent history returns `undefined`, including a gap in that final window. `slopePerHour` is metres per hour and `time` is the last sample's timestamp. Direction is `steady` when the absolute fitted 24-hour change is at most `0.01 + 1e-12` metres; otherwise its sign selects `rising` or `falling`. The one-centimetre cutoff is provisional and has no station uncertainty calibration.
+
+All functions require finite values and timestamps in strictly increasing order. Invalid values, duplicate times, or descending times throw `RangeError("invalidSamples")`; off-grid filter/trend input throws `RangeError("invalidCadence")`; arithmetic overflow throws `RangeError("nonFiniteResult")`. Empty residual/filter inputs return empty arrays. Inputs are never mutated, sorted, padded, extrapolated, or implicitly downsampled.
+
+TypeScript and [Swift](../../swift/README.md#water-level-residuals) share the independent convolution/regression oracle in `fixtures/residuals-parity.json`, with `1e-9` metre value and `1e-10` metre/hour slope tolerances. The fixed Friday Harbor NOAA evidence preserves raw six-minute rows, quality flags, request metadata, immutable prediction inputs, and captured predictions. Its exact-hour selection is fixture preparation only. `npm run fixtures:check` regenerates this oracle offline. The recorded comparison establishes math parity, not forecast accuracy. [Kotlin parity #395](https://github.com/openwatersio/slackwater/issues/395) is required follow-up work; fetching observations, estimating the current anomaly despite the lag, and calibrating outlooks remain separate work.
+
 ## Harmonic fitting
 
 Fit tidal heights or signed current velocities to a caller-selected harmonic basis.
