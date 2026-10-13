@@ -1,6 +1,6 @@
 # ETSS preservation and offline contract checks
 
-These Python 3.11+ standard-library research tools preserve finite, manually requested deterministic NOAA ETSS export attempts. They do not schedule collection, score forecasts, tune timing, or accept a production adapter. A `consistent` result describes native export consistency; `scoringPermitted` and `adapterAccepted` remain false pending the NOAA contract clarification tracked in [slackwater#401](https://github.com/openwatersio/slackwater/issues/401).
+These Python 3.11+ standard-library research tools preserve finite deterministic NOAA ETSS export attempts and original gauge observations. An external scheduler can invoke a collection tick. The tools do not score forecasts, tune timing, or accept a production adapter. A `consistent` result describes native export consistency; `scoringPermitted` and `adapterAccepted` remain false pending the NOAA contract clarification tracked in [slackwater#401](https://github.com/openwatersio/slackwater/issues/401).
 
 From the repository root:
 
@@ -25,6 +25,25 @@ Every invocation creates a UUID attempt. `bodies/SHA256.bin` stores exact bytes 
 Records distinguish cycle time, request start, response-header receipt, full-body receipt and attempt finish. Full-body `receivedAt` is null for partial downloads; network failures with no response also have no response receipt or body hash. HTTP errors retain their returned status, headers and bounded body. The pair manifest expressly makes no claim of atomic publication. A local receipt is never evidence of first publication. The SHEF bulletin creation and valid times are parsed separately by the reader.
 
 The default body limit is 16 MiB per product; an overflow retains the bounded prefix as `partial`. `--timeout` defaults to 60 seconds (maximum 300). It applies to socket operations; incremental `read1` calls preserve available bytes and check elapsed time before and after reads, including EOF. A blocked socket operation can overshoot that elapsed threshold, and DNS or response-header processing does not have a guaranteed wall-clock deadline. There are no retries or background jobs. Bodies and JSON are flushed and fsynced before exclusive atomic linking; containing directories are not fsynced, so the tools do not promise recovery from OS crashes, power loss, or storage hardware failure.
+
+## Hourly collection tick
+
+The collector requires macOS or Linux for its `fcntl` lock. Run one finite tick from the repository root:
+
+```sh
+python3 -B tools/etss/collect.py \
+  --output .superpowers/spikes/current-anomaly/etss-continuous
+```
+
+Each invocation uses its actual UTC start time. It requests the original six-minute `water_level` JSON for Friday Harbor (`9449880`), Port Townsend (`9444900`), and Seattle (`9447130`) first, then both deterministic ETSS products for the current six-hour cycle and the prior two cycles. There are nine requests, without retries. The observation window ends at the most recent six-minute boundary and starts 120 hours earlier; every tick repeats that window to preserve revisions and prime the intended 96-hour history. Historical sample timestamps do not imply historical acquisition receipts.
+
+Observations use NOAA's [CO-OPS data API](https://api.tidesandcurrents.noaa.gov/api/prod/) with explicit begin/end dates, `datum=MLLW`, `units=metric`, `time_zone=gmt`, `format=json`, and `application=slackwater`. Original values, standard deviations, `q`, and `f` remain untouched in the hashed body. The [response documentation](https://api.tidesandcurrents.noaa.gov/api/prod/responseHelp.html) gives flags different meanings for preliminary and verified data; this collector makes no quality selection. HTTP 200 API errors, malformed station metadata, malformed row schemas, off-grid timestamps, and timestamps outside the requested window produce `invalid_observations`. Six-minute gaps between otherwise valid rows are counted without filling. Diagnostics include the returned station metadata, row count, and latest sample time.
+
+The output separates `observations/` and `forecasts/`, each with immutable attempt manifests, immediate per-request records, and content-addressed original bodies. Observation start manifests also preserve the exact query. `ticks/ID-start.json` records actual invocation time, limits, planned window/cycles, and stores before requests; `ticks/ID.json` records completion time, resulting manifests, and states. A handled interruption writes an `interrupted` completion with any completed observation references. Abrupt termination can leave a start without completion; request and cycle starts in the named stores remain unresolved evidence. Bodies and manifests are never deleted or overwritten, so hourly storage grows with new revisions.
+
+Each complete forecast pair runs the existing offline reader and preserves its report beside its attempt manifest as `attempt-DATE-CYCLE-ID-contract.json`. `disagreement` remains a native-contract diagnostic and does not fail acquisition. `unsupported` or `incomplete` contract results fail the tick explicitly. A 404 for the current cycle is `expected_unpublished` when the other product is either complete or also 404; older-cycle 404s and other HTTP/transport failures are collection failures. Original HTTP error bodies remain available. These distinctions make no assertion about a global provider outage.
+
+The command prints one JSON summary. Exit zero means `complete`, `complete_with_unpublished`, or `skipped_overlap`; exit one means `collection_failed`. A nonblocking `fcntl` lock on `.collection.lock` skips overlapping invocations without requests and releases on exit. A gap exceeding 90 minutes since the previous tick start appears as `acquisitionGap` with `host_or_scheduler_acquisition_uncertainty`; incomplete prior ticks still count as attempts. Collection depends on the scheduler and this host being available. Missed original receipts cannot be reconstructed later. Scheduling and notification preferences belong to the external heartbeat, while byte/time limits have the same guarantees and limitations as manual capture. Scheduled deployments should use stable code and evidence paths outside disposable worktrees so removing a checkout cannot disable collection or delete receipts.
 
 ## Observed reader contract
 
