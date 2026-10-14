@@ -292,13 +292,16 @@ const Strip = memo(function Strip({
           gradientUnits="userSpaceOnUse"
           x1="0"
           x2="0"
-          y1={ZERO_Y - AMPLITUDE}
-          y2={ZERO_Y + AMPLITUDE}
+          y1={G.plotTop}
+          y2={ZERO_Y}
         >
           <stop offset="0" stopColor={C.line} stopOpacity={0.5} />
-          <stop offset="0.5" stopColor={C.line} stopOpacity={0} />
-          <stop offset="1" stopColor={C.line} stopOpacity={0.5} />
+          <stop offset="1" stopColor={C.line} stopOpacity={0} />
         </linearGradient>
+        {/* Only the flood lobes: an ebb lobe's curve-to-zero area lies above the curve, where a tide chart has no fill. */}
+        <clipPath id={`${id}flood`}>
+          <rect width={g.width} height={ZERO_Y} />
+        </clipPath>
         <linearGradient
           id={`${id}thread`}
           gradientUnits="userSpaceOnUse"
@@ -385,7 +388,7 @@ const Strip = memo(function Strip({
       </defs>
 
       <g mask={`url(#${id}halo)`}>
-        <path d={area} fill={`url(#${id}fill)`} />
+        <path d={area} fill={`url(#${id}fill)`} clipPath={`url(#${id}flood)`} />
         <g mask={`url(#${id}shade)`}>
           {bands.map((b, i) => (
             <rect
