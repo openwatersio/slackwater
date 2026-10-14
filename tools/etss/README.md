@@ -1,6 +1,6 @@
 # ETSS preservation and offline contract checks
 
-These Python 3.11+ standard-library research tools preserve finite deterministic NOAA ETSS export attempts and original gauge observations. An external scheduler can invoke a collection tick. The tools do not score forecasts, tune timing, or accept a production adapter. A `consistent` result describes native export consistency; `scoringPermitted` and `adapterAccepted` remain false pending the NOAA contract clarification tracked in [slackwater#401](https://github.com/openwatersio/slackwater/issues/401).
+These Python 3.11+ standard-library research tools preserve finite deterministic NOAA ETSS export attempts and original gauge observations. An external scheduler can invoke a collection tick. The tools do not score forecasts, tune timing, or accept a production adapter. A `consistent` result describes native export consistency. The optional CSV mapping validates the [NOAA-confirmed clock](provider-contract.md) and emits forecast samples for offline evaluation. `scoringPermitted` and `adapterAccepted` remain false: observation normalization, pinned comparators and truth policy, and accuracy/uncertainty acceptance are separate requirements under [slackwater#402](https://github.com/openwatersio/slackwater/issues/402).
 
 From the repository root:
 
@@ -55,8 +55,27 @@ The selected gauges are Friday Harbor (`FRDW1`, `9449880`), Port Townsend (`PTWW
 
 Three-decimal values use `Decimal`. CSV `9999.000` and SHEF `M`, `-9999`, or `-9999.000` remain missing. Unsupported precision or heights outside the observed bounded contract fail. Native same-time comparison uses a 0.001-foot tolerance for the two independently rounded values. Component checks use `TWL = TIDE + SURGE + BIAS` once, with a 0.002-foot rounding bound for four printed values. Missing components are reported and skipped, not zeroed. Neither check searches offsets, shifts timestamps, fills gaps, or measures forecast accuracy. Absent target stations and unsupported products remain visible in each station/run status.
 
+## NOAA-confirmed CSV mapping
+
+```sh
+python3 -B tools/etss/reader.py --csv-mapping \
+  /path/to/forecasts/attempt-DATE-CYCLE-ID.json
+```
+
+`--csv-mapping` keeps the native `status`, `sameTime` disagreements and original SHEF declarations. It adds `mappingContract`, aggregate `mappingStatus` and a `mapping` for each parsed station. Exit zero means all three mappings are `accepted`; `unexplained`, `incomplete`, and `unsupported` exit one. Without the flag, the reader and collector retain the native diagnostic behavior. The installed collector is pinned separately; changing the checkout does not redeploy it or rewrite saved reports.
+
+The mapping uses the complete 79 hourly CSV BIAS values from cycle +24 through +102 hours, matching the bounded signature audited in #401. The earlier bias can vary while blending observations even in a constant-tail run. Missing tail support yields `unknown`, never constant by default. Equal printed tail values select the same-time relationship; varying printed values select comparison to CSV one hour later. This is a conservative observed export contract, not a provider-supplied FFT flag. A future changed layout, an unrecognized branch or an unexplained mismatch requires review.
+
+All 102 SHEF values must match the selected CSV relationship within 0.001 feet. Timing flags or component arithmetic exceptions are `unexplained`. The full observed CSV span and all four forecast components at each of the 103 hourly times from cycle through +102 hours must exist; incomplete support emits no forecast. Historical observation sentinels remain allowed. Missing input is never interpolated, replaced with zero, or repaired by testing other time offsets. The Shishmaref exceptions are outside these three gauges and remain unresolved.
+
+An accepted station mapping exposes `forecast` samples with `validAt` copied from CSV TIME, `csvFeet`, and `heightMeters` using exactly 0.3048 meters per foot. Both heights are decimal strings. TWL already includes TIDE, SURGE and BIAS; no component or observation anchor is added. SHEF times and values are never relabeled. Forecast output includes cycle and +102h endpoints independently of the SHEF's 102-value support.
+
+Mapping acceptance establishes the export relationship only. Consumers must enforce decision-time receipt eligibility and the frozen paired-capture rules, retain body hashes and contract ID, select exact targets, and apply fallback when unavailable. A report can have native `status: disagreement` and `mappingStatus: accepted` for the documented FFT bug. Per-station forecasts in a partially failed report do not authorize use of the entire pair. No scoring or production acceptance follows from a successful mapping.
+
 ## Fixtures
 
 `fixtures/provenance.json` attributes exact text excerpts to original NOAA URLs, source archive/member hashes, capture receipts, and extraction boundaries. The Seattle October 12, 2026 00Z and 12Z fixtures each retain the complete 102-value SHEF section and only 31 contiguous CSV rows (00:00 through 03:00 and 12:00 through 15:00 UTC), with original printed precision and sentinels. The 00Z control agrees at its four available same-time comparisons, while 12Z retains the disagreement. Both CSV excerpts are intentionally incomplete; neither is a full capture or scoring sample. The control is original observed evidence, without a timestamp adjustment.
 
-The public APIs are `capture.capture_cycle(date, cycle, output)` returning a final manifest path, and `reader.validate_manifest(path)` returning the JSON-compatible report. Parsing and comparison helpers support offline tests and inspection.
+`fixtures/mapping-provenance.json` records the original archive/member hashes and receipt times for complete Seattle CSV members and SHEF sections from October 13 18Z (constant tail) and October 14 00Z (varying tail). CSV members are stored as lossless gzip fixtures with a deterministic compression timestamp; decompressed bytes retain their original TIME and printed values. These cover a bias-mode change at the same station and are development evidence only.
+
+The public APIs are `capture.capture_cycle(date, cycle, output)` returning a final manifest path, and `reader.validate_manifest(path, csv_mapping=False)` returning the JSON-compatible report. Set `csv_mapping=True` for the optional mapped output. Parsing and comparison helpers support offline tests and inspection; only manifest validation checks archive hashes and receipt metadata.
