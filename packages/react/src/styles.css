@@ -32,6 +32,29 @@
   );
 }
 
+/* Brand tokens, from brand/colors.json. The current and scrubber components
+ * are dark-first; override any --sw-* variable to retheme them. */
+:root {
+  --sw-navy-deep: #00183c;
+  --sw-canvas: #05122a;
+  --sw-canvas-glow: #0a2140;
+  --sw-night: #00101f;
+  --sw-daylight: #a8cae0;
+  --sw-paper: #fcfcfc;
+  --sw-foam: #e4f0e4;
+  --sw-flood: #4a9fd8;
+  --sw-ebb: #e8a33d;
+  --sw-go: #88b868;
+  --sw-steel: #5888a8;
+  --sw-attention: #ef6f4a;
+  --sw-sun: #f0c860;
+  --sw-sunrise: #f0d890;
+  --sw-sunset: #c8a86a;
+  --sw-graph-line: #38bdf8;
+  --sw-graph-high: #2dd4bf;
+  --sw-graph-low: #fbbf24;
+}
+
 /* Hide scrollbar while keeping scroll functional */
 .scrollbar-hide {
   -ms-overflow-style: none;
