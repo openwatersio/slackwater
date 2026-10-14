@@ -5,7 +5,8 @@ import type { MapRef } from "react-map-gl/maplibre";
 import { StationsMap } from "../../src/components/StationsMap.js";
 import { createTestWrapper } from "../helpers.js";
 
-// Empty style so the map needs no network to reach a loaded state.
+// Empty style so the map needs no network to reach a loaded state. Starting MapLibre
+// can still take over a second while other test files run in parallel.
 const style = { version: 8 as const, sources: {}, layers: [] };
 
 describe("StationsMap", () => {
@@ -20,9 +21,9 @@ describe("StationsMap", () => {
       { wrapper: createTestWrapper() },
     );
 
-    await waitFor(() => expect(ref.current).toBeTruthy());
+    await waitFor(() => expect(ref.current).toBeTruthy(), { timeout: 10000 });
     const map = ref.current!.getMap();
-    await waitFor(() => expect(map.isStyleLoaded()).toBe(true));
+    await waitFor(() => expect(map.isStyleLoaded()).toBe(true), { timeout: 10000 });
 
     expect(map.getSource("stations")).toBeTruthy();
     expect(map.getLayer("clusters")).toBeTruthy();
@@ -42,7 +43,7 @@ describe("StationsMap", () => {
       { wrapper: createTestWrapper() },
     );
 
-    await waitFor(() => expect(bounds.length).toBeGreaterThan(0));
+    await waitFor(() => expect(bounds.length).toBeGreaterThan(0), { timeout: 10000 });
     const { north, south, east, west } = bounds[0];
     expect(north).toBeGreaterThan(south);
     expect(east).toBeGreaterThan(west);

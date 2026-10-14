@@ -31,10 +31,12 @@ export function adjacentTarget(
   time: number,
   forward: boolean,
 ): number | undefined {
-  return forward ? targets.find((t) => t > time + 1000) : targets.findLast((t) => t < time - 1000);
+  return forward
+    ? targets.find((t) => t > time + 1000)
+    : [...targets].reverse().find((t) => t < time - 1000);
 }
 
-/** `time` clamped to the centre times a strip of `viewport` ms can scroll to. */
+/** `time` clamped to the center times a strip of `viewport` ms can scroll to. */
 export function reachable(time: number, start: number, end: number, viewport: number): number {
   const lo = start + viewport / 2;
   const hi = Math.max(lo, end - viewport / 2);
@@ -66,7 +68,7 @@ export function thinLabels<T extends { time: number }>(items: T[]): T[] {
   return kept;
 }
 
-/** The day-row anchor nearest `time`: a sun event to centre, or a date (which wins ties). */
+/** The day-row anchor nearest `time`: a sun event to center, or a date (which wins ties). */
 export function dayRowHit(
   sun: number[],
   dates: number[],

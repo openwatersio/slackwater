@@ -28,6 +28,35 @@ describe("startOfDay / nextDay", () => {
     const springForward = startOfDay(Date.parse("2026-03-08T12:00:00Z"), LA);
     expect((nextDay(springForward, LA) - springForward) / H).toBe(23);
   });
+  test.each([
+    // Clocks skip from 00:00 to 01:00, so these days begin at 01:00.
+    [
+      "America/Santiago",
+      "2026-09-05T04:00:00.000Z",
+      "2026-09-06T04:00:00.000Z",
+      "2026-09-07T03:00:00.000Z",
+    ],
+    [
+      "America/Havana",
+      "2026-03-07T05:00:00.000Z",
+      "2026-03-08T05:00:00.000Z",
+      "2026-03-09T04:00:00.000Z",
+    ],
+  ])(
+    "a day whose midnight DST skips begins at the change in %s",
+    (zone, before, skipped, after) => {
+      const start = Date.parse(before);
+      const list = days(start, Date.parse(after) + 12 * H, zone, -33, -71);
+      expect(list.map((d) => new Date(d.start).toISOString())).toEqual([before, skipped, after]);
+      expect(list.map((d) => new Date(d.end).toISOString())).toEqual([
+        skipped,
+        after,
+        new Date(Date.parse(after) + 24 * H).toISOString(),
+      ]);
+      expect(startOfDay(Date.parse(skipped) + 22 * H, zone)).toBe(Date.parse(skipped));
+      expect(chartTime(localNoon(Date.parse(skipped), zone), zone, "en-GB")).toBe("12:00");
+    },
+  );
 });
 
 test("clock formats follow the locale", () => {
@@ -106,7 +135,7 @@ describe("sunBands", () => {
   });
 });
 
-test("dayAnchor centres in the day's daylight, else at local noon", () => {
+test("dayAnchor centers in the day's daylight, else at local noon", () => {
   const start = startOfDay(Date.parse("2026-10-10T20:00:00Z"), LA);
   const day = { start, end: nextDay(start, LA), sunrise: start + 7 * H, sunset: start + 18 * H };
   expect(dayAnchor(day, sunBands([day]), LA)).toBe(start + 12.5 * H);

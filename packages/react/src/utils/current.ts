@@ -1,9 +1,15 @@
-import type { SlackWindow } from "@slackwater/engine";
 import type { CurrentEvent, CurrentTimelineEntry } from "../types.js";
 import { type Day, spokenTime } from "./time.js";
 import { UNIT_MS } from "./scrubber.js";
 
-export type { SlackWindow };
+/** A run of time around slack when the current stays within the boat-speed threshold. */
+export interface SlackWindow {
+  start: Date;
+  end: Date;
+}
+
+/** What shows in place of a strip with fewer than two samples. */
+export const EMPTY_MESSAGE = "No current predictions for this period.";
 
 /** The app's default boat-speed threshold for slack windows, in knots. */
 export const DEFAULT_SLACK_THRESHOLD = 0.5;
@@ -21,7 +27,7 @@ const hex = (c: number[]) =>
   "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
 
 /**
- * The speed ramp colour for an absolute speed in knots. The ramp is the same
+ * The speed ramp color for an absolute speed in knots. The ramp is the same
  * at every station, never enters green, and clamps at both ends.
  */
 export function speedColor(knots: number): string {
@@ -50,7 +56,8 @@ export function compass16(degrees: number): string {
  * `threshold`, interpolated at the band crossings and clamped to the series.
  * When both samples bracketing the slack sit outside the band, the straight
  * reversal between them still crosses it, so the window is where that
- * segment enters and leaves the band. Undefined for a slack outside the series.
+ * segment enters and leaves the band, widened to hold the slack itself.
+ * Undefined for a slack outside the series.
  */
 export function slackWindowAround(
   timeline: CurrentTimelineEntry[],
@@ -63,7 +70,8 @@ export function slackWindowAround(
   }
   const at = (i: number) => timeline[i].time.getTime();
   const inBand = (i: number) => Math.abs(timeline[i].speed) <= threshold;
-  const i = timeline.findLastIndex((p) => p.time.getTime() <= slack);
+  let i = n - 1;
+  while (at(i) > slack) i--;
   let k: number;
   if (inBand(i)) k = i;
   else if (i + 1 < n && inBand(i + 1)) k = i + 1;
@@ -72,8 +80,8 @@ export function slackWindowAround(
     const span = a + Math.abs(timeline[i + 1].speed);
     const dt = at(i + 1) - at(i);
     return {
-      start: new Date(at(i) + (dt * (a - threshold)) / span),
-      end: new Date(at(i) + (dt * (a + threshold)) / span),
+      start: new Date(Math.min(slack, at(i) + (dt * (a - threshold)) / span)),
+      end: new Date(Math.max(slack, at(i) + (dt * (a + threshold)) / span)),
     };
   } else return undefined;
   const cross = (a: number, b: number) => {
@@ -91,33 +99,36 @@ export function slackWindowAround(
   };
 }
 
-/** The measured window around every slack, with touching or overlapping windows merged into one run. */
+/**
+ * The measured window around every slack, each window once however many
+ * slacks share it. A slack with no window is a zero-width run, so it draws,
+ * times and stops as a dot like any short run.
+ */
 export function slackRuns(
   timeline: CurrentTimelineEntry[],
   events: CurrentEvent[],
   threshold: number,
 ): SlackWindow[] {
+  const first = timeline[0]?.time.getTime();
+  const last = timeline[timeline.length - 1]?.time.getTime();
   const windows = events
-    .filter((e) => e.kind === "slack")
-    .flatMap((e) => slackWindowAround(timeline, e.time.getTime(), threshold) ?? [])
+    .filter((e) => e.kind === "slack" && e.time.getTime() >= first && e.time.getTime() <= last)
+    .map(
+      (e) =>
+        slackWindowAround(timeline, e.time.getTime(), threshold) ?? { start: e.time, end: e.time },
+    )
     .sort((a, b) => a.start.getTime() - b.start.getTime());
-  const runs: SlackWindow[] = [];
-  for (const w of windows) {
-    const last = runs[runs.length - 1];
-    if (last && w.start <= last.end) {
-      if (w.end > last.end) last.end = w.end;
-    } else runs.push({ start: w.start, end: w.end });
-  }
-  return runs;
+  // Windows are whole in-band stretches or single crossings, so two either match or are disjoint.
+  return windows.filter((w, i) => i === 0 || w.start > windows[i - 1].end);
 }
 
-/** A run narrower than a five-unit dot draws as a dot, and is one stop, at its centre. */
+/** A run narrower than a five-unit dot draws as a dot, and is one stop, at its center. */
 export function isDotRun(run: SlackWindow): boolean {
   return run.end.getTime() - run.start.getTime() < 5 * UNIT_MS;
 }
 
 /** The middle of a run: where a dot run draws and the one moment it names. */
-export function runCentre(run: SlackWindow): number {
+export function runCenter(run: SlackWindow): number {
   return (run.start.getTime() + run.end.getTime()) / 2;
 }
 
@@ -163,7 +174,11 @@ export function readCurrent(
 ): CurrentReading | undefined {
   const speed = speedAt(timeline, time);
   if (speed === undefined) return undefined;
-  if (windows.some((w) => w.start.getTime() <= time && time < w.end.getTime())) {
+  // A dot run reads Slack at its center, where the magnet parks under the dot.
+  const inRun = (w: SlackWindow) =>
+    (w.start.getTime() <= time && time < w.end.getTime()) ||
+    (isDotRun(w) && Math.abs(time - runCenter(w)) <= 1000);
+  if (windows.some(inRun)) {
     return { state: "Slack", speed };
   }
   const direction = speed >= 0 ? directions.flood : directions.ebb;
@@ -199,7 +214,7 @@ const SPOKEN: Record<StopKind, string> = {
 /**
  * The water stops the commentary walks: each run's opening, its closing named
  * for the water that follows, and each maximum. A dot run is one stop at its
- * centre. A run clamped to the series has no measured edge there, so none is
+ * center. A run clamped to the series has no measured edge there, so none is
  * invented.
  */
 export function currentStops(
@@ -212,7 +227,7 @@ export function currentStops(
   const stops: Stop[] = [];
   for (const w of runs) {
     if (isDotRun(w)) {
-      stops.push({ time: runCentre(w), label: "Slack" });
+      stops.push({ time: runCenter(w), label: "Slack" });
       continue;
     }
     if (w.start.getTime() > first) stops.push({ time: w.start.getTime(), label: "Slack" });

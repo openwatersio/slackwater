@@ -14,13 +14,14 @@ import {
 import type { CurrentEvent, CurrentTimelineEntry } from "../types.js";
 import {
   DEFAULT_SLACK_THRESHOLD,
+  EMPTY_MESSAGE,
   commentary,
   compass16,
   currentStops,
   formatSpeed,
   isDotRun,
   readCurrent,
-  runCentre,
+  runCenter,
   scrubberStops,
   slackRuns,
   snapTargets,
@@ -251,8 +252,7 @@ const Strip = memo(function Strip({
     const times = [a, ...timeline.map((p) => p.time.getTime()).filter((t) => t > a && t < b), b];
     return times
       .map(
-        (t, i) =>
-          `${i ? "L" : "M"}${g.x(t).toFixed(1)} ${g.y(speedAt(timeline, t) ?? 0).toFixed(1)}`,
+        (t, i) => `${i ? "L" : "M"}${g.x(t).toFixed(1)} ${g.y(speedAt(timeline, t)!).toFixed(1)}`,
       )
       .join("");
   };
@@ -261,13 +261,10 @@ const Strip = memo(function Strip({
   const threadStops = timeline.filter((_, i) => i % step === 0);
 
   const strokes = runs.filter((w) => !isDotRun(w));
-  const dots = awayFromEdges(
-    runs
-      .filter(isDotRun)
-      .map((w) => ({ time: runCentre(w), y: g.y(speedAt(timeline, runCentre(w)) ?? 0) })),
-    g.start,
-    g.end,
-  );
+  // Runs draw to the edges; only marks and labels keep clear of them.
+  const dots = runs
+    .filter(isDotRun)
+    .map((w) => ({ time: runCenter(w), y: g.y(speedAt(timeline, runCenter(w))!) }));
   const maxima = awayFromEdges(
     events.filter((e) => e.kind !== "slack").map((e) => ({ ...e, time: e.time.getTime() })),
     g.start,
@@ -275,7 +272,7 @@ const Strip = memo(function Strip({
   );
   const eventTimes = thinLabels(
     awayFromEdges(
-      runs.map((w) => ({ time: isDotRun(w) ? runCentre(w) : w.start.getTime() })),
+      runs.map((w) => ({ time: isDotRun(w) ? runCenter(w) : w.start.getTime() })),
       g.start,
       g.end,
     ),
@@ -557,10 +554,25 @@ const prefersReducedMotion = () =>
 
 /**
  * A continuously scrolling current strip under a fixed reading line, after the
- * app's scrubber: the instant under the centre line drives the lead reading,
+ * app's scrubber: the instant under the center line drives the lead reading,
  * and the pills name the next stop and the way back to now.
  */
-export function CurrentScrubber({
+export function CurrentScrubber(props: CurrentScrubberProps) {
+  // The strip scales time across its first and last samples, so it needs two.
+  if (props.timeline.length < 2) {
+    return (
+      <div
+        className={`flex items-center justify-center text-sm opacity-80 ${props.className ?? ""}`}
+        style={{ height: G.height, background: C.canvas, color: "#fff" }}
+      >
+        {EMPTY_MESSAGE}
+      </div>
+    );
+  }
+  return <Scrubber {...props} />;
+}
+
+function Scrubber({
   timeline,
   events,
   timezone,
@@ -582,13 +594,19 @@ export function CurrentScrubber({
     [g.start, g.end, timezone, latitude, longitude],
   );
   const bands = useMemo(() => sunBands(daysList), [daysList]);
+  /** The strip's width in px, measured on open and on resize. */
+  const [width, setWidth] = useState(0);
+  const span = (width / PX_PER_HOUR) * HOUR;
+  // Only stops the center line can reach are named or snapped to.
+  const first = reachable(g.start, g.start, g.end, span);
+  const last = reachable(g.end, g.start, g.end, span);
   const stops = useMemo(
-    () => scrubberStops(currentStops(timeline, events, runs), daysList, g.start, g.end),
-    [timeline, events, runs, daysList, g],
+    () => scrubberStops(currentStops(timeline, events, runs), daysList, first, last),
+    [timeline, events, runs, daysList, first, last],
   );
   const targets = useMemo(
-    () => snapTargets(stops, events, runs, g.start, g.end),
-    [stops, events, runs, g],
+    () => snapTargets(stops, events, runs, first, last),
+    [stops, events, runs, first, last],
   );
 
   const scroller = useRef<HTMLDivElement>(null);
@@ -605,8 +623,8 @@ export function CurrentScrubber({
   const nowRef = useRef(now);
   nowRef.current = now;
 
-  const viewport = () => ((scroller.current?.clientWidth ?? 0) / PX_PER_HOUR) * HOUR;
-  const centreTime = useCallback(() => {
+  const viewport = () => (scroller.current!.clientWidth / PX_PER_HOUR) * HOUR;
+  const centerTime = useCallback(() => {
     const el = scroller.current!;
     return g.start + ((el.scrollLeft + el.clientWidth / 2) / PX_PER_HOUR) * HOUR;
   }, [g]);
@@ -627,13 +645,12 @@ export function CurrentScrubber({
   };
 
   // Every rest reads this so the timer never calls a stale closure.
-  const onRestRef = useRef<() => void>(() => {});
+  const onRestRef = useRef<() => void>(null!);
 
-  /** Bring `t` under the centreline: the newest request wins, clamped to a reachable offset. Returns whether the strip moves. */
+  /** Bring `t` under the centerline: the newest request wins, clamped to a reachable offset. Returns whether the strip moves. */
   const goTo = useCallback(
     (t: number, animate: boolean): boolean => {
-      const el = scroller.current;
-      if (!el) return false;
+      const el = scroller.current!;
       stopOpening();
       userMoved.current = false;
       const dest = reachable(t, g.start, g.end, viewport());
@@ -644,13 +661,13 @@ export function CurrentScrubber({
         setSelected(dest);
         return false;
       }
-      const smooth = animate && rides(centreTime(), dest, prefersReducedMotion());
+      const smooth = animate && rides(centerTime(), dest, prefersReducedMotion());
       el.scrollTo({ left, behavior: smooth ? "smooth" : "instant" });
       if (!smooth) setSelected(dest);
       restSoon(() => onRestRef.current());
       return true;
     },
-    [g, leftFor, centreTime, restSoon],
+    [g, leftFor, centerTime, restSoon],
   );
 
   /** Stop any opening, glide, or momentum where the strip is now. */
@@ -664,20 +681,20 @@ export function CurrentScrubber({
   onRestRef.current = () => {
     const landing = target.current;
     target.current = undefined;
-    if (landing !== undefined && Math.abs(centreTime() - landing) < UNIT_MS) {
+    if (landing !== undefined && Math.abs(centerTime() - landing) < UNIT_MS) {
       // A programmatic move lands on a whole pixel; read its exact instant.
       setSelected(landing);
     } else if (landing !== undefined || userMoved.current) {
       // A ride that stopped short of its target rests like a person's scroll.
       userMoved.current = false;
-      const snap = magnetTarget(targets, centreTime());
+      const snap = magnetTarget(targets, centerTime());
       if (snap !== undefined && goTo(snap, true)) return;
     }
     setResting(true);
   };
 
   const onScroll = () => {
-    const t = centreTime();
+    const t = centerTime();
     const landing = target.current;
     setSelected(
       landing !== undefined && Math.abs(t - landing) < UNIT_MS
@@ -687,11 +704,16 @@ export function CurrentScrubber({
     restSoon(() => onRestRef.current());
   };
 
+  // The Now pill unmounts and the commentary pill hides once moving, so keyboard focus moves to the strip.
+  const focusSlider = () => scroller.current!.focus({ preventScroll: true });
+
   const markUserMove = () => {
     stopOpening();
     target.current = undefined;
     userMoved.current = true;
   };
+
+  useIsomorphicLayoutEffect(() => setWidth(scroller.current!.clientWidth), []);
 
   // Open two hours before now and move linearly to it, unless motion is reduced.
   const opened = useRef(false);
@@ -699,17 +721,17 @@ export function CurrentScrubber({
     const el = scroller.current;
     if (!el || opened.current) return;
     opened.current = true;
+    const to = reachable(now, g.start, g.end, viewport());
+    target.current = to;
     if (prefersReducedMotion()) {
-      el.scrollLeft = leftFor(reachable(now, g.start, g.end, viewport()));
-      setSelected(reachable(now, g.start, g.end, viewport()));
+      el.scrollLeft = leftFor(to);
+      setSelected(to);
       restSoon(() => onRestRef.current());
       return;
     }
-    const to = reachable(now, g.start, g.end, viewport());
     const from = reachable(now - OPEN_FROM_MS, g.start, g.end, viewport());
     el.scrollLeft = leftFor(from);
     setSelected(from);
-    target.current = to;
     const began = performance.now();
     const frame = (time: number) => {
       const f = Math.min(1, Math.max(0, (time - began) / OPEN_DURATION_MS));
@@ -720,7 +742,7 @@ export function CurrentScrubber({
     restSoon(() => onRestRef.current());
   }, [now, g, leftFor, restSoon]);
 
-  // A width change keeps the selected time under the new centre.
+  // A width change keeps the selected time under the new center.
   useEffect(() => {
     const el = scroller.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -728,6 +750,7 @@ export function CurrentScrubber({
     const ro = new ResizeObserver(() => {
       if (el.clientWidth === width) return;
       width = el.clientWidth;
+      setWidth(width);
       // The opening's frames already recompute against the new width.
       if (opening.current !== undefined) return;
       userMoved.current = false;
@@ -738,6 +761,14 @@ export function CurrentScrubber({
     return () => ro.disconnect();
   }, [leftFor]);
 
+  // New data with a different span keeps the selection, clamped into it.
+  const range = useRef(g);
+  useIsomorphicLayoutEffect(() => {
+    const prev = range.current;
+    range.current = g;
+    if (prev.start !== g.start || prev.end !== g.end) goTo(selectedRef.current, false);
+  }, [g, goTo]);
+
   // Now is sampled on open, on the Now pill, and on returning to the page;
   // never on a timer. A selection that was home follows it.
   useEffect(() => {
@@ -745,13 +776,15 @@ export function CurrentScrubber({
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
       const fresh = Date.now();
-      const home = Math.abs(selectedRef.current - nowRef.current) <= NEAR_NOW_MS;
+      const home =
+        Math.abs(selectedRef.current - reachable(nowRef.current, g.start, g.end, viewport())) <=
+        NEAR_NOW_MS;
       setClock(fresh);
       if (home) goTo(fresh, true);
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [nowProp, goTo]);
+  }, [nowProp, goTo, g]);
 
   useEffect(() => () => clearTimeout(restTimer.current), []);
 
@@ -783,7 +816,7 @@ export function CurrentScrubber({
       goTo(magnetTarget(targets, t) ?? t, true);
       return;
     }
-    // The day row: a sun event centres; a date has no picker here, so it only stops motion.
+    // The day row: a sun event centers; a date has no picker here, so it only stops motion.
     const sun = stops
       .filter((s) => s.label === "Sunrise" || s.label === "Sunset")
       .map((s) => s.time);
@@ -809,7 +842,9 @@ export function CurrentScrubber({
 
   const reading = readCurrent(selected, timeline, events, runs, directions);
   const comment = commentary(selected, stops, locale);
-  const awayFromNow = Math.abs(selected - now) > NEAR_NOW_MS;
+  // Where the Now pill goes: now, or as near as a strip this wide can center.
+  const home = reachable(now, g.start, g.end, span);
+  const awayFromNow = Math.abs(selected - home) > NEAR_NOW_MS;
   const ridingY = reading ? g.y(reading.speed) : ZERO_Y;
   const slack = reading?.state === "Slack";
   const spoken = reading ? spokenReading(reading, selected, timezone, locale) : undefined;
@@ -839,9 +874,12 @@ export function CurrentScrubber({
         aria-valuenow={Math.round(selected)}
         aria-valuetext={spoken}
         className="scrollbar-hide h-full overflow-x-auto overflow-y-hidden outline-none cursor-grab active:cursor-grabbing focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white/50"
-        style={{ touchAction: "pan-x", overscrollBehaviorX: "none" }}
+        style={{ touchAction: "pan-x pan-y", overscrollBehaviorX: "none" }}
         onScroll={onScroll}
-        onWheel={markUserMove}
+        onWheel={(e) => {
+          // A vertical wheel scrolls the page, not the strip.
+          if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) markUserMove();
+        }}
         onTouchMove={markUserMove}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -926,7 +964,10 @@ export function CurrentScrubber({
             className={pillButton}
             style={{ ...pillStyle, left: "50%", transform: "translateX(-50%)" }}
             aria-label={comment.spoken}
-            onClick={() => goTo(comment.stop.time, true)}
+            onClick={() => {
+              goTo(comment.stop.time, true);
+              focusSlider();
+            }}
           >
             <span className={capsule} style={{ height: PILL_HEIGHT }}>
               {comment.stop.label}
@@ -940,16 +981,17 @@ export function CurrentScrubber({
             type="button"
             tabIndex={resting ? 0 : -1}
             className={pillButton}
-            style={{ ...pillStyle, [selected > now ? "left" : "right"]: 16 }}
+            style={{ ...pillStyle, [selected > home ? "left" : "right"]: 16 }}
             aria-label="Return to now"
             onClick={() => {
               const fresh = nowProp ?? Date.now();
               setClock(fresh);
               goTo(fresh, true);
+              focusSlider();
             }}
           >
             <span className={capsule} style={{ height: PILL_HEIGHT }}>
-              {selected > now ? (
+              {selected > home ? (
                 <>
                   <Arrow forward={false} />
                   Now

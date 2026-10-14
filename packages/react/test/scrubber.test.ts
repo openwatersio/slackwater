@@ -45,7 +45,7 @@ test("adjacentTarget ignores targets within a second", () => {
 });
 
 describe("reachable", () => {
-  test("clamps to the centres the scroll range can reach", () => {
+  test("clamps to the centers the scroll range can reach", () => {
     expect(reachable(H, 0, 100 * H, 20 * H)).toBe(10 * H);
     expect(reachable(99 * H, 0, 100 * H, 20 * H)).toBe(90 * H);
     expect(reachable(50 * H, 0, 100 * H, 20 * H)).toBe(50 * H);

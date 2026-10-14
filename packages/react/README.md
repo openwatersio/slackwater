@@ -1,6 +1,6 @@
 # @slackwater/react
 
-React components for tide predictions powered by [Slackwater](https://openwaters.io/tides/slackwater/).
+React components for tide and current predictions powered by [Slackwater](https://openwaters.io/tides/slackwater/).
 
 ## Installation
 
@@ -123,6 +123,49 @@ Interactive map showing tide stations within the visible viewport. Requires `map
 />
 ```
 
+### `<CurrentStation>`
+
+Detail view for a tidal current station: name, region, a `<CurrentScrubber>` over a window from 96 hours before to 180 hours after the start of the station's local day, and the station's disclaimers and attribution. The window moves when the page is shown again two or more days later. Stations whose predictions can't be served, such as CHS stations, show the reason instead. The current components need `@slackwater/api` 1.0.0-beta.3 or later, which serves the `/currents` routes.
+
+```tsx
+<CurrentStation id="noaa/PUG1701" />
+<CurrentStation id="noaa/EPT0003@11" threshold={1} />
+```
+
+| Prop        | Type     | Default | Description                                                        |
+| ----------- | -------- | ------- | ------------------------------------------------------------------ |
+| `id`        | `string` | —       | Station ID, optionally with a depth bin (e.g. `"noaa/EPT0003@11"`) |
+| `threshold` | `number` | `0.5`   | Boat speed in knots that sizes the slack windows                   |
+| `className` | `string` | —       | Extra classes for the outer element                                |
+
+### `<CurrentScrubber>`
+
+Current timeline that scrolls under a fixed reading line. It reads the speed, set, and state at the selected moment, and has pills for the next event and the way back to now. Drag, scroll, tap, or use the arrow keys (Shift moves between events). Used internally by `<CurrentStation>` but also available standalone.
+
+```tsx
+<CurrentScrubber
+  timeline={timeline}
+  events={events}
+  timezone="America/Los_Angeles"
+  latitude={48.1}
+  longitude={-122.7}
+  directions={{ flood: 160, ebb: 340 }}
+/>
+```
+
+| Prop         | Type                     | Default         | Description                                                            |
+| ------------ | ------------------------ | --------------- | ---------------------------------------------------------------------- |
+| `timeline`   | `CurrentTimelineEntry[]` | —               | Signed speeds in knots, flood positive; fewer than two shows a message |
+| `events`     | `CurrentEvent[]`         | —               | Slack, max flood, and max ebb events                                   |
+| `timezone`   | `string`                 | —               | Station IANA time zone for clocks, dates, and days                     |
+| `latitude`   | `number`                 | —               | Station latitude, for sunrise and sunset                               |
+| `longitude`  | `number`                 | —               | Station longitude, for sunrise and sunset                              |
+| `directions` | `{ flood?, ebb? }`       | `{}`            | Flood and ebb set in degrees true                                      |
+| `threshold`  | `number`                 | `0.5`           | Boat speed in knots that sizes the slack windows                       |
+| `locale`     | `string`                 | reader's locale | BCP 47 locale for clocks and dates                                     |
+| `now`        | `number`                 | the clock       | The current instant in ms; pass it to render deterministically         |
+| `className`  | `string`                 | —               | Extra classes for the outer element                                    |
+
 ## Hooks
 
 All hooks must be used within a `<SlackwaterProvider>`.
@@ -132,6 +175,9 @@ All hooks must be used within a `<SlackwaterProvider>`.
 - `useExtremes({ id, start?, end?, days? })` — fetch high/low extremes
 - `useTimeline({ id, start?, end? })` — fetch tide level timeline
 - `useNearbyStations({ stationId } | { latitude, longitude })` — fetch nearby stations
+- `useCurrentStation(id)` — fetch a current station
+- `useCurrentEvents(id, { start, end })` — fetch slack, max flood, and max ebb events
+- `useCurrentTimeline(id, { start, end })` — fetch the signed current speed timeline
 
 ## Styling
 

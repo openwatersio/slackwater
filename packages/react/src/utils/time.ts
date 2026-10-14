@@ -30,17 +30,39 @@ function offset(time: number, timeZone: string): number {
   return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second) - (time - (time % 1000));
 }
 
-/** Station-local midnight starting the civil day that contains `time`. */
-export function startOfDay(time: number, timeZone: string): number {
+/** The station-local date containing `time`, as UTC midnight of that date. */
+function localDate(time: number, timeZone: string): number {
   const p = parts(time, timeZone);
-  const wall = Date.UTC(p.year, p.month - 1, p.day);
-  // Resolve twice so a DST change between the guess and midnight settles.
-  const guess = wall - offset(wall, timeZone);
-  return wall - offset(guess, timeZone);
+  return Date.UTC(p.year, p.month - 1, p.day);
 }
 
-/** The next station-local midnight after the day containing `time` (23 or 25 h on DST days). */
+/**
+ * The first instant of the station-local civil day containing `time`:
+ * midnight, or the DST change itself where clocks skip midnight.
+ */
+export function startOfDay(time: number, timeZone: string): number {
+  const date = localDate(time, timeZone);
+  // Resolve twice so a DST change between the guess and midnight settles.
+  const guess = date - offset(date, timeZone);
+  const midnight = date - offset(guess, timeZone);
+  if (localDate(midnight, timeZone) === date && localDate(midnight - 1000, timeZone) < date) {
+    return midnight;
+  }
+  // Midnight is in a DST gap, so find the first second carrying this date. Local
+  // dates never decrease, and offsets stay within -12 h and +14 h of UTC.
+  let before = date - 15 * HOUR;
+  let on = date + 12 * HOUR;
+  while (on - before > 1000) {
+    const mid = before + Math.floor((on - before) / 2000) * 1000;
+    if (localDate(mid, timeZone) < date) before = mid;
+    else on = mid;
+  }
+  return on;
+}
+
+/** The start of the station-local day after the one containing `time` (23 or 25 h on DST days). */
 export function nextDay(time: number, timeZone: string): number {
+  // No civil day is longer than 25 h, so 26 h on always lands in a later day.
   return startOfDay(startOfDay(time, timeZone) + 26 * HOUR, timeZone);
 }
 
@@ -53,7 +75,7 @@ export function chartTime(time: number, timeZone: string, locale?: string): stri
 
 /**
  * The lead's date and time: "Sep 20 · 4:22 PM". A figure space pads a
- * one-digit hour so the centred clock doesn't shift crossing 9:59 to 10:00.
+ * one-digit hour so the centered clock doesn't shift crossing 9:59 to 10:00.
  */
 export function leadTime(time: number, timeZone: string, locale?: string): string {
   const clock = chartTime(time, timeZone, locale);
@@ -89,7 +111,7 @@ export function spokenTime(time: number, timeZone: string, locale?: string): str
 
 /** Station-local noon of the civil day starting at `dayStart`, which is 11 or 13 h in on DST days. */
 export function localNoon(dayStart: number, timeZone: string): number {
-  return dayStart + 12 * HOUR + offset(dayStart, timeZone) - offset(dayStart + 12 * HOUR, timeZone);
+  return localDate(dayStart, timeZone) + 12 * HOUR - offset(dayStart + 12 * HOUR, timeZone);
 }
 
 export interface Day {
@@ -143,7 +165,7 @@ export function sunBands(list: Day[]): Band[] {
   });
 }
 
-/** Where a day's name centres: the middle of the daylight that begins that day, else local noon. */
+/** Where a day's name centers: the middle of the daylight that begins that day, else local noon. */
 export function dayAnchor(day: Day, bands: Band[], timeZone: string): number {
   const light = bands.find((b) => !b.night && b.from === day.sunrise);
   return light ? (light.from + light.to) / 2 : localNoon(day.start, timeZone);

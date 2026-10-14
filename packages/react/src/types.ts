@@ -82,8 +82,25 @@ export interface CurrentBin {
   bin?: number;
 }
 
-export interface CurrentStationInfo extends Station {
+/** A current station as the current API returns it: the database record plus serving flags. */
+export interface CurrentStationInfo extends StationSummary {
   kind: "current";
+  locality?: string;
+  context?: string;
+  source: {
+    id: string;
+    name: string;
+    url: string;
+    published_harmonics: boolean;
+  };
+  license: {
+    type: string;
+    commercial_use: boolean;
+    url: string;
+    notes?: string;
+  };
+  disclaimers?: string;
+  attribution?: string;
   bins: CurrentBin[];
   /** False for stations the API can't serve (CHS licensing, no model). */
   predictions: boolean;

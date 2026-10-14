@@ -7,7 +7,7 @@ import {
   formatSpeed,
   isDotRun,
   readCurrent,
-  runCentre,
+  runCenter,
   scrubberStops,
   slackRuns,
   slackWindowAround,
@@ -96,6 +96,11 @@ describe("slackWindowAround", () => {
     expect(w.start.getTime()).toBe(t0 + 10 * M + (10 * M * 0.5) / 0.75);
     expect(w.end.getTime()).toBe(t0 + 20 * M + (10 * M * 0.25) / 0.75);
   });
+  test("a reversal window widens to hold its slack", () => {
+    const w = slackWindowAround(series([2, 1, -3, -4]), t0 + 19 * M, 0.5)!;
+    expect(w.start.getTime()).toBe(t0 + 11.25 * M);
+    expect(w.end.getTime()).toBe(t0 + 19 * M);
+  });
   test("clamps to the series", () => {
     const w = slackWindowAround(series([0.2, -0.3]), t0 + 4 * M, 0.5)!;
     expect(w).toEqual({ start: new Date(t0), end: new Date(t0 + 10 * M) });
@@ -109,7 +114,7 @@ describe("slackWindowAround", () => {
 });
 
 describe("slackRuns", () => {
-  test("merges touching or overlapping windows", () => {
+  test("keeps a window shared by several slacks once", () => {
     const tl = series([1, 0.2, -0.2, 0.2, -0.2, -1]);
     const runs = slackRuns(
       tl,
@@ -120,9 +125,19 @@ describe("slackRuns", () => {
     expect(runs[0].start.getTime()).toBeLessThan(t0 + 10 * M);
     expect(runs[0].end.getTime()).toBeGreaterThan(t0 + 40 * M);
   });
-  test("keeps separate windows apart and skips slacks it cannot measure", () => {
+  test("keeps separate windows apart and skips slacks outside the series", () => {
     const runs = slackRuns(timeline, [...events, slackAt(t0 + 12 * H), slackAt(t0 - H)], 0.5);
     expect(runs).toHaveLength(2);
+  });
+  test("a slack with no window is a zero-width dot run: one Slack stop, and the lead reads Slack on it", () => {
+    const tl = series([2, 1, 2]);
+    const slack = slackAt(t0 + 5 * M);
+    const runs = slackRuns(tl, [slack], 0.5);
+    expect(runs).toEqual([{ start: slack.time, end: slack.time }]);
+    expect(isDotRun(runs[0])).toBe(true);
+    expect(currentStops(tl, [slack], runs)).toEqual([{ time: t0 + 5 * M, label: "Slack" }]);
+    expect(readCurrent(t0 + 5 * M, tl, [slack], runs, {})?.state).toBe("Slack");
+    expect(readCurrent(t0 + 5 * M + 2000, tl, [slack], runs, {})?.state).toBe("Flooding");
   });
 });
 
@@ -130,9 +145,9 @@ describe("dot runs", () => {
   test("a run under the five-unit dot (1000 s) is a dot; one at it is a stroke", () => {
     expect(isDotRun({ start: new Date(t0), end: new Date(t0 + 999_999) })).toBe(true);
     expect(isDotRun({ start: new Date(t0), end: new Date(t0 + 1_000_000) })).toBe(false);
-    expect(runCentre({ start: new Date(t0), end: new Date(t0 + 10 * M) })).toBe(t0 + 5 * M);
+    expect(runCenter({ start: new Date(t0), end: new Date(t0 + 10 * M) })).toBe(t0 + 5 * M);
   });
-  test("a dot run is one Slack stop at its centre, and its slack snaps to that stop alone", () => {
+  test("a dot run is one Slack stop at its center, and its slack snaps to that stop alone", () => {
     const tl = series([2, 1, -1, -2, -3]);
     const slack = slackAt(t0 + 15 * M);
     const runs = slackRuns(tl, [slack], 0.5);
@@ -185,7 +200,7 @@ describe("readCurrent", () => {
 });
 
 describe("currentStops", () => {
-  test("run openings and closings, maxima, and no bare slack", () => {
+  test("run openings and closings, and maxima", () => {
     const slacks = [0, 6, 12, 18, 24].map((h) => slackAt(t0 + h * H));
     const stops = currentStops(timeline, [...events, ...slacks], slackRuns(timeline, slacks, 0.5));
     expect(stops.map((s) => s.label)).toEqual([
@@ -208,6 +223,11 @@ describe("currentStops", () => {
     expect(stops.map((s) => s.label)).toEqual(["Slack"]);
     const head = currentStops(timeline, [], slackRuns(timeline, [slackAt(t0)], 0.5));
     expect(head.map((s) => s.label)).toEqual(["Flood"]);
+  });
+  test("a closing within a second of the series end counts as flood", () => {
+    const end = timeline[timeline.length - 1].time.getTime();
+    const run = { start: new Date(end - 30 * M), end: new Date(end - 500) };
+    expect(currentStops(timeline, [], [run]).at(-1)).toEqual({ time: end - 500, label: "Flood" });
   });
   test("names a closing from the water just after it, counting zero as flood", () => {
     const tl = series([-1, -0.2, 0, 0, 1]);

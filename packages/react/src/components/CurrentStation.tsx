@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useSlackwaterConfig } from "../provider.js";
 import {
@@ -24,16 +24,33 @@ export function CurrentStation({ id, threshold, className }: CurrentStationProps
   const { locale } = useSlackwaterConfig();
   const station = useCurrentStation(id);
   const timezone = station.data?.timezone;
-  // ponytail: the app's fixed online window (anchor −48 h to +180 h); endless
-  // 7-day chunks come with the local engine adapter.
-  const range = useMemo(() => {
-    if (!timezone) return undefined;
-    const anchor = startOfDay(Date.now(), timezone);
-    return {
-      start: new Date(anchor - 48 * HOUR).toISOString(),
-      end: new Date(anchor + 180 * HOUR).toISOString(),
+  // A page left open for days moves its window when it is next shown two local days on.
+  const [shownAt, setShownAt] = useState(() => Date.now());
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") setShownAt(Date.now());
     };
-  }, [timezone]);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+  const today = timezone ? startOfDay(shownAt, timezone) : undefined;
+  const [anchor, setAnchor] = useState<number>();
+  // One day on, the loaded window still reaches 156 h ahead, and re-fetching could fail offline.
+  if (today !== undefined && (anchor === undefined || Math.abs(today - anchor) > 36 * HOUR)) {
+    setAnchor(today);
+  }
+  // Four days back, so a strip up to about 3,400 px wide can still center now.
+  // ponytail: a fixed online window; endless 7-day chunks come with the local engine adapter.
+  const range = useMemo(
+    () =>
+      anchor === undefined
+        ? undefined
+        : {
+            start: new Date(anchor - 96 * HOUR).toISOString(),
+            end: new Date(anchor + 180 * HOUR).toISOString(),
+          },
+    [anchor],
+  );
   const usable = station.data?.predictions ? range : undefined;
   const timeline = useCurrentTimeline(id, usable);
   const events = useCurrentEvents(id, usable);
@@ -55,9 +72,7 @@ export function CurrentStation({ id, threshold, className }: CurrentStationProps
           {s ? [s.region, s.country].filter(Boolean).join(" · ") : " "}
         </p>
       </header>
-      {error ? (
-        <p className="px-5 py-8 text-sm opacity-80">{error.message}</p>
-      ) : s && !s.predictions ? (
+      {s && !s.predictions ? (
         <p className="px-5 py-8 text-sm opacity-80">
           {s.unavailable ?? "Predictions aren't available for this station."}
         </p>
@@ -72,8 +87,19 @@ export function CurrentStation({ id, threshold, className }: CurrentStationProps
           threshold={threshold}
           locale={locale}
         />
+      ) : error ? (
+        <p className="px-5 py-8 text-sm opacity-80">{error.message}</p>
       ) : (
         <div style={{ height: 396 }} aria-busy="true" />
+      )}
+      {s && (s.disclaimers || s.attribution) && (
+        <footer
+          className="px-5 pb-5 pt-2 text-xs"
+          style={{ color: "var(--sw-foam, #e4f0e4)", opacity: 0.55 }}
+        >
+          {s.disclaimers && <p className="m-0">{s.disclaimers}</p>}
+          {s.attribution && <p className="m-0 mt-1">{s.attribution}</p>}
+        </footer>
       )}
     </section>
   );

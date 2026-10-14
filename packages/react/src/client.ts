@@ -43,10 +43,11 @@ async function fetchJSON<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** `path` starts with "/". */
 function buildURL(base: string, path: string, params: object = {}): string {
   const normalizedBase = base.endsWith("/") ? base : base + "/";
-  const relativePath = path.startsWith("/") ? path.slice(1) : path;
-  const url = new URL(relativePath, normalizedBase);
+  // Relative to the base's path, so an API mounted below the origin keeps its prefix.
+  const url = new URL(path.slice(1), normalizedBase);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) {
       url.searchParams.set(key, String(value));
