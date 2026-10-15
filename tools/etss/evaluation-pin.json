@@ -1,0 +1,14 @@
+{
+  "policy": "etss-comparison-inputs-2026-10-15-v1",
+  "pinnedAt": "2026-10-15T09:46:49.081180Z",
+  "scope": "Research comparison input preparation; no accuracy scoring or production acceptance",
+  "tideBundleSha256": "3508af952e2ccfda7f191dadf3e6ee834774640cc73216ee702f4fd99e01fdef",
+  "files": {
+    "tools/etss/observations.py": "c5ee5de0ef77c771df0131085211d532ecde4bc04f9b109f403e9d711e579d13",
+    "tools/etss/comparators.py": "02ca626353d1bbedfa3e922b88bc5fe6100c49babf28b026fb7a41dcfa1392e1",
+    "tools/etss/prepare.py": "62c1fbf3bc5d17c8b0de18555f99ea91d641ac93b625af8690cfefd9ddbf5a57",
+    "tools/etss/reader.py": "11a3f2ea3d27f305a79aad2d21b18e07743f88e3307b2b502522ff62f68e1495",
+    "tools/etss/collect.py": "ec77424765de589dff3e021f59ab2619669ee83dc736eb0dcaea70c1ef23bc9c",
+    "tools/etss/fixtures/prediction-inputs.json": "5ef1a7d9e3d0f3a65abb60e4e70e9223a346ce321c547471f5cd9fa05f942b2f"
+  }
+}

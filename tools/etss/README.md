@@ -79,3 +79,18 @@ Mapping acceptance establishes the export relationship only. Consumers must enfo
 `fixtures/mapping-provenance.json` records the original archive/member hashes and receipt times for complete Seattle CSV members and SHEF sections from October 13 18Z (constant tail) and October 14 00Z (varying tail). CSV members are stored as lossless gzip fixtures with a deterministic compression timestamp; decompressed bytes retain their original TIME and printed values. These cover a bias-mode change at the same station and are development evidence only.
 
 The public APIs are `capture.capture_cycle(date, cycle, output)` returning a final manifest path, and `reader.validate_manifest(path, csv_mapping=False)` returning the JSON-compatible report. Set `csv_mapping=True` for the optional mapped output. Parsing and comparison helpers support offline tests and inspection; only manifest validation checks archive hashes and receipt metadata.
+
+# Prepare comparison inputs
+
+`prepare.py` selects original receipts at a daily 02:00 UTC decision, normalizes exact-hour observations and prepares unchanged tide, full CSV TWL, mean24, persistence and the fixed surge-change comparator. It reads existing evidence and writes JSON to stdout. It performs no fetching or accuracy scoring. The [evaluation policy](evaluation-policy.md) fixes research quality, revision, support and truth-vintage rules.
+
+```sh
+python3 -B tools/etss/prepare.py \
+  --data /path/to/etss-collection/data \
+  --tides /path/to/frozen-tides.json \
+  --tides-sha256 <recorded-sha256> \
+  --decision 2026-10-14T02:00:00Z \
+  --truth-as-of 2026-10-15T12:00:00Z > /path/to/new-report.json
+```
+
+Use a new report path for each snapshot. The output includes original selected row fields, body and manifest hashes, receipt cutoffs, forecast selection, per-method fallback reasons and independent truth availability at each horizon. Primary truth accepts preliminary or verified rows within a fixed 24-hour revision window; it is unavailable until that window has elapsed. `observations.select_hourly(..., verified_only=True)` supports separately labeled verified-data checks. A later truth snapshot cannot alter decision inputs or advance the primary truth cutoff.
