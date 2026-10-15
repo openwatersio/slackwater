@@ -56,7 +56,7 @@ export function compass16(degrees: number): string {
  * `threshold`, interpolated at the band crossings and clamped to the series.
  * When both samples bracketing the slack sit outside the band, the straight
  * reversal between them still crosses it, so the window is where that
- * segment enters and leaves the band, widened to hold the slack itself.
+ * segment enters and leaves the band. Either way the window holds the slack itself.
  * Undefined for a slack outside the series.
  */
 export function slackWindowAround(
@@ -94,8 +94,8 @@ export function slackWindowAround(
   let hi = k;
   while (hi < n - 1 && inBand(hi + 1)) hi++;
   return {
-    start: new Date(lo > 0 ? cross(lo - 1, lo) : at(0)),
-    end: new Date(hi < n - 1 ? cross(hi, hi + 1) : at(n - 1)),
+    start: new Date(Math.min(slack, lo > 0 ? cross(lo - 1, lo) : at(0))),
+    end: new Date(Math.max(slack, hi < n - 1 ? cross(hi, hi + 1) : at(n - 1))),
   };
 }
 

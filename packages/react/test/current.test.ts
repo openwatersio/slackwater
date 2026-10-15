@@ -92,14 +92,17 @@ describe("slackWindowAround", () => {
     expect(w.end.getTime()).toBe(t0 + 17.5 * M);
   });
   test("the reversal can land on the later bracketing sample's side", () => {
-    const w = slackWindowAround(series([2, 1, 0.25, -1, -2]), t0 + 15 * M, 0.5)!;
+    const w = slackWindowAround(series([2, 1, 0.25, -1, -2]), t0 + 22 * M, 0.5)!;
     expect(w.start.getTime()).toBe(t0 + 10 * M + (10 * M * 0.5) / 0.75);
     expect(w.end.getTime()).toBe(t0 + 20 * M + (10 * M * 0.25) / 0.75);
   });
-  test("a reversal window widens to hold its slack", () => {
+  test("a window widens to hold its slack", () => {
     const w = slackWindowAround(series([2, 1, -3, -4]), t0 + 19 * M, 0.5)!;
     expect(w.start.getTime()).toBe(t0 + 11.25 * M);
     expect(w.end.getTime()).toBe(t0 + 19 * M);
+    // One in-band sample, with the slack beyond its crossing toward the fast side.
+    const g = slackWindowAround(series([0.3, -3]), t0 + 6 * M, 0.5)!;
+    expect(g.end.getTime()).toBe(t0 + 6 * M);
   });
   test("clamps to the series", () => {
     const w = slackWindowAround(series([0.2, -0.3]), t0 + 4 * M, 0.5)!;
