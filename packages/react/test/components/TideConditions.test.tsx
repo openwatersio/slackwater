@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { QueryClient } from "@tanstack/react-query";
 import { TideConditions } from "../../src/components/TideConditions.js";
 import { cardRange } from "../../src/utils/card.js";
 import { createTestWrapper } from "../helpers.js";
@@ -20,6 +21,31 @@ const extremes: Extreme[] = [-3, -1, 0, 1, 2].map((k) => {
   const high = k % 2 === 0;
   return { time: new Date(t), level: level(t), high, low: !high, label: high ? "High" : "Low" };
 });
+
+// The same tide about mean sea level, crossing 0 every swing.
+const msl = timeline.map((p) => ({ ...p, level: p.level - 1.5 }));
+const mslExtremes = extremes.map((e) => ({ ...e, level: e.level - 1.5 }));
+
+const amber = (c: Element) =>
+  [...c.querySelectorAll("stop")].some(
+    (s) =>
+      s.getAttribute("stop-color")!.includes("graph-low") &&
+      Number(s.getAttribute("stop-opacity")) > 0,
+  );
+const datumLine = (c: Element) => c.querySelector('line[stroke-dasharray="1 3"]');
+
+/** The water's floor and the lowest the curve goes on screen, in SVG y (down is larger). */
+function waterFloor(c: Element) {
+  const svg = c.querySelector("svg")!;
+  const width = Number(svg.getAttribute("width"));
+  const points = (d: string) =>
+    [...d.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map(([, x, y]) => ({ x: +x, y: +y }));
+  // The area closes along its floor after the curve, past both edges.
+  const area = points(svg.querySelector("path[fill$='fill)']")!.getAttribute("d")!);
+  const curve = points(svg.querySelector("path[stroke$='line)']")!.getAttribute("d")!);
+  const onScreen = curve.filter((p) => p.x >= 0 && p.x <= width).map((p) => p.y);
+  return { floor: area[area.length - 1].y, lowest: Math.max(...onScreen) };
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -92,6 +118,47 @@ describe("TideConditions", () => {
     expect(container.querySelector<HTMLElement>(".tile")!.getBoundingClientRect().height).toBe(240);
   });
 
+  test("shades amber below chart datum and marks it with a line", () => {
+    const { container } = render(
+      <TideConditions
+        timeline={msl}
+        extremes={mslExtremes}
+        units="meters"
+        timezone="UTC"
+        now={NOW}
+      />,
+      { wrapper: createTestWrapper() },
+    );
+    expect(amber(container)).toBe(true);
+    expect(datumLine(container)).not.toBeNull();
+  });
+
+  test("without a chart datum leaves 0 unmarked and fills only under the curve", () => {
+    const { container } = render(
+      <TideConditions
+        timeline={msl}
+        extremes={mslExtremes}
+        units="meters"
+        timezone="UTC"
+        now={NOW}
+        chartDatum={false}
+      />,
+      { wrapper: createTestWrapper() },
+    );
+    expect(amber(container)).toBe(false);
+    expect(datumLine(container)).toBeNull();
+    const { floor, lowest } = waterFloor(container);
+    expect(floor).toBeGreaterThanOrEqual(lowest);
+  });
+
+  test("a fetched station without a chart datum leaves 0 unmarked", async () => {
+    // Fort Wadsworth's heights are about mean sea level, so its curve crosses 0.
+    render(<TideConditions id="noaa/8519024" now={NOW} />, { wrapper: createTestWrapper() });
+    const graph = await screen.findByRole("img", { name: /^12-hour curve/ }, { timeout: 10000 });
+    expect(amber(graph)).toBe(false);
+    expect(datumLine(graph)).toBeNull();
+  });
+
   test("says when there is nothing to show", () => {
     render(<TideConditions timeline={[]} extremes={[]} units="feet" timezone="UTC" />, {
       wrapper: createTestWrapper(),
@@ -111,6 +178,37 @@ describe("TideConditions", () => {
     const urls = fetch.mock.calls.map(([url]) => new URL(String(url)));
     const extremesUrl = urls.find((u) => u.pathname.endsWith("/extremes"))!;
     expect(extremesUrl.searchParams.get("end")).toBe(cardRange(NOW).extremes.end);
+  });
+
+  test("gives an unservable station's reason without asking for its predictions", async () => {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<TideConditions id="chs-campbell-river" now={NOW} />, {
+      wrapper: createTestWrapper({ queryClient }),
+    });
+
+    expect(
+      await screen.findByText(/^Predictions for Campbell River .+ redistributed/, undefined, {
+        timeout: 10000,
+      }),
+    ).toBeDefined();
+    const asked = queryClient
+      .getQueryCache()
+      .getAll()
+      .filter(
+        (q) =>
+          q.state.fetchStatus !== "idle" || q.state.dataUpdateCount + q.state.errorUpdateCount > 0,
+      )
+      .map((q) => q.queryKey[1]);
+    expect(asked).toEqual(["station"]);
+  });
+
+  test("explains an unservable station with no reason given", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      Response.json({ name: "Nowhere", timezone: "UTC", predictions: false }),
+    );
+    render(<TideConditions id="test/nowhere" now={NOW} />, { wrapper: createTestWrapper() });
+
+    expect(await screen.findByText("Predictions aren't available for this station.")).toBeDefined();
   });
 
   test("shows a failed fetch", async () => {

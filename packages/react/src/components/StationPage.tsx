@@ -18,6 +18,7 @@ import {
   type ScheduleEntry,
 } from "../utils/schedule.js";
 import { fortnightWindow } from "../utils/standing.js";
+import { PAGE_NEARBY_RESULTS } from "../utils/page.js";
 import { localNoon, startOfDay } from "../utils/time.js";
 import type { StationSummary } from "../types.js";
 import { NearbyStations } from "./NearbyStations.js";
@@ -194,7 +195,7 @@ export interface StationFooterProps {
 export function StationFooter({ provenance, disclaimers, attribution }: StationFooterProps) {
   return (
     <footer className="mt-3.5 flex flex-col items-center gap-1.5 px-6 pt-2 text-center text-[11px]">
-      <p className="m-0 font-mono font-medium tracking-[1.4px] text-(--sw-foam)/62 uppercase">
+      <p className="m-0 font-(family-name:--sw-font-mono) font-medium tracking-[1.4px] text-(--sw-foam)/62 uppercase">
         Predictions — not for navigation
       </p>
       {provenance && <p className="m-0 text-(--sw-foam)/30">{provenance}</p>}
@@ -250,7 +251,7 @@ export function formatCoord(latitude: number, longitude: number): string {
   return `${part(latitude, "N", "S")}, ${part(longitude, "E", "W")}`;
 }
 
-/** Great-circle distance in whole kilometres. */
+/** Great-circle distance in whole kilometers. */
 export function distanceKm(
   a: { latitude: number; longitude: number },
   b: { latitude: number; longitude: number },
@@ -276,10 +277,15 @@ export function StationNearby({
 }) {
   return (
     <section className="mt-7 px-4" aria-label="Nearby">
-      <h2 className="m-0 mb-2.5 px-2.5 font-mono text-[11px] font-medium tracking-[1.6px] text-(--sw-go) uppercase">
+      <h2 className="m-0 mb-2.5 px-2.5 font-(family-name:--sw-font-mono) text-[11px] font-medium tracking-[1.6px] text-(--sw-go) uppercase">
         Nearby
       </h2>
-      <NearbyStations stationId={id} kind={kind} maxResults={6} onStationSelect={onStationSelect} />
+      <NearbyStations
+        stationId={id}
+        kind={kind}
+        maxResults={PAGE_NEARBY_RESULTS}
+        onStationSelect={onStationSelect}
+      />
     </section>
   );
 }

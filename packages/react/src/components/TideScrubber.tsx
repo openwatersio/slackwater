@@ -54,6 +54,8 @@ export interface TideScrubberProps extends Pick<ScrubberProps, "onSelect" | "mov
   longitude: number;
   /** The units the timeline and extremes are in. */
   units: Units;
+  /** False when the heights aren't above a chart datum (a response without `datum`), so 0 is unmarked. */
+  chartDatum?: boolean;
   /** BCP 47 locale for clocks and dates; defaults to the reader's. */
   locale?: string;
   /** The current instant; defaults to the clock. Pass it to render deterministically (prerendering). */
@@ -77,6 +79,7 @@ function drawTide(
   extremes: Extreme[],
   scale: TideScale,
   units: Units,
+  chartDatum: boolean,
   locale?: string,
 ) {
   const y = (h: number) =>
@@ -85,7 +88,7 @@ function drawTide(
     .map((p, i) => `${i ? "L" : "M"}${g.x(p.time.getTime()).toFixed(1)} ${y(p.level).toFixed(1)}`)
     .join("");
   const datumY = y(0);
-  const datumInSpan = 0 > scale.mid - scale.span && 0 < scale.mid + scale.span;
+  const datumInSpan = chartDatum && 0 > scale.mid - scale.span && 0 < scale.mid + scale.span;
   const turns = awayFromEdges(
     extremes.map((e) => ({ ...e, time: e.time.getTime() })),
     g.start,
@@ -128,7 +131,7 @@ function drawTide(
       <g mask={`url(#${id}halo)`}>
         {/* The water: opaque from the curve to the plot floor, whatever the page behind. */}
         <path d={`${curve}L${g.width} ${G.plotBottom}L0 ${G.plotBottom}Z`} fill={C.canvas} />
-        {datumY < G.plotBottom && (
+        {chartDatum && datumY < G.plotBottom && (
           <path
             data-fill="below-datum"
             d={`${curve}L${g.width} ${datumY}L0 ${datumY}Z`}
@@ -220,6 +223,7 @@ function TideStrip({
   latitude,
   longitude,
   units,
+  chartDatum = true,
   locale,
   now,
   className,
@@ -361,9 +365,22 @@ function TideStrip({
           peak && Math.abs(peak.time.getTime() - t) > 1000 ? peak.time.getTime() : plain?.to;
         return { content: fast, spoken: fast, to, color: fastTideInk(rate) };
       },
-      draw: (kit) => drawTide(kit, id, lineGradient, timeline, extremes, scale, units, locale),
+      draw: (kit) =>
+        drawTide(kit, id, lineGradient, timeline, extremes, scale, units, chartDatum, locale),
     };
-  }, [id, lineGradient, timeline, extremes, rates, peaks, scale, units, timezone, locale]);
+  }, [
+    id,
+    lineGradient,
+    timeline,
+    extremes,
+    rates,
+    peaks,
+    scale,
+    units,
+    chartDatum,
+    timezone,
+    locale,
+  ]);
 
   return (
     <Scrubber

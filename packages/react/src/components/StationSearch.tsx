@@ -51,15 +51,20 @@ export function StationSearch({
   const currents = useCurrentStations(params, options);
   const settled = active && !tides.isFetching && !currents.isFetching;
   // Results change once both kinds have answered, so the cards don't reshuffle as each arrives.
-  const shown = useRef<CardStation[]>([]);
-  if (!active) shown.current = [];
+  const shown = useRef<{ results: CardStation[]; cut: boolean }>({ results: [], cut: false });
+  if (!active) shown.current = { results: [], cut: false };
   else if (settled) {
-    shown.current = rankSearch<CardStation>(searched, [
+    const lists = [
       filter === "current" ? [] : (tides.data ?? []),
       filter === "tide" ? [] : (currents.data ?? []),
-    ]);
+    ];
+    const results = rankSearch<CardStation>(searched, lists);
+    // A kind that filled its request may have had more, and the merge may have dropped some.
+    const cut =
+      lists.some((list) => list.length >= SEARCH_LIMIT) || lists.flat().length > results.length;
+    shown.current = { results, cut };
   }
-  const results = shown.current;
+  const { results, cut } = shown.current;
   // An API without the current routes still finds its tide stations.
   const error = tides.error && currents.error ? tides.error : undefined;
 
@@ -105,7 +110,8 @@ export function StationSearch({
               setQuery("");
               input.current?.focus();
             }}
-            className="-m-2 flex shrink-0 cursor-pointer border-0 bg-transparent p-2 text-(--sw-foam)/50"
+            // A 44 px target around the 17 px glyph, without growing the field.
+            className="-m-[13.5px] flex shrink-0 cursor-pointer border-0 bg-transparent p-[13.5px] text-(--sw-foam)/50"
           >
             <svg width={17} height={17} viewBox="0 0 16 16" aria-hidden="true">
               <circle cx={8} cy={8} r={8} fill="currentColor" />
@@ -157,9 +163,9 @@ export function StationSearch({
             No matches
           </p>
         ) : (
-          results.length === SEARCH_LIMIT && (
+          cut && (
             // Said above the results, where it is read, not sixty cards down.
-            <p className="m-0 px-1.5 font-mono text-[11px] font-medium tracking-[1.2px] text-(--sw-foam)/50 uppercase">
+            <p className="m-0 px-1.5 font-(family-name:--sw-font-mono) text-[11px] font-medium tracking-[1.2px] text-(--sw-foam)/50 uppercase">
               First {SEARCH_LIMIT} — keep typing to narrow
             </p>
           )

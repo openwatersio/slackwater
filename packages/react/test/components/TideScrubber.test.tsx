@@ -9,7 +9,7 @@ const t0 = Date.UTC(2026, 9, 10);
 const NOW = t0 + 25 * H;
 
 /** A 12-hour sine sampled every 10 minutes, with its highs and lows. */
-function fixture({ mid = 1, amp = (h: number) => (h >= 0 ? 1 : 1), hours = 96 } = {}) {
+function fixture({ mid = 1, amp = (_h: number): number => 1, hours = 96 } = {}) {
   const level = (h: number) => mid + amp(h) * Math.sin((2 * Math.PI * h) / 12);
   const timeline = Array.from({ length: hours * 6 + 1 }, (_, i) => ({
     time: new Date(t0 + i * 10 * M),
@@ -125,6 +125,13 @@ describe("TideScrubber", () => {
     expect(gradient.innerHTML).toContain("graph-low");
     expect(gradient.innerHTML).not.toContain("graph-line");
     expect(container.querySelector('line[stroke-dasharray="1 3"]')).not.toBeNull();
+  });
+
+  test("heights without a chart datum have no amber and no datum line", () => {
+    const { container } = renderScrubber({ ...fixture({ mid: 0 }), chartDatum: false });
+
+    expect(container.querySelector("[data-fill='below-datum']")).toBeNull();
+    expect(container.querySelector('line[stroke-dasharray="1 3"]')).toBeNull();
   });
 
   test("water that stays above datum has no amber and no datum line", () => {

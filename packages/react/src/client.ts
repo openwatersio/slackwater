@@ -57,11 +57,18 @@ function buildURL(base: string, path: string, params: object = {}): string {
   return url.toString();
 }
 
-/** Parse a station ID like "noaa/8722588" into source and id path segments. */
-function parseStationId(id: string): { source: string; stationId: string } {
-  const slash = id.indexOf("/");
-  if (slash === -1) throw new Error(`Invalid station ID: "${id}". Expected format "source/id".`);
-  return { source: id.slice(0, slash), stationId: id.slice(slash + 1) };
+/**
+ * A station ID as encoded path segments: "source/id" ("noaa/8722588"), or,
+ * when `bare`, the one segment of a curated record ("chs-campbell-river").
+ */
+function stationPath(id: string, bare: boolean): string {
+  const segments = id.split("/");
+  const valid =
+    (segments.length === 2 || (bare && segments.length === 1)) &&
+    segments.every((s) => s !== "" && s !== "." && s !== "..");
+  if (!valid) throw new Error(`Invalid station ID: "${id}". Expected format "source/id".`);
+  // "@" is legal in a path segment and selects a current bin, so it stays readable.
+  return segments.map((s) => encodeURIComponent(s).replaceAll("%40", "@")).join("/");
 }
 
 /** Convert all Date properties to string (the raw JSON shape before parsing). */
@@ -94,9 +101,12 @@ export async function fetchTimeline(
   return { ...data, timeline: data.timeline.map((e) => ({ ...e, time: new Date(e.time) })) };
 }
 
-export function fetchStation(baseUrl: string, id: string): Promise<Station> {
-  const { source, stationId } = parseStationId(id);
-  return fetchJSON(buildURL(baseUrl, `/tides/stations/${source}/${stationId}`));
+/** Fetch a tide station. `id` is "source/id", or a bare id for curated records ("chs-campbell-river"). */
+export async function fetchStation(baseUrl: string, id: string): Promise<Station> {
+  const station = await fetchJSON<Station>(
+    buildURL(baseUrl, `/tides/stations/${stationPath(id, true)}`),
+  );
+  return { ...station, kind: "tide" };
 }
 
 export async function fetchStations(
@@ -113,9 +123,9 @@ export async function fetchStationExtremes(
   params: StationPredictionParams,
 ): Promise<ExtremesResponse> {
   const { id, ...rest } = params;
-  const { source, stationId } = parseStationId(id);
+  // The API serves predictions only at "source/id"; bare IDs are the unservable CHS records.
   const data = await fetchJSON<RawExtremesResponse>(
-    buildURL(baseUrl, `/tides/stations/${source}/${stationId}/extremes`, rest),
+    buildURL(baseUrl, `/tides/stations/${stationPath(id, false)}/extremes`, rest),
   );
   return { ...data, extremes: data.extremes.map((e) => ({ ...e, time: new Date(e.time) })) };
 }
@@ -125,9 +135,9 @@ export async function fetchStationTimeline(
   params: StationPredictionParams,
 ): Promise<TimelineResponse> {
   const { id, ...rest } = params;
-  const { source, stationId } = parseStationId(id);
+  // The API serves predictions only at "source/id"; bare IDs are the unservable CHS records.
   const data = await fetchJSON<RawTimelineResponse>(
-    buildURL(baseUrl, `/tides/stations/${source}/${stationId}/timeline`, rest),
+    buildURL(baseUrl, `/tides/stations/${stationPath(id, false)}/timeline`, rest),
   );
   return { ...data, timeline: data.timeline.map((e) => ({ ...e, time: new Date(e.time) })) };
 }
@@ -153,8 +163,11 @@ export interface CurrentPredictionParams {
  * Fetch a current station. `id` is "source/id", optionally with a bin
  * ("noaa/EPT0003@11"), or a bare id for curated records ("chs-active-pass").
  */
-export function fetchCurrentStation(baseUrl: string, id: string): Promise<CurrentStationInfo> {
-  return fetchJSON(buildURL(baseUrl, `/currents/stations/${id}`));
+export async function fetchCurrentStation(
+  baseUrl: string,
+  id: string,
+): Promise<CurrentStationInfo> {
+  return fetchJSON(buildURL(baseUrl, `/currents/stations/${stationPath(id, true)}`));
 }
 
 export async function fetchCurrentStationEvents(
@@ -162,7 +175,7 @@ export async function fetchCurrentStationEvents(
   { id, ...params }: CurrentPredictionParams,
 ): Promise<CurrentEventsResponse> {
   const data = await fetchJSON<JSONResponse<CurrentEventsResponse>>(
-    buildURL(baseUrl, `/currents/stations/${id}/events`, params),
+    buildURL(baseUrl, `/currents/stations/${stationPath(id, true)}/events`, params),
   );
   return { ...data, events: data.events.map((e) => ({ ...e, time: new Date(e.time) })) };
 }
@@ -172,7 +185,7 @@ export async function fetchCurrentStationTimeline(
   { id, ...params }: CurrentPredictionParams,
 ): Promise<CurrentTimelineResponse> {
   const data = await fetchJSON<JSONResponse<CurrentTimelineResponse>>(
-    buildURL(baseUrl, `/currents/stations/${id}/timeline`, params),
+    buildURL(baseUrl, `/currents/stations/${stationPath(id, true)}/timeline`, params),
   );
   return { ...data, timeline: data.timeline.map((e) => ({ ...e, time: new Date(e.time) })) };
 }

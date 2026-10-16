@@ -32,13 +32,13 @@ const extreme = (hours: number, level: number, high: boolean): Extreme => ({
 });
 
 describe("tideRates", () => {
-  test("central differences in metres per hour, one-sided at the ends", () => {
+  test("central differences in meters per hour, one-sided at the ends", () => {
     const rates = tideRates(series([0, 1, 3, 3.5]), "meters");
     expect(rates.map((r) => r.rate)).toEqual([1, 1.5, 1.25, 0.5]);
     expect(rates[1].time).toEqual(new Date(t0 + H));
   });
 
-  test("converts feet to metres first", () => {
+  test("converts feet to meters first", () => {
     const rates = tideRates(series([0, 3.2808399]), "feet");
     expect(rates[0].rate).toBeCloseTo(1);
   });
@@ -201,7 +201,7 @@ describe("readTide", () => {
 });
 
 describe("formatHeight", () => {
-  test("feet to one decimal and metres to two", () => {
+  test("feet to one decimal and meters to two", () => {
     expect(formatHeight(6.25, "feet", "en-US")).toBe("6.3");
     expect(formatHeight(1.234, "meters", "en-US")).toBe("1.23");
     expect(formatHeight(1234.5, "meters", "en-US")).toBe("1234.50");

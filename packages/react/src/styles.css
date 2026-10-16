@@ -2,7 +2,8 @@
  *
  * Each color matches its name in the iOS app's Palette.swift (enum SN), which
  * brand/colors.css also follows. Override any --sw-* variable to retheme the
- * components. Every component is designed for this dark palette only.
+ * components. Every component is designed for this dark palette only. The
+ * speed and tide-rate ramp is fixed in code, the same as the app's.
  */
 
 :root {
@@ -13,7 +14,6 @@
   --sw-canvas-glow: #0a2140;
   --sw-navy-deep: #00183c;
   --sw-night: #00101f;
-  --sw-shadow: #001432;
 
   /* Ink. Secondary text is foam at an opacity. */
   --sw-paper: #fcfcfc;
@@ -32,17 +32,9 @@
   --sw-graph-low: #fbbf24;
   --sw-daylight: #a8cae0;
 
-  /* The magnitude ramp, at 0.5/3/8/12 kn and 0.6/1.0/1.5/1.8 m/hr. Never green. */
-  --sw-ramp-0: #f5c96b;
-  --sw-ramp-1: #f5c96b;
-  --sw-ramp-2: #e8763c;
-  --sw-ramp-3: #c93a32;
-
-  /* Sun and eclipse */
+  /* Sun and Moon */
   --sw-sun: #f0c860;
   --sw-sunrise: #f0d890;
-  --sw-umbra: rgb(107 42 24 / 0.94);
-  --sw-umbra-label: #d98a66;
   --sw-moon-limb: rgb(0 18 44 / 0.92);
 
   /* Cards */
@@ -52,7 +44,6 @@
   --sw-shadow-card: 0 10px 24px rgb(0 20 50 / 0.24);
 
   /* Map */
-  --sw-map-water: #38435c;
   --sw-map-ink: #152256;
   --sw-map-label: #ffffff;
 

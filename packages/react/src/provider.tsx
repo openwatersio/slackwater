@@ -17,13 +17,12 @@ const defaultLocale = typeof navigator !== "undefined" ? navigator.language : "e
 export interface SlackwaterConfig {
   baseUrl: string;
   units: Units;
-  datum?: string;
   timezone?: string;
   locale: string;
 }
 
 export type SlackwaterConfigUpdater = (
-  patch: Partial<Pick<SlackwaterConfig, "units" | "datum" | "timezone" | "locale">>,
+  patch: Partial<Pick<SlackwaterConfig, "units" | "timezone" | "locale">>,
 ) => void;
 
 interface SlackwaterContextValue {
@@ -34,12 +33,16 @@ interface SlackwaterContextValue {
 const SlackwaterContext = createContext<SlackwaterContextValue | null>(null);
 
 const SETTINGS_KEY = "slackwater-settings";
-type PersistedSettings = Partial<Pick<SlackwaterConfig, "units" | "datum" | "timezone" | "locale">>;
+type PersistedSettings = Partial<Pick<SlackwaterConfig, "units" | "timezone" | "locale">>;
 
 function loadSettings(): PersistedSettings {
   try {
     const raw = typeof localStorage !== "undefined" ? localStorage.getItem(SETTINGS_KEY) : null;
-    return raw ? JSON.parse(raw) : {};
+    if (!raw) return {};
+    const { datum, ...settings } = JSON.parse(raw);
+    // Heights are always at chart datum, so a datum an older release saved is dropped.
+    if (datum !== undefined) saveSettings(settings);
+    return settings;
   } catch {
     return {};
   }
@@ -79,7 +82,6 @@ function getDefaultQueryClient(): QueryClient {
 export interface SlackwaterProviderProps {
   baseUrl: string;
   units?: Units;
-  datum?: string;
   timezone?: string;
   locale?: string;
   queryClient?: QueryClient;
@@ -90,7 +92,6 @@ export function SlackwaterProvider({
   baseUrl,
   locale: initialLocale = defaultLocale,
   units: initialUnits = getDefaultUnits(initialLocale),
-  datum: initialDatum,
   timezone: initialTimezone,
   queryClient,
   children,
@@ -110,11 +111,10 @@ export function SlackwaterProvider({
     () => ({
       baseUrl,
       units: overrides.units ?? initialUnits,
-      datum: overrides.datum ?? initialDatum,
       timezone: overrides.timezone ?? initialTimezone,
       locale: overrides.locale ?? initialLocale,
     }),
-    [baseUrl, initialUnits, initialDatum, initialTimezone, initialLocale, overrides],
+    [baseUrl, initialUnits, initialTimezone, initialLocale, overrides],
   );
 
   const updateConfig = useCallback<SlackwaterConfigUpdater>((patch) => {

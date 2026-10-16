@@ -1,6 +1,6 @@
 /** The magnitude ramp's anchors: current speed in knots, shared with the app. */
 export const KNOT_ANCHORS = [0.5, 3, 8, 12];
-/** Tide rate anchors in metres per hour; 1.8 m/hr (about 6 ft/hr) reaches the red. */
+/** Tide rate anchors in meters per hour; 1.8 m/hr (about 6 ft/hr) reaches the red. */
 export const TIDE_RATE_ANCHORS = [0.6, 1.0, 1.5, 1.8];
 
 const RAMP_STOPS: [number, number, number][] = [

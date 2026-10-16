@@ -181,7 +181,7 @@ export function dateKey(time: number, timeZone: string): string {
 export function dayStartOf(date: string, timeZone: string): number {
   const [y, m, d] = date.split("-").map(Number);
   const target = Date.UTC(y, m - 1, d);
-  // Midday UTC lands on the date or a neighbour; one step of the difference corrects it.
+  // Midday UTC lands on the date or a neighbor; one step of the difference corrects it.
   const guess = target + 12 * HOUR;
   return startOfDay(guess + (target - localDate(guess, timeZone)), timeZone);
 }

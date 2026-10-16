@@ -14,11 +14,11 @@ export const FAST_RATE = TIDE_RATE_ANCHORS[0];
 
 export interface RatePoint {
   time: Date;
-  /** Signed metres per hour: positive rising. */
+  /** Signed meters per hour: positive rising. */
   rate: number;
 }
 
-/** The rate of rise at each sample in metres per hour, by central differences, one-sided at the ends. */
+/** The rate of rise at each sample in meters per hour, by central differences, one-sided at the ends. */
 export function tideRates(timeline: TimelineEntry[], units: Units): RatePoint[] {
   const metres = units === "feet" ? 1 / FEET_PER_METRE : 1;
   return timeline.map((p, i) => {
@@ -138,7 +138,7 @@ export interface TideReading {
   level: number;
   /** High or rising, rather than low or falling. */
   up: boolean;
-  /** Signed metres per hour. */
+  /** Signed meters per hour. */
   rate: number;
 }
 
@@ -163,7 +163,7 @@ export function readTide(
   return { state: up ? "Rising" : "Falling", level, up, rate };
 }
 
-/** Feet to one decimal or metres to two, in the locale's digits; the minus goes only when it rounds to zero. */
+/** Feet to one decimal or meters to two, in the locale's digits; the minus goes only when it rounds to zero. */
 export function formatHeight(value: number, units: Units, locale?: string): string {
   const places = units === "feet" ? 1 : 2;
   const n = Math.abs(value) < 0.5 / 10 ** places ? 0 : value;

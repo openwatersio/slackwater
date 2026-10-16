@@ -82,6 +82,15 @@ function scrollTo(slider: HTMLElement, time: number) {
   slider.scrollLeft = ((time - t0) / H) * PX_PER_HOUR - slider.clientWidth / 2;
 }
 
+/** A finger down on the strip, then moved by `dx`, `dy`. */
+function swipe(slider: HTMLElement, dx: number, dy: number) {
+  const at = (clientX: number, clientY: number) => [
+    new Touch({ identifier: 1, target: slider, clientX, clientY }),
+  ];
+  fireEvent.touchStart(slider, { touches: at(100, 100) });
+  fireEvent.touchMove(slider, { touches: at(100 + dx, 100 + dy) });
+}
+
 /** A tap at `time` on the strip, `y` px below its top. */
 function tap(slider: HTMLElement, time: number, y = 100) {
   const rect = slider.getBoundingClientRect();
@@ -312,7 +321,7 @@ describe("CurrentScrubber", () => {
     await restsOn(slider, t0 + 27 * H);
 
     // Out of reach of any stop, it rests where it was left.
-    fireEvent.touchMove(slider);
+    swipe(slider, -30, 0);
     scrollTo(slider, t0 + 26 * H);
     await restsOn(slider, t0 + 26 * H);
 
@@ -331,6 +340,29 @@ describe("CurrentScrubber", () => {
     fireEvent.wheel(slider, { deltaX: 30, deltaY: 2 });
     await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
     expect(value(slider)).toBeLessThan(NOW - H);
+  });
+
+  test("a sideways swipe stops the opening glide, and a vertical one doesn't", async () => {
+    const first = renderScrubber();
+    swipe(first.slider, 2, 30);
+    await restsOn(first.slider, NOW);
+    first.unmount();
+
+    const { slider } = renderScrubber();
+    swipe(slider, 30, 2);
+    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
+    expect(value(slider)).toBeLessThan(NOW - H);
+  });
+
+  test("unmounting mid-opening cancels its next frame", () => {
+    const cancel = vi.fn();
+    vi.stubGlobal("requestAnimationFrame", () => 7);
+    vi.stubGlobal("cancelAnimationFrame", cancel);
+    const { unmount } = renderScrubber();
+
+    unmount();
+
+    expect(cancel).toHaveBeenCalledWith(7);
   });
 
   test("draws a slack dot at the edge of the data", () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { useCurrentEvents, useCurrentTimeline } from "../hooks/use-current-station.js";
@@ -14,16 +14,20 @@ import { StationCardGraph } from "./StationCardGraph.js";
 
 const HOUR = 3_600_000;
 
-/** A station as a card reads it; a current listing also says whether it can be served. */
-export type CardStation = StationSummary & { predictions?: boolean };
+/** A station as a card reads it. */
+export type CardStation = StationSummary;
 
 export interface StationCardProps {
   station: CardStation;
-  /** Kilometres from where a list measures, shown in nautical miles. */
+  /** Kilometers from where a list measures, shown in nautical miles. */
   distance?: number;
   /** Makes the card a link. */
   href?: string;
-  /** Called when the card is activated; without `href` the card is a button. */
+  /**
+   * Called when the card is activated; without `href` the card is a button.
+   * With `href`, a plain click calls it in place of following the link, and a
+   * modified or middle click opens the link as usual.
+   */
   onSelect?: (station: CardStation) => void;
   /** Boat-speed threshold for a current's slack windows, in knots. */
   threshold?: number;
@@ -38,6 +42,8 @@ function useSeen() {
   const [seen, setSeen] = useState(false);
   useEffect(() => {
     if (seen) return;
+    // Without the observer (jsdom, old browsers) a card can't tell, so it loads now.
+    if (typeof IntersectionObserver === "undefined") return setSeen(true);
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) setSeen(true);
@@ -91,7 +97,17 @@ export function StationCard({
       <TideCardBody station={station} identity={identity} seen={seen} now={now} />
     );
   const look = `block w-full rounded-(--sw-radius-card) text-left outline-offset-2 focus-visible:outline-2 focus-visible:outline-(--sw-go) ${className ?? ""}`;
-  const select = onSelect && (() => onSelect(station));
+  const select =
+    onSelect &&
+    ((event: MouseEvent) => {
+      if (href) {
+        // A modified or middle click is the reader asking for the link itself, in a new tab or window.
+        const modified = event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+        if (modified || event.button !== 0) return;
+        event.preventDefault();
+      }
+      onSelect(station);
+    });
 
   return (
     <div ref={ref}>
@@ -158,6 +174,7 @@ function TideCardBody({ station, identity, seen, now }: BodyProps) {
             timeline: timeline.data.timeline,
             extremes: extremes.data.extremes,
             units,
+            chartDatum: !!timeline.data.datum,
           }}
           now={now}
           timezone={station.timezone}

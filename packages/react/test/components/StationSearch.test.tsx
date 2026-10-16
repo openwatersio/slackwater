@@ -99,6 +99,34 @@ describe("StationSearch", () => {
     expect(screen.getByText("First 60 — keep typing to narrow")).toBeDefined();
   });
 
+  test("doesn't say it stopped when sixty is everything both kinds found", async () => {
+    const real = window.fetch.bind(window);
+    const listing = (kind: string) =>
+      Array.from({ length: 30 }, (_, i) => ({
+        id: `test/${kind}-${i}`,
+        name: `Bay ${kind} ${i}`,
+        latitude: 47,
+        longitude: -122,
+        country: "USA",
+        continent: "North America",
+        timezone: "UTC",
+        type: "reference",
+        predictions: false,
+      }));
+    vi.spyOn(window, "fetch").mockImplementation((input, init) => {
+      const url = String(input);
+      if (url.includes("/tides/stations?")) return Promise.resolve(Response.json(listing("tide")));
+      if (url.includes("/currents/stations?"))
+        return Promise.resolve(Response.json(listing("current")));
+      return real(input, init);
+    });
+    const { field, user } = renderSearch();
+    await user.type(field, "bay");
+
+    expect((await results()).length).toBe(60);
+    expect(screen.queryByText("First 60 — keep typing to narrow")).toBeNull();
+  });
+
   test("doesn't search one letter", async () => {
     const fetch = vi.spyOn(window, "fetch");
     const { field, user } = renderSearch();
@@ -115,7 +143,10 @@ describe("StationSearch", () => {
 
     await user.type(field, "Deception");
     await results();
-    await user.click(screen.getByRole("button", { name: "Clear search text" }));
+    const clear = screen.getByRole("button", { name: "Clear search text" });
+    expect(clear.getBoundingClientRect().width).toBeGreaterThanOrEqual(44);
+    expect(clear.getBoundingClientRect().height).toBeGreaterThanOrEqual(44);
+    await user.click(clear);
     expect((field as HTMLInputElement).value).toBe("");
     expect(document.activeElement).toBe(field);
 

@@ -35,7 +35,14 @@ const TIME_BASELINE = 10;
 const LABEL_MARGIN = 34;
 
 export type CardGraphData =
-  | { kind: "tide"; timeline: TimelineEntry[]; extremes: Extreme[]; units: Units }
+  | {
+      kind: "tide";
+      timeline: TimelineEntry[];
+      extremes: Extreme[];
+      units: Units;
+      /** False when the heights aren't above a chart datum (a response without `datum`), so 0 is unmarked. */
+      chartDatum?: boolean;
+    }
   | {
       kind: "current";
       timeline: CurrentTimelineEntry[];
@@ -168,6 +175,7 @@ function drawGraph({
   locale?: string;
 }): ReactNode {
   const tide = data.kind === "tide";
+  const chartDatum = tide && data.chartDatum !== false;
   const { lo, hi, lowest } = cardDomain(points, from, to, !tide);
   const plotHeight = Math.max(0, height - TIME_LANE);
   const scale = width / (to - from);
@@ -176,8 +184,11 @@ function drawGraph({
   const at = (t: number) => ({ x: x(t), y: y(valueAt(points, t)) });
   const nowX = x(now);
   const zeroY = y(0);
+  const lowestY = y(lowest);
+  // Without a chart datum, 0 is mean sea level, so the water closes at its lowest trough.
+  const baseY = !tide || chartDatum ? zeroY : lowestY;
   const line = pathOf(points.map((p) => ({ x: x(p.time), y: y(p.value) })));
-  const area = `${line}L${x(points[points.length - 1].time)} ${zeroY}L${x(points[0].time)} ${zeroY}Z`;
+  const area = `${line}L${x(points[points.length - 1].time)} ${baseY}L${x(points[0].time)} ${baseY}Z`;
   const fade = (t: number) => (t < now ? PAST_LABEL : 1);
   const inside = (px: number, margin: number) => px >= margin && px <= width - margin;
   const offset = (t: number) => Math.min(1, Math.max(0, x(t) / width));
@@ -208,8 +219,7 @@ function drawGraph({
   let fill: ReactNode;
   if (tide) {
     // Blue fading to clear at chart datum, amber fading in below it; clear at the lowest trough when the water never reaches datum.
-    const lowestY = y(lowest);
-    const reaches = lowestY >= zeroY;
+    const reaches = chartDatum && lowestY >= zeroY;
     const fadeY = reaches ? zeroY : lowestY;
     const top = Math.min(0, fadeY);
     const bottom = Math.max(height, fadeY);
@@ -332,7 +342,7 @@ function drawGraph({
 
       <g mask={`url(#${id}halo)`}>
         <path d={area} fill={`url(#${id}fill)`} clipPath={`url(#${id}plot)`} />
-        {(!tide || (lo < 0 && 0 < hi)) && (
+        {(!tide || (chartDatum && lo < 0 && 0 < hi)) && (
           <line
             x1={0}
             x2={width}

@@ -71,14 +71,21 @@ function TideTiles(props: {
 /**
  * A tide station's detail page, after the app's tide detail: the scrubbing
  * strip with its lead reading, the week's highs and lows, and where the
- * numbers come from. Heights are always above the station's chart datum.
+ * numbers come from. Heights are above the station's chart datum, which the
+ * page names; a station whose datums lack it makes no datum claim.
  */
-export function TideStation({ id, onStationSelect, className }: TideStationProps) {
+export function TideStation(props: TideStationProps) {
+  // A new station starts a new page, so no week, pick, or previous data carries over.
+  return <TidePage key={props.id} {...props} />;
+}
+
+function TidePage({ id, onStationSelect, className }: TideStationProps) {
   const { locale, units: preferred } = useSlackwaterConfig();
   const station = useStation(id);
   const s = station.data;
+  const servable = s?.predictions !== false;
   const week = useStationWeek(s?.timezone);
-  const params = s && week.range ? { id, ...week.range, datum: s.defaultDatum } : undefined;
+  const params = s && servable && week.range ? { id, ...week.range } : undefined;
   const query = {
     enabled: !!params,
     // Predictions for a fixed window never change, and refetching would rebuild the strip.
@@ -90,7 +97,7 @@ export function TideStation({ id, onStationSelect, className }: TideStationProps
   const extremes = useExtremes(params ?? { id }, query);
   const reference = useStation(s?.type === "subordinate" ? s.offsets?.reference : undefined);
   const fortnight = useFortnight(s?.timezone);
-  const around = s && fortnight ? { id, ...fortnight, datum: s.defaultDatum } : undefined;
+  const around = s && servable && fortnight ? { id, ...fortnight } : undefined;
   const standing = useExtremes(around ?? { id }, { enabled: !!around, staleTime: Infinity });
   const swings = useMemo(
     () => standing.data && swingHeights(standing.data.extremes),
@@ -98,7 +105,8 @@ export function TideStation({ id, onStationSelect, className }: TideStationProps
   );
 
   const units = timeline.data?.units ?? preferred;
-  const datum = timeline.data?.datum ?? s?.defaultDatum;
+  // The datum the API used: the station's chart datum, absent when its datums lack it.
+  const datum = timeline.data ? timeline.data.datum : s?.defaultDatum;
   const entries = useMemo(
     () =>
       extremes.data?.extremes.map((e): ScheduleEntry => ({
@@ -114,7 +122,11 @@ export function TideStation({ id, onStationSelect, className }: TideStationProps
 
   return (
     <StationPage name={s?.name} region={s?.region ?? s?.country} className={className}>
-      {error ? (
+      {s && !servable ? (
+        <p className="m-0 px-5 py-8 text-sm opacity-80">
+          {s.unavailable ?? "Predictions aren't available for this station."}
+        </p>
+      ) : error ? (
         <p className="m-0 px-5 py-8 text-sm opacity-80">{error.message}</p>
       ) : s && timeline.data && extremes.data && week.anchor !== undefined ? (
         <>
@@ -125,6 +137,7 @@ export function TideStation({ id, onStationSelect, className }: TideStationProps
             latitude={s.latitude}
             longitude={s.longitude}
             units={units}
+            chartDatum={!!timeline.data.datum}
             locale={locale}
             onSelect={sync.onSelect}
             moveTo={sync.moveTo}
@@ -160,30 +173,36 @@ export function TideStation({ id, onStationSelect, className }: TideStationProps
       {s && (
         <>
           <StationFooter
-            provenance={provenance(s, datum, ref?.name)}
+            provenance={servable ? provenance(s, datum, ref?.name) : undefined}
             disclaimers={s.disclaimers}
             attribution={s.attribution}
           />
-          <StationDetails>
-            {datum && (
-              <DetailRow
-                label="Datum"
-                value={
-                  s.id.startsWith("noaa/") ? `${datum} (NOAA chart datum)` : `${datum} chart datum`
-                }
-              />
-            )}
-            <DetailNote>
-              Heights are measured from chart datum. A negative value predicts less water than the
-              charted depth.
-            </DetailNote>
-            <DetailRow label="Station" value={s.id} />
-            <DetailRow label="Position" value={formatCoord(s.latitude, s.longitude)} />
-            <DetailRow label="Time zone" value={s.timezone} />
-            {ref && (
-              <DetailRow label="Reference" value={`${ref.name}, ${distanceKm(s, ref)} km away`} />
-            )}
-          </StationDetails>
+          {servable && (
+            <StationDetails>
+              {datum && (
+                <>
+                  <DetailRow
+                    label="Datum"
+                    value={
+                      s.id.startsWith("noaa/")
+                        ? `${datum} (NOAA chart datum)`
+                        : `${datum} chart datum`
+                    }
+                  />
+                  <DetailNote>
+                    Heights are measured from chart datum. A negative value predicts less water than
+                    the charted depth.
+                  </DetailNote>
+                </>
+              )}
+              <DetailRow label="Station" value={s.id} />
+              <DetailRow label="Position" value={formatCoord(s.latitude, s.longitude)} />
+              <DetailRow label="Time zone" value={s.timezone} />
+              {ref && (
+                <DetailRow label="Reference" value={`${ref.name}, ${distanceKm(s, ref)} km away`} />
+              )}
+            </StationDetails>
+          )}
           <StationNearby id={id} kind="tide" onStationSelect={onStationSelect} />
         </>
       )}

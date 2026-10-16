@@ -112,11 +112,19 @@ describe("currentPinState", () => {
     expect(pinRampColor(12)).toBe("#d97570");
   });
 
-  test("points the ebb set on an ebb, with no reading below the reading zoom", () => {
-    expect(currentPinState(timeline, sets, 0.3, T0, false)).toEqual({
+  test("points the ebb set on an ebb", () => {
+    expect(currentPinState(timeline, sets, 0.3, T0, true, "en-US")).toEqual({
       shape: "arrow",
       tone: pinRampColor(0.4),
       bearing: 225,
+      reading: "0.4 kn",
+    });
+  });
+
+  test("is a dot in its speed's color, with no reading, below the reading zoom", () => {
+    expect(currentPinState(timeline, sets, 0.3, T0, false)).toEqual({
+      shape: "dot",
+      tone: pinRampColor(0.4),
     });
   });
 
@@ -124,6 +132,7 @@ describe("currentPinState", () => {
     const state = currentPinState(timeline, { flood: 45 }, 0.5, T0, true);
     expect(state.shape).toBe("dot");
     expect(state.bearing).toBeUndefined();
+    expect(state.reading).toBeDefined();
   });
 
   test("is unknown outside its timeline", () => {

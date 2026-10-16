@@ -118,9 +118,14 @@ describe("StationsMap", () => {
     rerender(<StationsMap {...props} now={NOW + 3_600_000} />);
     expect(seattle()?.icon).toMatch(/^sw-pin\|gauge\|/);
 
+    // Below the reading zoom every pin is a dot, still colored where its predictions are loaded.
     map.jumpTo({ zoom: 8 });
     await waitFor(
-      () => expect(icons().every((p) => !String(p.icon).startsWith("sw-pin|gauge|"))).toBe(true),
+      () => {
+        const pins = icons();
+        expect(pins.every((p) => String(p.icon).startsWith("sw-pin|dot|"))).toBe(true);
+        expect(seattle()?.icon).not.toBe("sw-pin|dot|rgb(88, 136, 168)");
+      },
       { timeout: 10000 },
     );
   });
@@ -204,6 +209,10 @@ describe("StationsMap", () => {
     tap(canvas, pin.x - 20, pin.y);
     const card = await screen.findByRole("button", { name: /Seattle/ }, { timeout: 10000 });
     expect(screen.queryByRole("button", { name: "My Location" })).toBeNull();
+    // The note sits above the open card, inside the map.
+    const note = screen.getByText("Not for navigation.").getBoundingClientRect();
+    expect(note.bottom).toBeLessThanOrEqual(card.getBoundingClientRect().top);
+    expect(note.top).toBeGreaterThanOrEqual(canvas.getBoundingClientRect().top);
     await waitFor(
       () =>
         expect(

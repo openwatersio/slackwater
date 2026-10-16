@@ -1,7 +1,7 @@
 import { afterEach, describe, test, expect, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { CurrentStation } from "../../src/components/CurrentStation.js";
-import { createTestWrapper } from "../helpers.js";
+import { createTestWrapper, holdRequests } from "../helpers.js";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -26,6 +26,21 @@ describe("CurrentStation", () => {
       await screen.findByRole("slider", { name: "Current timeline" }, { timeout: 10000 }),
     ).toBeDefined();
     expect(screen.getByRole("heading", { level: 1 }).textContent!.trim()).not.toBe("");
+  });
+
+  test("a new station starts over rather than showing the last one's strip", async () => {
+    const { rerender } = render(<CurrentStation id="noaa/PUG1701" />, {
+      wrapper: createTestWrapper(),
+    });
+    await screen.findByRole("slider", { name: "Current timeline" }, { timeout: 10000 });
+    const timeline = holdRequests((u) => u.includes("/noaa/PUG1515/timeline?"));
+
+    rerender(<CurrentStation id="noaa/PUG1515" />);
+
+    expect(await screen.findByRole("heading", { level: 1, name: "West Point" })).toBeDefined();
+    expect(screen.queryByRole("slider")).toBeNull();
+    timeline.release();
+    expect(await screen.findByRole("slider", undefined, { timeout: 10000 })).toBeDefined();
   });
 
   test("ends with the nearest stations of both kinds, without itself", async () => {

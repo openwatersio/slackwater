@@ -103,9 +103,10 @@ export function tidePinState(
 }
 
 /**
- * A current pin: an arrow toward the set, green at or under the slack
- * threshold and otherwise the lifted ramp at its speed. A station with no
- * published set for this direction is a dot in the same color.
+ * A current pin: from the reading zoom an arrow toward the set, green at or
+ * under the slack threshold and otherwise the lifted ramp at its speed. Below
+ * that zoom, or with no published set for this direction, it is a dot in the
+ * same color.
  */
 export function currentPinState(
   timeline: CurrentTimelineEntry[],
@@ -119,18 +120,16 @@ export function currentPinState(
   if (speed === undefined) return UNKNOWN_PIN;
   const tone: PinTone =
     Math.abs(speed) <= threshold ? "slack" : (pinRampColor(Math.abs(speed)) as PinTone);
+  if (!detailed) return { shape: "dot", tone };
   const bearing = speed >= 0 ? directions.flood : directions.ebb;
-  const reading = detailed ? `${formatSpeed(speed, locale)} kn` : undefined;
-  return {
-    shape: bearing === undefined ? "dot" : "arrow",
-    tone,
-    ...(bearing !== undefined && { bearing }),
-    ...(reading && { reading }),
-  };
+  const reading = `${formatSpeed(speed, locale)} kn`;
+  return bearing === undefined
+    ? { shape: "dot", tone, reading }
+    : { shape: "arrow", tone, bearing, reading };
 }
 
-/** A station as the map lists it; a current listing also says whether it can be served. */
-export type MapStation = StationSummary & { predictions?: boolean };
+/** A station as the map lists it. */
+export type MapStation = StationSummary;
 
 /** Tide and current ids are separate namespaces. */
 export function stationKey(station: Pick<StationSummary, "kind" | "id">): string {

@@ -57,7 +57,7 @@ function Tile({
   return (
     <div className="sw-card flex min-w-0 flex-1 flex-col p-3.5">
       <div className="flex items-center gap-2">
-        <span className="font-mono text-[11px] leading-[13px] font-medium tracking-[1.6px] text-(--sw-foam)/55 uppercase">
+        <span className="font-(family-name:--sw-font-mono) text-[11px] leading-[13px] font-medium tracking-[1.6px] text-(--sw-foam)/55 uppercase">
           {label}
         </span>
         <span className="flex-1" />

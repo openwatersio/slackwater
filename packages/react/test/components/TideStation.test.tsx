@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TideStation } from "../../src/components/TideStation.js";
 import { addDays, dateKey, dayStartOf, localNoon, startOfDay } from "../../src/utils/time.js";
-import { createTestWrapper } from "../helpers.js";
+import { createTestWrapper, holdRequests } from "../helpers.js";
 
 const SEATTLE = "noaa/9447130";
 const TZ = "America/Los_Angeles";
@@ -55,16 +55,35 @@ describe("TideStation", () => {
     expect(screen.getByText(/^47\.\d{3}°N, 122\.\d{3}°W$/)).toBeDefined();
   });
 
-  test("always predicts at the station's chart datum", async () => {
+  test("asks for the API's default datum, whatever an older release saved", async () => {
+    localStorage.setItem("slackwater-settings", JSON.stringify({ datum: "MSL" }));
     const fetch = vi.spyOn(window, "fetch");
-    await renderStation(SEATTLE, createTestWrapper({ datum: "MSL" }));
+    await renderStation();
 
-    const urls = fetch.mock.calls.map(([url]) => String(url));
-    // The nearby cards load their own windows at their own datums.
-    const predictions = urls.filter((u) => u.includes(`/${SEATTLE}/`));
+    const predictions = fetch.mock.calls
+      .map(([url]) => new URL(String(url)))
+      .filter((u) => /\/(timeline|extremes)$/.test(u.pathname));
     // The week's timeline and extremes, and the fortnight the Range tile ranks against.
-    expect(predictions.length).toBe(3);
-    for (const url of predictions) expect(new URL(url).searchParams.get("datum")).toBe("MLLW");
+    expect(predictions.filter((u) => u.pathname.includes(`/${SEATTLE}/`)).length).toBe(3);
+    for (const url of predictions) expect(url.searchParams.has("datum")).toBe(false);
+    expect(screen.getByText("MLLW chart datum. NOAA harmonic prediction.")).toBeDefined();
+  });
+
+  test("a station without a chart datum shows its tide and makes no datum claim", async () => {
+    // Fort Wadsworth has constituents but no datums, so a datum asked for by name fails.
+    localStorage.setItem("slackwater-settings", JSON.stringify({ datum: "MLLW" }));
+    const { container, slider } = await renderStation("noaa/8519024");
+
+    expect(screen.getByText("NOAA harmonic prediction.")).toBeDefined();
+    // Its heights are about mean sea level, so the strip marks nothing at 0.
+    const strip = slider.closest("section > div")!;
+    expect(strip.querySelector("[data-fill='below-datum']")).toBeNull();
+    expect(strip.querySelector('line[stroke-dasharray="1 3"]')).toBeNull();
+    fireEvent.click(screen.getByText("Station details"));
+    const details = container.querySelector("details")!;
+    expect(within(details).getByText("noaa/8519024")).toBeDefined();
+    expect(within(details).queryByText("Datum")).toBeNull();
+    expect(details.textContent).not.toMatch(/datum/i);
   });
 
   test("a row moves the strip to its turn, and the highlight follows", async () => {
@@ -218,6 +237,43 @@ describe("TideStation", () => {
     expect(nearby.textContent).not.toContain("Deception Pass St. Park");
     fireEvent.click(within(nearby).getByRole("button", { name: /^Deception Pass \(Narrows\)/ }));
     expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/PUG1701", kind: "current" });
+  });
+
+  test("explains a station whose predictions can't be served, without asking for them", async () => {
+    const fetch = vi.spyOn(window, "fetch");
+    render(<TideStation id="chs-campbell-river" />, { wrapper: createTestWrapper() });
+
+    expect(await screen.findByText(/terms do not allow them to be redistributed/)).toBeDefined();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Campbell River");
+    expect(screen.queryByRole("slider")).toBeNull();
+    expect(screen.queryByText("Station details")).toBeNull();
+    const urls = fetch.mock.calls.map(([url]) => String(url));
+    expect(urls.filter((u) => /\/(timeline|extremes)\?/.test(u) && u.includes("chs-"))).toEqual([]);
+  });
+
+  test("a new station starts over rather than showing the last one's strip", async () => {
+    const { rerender } = await renderStation();
+    const next = "noaa/9448614";
+    const timeline = holdRequests((u) => u.includes(`/${next}/timeline?`));
+
+    rerender(<TideStation id={next} />);
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Deception Pass St. Park" }),
+    ).toBeDefined();
+    expect(screen.queryByRole("slider")).toBeNull();
+    timeline.release();
+    expect(await screen.findByRole("slider", undefined, { timeout: 10000 })).toBeDefined();
+  });
+
+  test("explains an unservable station with no reason given", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      Response.json({ name: "Nowhere Harbour", timezone: "UTC", predictions: false }),
+    );
+    render(<TideStation id="test/nowhere" />, { wrapper: createTestWrapper() });
+
+    expect(await screen.findByText("Predictions aren't available for this station.")).toBeDefined();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Nowhere Harbour");
   });
 
   test("shows a fetch error", async () => {

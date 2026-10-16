@@ -3,6 +3,7 @@ import { useNearbyStations } from "../hooks/use-nearby-stations.js";
 import { useStation } from "../hooks/use-station.js";
 import type { StationSummary } from "../types.js";
 import { mergeNearby } from "../utils/card.js";
+import { NEARBY_RESULTS, nearbyParams } from "../utils/page.js";
 import { StationCard, type CardStation } from "./StationCard.js";
 
 export interface NearbyStationsPositionProps {
@@ -96,7 +97,7 @@ function NearbyFromPosition({
   latitude,
   longitude,
   exclude,
-  maxResults = 5,
+  maxResults = NEARBY_RESULTS,
   onStationSelect,
   onHover,
   onHoverEnd,
@@ -106,7 +107,7 @@ function NearbyFromPosition({
   longitude: number;
   exclude?: { id: string; kind: StationSummary["kind"] };
 }) {
-  const params = { latitude, longitude, maxResults: exclude ? maxResults + 1 : maxResults };
+  const params = nearbyParams(latitude, longitude, maxResults, !!exclude);
   const tides = useNearbyStations(params);
   const currents = useCurrentStations(params);
 

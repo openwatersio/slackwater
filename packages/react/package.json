@@ -43,13 +43,17 @@
     "maplibre-gl": ">=4",
     "react": ">=18",
     "react-dom": ">=18",
-    "react-map-gl": ">=7"
+    "react-map-gl": ">=7",
+    "tailwindcss": "^4"
   },
   "peerDependenciesMeta": {
     "maplibre-gl": {
       "optional": true
     },
     "react-map-gl": {
+      "optional": true
+    },
+    "tailwindcss": {
       "optional": true
     }
   },

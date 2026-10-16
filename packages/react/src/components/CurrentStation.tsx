@@ -78,7 +78,12 @@ function CurrentTiles(props: {
 }
 
 /** A current station's detail page, after the app's current detail screen. */
-export function CurrentStation({ id, threshold, onStationSelect, className }: CurrentStationProps) {
+export function CurrentStation(props: CurrentStationProps) {
+  // A new station starts a new page, so no week, pick, or previous data carries over.
+  return <CurrentPage key={props.id} {...props} />;
+}
+
+function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStationProps) {
   const { locale } = useSlackwaterConfig();
   const station = useCurrentStation(id);
   const s = station.data;

@@ -36,7 +36,7 @@ export interface ScheduleProps {
 }
 
 const PILL =
-  "inline-flex items-center gap-[3px] rounded-full px-2 py-1 font-mono text-[11px] leading-none font-medium uppercase tracking-[0.5px] text-(--sw-navy-deep)";
+  "inline-flex items-center gap-[3px] rounded-full px-2 py-1 font-(family-name:--sw-font-mono) text-[11px] leading-none font-medium uppercase tracking-[0.5px] text-(--sw-navy-deep)";
 
 function Pill({ entry }: { entry: ScheduleEntry }) {
   switch (entry.pill) {
@@ -268,7 +268,7 @@ export const Schedule = memo(function Schedule({
                         >
                           {on && <span className="absolute inset-y-0 left-0 w-0.5 bg-(--sw-go)" />}
                           <span
-                            className={`min-w-[58px] font-mono text-[13px] ${on ? "text-white" : "text-(--sw-foam)/85"}`}
+                            className={`min-w-[58px] font-(family-name:--sw-font-mono) text-[13px] ${on ? "text-white" : "text-(--sw-foam)/85"}`}
                           >
                             {chartTime(e.time, timezone, locale)}
                           </span>

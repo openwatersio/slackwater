@@ -112,7 +112,7 @@ export function readCurrentCard(
   return { speed, slack: readsSlack(runs, now), ...(direction !== undefined && { direction }) };
 }
 
-/** A distance in kilometres as nautical miles: "1.2 nm" under 10, "14 nm" from 10. */
+/** A distance in kilometers as nautical miles: "1.2 nm" under 10, "14 nm" from 10. */
 export function formatNm(km: number, locale?: string): string {
   const nm = km / 1.852;
   const places = nm < 10 ? 1 : 0;

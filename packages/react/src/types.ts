@@ -12,8 +12,12 @@ export interface StationSummary {
   type: "reference" | "subordinate";
   /** Which API serves the station: the tide routes or the current routes. */
   kind: "tide" | "current";
-  /** Kilometres from the position a nearby listing measured from. */
+  /** Kilometers from the position a nearby listing measured from. */
   distance?: number;
+  /** False for stations the API can't serve (CHS licensing, no model); a prediction's own station record leaves it out. */
+  predictions?: boolean;
+  /** Why predictions can't be served, when `predictions` is false. */
+  unavailable?: string;
 }
 
 export interface Station extends StationSummary {
@@ -67,7 +71,8 @@ export interface TimelineEntry {
 }
 
 export interface ExtremesResponse {
-  datum: string;
+  /** The station's chart datum; absent when its `datums` don't include it, and heights are then about mean sea level. */
+  datum?: string;
   units: Units;
   station: Station;
   distance: number;
@@ -75,7 +80,8 @@ export interface ExtremesResponse {
 }
 
 export interface TimelineResponse {
-  datum: string;
+  /** The station's chart datum; absent when its `datums` don't include it, and heights are then about mean sea level. */
+  datum?: string;
   units: Units;
   station: Station;
   distance: number;
@@ -92,9 +98,7 @@ export interface CurrentBin {
 export interface CurrentStationSummary extends StationSummary {
   kind: "current";
   bins: CurrentBin[];
-  /** False for stations the API can't serve (CHS licensing, no model). */
   predictions: boolean;
-  unavailable?: string;
 }
 
 /** A current station as the current API returns it: the database record plus serving flags. */

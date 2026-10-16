@@ -9,6 +9,7 @@ import {
   useState,
   type KeyboardEvent,
   type PointerEvent,
+  type TouchEvent,
   type ReactNode,
 } from "react";
 
@@ -699,7 +700,13 @@ export function Scrubber({
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [nowProp, goTo, g]);
 
-  useEffect(() => () => clearTimeout(restTimer.current), []);
+  useEffect(
+    () => () => {
+      clearTimeout(restTimer.current);
+      if (opening.current !== undefined) cancelAnimationFrame(opening.current);
+    },
+    [],
+  );
 
   useEffect(() => onSelect?.(selected), [onSelect, selected]);
   useEffect(() => onView?.(selected, span), [onView, selected, span]);
@@ -709,6 +716,17 @@ export function Scrubber({
   useEffect(() => {
     if (moveTo) requestRef.current(moveTo.time);
   }, [moveTo]);
+
+  // A vertical swipe scrolls the page, not the strip, so only a mostly sideways one is a person's move.
+  const touchFrom = useRef<{ x: number; y: number }>(undefined);
+  const onTouchStart = (e: TouchEvent<HTMLDivElement>) => {
+    touchFrom.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const onTouchMove = (e: TouchEvent<HTMLDivElement>) => {
+    const from = touchFrom.current!;
+    const { clientX, clientY } = e.touches[0];
+    if (Math.abs(clientX - from.x) > Math.abs(clientY - from.y)) markUserMove();
+  };
 
   // Mouse drag; touch and trackpads scroll natively. A touch-down alone moves nothing.
   const drag = useRef<{ x: number; left: number; moved: boolean } | undefined>(undefined);
@@ -807,7 +825,8 @@ export function Scrubber({
           // A vertical wheel scrolls the page, not the strip.
           if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) markUserMove();
         }}
-        onTouchMove={markUserMove}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}

@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { useExtremes } from "../hooks/use-extremes.js";
+import { useStation } from "../hooks/use-station.js";
 import { useTimeline } from "../hooks/use-timeline.js";
 import { useSlackwaterConfig } from "../provider.js";
 import type { Extreme, TimelineEntry, Units } from "../types.js";
@@ -19,6 +20,8 @@ interface TideConditionsDataProps {
   timezone: string;
   /** The station's name, over the reading. */
   name?: string;
+  /** False when the heights aren't above a chart datum (a response without `datum`), so 0 is unmarked. */
+  chartDatum?: boolean;
 }
 
 interface TideConditionsFetchProps {
@@ -66,6 +69,7 @@ function TideConditionsStatic({
   units,
   timezone,
   name,
+  chartDatum,
   fill,
   now: fixedNow,
   className,
@@ -81,7 +85,7 @@ function TideConditionsStatic({
           {/* The graph clears the name and reading, and bleeds past the sides to leave on its own slope. */}
           <div className="absolute -inset-x-[3px] top-[58px] bottom-0">
             <StationCardGraph
-              data={{ kind: "tide", timeline, extremes, units }}
+              data={{ kind: "tide", timeline, extremes, units, chartDatum }}
               now={now}
               back={WIDGET_BACK_MS}
               forward={WIDGET_FORWARD_MS}
@@ -114,11 +118,27 @@ function TideConditionsFetcher({
   // The card's window, so a widget and a card for one station share their queries.
   const hour = Math.floor(now / HOUR) * HOUR;
   const range = useMemo(() => cardRange(hour), [hour]);
-  const options = { staleTime: Infinity, placeholderData: keepPreviousData };
+  const station = useStation(id);
+  const servable = station.data?.predictions !== false;
+  // Predictions wait for the station, so an unservable one (CHS) is never asked for them.
+  const options = {
+    enabled: !!station.data && servable,
+    staleTime: Infinity,
+    placeholderData: keepPreviousData,
+  };
   const timeline = useTimeline({ id, ...range.timeline }, options);
   const extremes = useExtremes({ id, ...range.extremes }, options);
 
-  const error = timeline.error ?? extremes.error;
+  if (!servable) {
+    return (
+      <Frame fill={fill} className={className}>
+        <Message>
+          {station.data!.unavailable ?? "Predictions aren't available for this station."}
+        </Message>
+      </Frame>
+    );
+  }
+  const error = station.error ?? timeline.error ?? extremes.error;
   if (error) {
     return (
       <Frame fill={fill} className={className}>
@@ -144,6 +164,7 @@ function TideConditionsFetcher({
       units={timeline.data.units}
       timezone={config.timezone ?? timeline.data.station.timezone}
       name={timeline.data.station.name}
+      chartDatum={!!timeline.data.datum}
       fill={fill}
       now={fixedNow}
       className={className}

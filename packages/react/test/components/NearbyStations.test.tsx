@@ -50,6 +50,21 @@ describe("NearbyStations", () => {
     expect(names(items)).toContain("Deception Pass (Narrows)");
   });
 
+  test("names a tide station the API can't predict without asking for its predictions", async () => {
+    const fetch = vi.spyOn(window, "fetch");
+    // Campbell River's CHS record sits beside the predictable stations there.
+    render(<NearbyStations latitude={50.042} longitude={-125.247} maxResults={3} />, {
+      wrapper: createTestWrapper(),
+    });
+
+    const items = await cards();
+    const chs = items.find((li) => li.textContent!.includes("Campbell River"))!;
+    expect(chs.textContent).toContain("Predictions aren't available for this station.");
+    expect(fetch.mock.calls.some(([url]) => String(url).includes("chs-campbell-river"))).toBe(
+      false,
+    );
+  });
+
   test("leaves out the current station it is measured from", async () => {
     render(<NearbyStations stationId="noaa/PUG1701" kind="current" maxResults={3} />, {
       wrapper: createTestWrapper(),

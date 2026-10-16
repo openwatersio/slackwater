@@ -10,8 +10,10 @@ import {
 import { queryKeys } from "../query-keys.js";
 import type { TimelineResponse } from "../types.js";
 
+/** No `datum`: every reader takes the API's default, the station's chart datum, so their queries match. */
 export type UseTimelineParams =
-  ({ id: string } & PredictionParams) | (LocationParams & { id?: undefined });
+  | ({ id: string } & Omit<PredictionParams, "datum">)
+  | (Omit<LocationParams, "datum"> & { id?: undefined });
 
 /** Query options a caller may set: when to fetch, and what to show while a new window loads. */
 export type PredictionQueryOptions<T> = Pick<
@@ -21,10 +23,10 @@ export type PredictionQueryOptions<T> = Pick<
 
 /** The timeline query for these params, so a map pin and a card share one cache entry. */
 export function timelineQuery(
-  { baseUrl, units, datum }: Pick<SlackwaterConfig, "baseUrl" | "units" | "datum">,
+  { baseUrl, units }: Pick<SlackwaterConfig, "baseUrl" | "units">,
   params: UseTimelineParams,
 ) {
-  const merged = { ...params, units: params.units ?? units, datum: params.datum ?? datum };
+  const merged = { ...params, units: params.units ?? units };
   return {
     queryKey: queryKeys.timeline(merged),
     queryFn: (): Promise<TimelineResponse> =>

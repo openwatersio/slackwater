@@ -37,6 +37,7 @@ const deceptionPass: CardStation = {
 const curve = () => screen.findByRole("img", { name: /^25-hour curve/ }, { timeout: 10000 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -55,18 +56,35 @@ describe("StationCard", () => {
     expect(screen.queryByText(/nm$/)).toBeNull();
   });
 
-  test("loads its window around now at the station's default datum", async () => {
+  test("loads its window around now at the API's default datum, as the station page does", async () => {
+    localStorage.setItem("slackwater-settings", JSON.stringify({ datum: "MSL" }));
     const fetch = vi.spyOn(window, "fetch");
     render(<StationCard station={seattle} now={NOW} />, { wrapper: createTestWrapper() });
     await curve();
 
     const range = cardRange(NOW);
-    const timeline = fetch.mock.calls
-      .map(([url]) => new URL(String(url)))
-      .find((u) => u.pathname.endsWith(`${seattle.id}/timeline`))!;
+    const urls = fetch.mock.calls.map(([url]) => new URL(String(url)));
+    const timeline = urls.find((u) => u.pathname.endsWith(`${seattle.id}/timeline`))!;
     expect(timeline.searchParams.get("start")).toBe(range.timeline.start);
     expect(timeline.searchParams.get("end")).toBe(range.timeline.end);
-    expect(timeline.searchParams.get("datum")).toBeNull();
+    const predictions = urls.filter((u) => /\/(timeline|extremes)$/.test(u.pathname));
+    expect(predictions.length).toBeGreaterThan(0);
+    for (const url of predictions) expect(url.searchParams.has("datum")).toBe(false);
+  });
+
+  test("a station without a chart datum leaves 0 unmarked", async () => {
+    // Fort Wadsworth's heights are about mean sea level, so its curve crosses 0.
+    const fortWadsworth = { ...seattle, id: "noaa/8519024", name: "Fort Wadsworth" };
+    render(<StationCard station={fortWadsworth} now={NOW} />, { wrapper: createTestWrapper() });
+
+    const graph = await curve();
+    const amber = [...graph.querySelectorAll("stop")].filter(
+      (s) =>
+        s.getAttribute("stop-color")!.includes("graph-low") &&
+        Number(s.getAttribute("stop-opacity")) > 0,
+    );
+    expect(amber).toEqual([]);
+    expect(graph.querySelector('line[stroke-dasharray="1 3"]')).toBeNull();
   });
 
   test("reads a current's speed, state, and set", async () => {
@@ -123,6 +141,37 @@ describe("StationCard", () => {
     expect(container.textContent).toContain("Seattle");
   });
 
+  test("with an href and onSelect, a plain click selects in place of the link and a modified one opens it", () => {
+    // Records whether the card kept the link, then stops the test page navigating either way.
+    const followed: boolean[] = [];
+    const record = (e: Event) => {
+      followed.push(!e.defaultPrevented);
+      e.preventDefault();
+    };
+    window.addEventListener("click", record);
+    const onSelect = vi.fn();
+    render(
+      <StationCard station={seattle} href="/stations/seattle" onSelect={onSelect} now={NOW} />,
+      { wrapper: createTestWrapper() },
+    );
+    const link = screen.getByRole("link");
+
+    fireEvent.click(link);
+    expect(onSelect).toHaveBeenCalledWith(seattle);
+    for (const init of [
+      { metaKey: true },
+      { ctrlKey: true },
+      { shiftKey: true },
+      { altKey: true },
+      { button: 1 },
+    ]) {
+      fireEvent.click(link, init);
+    }
+    window.removeEventListener("click", record);
+    expect(followed).toEqual([false, true, true, true, true, true]);
+    expect(onSelect).toHaveBeenCalledTimes(1);
+  });
+
   test("names a station it can't serve without loading predictions", () => {
     const fetch = vi.spyOn(window, "fetch");
     render(
@@ -140,6 +189,14 @@ describe("StationCard", () => {
 
     expect(screen.getByText("Predictions aren't available for this station.")).toBeDefined();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test("loads at once where there's no IntersectionObserver", async () => {
+    vi.stubGlobal("IntersectionObserver", undefined);
+    const fetch = vi.spyOn(window, "fetch");
+    render(<StationCard station={seattle} now={NOW} />, { wrapper: createTestWrapper() });
+
+    await waitFor(() => expect(fetch).toHaveBeenCalled());
   });
 
   test("shows a failed load in place of the reading", async () => {

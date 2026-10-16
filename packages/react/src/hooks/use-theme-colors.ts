@@ -27,12 +27,22 @@ const FALLBACKS: ThemeColors = {
 };
 
 /**
- * A variable as a computed color MapLibre can parse: applied as the `color` of
- * a probe element and read back, since the raw value may itself be a `var()`.
+ * A variable as a color MapLibre can parse. The probe element resolves any
+ * `var()` in the value; painting the result on one canvas pixel turns syntax
+ * MapLibre rejects, such as `oklch()`, into sRGB.
  */
-function readCSSVar(probe: HTMLElement, name: string, fallback: string): string {
+function readCSSVar(
+  probe: HTMLElement,
+  pixel: CanvasRenderingContext2D,
+  name: string,
+  fallback: string,
+): string {
   probe.style.color = `var(${name}, ${fallback})`;
-  return getComputedStyle(probe).color;
+  pixel.clearRect(0, 0, 1, 1);
+  pixel.fillStyle = getComputedStyle(probe).color;
+  pixel.fillRect(0, 0, 1, 1);
+  const [r, g, b, a] = pixel.getImageData(0, 0, 1, 1).data;
+  return a === 255 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${+(a / 255).toFixed(2)})`;
 }
 
 /** Reads the map colors from the `--sw-*` variables once per mount. */
@@ -42,15 +52,19 @@ export function useThemeColors(): ThemeColors {
     const probe = document.createElement("span");
     probe.style.display = "none";
     document.body.appendChild(probe);
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const pixel = canvas.getContext("2d", { willReadFrequently: true })!;
+    const read = (name: string, fallback: string) => readCSSVar(probe, pixel, name, fallback);
     try {
       return {
-        steel: readCSSVar(probe, "--sw-steel", FALLBACKS.steel),
-        paper: readCSSVar(probe, "--sw-paper", FALLBACKS.paper),
-        go: readCSSVar(probe, "--sw-go", FALLBACKS.go),
-        graphHigh: readCSSVar(probe, "--sw-graph-high", FALLBACKS.graphHigh),
-        graphLow: readCSSVar(probe, "--sw-graph-low", FALLBACKS.graphLow),
-        mapInk: readCSSVar(probe, "--sw-map-ink", FALLBACKS.mapInk),
-        mapLabel: readCSSVar(probe, "--sw-map-label", FALLBACKS.mapLabel),
+        steel: read("--sw-steel", FALLBACKS.steel),
+        paper: read("--sw-paper", FALLBACKS.paper),
+        go: read("--sw-go", FALLBACKS.go),
+        graphHigh: read("--sw-graph-high", FALLBACKS.graphHigh),
+        graphLow: read("--sw-graph-low", FALLBACKS.graphLow),
+        mapInk: read("--sw-map-ink", FALLBACKS.mapInk),
+        mapLabel: read("--sw-map-label", FALLBACKS.mapLabel),
       };
     } finally {
       probe.remove();

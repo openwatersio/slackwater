@@ -438,7 +438,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
     [byKey],
   );
 
-  // Center the picked pin in the map the panel leaves uncovered.
+  // Center the picked pin in the map the panel and its note leave uncovered.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !selected) return;
@@ -501,12 +501,6 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
         )}
       </Map>
 
-      <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center">
-        <span className="sw-glass rounded-full px-3 py-1.5 text-[11px] text-(--sw-foam)">
-          Not for navigation.
-        </span>
-      </div>
-
       {showGeolocation && "geolocation" in navigator && !selected && (
         <button
           type="button"
@@ -540,21 +534,31 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
         </div>
       )}
 
-      {selected && (
-        <div
-          ref={panelRef}
-          className="absolute inset-x-3 bottom-3 mx-auto max-w-[440px] rounded-(--sw-radius-card) bg-(--sw-canvas)"
-          style={{ minHeight: 168, boxShadow: "0 8px 28px rgb(0 20 50 / 0.4)" }}
+      {/* The note stacks above an open card, so it stays in view while readings are on screen. */}
+      <div
+        ref={panelRef}
+        className="pointer-events-none absolute inset-x-3 bottom-3 mx-auto flex max-w-[440px] flex-col items-center gap-2"
+      >
+        <span
+          className={`sw-glass rounded-full px-3 py-1.5 text-[11px] text-(--sw-foam) ${selected ? "" : "mb-3"}`}
         >
-          <StationCard
-            key={selectedKey}
-            station={selected}
-            onSelect={onStationSelect}
-            threshold={threshold}
-            now={fixedNow}
-          />
-        </div>
-      )}
+          Not for navigation.
+        </span>
+        {selected && (
+          <div
+            className="pointer-events-auto w-full rounded-(--sw-radius-card) bg-(--sw-canvas)"
+            style={{ minHeight: 168, boxShadow: "0 8px 28px rgb(0 20 50 / 0.4)" }}
+          >
+            <StationCard
+              key={selectedKey}
+              station={selected}
+              onSelect={onStationSelect}
+              threshold={threshold}
+              now={fixedNow}
+            />
+          </div>
+        )}
+      </div>
 
       {children}
     </div>
