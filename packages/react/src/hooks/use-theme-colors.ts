@@ -4,8 +4,13 @@ import { useMemo } from "react";
 export interface ThemeColors {
   /** A station whose state the map doesn't know. */
   steel: string;
-  /** The focused station. */
   paper: string;
+  /** A current at slack. */
+  go: string;
+  /** A rising tide. */
+  graphHigh: string;
+  /** A falling tide. */
+  graphLow: string;
   /** The plate under every pin, and the halo under labels. */
   mapInk: string;
   mapLabel: string;
@@ -14,6 +19,9 @@ export interface ThemeColors {
 const FALLBACKS: ThemeColors = {
   steel: "#5888a8",
   paper: "#fcfcfc",
+  go: "#88b868",
+  graphHigh: "#2dd4bf",
+  graphLow: "#fbbf24",
   mapInk: "#152256",
   mapLabel: "#ffffff",
 };
@@ -38,6 +46,9 @@ export function useThemeColors(): ThemeColors {
       return {
         steel: readCSSVar(probe, "--sw-steel", FALLBACKS.steel),
         paper: readCSSVar(probe, "--sw-paper", FALLBACKS.paper),
+        go: readCSSVar(probe, "--sw-go", FALLBACKS.go),
+        graphHigh: readCSSVar(probe, "--sw-graph-high", FALLBACKS.graphHigh),
+        graphLow: readCSSVar(probe, "--sw-graph-low", FALLBACKS.graphLow),
         mapInk: readCSSVar(probe, "--sw-map-ink", FALLBACKS.mapInk),
         mapLabel: readCSSVar(probe, "--sw-map-label", FALLBACKS.mapLabel),
       };

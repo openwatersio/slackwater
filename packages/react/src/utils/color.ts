@@ -30,7 +30,17 @@ export function rampColor(value: number, anchors: number[]): string {
   return hex(rampRGB(value, anchors));
 }
 
+/** The ramp moved `lift` of the way toward white. */
+function liftedRamp(value: number, anchors: number[], lift: number): string {
+  return hex(rampRGB(value, anchors).map((c) => Math.round(c + (255 - c) * lift)));
+}
+
 /** The ramp as text on the canvas: a quarter of the way to white clears 4.5:1 at every stop. */
 export function rampInk(value: number, anchors: number[]): string {
-  return hex(rampRGB(value, anchors).map((c) => Math.round(c + (255 - c) * 0.25)));
+  return liftedRamp(value, anchors, 0.25);
+}
+
+/** A current pin's fill: the knot ramp lifted 30% toward white, enough for the red end to clear 3:1 on the map's water. */
+export function pinRampColor(knots: number): string {
+  return liftedRamp(knots, KNOT_ANCHORS, 0.3);
 }

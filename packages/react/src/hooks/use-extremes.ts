@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useSlackwaterConfig } from "../provider.js";
+import { useSlackwaterConfig, type SlackwaterConfig } from "../provider.js";
 import {
   fetchExtremes,
   fetchStationExtremes,
@@ -14,31 +14,24 @@ import type { ExtremesResponse } from "../types.js";
 export type UseExtremesParams =
   ({ id: string } & PredictionParams) | (LocationParams & { id?: undefined });
 
+/** The extremes query for these params, so a map pin and a card share one cache entry. */
+export function extremesQuery(
+  { baseUrl, units, datum }: Pick<SlackwaterConfig, "baseUrl" | "units" | "datum">,
+  params: UseExtremesParams,
+) {
+  const merged = { ...params, units: params.units ?? units, datum: params.datum ?? datum };
+  return {
+    queryKey: queryKeys.extremes(merged),
+    queryFn: (): Promise<ExtremesResponse> =>
+      merged.id
+        ? fetchStationExtremes(baseUrl, merged as StationPredictionParams)
+        : fetchExtremes(baseUrl, merged as LocationParams),
+  };
+}
+
 export function useExtremes(
   params: UseExtremesParams,
   options: PredictionQueryOptions<ExtremesResponse> = {},
 ) {
-  const { baseUrl, units, datum } = useSlackwaterConfig();
-  const mergedUnits = params.units ?? units;
-  const mergedDatum = params.datum ?? datum;
-
-  return useQuery({
-    ...options,
-    queryKey: queryKeys.extremes({ ...params, units: mergedUnits, datum: mergedDatum }),
-    queryFn: () => {
-      if (params.id) {
-        return fetchStationExtremes(baseUrl, {
-          ...params,
-          id: params.id,
-          units: mergedUnits,
-          datum: mergedDatum,
-        } as StationPredictionParams);
-      }
-      return fetchExtremes(baseUrl, {
-        ...(params as LocationParams),
-        units: mergedUnits,
-        datum: mergedDatum,
-      });
-    },
-  });
+  return useQuery({ ...options, ...extremesQuery(useSlackwaterConfig(), params) });
 }

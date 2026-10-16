@@ -55,11 +55,18 @@ export function useCurrentEvents(id: string, range: CurrentPredictionRange | und
   });
 }
 
+/** The current timeline query for a station's window, so a map pin and a card share one cache entry. */
+export function currentTimelineQuery(baseUrl: string, id: string, range?: CurrentPredictionRange) {
+  return {
+    queryKey: queryKeys.currentTimeline({ id, ...range }),
+    queryFn: () => fetchCurrentStationTimeline(baseUrl, { id, ...range }),
+  };
+}
+
 export function useCurrentTimeline(id: string, range: CurrentPredictionRange | undefined) {
   const { baseUrl } = useSlackwaterConfig();
   return useQuery({
-    queryKey: queryKeys.currentTimeline({ id, ...range }),
-    queryFn: () => fetchCurrentStationTimeline(baseUrl, { id, ...range }),
+    ...currentTimelineQuery(baseUrl, id, range),
     enabled: !!range,
     // Predictions for a fixed window never change, and refetching would rebuild the strip.
     staleTime: Infinity,

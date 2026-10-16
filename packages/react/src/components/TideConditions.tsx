@@ -26,8 +26,6 @@ interface TideConditionsFetchProps {
 }
 
 export type TideConditionsProps = (TideConditionsDataProps | TideConditionsFetchProps) & {
-  /** @deprecated Ignored: the widget shows no date. */
-  showDate?: boolean;
   /** Fill the parent's height instead of the small widget's 170 px. */
   fill?: boolean;
   /** The current instant; defaults to the clock. Pass it to render deterministically. */

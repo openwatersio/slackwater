@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
-import { useSlackwaterConfig } from "../provider.js";
+import { useSlackwaterConfig, type SlackwaterConfig } from "../provider.js";
 import {
   fetchTimeline,
   fetchStationTimeline,
@@ -19,31 +19,24 @@ export type PredictionQueryOptions<T> = Pick<
   "enabled" | "placeholderData" | "staleTime"
 >;
 
+/** The timeline query for these params, so a map pin and a card share one cache entry. */
+export function timelineQuery(
+  { baseUrl, units, datum }: Pick<SlackwaterConfig, "baseUrl" | "units" | "datum">,
+  params: UseTimelineParams,
+) {
+  const merged = { ...params, units: params.units ?? units, datum: params.datum ?? datum };
+  return {
+    queryKey: queryKeys.timeline(merged),
+    queryFn: (): Promise<TimelineResponse> =>
+      merged.id
+        ? fetchStationTimeline(baseUrl, merged as StationPredictionParams)
+        : fetchTimeline(baseUrl, merged as LocationParams),
+  };
+}
+
 export function useTimeline(
   params: UseTimelineParams,
   options: PredictionQueryOptions<TimelineResponse> = {},
 ) {
-  const { baseUrl, units, datum } = useSlackwaterConfig();
-  const mergedUnits = params.units ?? units;
-  const mergedDatum = params.datum ?? datum;
-
-  return useQuery({
-    ...options,
-    queryKey: queryKeys.timeline({ ...params, units: mergedUnits, datum: mergedDatum }),
-    queryFn: () => {
-      if (params.id) {
-        return fetchStationTimeline(baseUrl, {
-          ...params,
-          id: params.id,
-          units: mergedUnits,
-          datum: mergedDatum,
-        } as StationPredictionParams);
-      }
-      return fetchTimeline(baseUrl, {
-        ...(params as LocationParams),
-        units: mergedUnits,
-        datum: mergedDatum,
-      });
-    },
-  });
+  return useQuery({ ...options, ...timelineQuery(useSlackwaterConfig(), params) });
 }

@@ -233,14 +233,31 @@ Without the API's `/currents` routes, the search and nearby lists show tide stat
 
 ### `<StationsMap>`
 
-Interactive map of the tide stations in view. Requires `maplibre-gl` and `react-map-gl`. Stations are fetched by bounding box as the reader pans and zooms.
+The app's stations map: every tide and current station in view as a live pin on OpenFreeMap's dark [fiord](https://openfreemap.org) style, north up. A tide is a gauge filled to where the water sits between its last and next turn, teal and pointing up while rising, amber and pointing down while falling. A current is an arrow toward its set, green at slack and otherwise colored by its speed. A station whose state isn't known yet is a steel dot, and one the API can't serve is a hollow ring. Readings ("3.2 ft", "1.8 kn") and gauges appear from zoom 9.5 and names from 10.5; below 9.5 every pin is a dot. Each 44 px cell keeps one station, a harmonic station before a subordinate.
+
+A tap picks the nearest pin and shows its `<StationCard>` in a panel along the bottom; tapping the card calls `onStationSelect`, and tapping the water closes it. The locate button centers the map on the reader at zoom 10.5. Requires `maplibre-gl` and `react-map-gl`.
 
 ```tsx
 <StationsMap
-  mapStyle="https://tiles.example.com/style.json"
-  onStationSelect={(station) => console.log(station)}
+  initialViewState={{ longitude: -122.45, latitude: 47.65, zoom: 10 }}
+  onStationSelect={(station) => navigate(`/stations/${station.kind}/${station.id}`)}
 />
 ```
+
+| Prop              | Type                | Default           | Description                                                      |
+| ----------------- | ------------------- | ----------------- | ---------------------------------------------------------------- |
+| `onStationSelect` | `(station) => void` | —                 | Called when the selected station's card is tapped                |
+| `onBoundsChange`  | `(bounds) => void`  | —                 | Called with the visible bounds each time the camera settles      |
+| `focusStation`    | `string`            | —                 | A station ID to mark as selected without opening its card        |
+| `showGeolocation` | `boolean`           | `true`            | Show the locate button                                           |
+| `threshold`       | `number`            | `0.5`             | Boat speed in knots at or under which a current is slack         |
+| `now`             | `number`            | the clock         | The current instant in ms; pass it to render deterministically   |
+| `mapStyle`        | style or URL        | OpenFreeMap fiord | The basemap; station text uses the `Noto Sans Regular` fontstack |
+| `className`       | `string`            | —                 | Extra classes for the outer element                              |
+
+Other props pass through to react-map-gl's `<Map>`, and the forwarded ref is its `MapRef`.
+
+Station listings load by bounding box once the camera settles, padded by half the view so a small pan needs nothing new. From zoom 9.5, each station in view loads the same predictions its card does (a tide's timeline and extremes, a current's timeline), so the card in the panel opens without another request. Pins update each minute from what is loaded, and a new window loads on the hour.
 
 ### `<StationDisclaimers>`
 
@@ -261,6 +278,8 @@ All hooks must be used within a `<SlackwaterProvider>`.
 - `useCurrentTimeline(id, { start, end })` — fetch the signed current speed timeline
 - `useCurrentLevel(timeline)` — the water level now, interpolated and updated each minute
 - `useThemeColors()` — the map's colors, resolved from the theme variables
+
+`timelineQuery`, `extremesQuery`, and `currentTimelineQuery` return the query key and function those hooks use, for `useQueries` or a prefetch that should share their cache.
 
 `useTimeline` and `useExtremes` also take a location (`{ latitude, longitude }`) in place of an `id`. Their `options` set `enabled`, `staleTime`, and `placeholderData`.
 

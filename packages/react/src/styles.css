@@ -79,14 +79,25 @@
   display: none;
 }
 
-/* MapLibre's popup, on the canvas rather than white. */
-.sw-popup .maplibregl-popup-content {
-  background: var(--sw-canvas);
-  color: var(--sw-foam);
-  border: 0.5px solid var(--sw-card-stroke);
-  border-radius: 16px;
-  box-shadow: var(--sw-shadow-card);
+/* The app's glass over the map: the map's overlays float on it. */
+.sw-glass {
+  background: rgb(255 255 255 / 0.08);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: 0 6px 20px rgb(0 20 50 / 0.4);
 }
-.sw-popup .maplibregl-popup-tip {
-  display: none;
+
+/* MapLibre's attribution as a white ⓘ on the dark map. */
+.sw-map .maplibregl-ctrl-attrib.maplibregl-compact {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--sw-foam);
+}
+.sw-map .maplibregl-ctrl-attrib.maplibregl-compact-show {
+  background: var(--sw-canvas);
+}
+.sw-map .maplibregl-ctrl-attrib a {
+  color: var(--sw-foam);
+}
+.sw-map .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
 }

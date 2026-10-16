@@ -17,6 +17,9 @@ describe("useThemeColors", () => {
     expect(result.current).toEqual({
       steel: "rgb(88, 136, 168)",
       paper: "rgb(252, 252, 252)",
+      go: "rgb(136, 184, 104)",
+      graphHigh: "rgb(45, 212, 191)",
+      graphLow: "rgb(251, 191, 36)",
       mapInk: "rgb(21, 34, 86)",
       mapLabel: "rgb(255, 255, 255)",
     });
