@@ -8,7 +8,7 @@ export * from "./prefetch.js";
 
 // Utilities
 export { formatLevel, formatTime, formatDate, formatDistance } from "./utils/format.js";
-export { getDefaultUnits, getDefaultRange } from "./utils/defaults.js";
+export { getDefaultUnits } from "./utils/defaults.js";
 
 // Re-export hydration utilities from @tanstack/react-query
 export { dehydrate, HydrationBoundary } from "@tanstack/react-query";

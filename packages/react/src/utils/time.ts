@@ -1,4 +1,4 @@
-import { Body, Observer, SearchRiseSet } from "astronomy-engine";
+import { Body, Observer, SearchHourAngle, SearchRiseSet } from "astronomy-engine";
 
 const HOUR = 3_600_000;
 
@@ -169,4 +169,46 @@ export function sunBands(list: Day[]): Band[] {
 export function dayAnchor(day: Day, bands: Band[], timeZone: string): number {
   const light = bands.find((b) => !b.night && b.from === day.sunrise);
   return light ? (light.from + light.to) / 2 : localNoon(day.start, timeZone);
+}
+
+/** The station-local civil date of `time` as "YYYY-MM-DD", the value a date input holds. */
+export function dateKey(time: number, timeZone: string): string {
+  const p = parts(time, timeZone);
+  return [p.year, p.month, p.day].map((n, i) => String(n).padStart(i ? 2 : 4, "0")).join("-");
+}
+
+/** The first instant of the station-local civil date "YYYY-MM-DD". */
+export function dayStartOf(date: string, timeZone: string): number {
+  const [y, m, d] = date.split("-").map(Number);
+  const target = Date.UTC(y, m - 1, d);
+  // Midday UTC lands on the date or a neighbor; one step of the difference corrects it.
+  const guess = target + 12 * HOUR;
+  return startOfDay(guess + (target - localDate(guess, timeZone)), timeZone);
+}
+
+/** The start of the station-local day `n` days after the one starting at `dayStart`, or before it for a negative `n`. */
+export function addDays(dayStart: number, n: number, timeZone: string): number {
+  let d = dayStart;
+  for (let i = 0; i < n; i++) d = nextDay(d, timeZone);
+  for (let i = 0; i > n; i--) d = startOfDay(d - 1, timeZone);
+  return d;
+}
+
+/** The week bar's range: "Aug 11 – 17", with years only when it leaves this year. */
+export function weekLabel(anchor: number, now: number, timeZone: string, locale?: string): string {
+  const last = addDays(anchor, 6, timeZone);
+  const year = (t: number) => parts(t, timeZone).year;
+  const sameYear = year(anchor) === year(last) && year(anchor) === year(now);
+  return new Intl.DateTimeFormat(locale, {
+    timeZone,
+    month: "short",
+    day: "numeric",
+    ...(!sameYear && { year: "numeric" }),
+  }).formatRange(anchor, last);
+}
+
+/** When the sun crosses the meridian on the day starting at `dayStart`. */
+export function solarNoon(dayStart: number, latitude: number, longitude: number): number {
+  const observer = new Observer(latitude, longitude, 0);
+  return SearchHourAngle(Body.Sun, observer, 0, new Date(dayStart)).time.date.getTime();
 }

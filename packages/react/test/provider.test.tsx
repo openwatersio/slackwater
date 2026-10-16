@@ -1,5 +1,5 @@
-import { describe, test, expect, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { describe, test, expect, beforeEach, vi } from "vitest";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { SlackwaterProvider, useSlackwaterConfig, useUpdateConfig } from "../src/provider.js";
 import type { ReactNode } from "react";
 
@@ -9,7 +9,7 @@ beforeEach(() => {
 
 function wrapper({ children }: { children: ReactNode }) {
   return (
-    <SlackwaterProvider baseUrl="https://api.example.com" units="feet" datum="MLLW">
+    <SlackwaterProvider baseUrl="https://api.example.com" units="feet">
       {children}
     </SlackwaterProvider>
   );
@@ -22,7 +22,6 @@ describe("SlackwaterProvider", () => {
     expect(result.current).toEqual({
       baseUrl: "https://api.example.com",
       units: "feet",
-      datum: "MLLW",
       locale: "en-US",
     });
   });
@@ -36,7 +35,6 @@ describe("SlackwaterProvider", () => {
 
     // en-US defaults to feet; non-US locales default to meters
     expect(result.current.units).toBe("feet");
-    expect(result.current.datum).toBeUndefined();
   });
 
   test("defaults timezone to undefined", () => {
@@ -46,17 +44,6 @@ describe("SlackwaterProvider", () => {
 
     const { result } = renderHook(() => useSlackwaterConfig(), { wrapper: minimalWrapper });
     expect(result.current.timezone).toBeUndefined();
-  });
-
-  test("applies initial datum prop", () => {
-    const datumWrapper = ({ children }: { children: ReactNode }) => (
-      <SlackwaterProvider baseUrl="https://api.example.com" datum="MSL">
-        {children}
-      </SlackwaterProvider>
-    );
-
-    const { result } = renderHook(() => useSlackwaterConfig(), { wrapper: datumWrapper });
-    expect(result.current.datum).toBe("MSL");
   });
 
   test("applies initial timezone prop", () => {
@@ -99,21 +86,6 @@ describe("useUpdateConfig", () => {
     });
 
     expect(result.current.config.units).toBe("meters");
-  });
-
-  test("updates datum", () => {
-    const { result } = renderHook(
-      () => ({ config: useSlackwaterConfig(), update: useUpdateConfig() }),
-      {
-        wrapper,
-      },
-    );
-
-    act(() => {
-      result.current.update({ datum: "MSL" });
-    });
-
-    expect(result.current.config.datum).toBe("MSL");
   });
 
   test("updates timezone", () => {
@@ -160,5 +132,32 @@ describe("useUpdateConfig", () => {
 
     const stored = JSON.parse(localStorage.getItem("slackwater-settings") ?? "{}");
     expect(stored.units).toBe("meters");
+  });
+
+  test("ignores and drops a datum an older release saved", async () => {
+    localStorage.setItem("slackwater-settings", JSON.stringify({ datum: "MSL", units: "meters" }));
+    const { result } = renderHook(() => useSlackwaterConfig(), { wrapper });
+
+    await waitFor(() => expect(result.current.units).toBe("meters"));
+    expect(result.current).not.toHaveProperty("datum");
+    expect(JSON.parse(localStorage.getItem("slackwater-settings")!)).toEqual({ units: "meters" });
+  });
+
+  test("leaves stored settings alone when they have no datum", async () => {
+    localStorage.setItem("slackwater-settings", '{"units":"meters"}');
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    const { result } = renderHook(() => useSlackwaterConfig(), { wrapper });
+
+    await waitFor(() => expect(result.current.units).toBe("meters"));
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+  });
+
+  test("falls back to the props when stored settings aren't JSON", async () => {
+    localStorage.setItem("slackwater-settings", "{");
+    const { result } = renderHook(() => useSlackwaterConfig(), { wrapper });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(result.current.units).toBe("feet");
   });
 });

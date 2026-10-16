@@ -1,227 +1,187 @@
-import { useState, useRef, useCallback, useEffect, useId, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 
+import { useCurrentStations } from "../hooks/use-current-station.js";
 import { useStations } from "../hooks/use-stations.js";
 import type { StationSummary } from "../types.js";
-
-const RECENT_KEY = "slackwater-recent-searches";
-const MAX_RECENT = 5;
-
-function getRecentSearches(): StationSummary[] {
-  try {
-    const raw = localStorage.getItem(RECENT_KEY);
-    const parsed = raw ? (JSON.parse(raw) as StationSummary[]) : [];
-    // Discard entries persisted by older versions that lack the full station shape
-    return parsed.filter((r) => typeof r.latitude === "number");
-  } catch {
-    return [];
-  }
-}
-
-function saveRecentSearch(station: StationSummary): void {
-  try {
-    const recent = getRecentSearches().filter((r) => r.id !== station.id);
-    recent.unshift(station);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(recent.slice(0, MAX_RECENT)));
-  } catch {
-    // Ignore localStorage errors
-  }
-}
+import { SEARCH_LIMIT, rankSearch } from "../utils/card.js";
+import { StationCard, type CardStation } from "./StationCard.js";
+import { StationCredits } from "./StationCredits.js";
 
 export interface StationSearchProps {
-  onSelect: (station: StationSummary) => void;
+  /** Called with the picked station; its `kind` says which routes serve it. */
+  onSelect: (station: CardStation) => void;
   placeholder?: string;
   className?: string;
 }
 
+type Filter = StationSummary["kind"] | undefined;
+
+const CHIPS: { label: string; spoken: string; kind: Filter }[] = [
+  { label: "All", spoken: "Show all", kind: undefined },
+  { label: "Tides", spoken: "Show tides", kind: "tide" },
+  { label: "Currents", spoken: "Show currents", kind: "current" },
+];
+
+const GLASS = "bg-white/8 backdrop-blur-[20px] backdrop-saturate-[1.4]";
+
+/**
+ * Station search after the app's: a field, the All / Tides / Currents
+ * filter, and the matching stations of both kinds as cards.
+ */
 export function StationSearch({
   onSelect,
-  placeholder = "Search stations...",
+  placeholder = "Harbor, bay, or channel",
   className,
 }: StationSearchProps) {
   const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const [recentSearches, setRecentSearches] = useState<StationSummary[]>([]);
-  const instanceId = useId();
-  const listboxId = `${instanceId}-results`;
-  const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
+  const [searched, setSearched] = useState("");
+  const [filter, setFilter] = useState<Filter>();
+  const resultsId = useId();
+  const input = useRef<HTMLInputElement>(null);
 
-  // Load recent searches on mount
   useEffect(() => {
-    setRecentSearches(getRecentSearches());
-  }, []);
-
-  // Debounce the query
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 300);
+    const timer = setTimeout(() => setSearched(query.trim()), 300);
     return () => clearTimeout(timer);
   }, [query]);
 
-  const { data: results = [] } = useStations(
-    { query: debouncedQuery },
-    { enabled: debouncedQuery.length >= 2 },
-  );
-
-  const showResults = isOpen && debouncedQuery.length >= 2 && results.length > 0;
-  // !showResults guards the debounce window where the input is cleared but the
-  // debounced query still has results — both lists would render with the same id
-  const showRecent = isOpen && !showResults && query.length === 0 && recentSearches.length > 0;
-
-  const handleSelect = useCallback(
-    (station: StationSummary) => {
-      setQuery(station.name);
-      setIsOpen(false);
-      setActiveIndex(-1);
-      saveRecentSearch(station);
-      setRecentSearches(getRecentSearches());
-      onSelect(station);
-    },
-    [onSelect],
-  );
-
-  const handleRecentSelect = useCallback(
-    (recent: StationSummary) => {
-      setQuery(recent.name);
-      setIsOpen(false);
-      setActiveIndex(-1);
-      onSelect(recent);
-    },
-    [onSelect],
-  );
-
-  const dropdownItems = showResults ? results : [];
-  const totalItems = showRecent ? recentSearches.length : dropdownItems.length;
-
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      if (!showResults && !showRecent) return;
-
-      switch (e.key) {
-        case "ArrowDown":
-          e.preventDefault();
-          setActiveIndex((i) => Math.min(i + 1, totalItems - 1));
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          setActiveIndex((i) => Math.max(i - 1, 0));
-          break;
-        case "Enter":
-          e.preventDefault();
-          if (activeIndex >= 0 && activeIndex < totalItems) {
-            if (showRecent) {
-              handleRecentSelect(recentSearches[activeIndex]);
-            } else {
-              handleSelect(dropdownItems[activeIndex]);
-            }
-          }
-          break;
-        case "Escape":
-          setIsOpen(false);
-          setActiveIndex(-1);
-          break;
-      }
-    },
-    [
-      showResults,
-      showRecent,
-      dropdownItems,
-      recentSearches,
-      activeIndex,
-      totalItems,
-      handleSelect,
-      handleRecentSelect,
-    ],
-  );
+  const active = searched.length >= 2;
+  const params = { query: searched, maxResults: SEARCH_LIMIT };
+  const options = { enabled: active, placeholderData: keepPreviousData };
+  const tides = useStations(params, options);
+  const currents = useCurrentStations(params, options);
+  const settled = active && !tides.isFetching && !currents.isFetching;
+  // Results change once both kinds have answered, so the cards don't reshuffle as each arrives.
+  const shown = useRef<{ results: CardStation[]; cut: boolean }>({ results: [], cut: false });
+  if (!active) shown.current = { results: [], cut: false };
+  else if (settled) {
+    const lists = [
+      filter === "current" ? [] : (tides.data ?? []),
+      filter === "tide" ? [] : (currents.data ?? []),
+    ];
+    const results = rankSearch<CardStation>(searched, lists);
+    // A kind that filled its request may have had more, and the merge may have dropped some.
+    const cut =
+      lists.some((list) => list.length >= SEARCH_LIMIT) || lists.flat().length > results.length;
+    shown.current = { results, cut };
+  }
+  const { results, cut } = shown.current;
+  // An API without the current routes still finds its tide stations.
+  const error = tides.error && currents.error ? tides.error : undefined;
 
   return (
-    <div className={`relative ${className ?? ""}`}>
-      <input
-        ref={inputRef}
-        type="search"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setIsOpen(true);
-          setActiveIndex(-1);
-        }}
-        onFocus={() => setIsOpen(true)}
-        onBlur={() => {
-          // Delay to allow click on result
-          setTimeout(() => setIsOpen(false), 200);
-        }}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 border border-(--slackwater-border) rounded-lg bg-(--slackwater-bg) text-(--slackwater-text) text-sm outline-none transition-colors focus:border-(--slackwater-primary) focus:ring-3 focus:ring-(--slackwater-primary)/20"
-        role="combobox"
-        aria-expanded={showResults || showRecent}
-        aria-controls={listboxId}
-        aria-activedescendant={activeIndex >= 0 ? `${instanceId}-option-${activeIndex}` : undefined}
-        autoComplete="off"
-      />
-      {showRecent && (
-        <ul
-          ref={listRef}
-          id={listboxId}
-          className="absolute top-full left-0 right-0 z-50 mt-1 p-1 list-none bg-(--slackwater-bg) border border-(--slackwater-border) rounded-lg shadow-md max-h-80 overflow-y-auto"
-          role="listbox"
+    <div className={`flex flex-col text-white ${className ?? ""}`} role="search">
+      <div
+        className={`flex min-h-12 items-center gap-[9px] rounded-full px-4 py-[13px] focus-within:ring-2 focus-within:ring-(--sw-go)/40 ${GLASS}`}
+      >
+        <svg
+          width={17}
+          height={17}
+          viewBox="0 0 16 16"
+          aria-hidden="true"
+          className="shrink-0 text-(--sw-foam)/70"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.8}
+          strokeLinecap="round"
         >
-          <li
-            className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-(--slackwater-text-muted)"
-            role="presentation"
+          <circle cx={6.8} cy={6.8} r={5.3} />
+          <path d="m10.8 10.8 4 4" />
+        </svg>
+        <input
+          ref={input}
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setQuery("");
+          }}
+          placeholder={placeholder}
+          aria-label={placeholder}
+          aria-controls={resultsId}
+          autoComplete="off"
+          spellCheck={false}
+          className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[17px] text-(--sw-paper) outline-none placeholder:text-(--sw-foam)/62 [&::-webkit-search-cancel-button]:hidden"
+        />
+        {query && (
+          <button
+            type="button"
+            aria-label="Clear search text"
+            onClick={() => {
+              setQuery("");
+              input.current?.focus();
+            }}
+            // A 44 px target around the 17 px glyph, without growing the field.
+            className="-m-[13.5px] flex shrink-0 cursor-pointer border-0 bg-transparent p-[13.5px] text-(--sw-foam)/50"
           >
-            Recent
-          </li>
-          {recentSearches.map((recent, i) => (
-            <li
-              key={recent.id}
-              id={`${instanceId}-option-${i}`}
-              role="option"
-              aria-selected={i === activeIndex}
-              className={`flex flex-col px-3 py-2 rounded-md cursor-pointer ${
-                i === activeIndex
-                  ? "bg-(--slackwater-bg-subtle)"
-                  : "hover:bg-(--slackwater-bg-subtle)"
-              }`}
-              onMouseDown={() => handleRecentSelect(recent)}
+            <svg width={17} height={17} viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx={8} cy={8} r={8} fill="currentColor" />
+              <path
+                d="m5.3 5.3 5.4 5.4m0-5.4-5.4 5.4"
+                stroke="var(--sw-canvas)"
+                strokeWidth={1.6}
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-x-1.5 px-1">
+        {CHIPS.map((chip) => {
+          const selected = filter === chip.kind;
+          return (
+            <button
+              key={chip.label}
+              type="button"
+              aria-label={chip.spoken}
+              aria-pressed={selected}
+              // Tapping the active filter returns to All.
+              onClick={() => setFilter(selected ? undefined : chip.kind)}
+              className="flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0"
             >
-              <span className="font-medium text-(--slackwater-text)">{recent.name}</span>
-              <span className="text-xs text-(--slackwater-text-muted)">
-                {[recent.region, recent.country].filter(Boolean).join(", ")}
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${GLASS} ${
+                  selected ? "text-(--sw-go)" : "text-(--sw-foam)/60"
+                }`}
+                style={selected ? { backgroundColor: "rgb(136 184 104 / 0.25)" } : undefined}
+              >
+                {chip.label}
               </span>
-            </li>
-          ))}
-        </ul>
-      )}
-      {showResults && (
-        <ul
-          ref={listRef}
-          id={listboxId}
-          className="absolute top-full left-0 right-0 z-50 mt-1 p-1 list-none bg-(--slackwater-bg) border border-(--slackwater-border) rounded-lg shadow-md max-h-80 overflow-y-auto"
-          role="listbox"
-        >
-          {results.map((station, i) => (
-            <li
-              key={station.id}
-              id={`${instanceId}-option-${i}`}
-              role="option"
-              aria-selected={i === activeIndex}
-              className={`flex flex-col px-3 py-2 rounded-md cursor-pointer ${
-                i === activeIndex
-                  ? "bg-(--slackwater-bg-subtle)"
-                  : "hover:bg-(--slackwater-bg-subtle)"
-              }`}
-              onMouseDown={() => handleSelect(station)}
-            >
-              <span className="font-medium text-(--slackwater-text)">{station.name}</span>
-              <span className="text-xs text-(--slackwater-text-muted)">
-                {[station.region, station.country].filter(Boolean).join(", ")}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div id={resultsId} className="flex flex-col gap-3 pt-1.5">
+        <p className="sr-only" role="status">
+          {settled ? (results.length ? `${results.length} stations` : "No matches") : ""}
+        </p>
+        {error ? (
+          <p className="m-0 px-1.5 text-sm text-(--sw-attention)">{error.message}</p>
+        ) : settled && results.length === 0 ? (
+          <p className="m-0 px-1.5 text-[17px] text-(--sw-foam)/62" aria-hidden="true">
+            No matches
+          </p>
+        ) : (
+          cut && (
+            // Said above the results, where it is read, not sixty cards down.
+            <p className="m-0 px-1.5 font-(family-name:--sw-font-mono) text-[11px] font-medium tracking-[1.2px] text-(--sw-foam)/50 uppercase">
+              First {SEARCH_LIMIT} — keep typing to narrow
+            </p>
+          )
+        )}
+        {results.length > 0 && (
+          <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,360px),1fr))] gap-3 p-0">
+            {results.map((station) => (
+              <li key={`${station.kind}:${station.id}`}>
+                <StationCard station={station} onSelect={onSelect} />
+              </li>
+            ))}
+          </ul>
+        )}
+        <StationCredits stations={results} />
+      </div>
     </div>
   );
 }

@@ -115,32 +115,44 @@ curl "http://localhost:3000/tides/stations?latitude=26.772&longitude=-80.05&maxR
 curl "http://localhost:3000/tides/stations?latitude=26.772&longitude=-80.05&maxDistance=100"
 ```
 
-### GET /tides/stations/:id/extremes
+Every mode includes stations whose predictions can't be served, such as the Canadian Hydrographic Service ports, whose terms don't allow their predictions to be redistributed. Every tide station also carries:
 
-Get extremes prediction for a specific station.
+- `predictions`: whether this API can serve predictions for the station
+- `unavailable`: why not, when `predictions` is `false`
+- `attribution`: the credit to display wherever the station's data is shown
+- `license`: the station data's license (`type`, `commercial_use`, `url`, and sometimes `notes`). A commercial product must leave out stations marked `commercial_use: false`, the TICON records under CC BY-NC 4.0
+
+### GET /tides/stations/:source/:id
+
+Get a tide station by ID, with the same `predictions` and `unavailable`. The curated CHS records have no source prefix and are a single path segment: `/tides/stations/chs-campbell-river`.
+
+### GET /tides/stations/:source/:id/extremes
+
+Get extremes prediction for a specific station. The station ID is two path segments, with its slash left unencoded: `/tides/stations/noaa/8722588/extremes`. The bare IDs of the curated CHS records name stations whose predictions can't be served, so the prediction routes don't take them.
 
 **Path Parameters:**
 
-- `id` (required): Station ID (URL-encoded if contains special characters)
+- `source` (required): The station's source, such as `noaa`
+- `id` (required): The station's ID within that source, such as `8722588`
 
 **Query Parameters:**
 
-- `start` (required): Start date/time in ISO 8601 format
-- `end` (required): End date/time in ISO 8601 format
-- `datum` (optional): Vertical datum
-- `units` (optional): Units for water levels
+- `start` (optional): Start date/time in ISO 8601 format, defaults to now
+- `end` (optional): End date/time in ISO 8601 format, defaults to 7 days from now
+- `datum` (optional): Vertical datum, defaults to the station's chart datum when its `datums` include it. A station whose `datums` don't, such as `noaa/8519024` (chart datum `STND`, no datums), gives heights about mean sea level, and its response has no `datum`.
+- `units` (optional): Units for water levels, `meters` (default) or `feet`
 
 **Example:**
 
 ```bash
-curl "http://localhost:3000/tides/stations/noaa%2F8722588/extremes?start=2025-12-17T00:00:00Z&end=2025-12-18T00:00:00Z"
+curl "http://localhost:3000/tides/stations/noaa/8722588/extremes?start=2025-12-17T00:00:00Z&end=2025-12-18T00:00:00Z"
 ```
 
-### GET /tides/stations/:id/timeline
+### GET /tides/stations/:source/:id/timeline
 
 Get timeline prediction for a specific station.
 
-**Parameters:** Same as `/stations/:id/extremes`
+**Parameters:** Same as `/tides/stations/:source/:id/extremes`
 
 ### GET /tides/openapi.json
 
@@ -203,6 +215,7 @@ Each station appears once, at its primary bin. As with `/tides/stations`, a loca
 - `bins`: each depth bin of the station, primary first, e.g. `[{ "id": "noaa/EPT0003" }, { "id": "noaa/EPT0003@11", "bin": 11 }]`
 - `predictions`: whether this API can serve predictions for the station
 - `unavailable`: why not, when `predictions` is `false`
+- `attribution` and `license`, as on `/tides/stations`
 
 ### GET /currents/stations/:source/:id
 

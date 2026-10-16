@@ -43,7 +43,8 @@
     "maplibre-gl": ">=4",
     "react": ">=18",
     "react-dom": ">=18",
-    "react-map-gl": ">=7"
+    "react-map-gl": ">=7",
+    "tailwindcss": "^4"
   },
   "peerDependenciesMeta": {
     "maplibre-gl": {
@@ -51,30 +52,21 @@
     },
     "react-map-gl": {
       "optional": true
+    },
+    "tailwindcss": {
+      "optional": true
     }
   },
   "dependencies": {
     "@tanstack/react-query": "^5.64.0",
-    "@visx/axis": "^4.0.1-alpha.0",
-    "@visx/curve": "^4.0.1-alpha.0",
-    "@visx/event": "^4.0.1-alpha.0",
-    "@visx/group": "^4.0.1-alpha.0",
-    "@visx/scale": "^4.0.1-alpha.0",
-    "@visx/shape": "^4.0.1-alpha.0",
-    "@visx/tooltip": "^4.0.1-alpha.0",
-    "astronomy-engine": "^2.1.19",
-    "coordinate-format": "^1.0.0",
-    "culori": "^4.0.2",
-    "d3-array": "^3.2.1"
+    "astronomy-engine": "^2.1.19"
   },
   "devDependencies": {
-    "@storybook/addon-themes": "^10.2.16",
     "@storybook/react": "^10.2.10",
     "@storybook/react-vite": "^10.2.10",
     "@tailwindcss/vite": "^4.2.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.6.1",
-    "@types/culori": "^4.0.1",
     "@types/geojson": "^7946.0.16",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

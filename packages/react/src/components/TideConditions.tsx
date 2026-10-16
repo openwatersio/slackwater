@@ -1,18 +1,29 @@
-import { useMemo } from "react";
-import { useCurrentLevel } from "../hooks/use-current-level.js";
-import { useTimeline } from "../hooks/use-timeline.js";
+import { useMemo, type ReactNode } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
+
 import { useExtremes } from "../hooks/use-extremes.js";
+import { useStation } from "../hooks/use-station.js";
+import { useTimeline } from "../hooks/use-timeline.js";
 import { useSlackwaterConfig } from "../provider.js";
-import { formatLevel } from "../utils/format.js";
-import { TideCycleGraph } from "./TideCycleGraph.js";
 import type { Extreme, TimelineEntry, Units } from "../types.js";
-import { HALF_TIDE_CYCLE_MS } from "../constants.js";
+import { WIDGET_BACK_MS, WIDGET_FORWARD_MS, cardRange, readTideCard } from "../utils/card.js";
+import { EMPTY_TIDE_MESSAGE } from "../utils/tide.js";
+import { TideReading, useMinuteClock } from "./StationCardFace.js";
+import { StationCardGraph } from "./StationCardGraph.js";
+
+const HOUR = 3_600_000;
 
 interface TideConditionsDataProps {
   timeline: TimelineEntry[];
   extremes: Extreme[];
   units: Units;
   timezone: string;
+  /** The station's name, over the reading. */
+  name?: string;
+  /** False when the heights aren't above a chart datum (a response without `datum`), so 0 is unmarked. */
+  chartDatum?: boolean;
+  /** The station's credit, printed under the widget; pass the station's `attribution`. */
+  attribution?: string;
 }
 
 interface TideConditionsFetchProps {
@@ -20,97 +31,38 @@ interface TideConditionsFetchProps {
 }
 
 export type TideConditionsProps = (TideConditionsDataProps | TideConditionsFetchProps) & {
-  showDate?: boolean;
-  /** Fill the parent's height instead of using the default minimum height */
+  /** Fill the parent's height instead of the small widget's 170 px. */
   fill?: boolean;
+  /** The current instant; defaults to the clock. Pass it to render deterministically. */
+  now?: number;
   className?: string;
 };
 
-const NEAR_EXTREME_MS = 10 * 60 * 1000;
-
-function getNearestExtremes(extremes: Extreme[]): {
-  current: Extreme | null;
-  next: Extreme | null;
-} {
-  const now = Date.now();
-  const nextIdx = extremes.findIndex((e) => e.time.getTime() > now);
-  if (nextIdx === -1) return { current: null, next: null };
-
-  const next = extremes[nextIdx];
-  // If we're within 10 minutes of the next extreme, treat it as "now"
-  if (next.time.getTime() - now <= NEAR_EXTREME_MS) {
-    return { current: next, next: extremes[nextIdx + 1] ?? null };
-  }
-
-  // Also check the previous extreme
-  if (nextIdx > 0) {
-    const prev = extremes[nextIdx - 1];
-    if (now - prev.time.getTime() <= NEAR_EXTREME_MS) {
-      return { current: prev, next };
-    }
-  }
-
-  return { current: null, next };
-}
-
-type TideState = "rising" | "falling" | "high" | "low";
-
-const STATE_ICON: Record<TideState, { icon: string; label: string; color: string }> = {
-  rising: { icon: "↗", label: "Rising", color: "text-(--slackwater-high)" },
-  falling: { icon: "↘", label: "Falling", color: "text-(--slackwater-low)" },
-  high: { icon: "⤒", label: "High tide", color: "text-(--slackwater-high)" },
-  low: { icon: "⤓", label: "Low tide", color: "text-(--slackwater-low)" },
-};
-
-export function WaterLevelAtTime({
-  label,
-  level,
-  time,
-  units,
-  locale,
-  timezone,
-  state,
-  variant,
+/** The widget's square: the canvas with the card's fill over it, clipped to the card's corners. */
+function Frame({
+  fill,
+  className,
+  children,
 }: {
-  label: string;
-  level: number;
-  time: Date;
-  units: Units;
-  locale: string;
-  timezone?: string;
-  state?: TideState;
-  variant?: "left" | "right";
+  fill?: boolean;
+  className?: string;
+  children: ReactNode;
 }) {
-  const stateIcon = state ? STATE_ICON[state] : null;
   return (
-    <div className={`flex flex-col${variant === "right" ? " items-end text-right" : ""}`}>
-      <div
-        className={`flex items-baseline gap-1 text-(--slackwater-text-muted) text-2xs uppercase tracking-wide${variant === "right" ? " flex-row-reverse" : ""}`}
-      >
-        <span>{label}</span>
-        {stateIcon && (
-          <span
-            role="img"
-            className={`text-lg font-semibold ${stateIcon.color}`}
-            aria-label={stateIcon.label}
-          >
-            {stateIcon.icon}
-          </span>
-        )}
-      </div>
-      <span
-        className={`flex items-baseline gap-1 text-xl @md:text-2xl text-nowrap font-semibold tabular-nums text-(--slackwater-text)${variant === "right" ? " flex-row-reverse" : ""}`}
-      >
-        {formatLevel(level, units)}
-      </span>
-      <span className="text-sm text-(--slackwater-text-muted)">
-        {time.toLocaleString(locale, {
-          timeStyle: "short",
-          timeZone: timezone,
-        })}
-      </span>
+    <div
+      className={`relative overflow-hidden rounded-(--sw-radius-card) text-white ${fill ? "h-full" : "h-[170px]"} ${className ?? ""}`}
+      style={{
+        background: "linear-gradient(var(--sw-card-fill), var(--sw-card-fill)), var(--sw-canvas)",
+        fontFamily: "var(--sw-font-sans)",
+      }}
+    >
+      {children}
     </div>
   );
+}
+
+function Message({ children }: { children: ReactNode }) {
+  return <p className="m-0 p-4 text-xs text-(--sw-foam)/85">{children}</p>;
 }
 
 function TideConditionsStatic({
@@ -118,155 +70,149 @@ function TideConditionsStatic({
   extremes,
   units,
   timezone,
-  showDate,
+  name,
+  chartDatum,
+  attribution,
   fill,
+  now: fixedNow,
   className,
-}: TideConditionsDataProps & { showDate: boolean; fill?: boolean; className?: string }) {
+}: TideConditionsDataProps & { fill?: boolean; now?: number; className?: string }) {
   const { locale } = useSlackwaterConfig();
-  const currentLevel = useCurrentLevel(timeline);
-  const { current: nearExtreme, next: nextExtreme } = getNearestExtremes(extremes);
+  const now = useMinuteClock(fixedNow);
+  const reading = readTideCard(timeline, extremes, now);
 
-  if (!currentLevel) {
-    return (
-      <div className={`text-(--slackwater-text) ${className ?? ""}`}>
-        <h2 className="text-lg">No tide data available</h2>
-      </div>
-    );
-  }
-
-  const dateLabel = currentLevel.time.toLocaleString(locale, {
-    dateStyle: "medium",
-    timeZone: timezone,
-  });
-
-  return (
-    <div
-      className={`@container text-(--slackwater-text) ${fill ? "h-full" : ""} ${className ?? ""}`}
-    >
-      <div
-        className={`relative ${fill ? "h-full" : "min-h-60"} border border-(--slackwater-border) rounded-md overflow-hidden`}
-      >
-        <TideCycleGraph timeline={timeline} extremes={extremes} className="absolute inset-0" />
-        {showDate && (
-          <div className="hidden @sm:block absolute top-0 left-0 m-4">
-            <h2 className="text-lg font-semibold">{dateLabel}</h2>
-          </div>
-        )}
-        <div
-          className={`flex flex-col justify-center items-center ${fill ? "h-full" : "min-h-60"} p-4 @sm:p-8 gap-1 pointer-events-none`}
-        >
-          {/* At small sizes the date flows centered above the levels instead
-              of overlaying the top-left corner */}
-          {showDate && <h2 className="@sm:hidden text-sm font-semibold">{dateLabel}</h2>}
-          <div className="flex justify-center items-center w-full gap-4 @sm:gap-8 *:flex-1">
-            <WaterLevelAtTime
-              {...(nearExtreme ?? currentLevel)}
-              label="Now"
-              units={units}
-              locale={locale}
+  const widget = (
+    // Under a caption, the square gives up the caption's height when it fills its parent.
+    <Frame fill={fill} className={attribution ? (fill ? "min-h-0 flex-1" : undefined) : className}>
+      {reading && timeline.length > 1 ? (
+        <>
+          {/* The graph clears the name and reading, and bleeds past the sides to leave on its own slope. */}
+          <div className="absolute -inset-x-[3px] top-[58px] bottom-0">
+            <StationCardGraph
+              data={{ kind: "tide", timeline, extremes, units, chartDatum }}
+              now={now}
+              back={WIDGET_BACK_MS}
+              forward={WIDGET_FORWARD_MS}
               timezone={timezone}
-              state={
-                nearExtreme
-                  ? nearExtreme.high
-                    ? "high"
-                    : "low"
-                  : nextExtreme
-                    ? nextExtreme.high
-                      ? "rising"
-                      : "falling"
-                    : undefined
-              }
-              variant="right"
+              locale={locale}
             />
-
-            {nextExtreme ? (
-              <WaterLevelAtTime
-                label="Next"
-                level={nextExtreme.level}
-                time={nextExtreme.time}
-                units={units}
-                locale={locale}
-                timezone={timezone}
-                state={nextExtreme.high ? "high" : "low"}
-              />
-            ) : (
-              <div></div>
-            )}
           </div>
-        </div>
-      </div>
-    </div>
+          <div className="relative flex flex-col gap-0.5 p-4">
+            {name && <span className="truncate text-[11px] text-(--sw-foam)">{name}</span>}
+            <span className="flex">
+              <TideReading reading={reading} units={units} locale={locale} compact />
+            </span>
+          </div>
+        </>
+      ) : (
+        <Message>{EMPTY_TIDE_MESSAGE}</Message>
+      )}
+    </Frame>
+  );
+  if (!attribution) return widget;
+  return (
+    <figure className={`m-0 flex flex-col gap-1.5 ${fill ? "h-full" : ""} ${className ?? ""}`}>
+      {widget}
+      <figcaption
+        className="px-1 text-[11px] leading-snug text-(--sw-foam)/62 wrap-anywhere"
+        style={{ fontFamily: "var(--sw-font-sans)" }}
+      >
+        {attribution}
+      </figcaption>
+    </figure>
   );
 }
 
 function TideConditionsFetcher({
   id,
-  showDate,
   fill,
+  now: fixedNow,
   className,
-}: TideConditionsFetchProps & { showDate: boolean; fill?: boolean; className?: string }) {
+}: TideConditionsFetchProps & { fill?: boolean; now?: number; className?: string }) {
   const config = useSlackwaterConfig();
-  const [start, end] = useMemo(() => {
-    const now = Date.now();
-    return [
-      new Date(now - HALF_TIDE_CYCLE_MS).toISOString(),
-      new Date(now + HALF_TIDE_CYCLE_MS).toISOString(),
-    ];
-  }, []);
+  const now = useMinuteClock(fixedNow);
+  // The card's window, so a widget and a card for one station share their queries.
+  const hour = Math.floor(now / HOUR) * HOUR;
+  const range = useMemo(() => cardRange(hour), [hour]);
+  const station = useStation(id);
+  const servable = station.data?.predictions !== false;
+  // Predictions wait for the station, so an unservable one (CHS) is never asked for them.
+  const options = {
+    enabled: !!station.data && servable,
+    staleTime: Infinity,
+    placeholderData: keepPreviousData,
+  };
+  const timeline = useTimeline({ id, ...range.timeline }, options);
+  const extremes = useExtremes({ id, ...range.extremes }, options);
 
-  const timeline = useTimeline({ id, start, end });
-  const extremes = useExtremes({ id, start, end });
-
-  if (timeline.isLoading || extremes.isLoading) {
+  if (!servable) {
     return (
-      <div className={`text-(--slackwater-text) ${fill ? "h-full" : ""} ${className ?? ""}`}>
-        <div
-          className={`${fill ? "h-full" : "min-h-60"} border border-(--slackwater-border) rounded-md flex items-center justify-center text-sm text-(--slackwater-text-muted)`}
-        >
-          Loading...
-        </div>
-      </div>
+      <Frame fill={fill} className={className}>
+        <Message>
+          {station.data!.unavailable ?? "Predictions aren't available for this station."}
+        </Message>
+      </Frame>
     );
   }
-
-  const error = timeline.error ?? extremes.error;
+  const error = station.error ?? timeline.error ?? extremes.error;
   if (error) {
     return (
-      <div className={`text-(--slackwater-text) ${fill ? "h-full" : ""} ${className ?? ""}`}>
-        <div
-          className={`${fill ? "h-full" : "min-h-60"} border border-(--slackwater-border) rounded-md flex items-center justify-center p-4 text-center text-sm text-red-500`}
-        >
-          {error.message}
-        </div>
-      </div>
+      <Frame fill={fill} className={className}>
+        <Message>{error.message}</Message>
+      </Frame>
     );
   }
-
-  if (!timeline.data || !extremes.data) return null;
+  if (!timeline.data || !extremes.data) {
+    return (
+      <Frame fill={fill} className={className}>
+        <div className="flex h-full items-center justify-center" aria-busy="true">
+          <Waves />
+          <span className="sr-only">Loading</span>
+        </div>
+      </Frame>
+    );
+  }
 
   return (
     <TideConditionsStatic
       timeline={timeline.data.timeline}
       extremes={extremes.data.extremes}
-      units={timeline.data.units ?? config.units}
-      timezone={config.timezone ?? extremes.data.station?.timezone ?? "UTC"}
-      showDate={showDate}
+      units={timeline.data.units}
+      timezone={config.timezone ?? timeline.data.station.timezone}
+      name={timeline.data.station.name}
+      chartDatum={!!timeline.data.datum}
+      attribution={timeline.data.station.attribution}
       fill={fill}
+      now={fixedNow}
       className={className}
     />
   );
 }
 
-export function TideConditions({
-  showDate = true,
-  fill,
-  className,
-  ...props
-}: TideConditionsProps) {
+/** SF Symbol `water.waves`: the widget's placeholder while it loads. */
+function Waves() {
+  return (
+    <svg width={30} height={26} viewBox="0 0 30 26" aria-hidden="true">
+      <path
+        d="M2 5c3-3 5-3 7 0s4 3 6 0 4-3 6 0 4 3 7 0M2 13c3-3 5-3 7 0s4 3 6 0 4-3 6 0 4 3 7 0M2 21c3-3 5-3 7 0s4 3 6 0 4-3 6 0 4 3 7 0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.2}
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+/**
+ * The tide now, after the app's small home-screen widget: the station's
+ * name, the height with an arrow for rising or falling, and the curve from
+ * half a swing back to a swing and a half ahead, whose labels name the next
+ * turns. Pass data, or a station ID to fetch it.
+ */
+export function TideConditions({ fill, now, className, ...props }: TideConditionsProps) {
   if ("id" in props) {
-    return (
-      <TideConditionsFetcher id={props.id} showDate={showDate} fill={fill} className={className} />
-    );
+    return <TideConditionsFetcher id={props.id} fill={fill} now={now} className={className} />;
   }
-  return <TideConditionsStatic {...props} showDate={showDate} fill={fill} className={className} />;
+  return <TideConditionsStatic {...props} fill={fill} now={now} className={className} />;
 }

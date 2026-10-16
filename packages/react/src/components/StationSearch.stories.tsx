@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { fireEvent, within } from "storybook/test";
 import { SlackwaterProvider } from "../provider.js";
 import { StationSearch } from "./StationSearch.js";
 
@@ -7,46 +8,40 @@ const meta: Meta<typeof StationSearch> = {
   component: StationSearch,
   decorators: [
     (Story) => (
-      <div style={{ maxWidth: 400, padding: "2rem" }}>
+      <div style={{ maxWidth: 800, padding: 16 }}>
         <Story />
       </div>
     ),
   ],
+  args: { onSelect: (station) => console.log("Selected:", station) },
 };
 
 export default meta;
 type Story = StoryObj<typeof StationSearch>;
 
-export const Default: Story = {
-  args: {
-    onSelect: (station) => console.log("Selected:", station),
-  },
-};
+export const Default: Story = {};
 
-export const CustomPlaceholder: Story = {
-  args: {
-    onSelect: (station) => console.log("Selected:", station),
-    placeholder: "Find a tide station...",
-  },
-};
+const search = (query: string) =>
+  async function play({ canvasElement }: { canvasElement: HTMLElement }) {
+    const field = await within(canvasElement).findByRole("searchbox");
+    fireEvent.change(field, { target: { value: query } });
+  };
 
-export const Loading: Story = {
-  args: {
-    onSelect: (station) => console.log("Selected:", station),
-  },
-  decorators: [
-    (Story) => (
-      <SlackwaterProvider baseUrl="http://localhost:1">
-        <Story />
-      </SlackwaterProvider>
-    ),
-  ],
-};
+/** Tide and current stations together, ranked by where the query matches. */
+export const Results: Story = { play: search("Deception") };
+
+/** Results from Kartverket and NOAA, with the credit they owe under them. */
+export const Credited: Story = { play: search("Bergen") };
+
+/** A broad query stops at sixty results and says so. */
+export const Truncated: Story = { play: search("bay") };
+
+export const NoMatches: Story = { play: search("Xyzzy") };
+
+export const CustomPlaceholder: Story = { args: { placeholder: "Find a station" } };
 
 export const Error: Story = {
-  args: {
-    onSelect: (station) => console.log("Selected:", station),
-  },
+  play: search("Boston"),
   decorators: [
     (Story) => (
       <SlackwaterProvider baseUrl="http://localhost:1">
@@ -54,19 +49,4 @@ export const Error: Story = {
       </SlackwaterProvider>
     ),
   ],
-};
-
-export const WithRecentSearches: Story = {
-  args: {
-    onSelect: (station) => console.log("Selected:", station),
-  },
-  play: () => {
-    // Seed localStorage with recent searches for this story
-    const recent = [
-      { id: "noaa/8443970", name: "Boston, MA", region: "Massachusetts", country: "US" },
-      { id: "noaa/8518750", name: "The Battery, NY", region: "New York", country: "US" },
-      { id: "noaa/9414290", name: "San Francisco, CA", region: "California", country: "US" },
-    ];
-    localStorage.setItem("slackwater-recent-searches", JSON.stringify(recent));
-  },
 };

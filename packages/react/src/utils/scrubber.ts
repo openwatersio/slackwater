@@ -1,3 +1,5 @@
+import type { Day } from "./time.js";
+
 const HOUR = 3_600_000;
 
 /** Constant time scale in CSS pixels per hour; never stretched on wide screens. */
@@ -83,4 +85,107 @@ export function dayRowHit(
   sun.forEach((t) => consider(t, true));
   dates.forEach((t) => consider(t, false));
   return best;
+}
+
+/** `value` at `time`, linearly interpolated between sorted samples; undefined outside them. */
+export function interpolate<T extends { time: Date }>(
+  points: T[],
+  time: number,
+  value: (p: T) => number,
+): number | undefined {
+  let lo = 0;
+  let hi = points.length - 1;
+  if (hi < 0 || time < points[0].time.getTime() || time > points[hi].time.getTime()) {
+    return undefined;
+  }
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (points[mid].time.getTime() <= time) lo = mid;
+    else hi = mid;
+  }
+  const a = points[lo];
+  const b = points[hi];
+  const span = b.time.getTime() - a.time.getTime();
+  return span === 0
+    ? value(a)
+    : value(a) + ((value(b) - value(a)) * (time - a.time.getTime())) / span;
+}
+
+export type StopKind =
+  "High" | "Low" | "Slack" | "Flood" | "Ebb" | "Max flood" | "Max ebb" | "Sunrise" | "Sunset";
+
+export interface Stop {
+  time: number;
+  label: StopKind;
+}
+
+/** What a screen reader hears for each stop, after the app's VoiceOver labels. */
+const SPOKEN: Record<StopKind, string> = {
+  High: "High tide",
+  Low: "Low tide",
+  Slack: "Slack current",
+  Flood: "Flood current",
+  Ebb: "Ebb current",
+  "Max flood": "Maximum flood current",
+  "Max ebb": "Maximum ebb current",
+  Sunrise: "Sunrise",
+  Sunset: "Sunset",
+};
+
+/** Water and sun stops inside the drawn data, in time order; a sun event sharing an instant comes first. */
+export function scrubberStops(water: Stop[], days: Day[], start: number, end: number): Stop[] {
+  const sun = days.flatMap((d): Stop[] => [
+    ...(d.sunrise === undefined ? [] : [{ time: d.sunrise, label: "Sunrise" as const }]),
+    ...(d.sunset === undefined ? [] : [{ time: d.sunset, label: "Sunset" as const }]),
+  ]);
+  return [...sun, ...water]
+    .filter((s) => s.time >= start && s.time <= end)
+    .sort((a, b) => a.time - b.time);
+}
+
+/** "28m" or "3h 28m", floored to whole minutes. */
+export function formatCountdown(ms: number): string {
+  const minutes = Math.floor(ms / 60_000);
+  const h = Math.floor(minutes / 60);
+  return h > 0 ? `${h}h ${minutes % 60}m` : `${minutes}m`;
+}
+
+/** A countdown in words, for screen readers: "3 hours, 28 minutes". */
+export function spokenDuration(ms: number, locale?: string): string {
+  const minutes = Math.floor(ms / 60_000);
+  const unit = (n: number, unit: string) =>
+    new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "long" }).format(n);
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return unit(m, "minute");
+  return m === 0
+    ? unit(h, "hour")
+    : new Intl.ListFormat(locale, { style: "short", type: "unit" }).format([
+        unit(h, "hour"),
+        unit(m, "minute"),
+      ]);
+}
+
+export interface Commentary {
+  stop: Stop;
+  /** Compact countdown: "28m", "3h 28m". */
+  duration: string;
+  /** The whole relationship for screen readers: "Maximum flood current in 28 minutes". */
+  spoken: string;
+}
+
+/** The commentary pill: the first stop more than a second after `time`. */
+export function commentary(time: number, stops: Stop[], locale?: string): Commentary | undefined {
+  const stop = stops.find((s) => s.time > time + 1000);
+  if (!stop) return undefined;
+  return {
+    stop,
+    duration: formatCountdown(stop.time - time),
+    spoken: `${SPOKEN[stop.label]} in ${spokenDuration(stop.time - time, locale)}`,
+  };
+}
+
+/** Sorted, unique times inside [start, end]. */
+export function targetsWithin(times: number[], start: number, end: number): number[] {
+  return [...new Set(times.filter((t) => t >= start && t <= end))].sort((a, b) => a - b);
 }

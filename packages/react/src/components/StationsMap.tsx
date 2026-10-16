@@ -1,453 +1,588 @@
 import {
-  useState,
-  useCallback,
-  useMemo,
   forwardRef,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
   type ComponentProps,
-  type ReactNode,
+  type Ref,
 } from "react";
 import {
-  Map,
-  Source,
   Layer,
-  Popup,
-  type MapRef,
-  type ViewStateChangeEvent,
+  Map,
+  Marker,
+  Source,
+  useControl,
+  type LayerProps,
   type MapLayerMouseEvent,
-  type MapEvent,
+  type MapRef,
 } from "react-map-gl/maplibre";
 import "maplibre-gl/dist/maplibre-gl.css";
-import type { FeatureCollection, Point } from "geojson";
-import { keepPreviousData } from "@tanstack/react-query";
+import type { ExpressionSpecification, Map as MapLibreMap } from "maplibre-gl";
+import type { Feature, FeatureCollection, Point } from "geojson";
+import {
+  keepPreviousData,
+  useQueries,
+  type UseQueryOptions,
+  type UseQueryResult,
+} from "@tanstack/react-query";
 
-import { useStation } from "../hooks/use-station.js";
+import { currentTimelineQuery, useCurrentStations } from "../hooks/use-current-station.js";
+import { extremesQuery } from "../hooks/use-extremes.js";
 import { useStations } from "../hooks/use-stations.js";
-import { useDebouncedCallback } from "../hooks/use-debounced-callback.js";
-import { useThemeColors } from "../hooks/use-theme-colors.js";
-import { TideConditions } from "./TideConditions.js";
-import type { StationSummary } from "../types.js";
+import { timelineQuery } from "../hooks/use-timeline.js";
+import { useThemeColors, type ThemeColors } from "../hooks/use-theme-colors.js";
+import { useSlackwaterConfig } from "../provider.js";
+import type { CurrentTimelineResponse, ExtremesResponse, TimelineResponse } from "../types.js";
+import { cardRange } from "../utils/card.js";
+import { creditHtml, distinctCredits } from "../utils/credit.js";
+import { DEFAULT_SLACK_THRESHOLD } from "../utils/current.js";
+import { drawPinImage, pinImageId } from "../utils/pin-images.js";
+import {
+  LOCATE_ZOOM,
+  NAME_MIN_ZOOM,
+  PIN_CELL,
+  PIN_RADIUS,
+  PIN_SCALE,
+  PIN_VIEWPORT_PAD,
+  READING_MIN_ZOOM,
+  UNAVAILABLE_PIN,
+  UNKNOWN_PIN,
+  boxContains,
+  boxCovers,
+  boxFromBounds,
+  currentPinState,
+  listingBbox,
+  padBox,
+  pinRank,
+  pinScaleExpression,
+  stationKey,
+  tidePinState,
+  visibleStations,
+  type MapStation,
+  type PinBox,
+  type PinState,
+} from "../utils/pin.js";
+import { StationCard } from "./StationCard.js";
+import { StationCredits } from "./StationCredits.js";
+import { useMinuteClock } from "./StationCardFace.js";
 
-// Props that StationsMap manages internally and cannot be overridden
-type ManagedMapProps = "onMove" | "onClick" | "interactiveLayerIds" | "style" | "cursor";
+/** OpenFreeMap's fiord: the app's dark basemap, whose water the pin colors are tuned against. */
+const BASEMAP_STYLE = "https://tiles.openfreemap.org/styles/fiord";
+/** fiord's only fontstack, so station text shares the basemap's glyphs. */
+const LABEL_FONT = ["Noto Sans Regular"];
+/** The selected pin's disc, in dot radii. */
+const SELECTED_DISC = 3.4;
+const PANEL_MARGIN = 12;
+const HOUR = 3_600_000;
+
+const SOURCE = "sw-stations";
+const PIN_LAYER = "sw-pins";
+
+type ManagedMapProps =
+  | "onLoad"
+  | "onMoveEnd"
+  | "onClick"
+  | "onMouseEnter"
+  | "onMouseLeave"
+  | "interactiveLayerIds"
+  | "style"
+  | "cursor"
+  | "attributionControl"
+  | "dragRotate"
+  | "touchPitch"
+  | "pitchWithRotate"
+  | "maxPitch";
 
 export interface StationsMapProps extends Omit<ComponentProps<typeof Map>, ManagedMapProps> {
-  onStationSelect?: (station: StationSummary) => void;
+  /** Called when the selected station's card is tapped: the map's way to open a station. */
+  onStationSelect?: (station: MapStation) => void;
+  /** Called with the visible bounds each time the camera settles. */
   onBoundsChange?: (bounds: { north: number; south: number; east: number; west: number }) => void;
-  /** Whether to show the geolocation button. Defaults to true. */
+  /** Whether to show the locate button. Defaults to true. */
   showGeolocation?: boolean;
-  /** Station ID to highlight with a larger marker. The marker is never absorbed by clusters. */
+  /** Station ID to mark as selected without opening its card: the station a page is about. */
   focusStation?: string;
-  /** Enable clustering of station markers. Defaults to true. */
-  clustering?: boolean;
-  /** Max zoom level at which clusters are generated. Defaults to 14. */
-  clusterMaxZoom?: number;
-  /** Cluster radius in pixels. Defaults to 50. */
-  clusterRadius?: number;
-  /**
-   * Controls popup content when clicking a station.
-   * - `"preview"` (default): shows station name + next tide (fetched), only at zoom >= 10
-   * - `"simple"`: shows station name + region, no API call, no zoom gate
-   * - function: receives station summary, return ReactNode, no zoom gate
-   * - `false`: disables popups entirely (onStationSelect still fires)
-   */
-  popupContent?: "preview" | "simple" | ((station: StationSummary) => ReactNode) | false;
+  /** Boat-speed threshold for slack, in knots. */
+  threshold?: number;
+  /** The current instant; defaults to the clock. Pass it to render deterministically. */
+  now?: number;
   /** CSS class applied to the outer wrapper div. */
   className?: string;
 }
 
-function stationsToGeoJSON(stations: StationSummary[]): FeatureCollection {
-  return {
-    type: "FeatureCollection",
-    features: stations.map(({ longitude, latitude, ...properties }) => ({
-      type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [longitude, latitude],
-      },
-      properties,
-    })),
+/** Predictions never change for a fixed window, and the window moves on the hour. */
+const PREDICTIONS = { staleTime: Infinity };
+
+const pinData = (results: UseQueryResult<unknown>[]) => results.map((r) => r.data);
+
+const TONE_COLOR: Record<string, keyof ThemeColors> = {
+  rising: "graphHigh",
+  falling: "graphLow",
+  slack: "go",
+  unknown: "steel",
+};
+
+function pinColor(state: PinState, colors: ThemeColors): string {
+  const named = TONE_COLOR[state.tone];
+  return named ? colors[named] : state.tone;
+}
+
+const zoomRamp = (from: number, to: number) =>
+  [
+    "interpolate",
+    ["linear"],
+    ["zoom"],
+    READING_MIN_ZOOM,
+    from,
+    PIN_SCALE.to,
+    to,
+  ] as unknown as ExpressionSpecification;
+
+function layers(colors: ThemeColors): LayerProps[] {
+  const caption = {
+    "text-font": LABEL_FONT,
+    "text-size": zoomRamp(11, 13),
   };
+  const captionPaint = {
+    "text-color": colors.mapLabel,
+    "text-halo-color": colors.mapInk,
+    "text-halo-width": 1,
+  };
+  // MapLibre places symbols from the last layer back: pins claim space first, then readings, then names.
+  return [
+    {
+      id: "sw-selected",
+      type: "circle",
+      filter: ["==", ["get", "selected"], true],
+      paint: {
+        "circle-radius": pinScaleExpression(
+          PIN_RADIUS * SELECTED_DISC,
+        ) as unknown as ExpressionSpecification,
+        "circle-color": colors.mapLabel,
+        "circle-opacity": 0.18,
+      },
+    },
+    {
+      id: "sw-names",
+      type: "symbol",
+      minzoom: NAME_MIN_ZOOM,
+      layout: {
+        ...caption,
+        "symbol-sort-key": ["get", "rank"],
+        "text-field": ["get", "name"],
+        "text-anchor": "top",
+        "text-padding": 4,
+        "text-offset": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          READING_MIN_ZOOM,
+          ["literal", [0, 1]],
+          PIN_SCALE.to,
+          ["literal", [0, 2.4]],
+        ],
+      },
+      paint: captionPaint,
+    },
+    {
+      id: "sw-readings",
+      type: "symbol",
+      minzoom: READING_MIN_ZOOM,
+      filter: ["all", ["has", "reading"], ["!=", ["get", "shape"], "gauge"]],
+      layout: {
+        ...caption,
+        "symbol-sort-key": ["get", "rank"],
+        "text-field": ["get", "reading"],
+        // An arrow is nearly square, so any side will do.
+        "text-variable-anchor": ["bottom", "top", "left", "right"],
+        "text-radial-offset": zoomRamp(0.9, 1.5),
+        "text-justify": "auto",
+      },
+      paint: captionPaint,
+    },
+    {
+      id: "sw-readings-tide",
+      type: "symbol",
+      minzoom: READING_MIN_ZOOM,
+      filter: ["==", ["get", "shape"], "gauge"],
+      layout: {
+        ...caption,
+        "symbol-sort-key": ["get", "rank"],
+        "text-field": ["get", "reading"],
+        // A gauge is three times taller than wide, so its reading sits beside the bar.
+        "text-variable-anchor": ["left", "right"],
+        "text-radial-offset": zoomRamp(0.7, 1),
+        "text-justify": "auto",
+      },
+      paint: captionPaint,
+    },
+    {
+      id: PIN_LAYER,
+      type: "symbol",
+      layout: {
+        "icon-image": ["get", "icon"],
+        "icon-size": pinScaleExpression() as unknown as ExpressionSpecification,
+        "icon-rotate": ["get", "bearing"],
+        "icon-rotation-alignment": "map",
+        // Always drawn, but still registered so no text lands on a pin.
+        "icon-allow-overlap": true,
+        "icon-ignore-placement": false,
+      },
+    },
+  ];
 }
 
-function StationPreviewCard({ stationId }: { stationId: string }) {
-  return <TideConditions id={stationId} showDate={false} />;
+/** The map's attribution: the basemap's credit, then the credits of the stations predicted in view. */
+function Credits({ credits }: { credits: string[] }) {
+  const control = useControl(
+    ({ mapLib }) => new mapLib.AttributionControl({ compact: true, customAttribution: credits }),
+    { position: "top-right" },
+  );
+  useEffect(() => {
+    // MapLibre reads the options only when the control is added; a new control would open again after a pan collapsed it.
+    control.options = { ...control.options, customAttribution: credits };
+    control._updateAttributions();
+  }, [control, credits]);
+  return null;
 }
 
+function setRef<T>(ref: Ref<T> | undefined, value: T | null) {
+  if (typeof ref === "function") ref(value);
+  else if (ref) ref.current = value;
+}
+
+/**
+ * The app's stations map: every tide and current station in view as a live
+ * pin on the dark fiord basemap, thinned to one per 44 px cell. A tap shows
+ * the station's card in a panel; tapping the card calls `onStationSelect`.
+ */
 export const StationsMap = forwardRef<MapRef, StationsMapProps>(function StationsMap(
   {
     onStationSelect,
     onBoundsChange,
     focusStation,
     showGeolocation = true,
-    clustering = true,
-    clusterMaxZoom: clusterMaxZoomProp = 7,
-    clusterRadius: clusterRadiusProp = 50,
-    popupContent = "preview",
+    threshold = DEFAULT_SLACK_THRESHOLD,
+    now: fixedNow,
+    mapStyle = BASEMAP_STYLE,
     children,
     className,
     ...mapProps
   },
   ref,
 ) {
-  const [viewState, setViewState] = useState(mapProps.initialViewState ?? {});
-  const [bbox, setBbox] = useState<[number, number, number, number] | null>(null);
-  const debouncedSetBbox = useDebouncedCallback(setBbox, 200);
-  const [selectedStation, setSelectedStation] = useState<StationSummary | null>(null);
-
+  const config = useSlackwaterConfig();
   const colors = useThemeColors();
+  const now = useMinuteClock(fixedNow);
+  const mapRef = useRef<MapRef | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [camera, setCamera] = useState<{ view: PinBox; zoom: number } | null>(null);
+  const [listBox, setListBox] = useState<PinBox | null>(null);
+  const [selected, setSelected] = useState<MapStation | null>(null);
+  const [hovering, setHovering] = useState(false);
+  const [position, setPosition] = useState<{ latitude: number; longitude: number } | null>(null);
 
-  const {
-    data: stations = [],
-    isLoading,
-    isError,
-  } = useStations(bbox ? { bbox: bbox.join(",") } : {}, {
-    enabled: bbox !== null,
-    placeholderData: keepPreviousData,
-  });
+  const bbox = listBox ? listingBbox(listBox) : undefined;
+  const listing = { enabled: !!bbox, placeholderData: keepPreviousData };
+  const tides = useStations(bbox ? { bbox } : {}, listing);
+  const currents = useCurrentStations(bbox ? { bbox } : {}, listing);
 
-  // Focus station: fetch if not in loaded stations, build separate GeoJSON
-  const focusStationInList = focusStation ? stations.find((s) => s.id === focusStation) : undefined;
-  const { data: fetchedFocusStation } = useStation(
-    focusStation && !focusStationInList ? focusStation : undefined,
+  const stations = useMemo<MapStation[]>(
+    () => [...(tides.data ?? []), ...(currents.data ?? [])],
+    [tides.data, currents.data],
   );
-  const focusStationData: StationSummary | undefined =
-    focusStationInList ?? (fetchedFocusStation as StationSummary | undefined);
+  const selectedKey = selected ? stationKey(selected) : undefined;
+  const pinned = useMemo(() => {
+    const focus = stations.find((s) => s.id === focusStation);
+    return [selectedKey, focus && stationKey(focus)].filter((k): k is string => !!k);
+  }, [stations, focusStation, selectedKey]);
 
-  const geojson = useMemo(
+  const visible = useMemo(
     () =>
-      stationsToGeoJSON(focusStation ? stations.filter((s) => s.id !== focusStation) : stations),
-    [stations, focusStation],
+      camera
+        ? visibleStations(stations, padBox(camera.view, PIN_VIEWPORT_PAD), camera.zoom, pinned)
+        : [],
+    [stations, camera, pinned],
   );
 
-  const focusGeoJSON: FeatureCollection | null = useMemo(() => {
-    if (!focusStationData) return null;
-    return stationsToGeoJSON([focusStationData]);
-  }, [focusStationData]);
+  // Pins read the card's own queries, so a pin and the card it opens share one fetch.
+  const hour = Math.floor(now / HOUR) * HOUR;
+  const range = useMemo(() => cardRange(hour), [hour]);
+  const detailed = !!camera && camera.zoom >= READING_MIN_ZOOM;
+  const queries = useMemo(
+    () =>
+      visible.flatMap((s): UseQueryOptions<unknown>[] => {
+        const enabled =
+          detailed && s.predictions !== false && boxContains(camera!.view, s.latitude, s.longitude);
+        const options = { ...PREDICTIONS, enabled };
+        return s.kind === "tide"
+          ? [
+              { ...timelineQuery(config, { id: s.id, ...range.timeline }), ...options },
+              { ...extremesQuery(config, { id: s.id, ...range.extremes }), ...options },
+            ]
+          : [{ ...currentTimelineQuery(config.baseUrl, s.id, range.timeline), ...options }];
+      }),
+    [visible, detailed, camera, config, range],
+  );
+  const data = useQueries({ queries, combine: pinData });
+  // useQueries can't keep previous data, so each pin keeps its last window until the next hour's loads.
+  const held = useRef(new globalThis.Map<string, unknown[]>());
 
-  const updateBbox = useCallback(
-    (e: MapEvent) => {
-      const map = e.target;
-      const mapBounds = map.getBounds();
-      const sw = mapBounds.getSouthWest();
-      const ne = mapBounds.getNorthEast();
-      debouncedSetBbox([sw.lng, sw.lat, ne.lng, ne.lat]);
+  const { pins, credits } = useMemo(() => {
+    let i = 0;
+    const holding = new globalThis.Map<string, unknown[]>();
+    const shown: (string | undefined)[] = [];
+    const features = visible.map((s): Feature<Point> => {
+      const key = stationKey(s);
+      const count = s.kind === "tide" ? 2 : 1;
+      const fresh = data.slice(i, (i += count));
+      const own = fresh.every((d) => d !== undefined) ? fresh : (held.current.get(key) ?? fresh);
+      holding.set(key, own);
+      // A pin's color and reading are the station's predictions, so a pin on screen owes its credit.
+      const response = own[0] as TimelineResponse | CurrentTimelineResponse | undefined;
+      if (response && camera && boxContains(camera.view, s.latitude, s.longitude)) {
+        shown.push(response.station.attribution);
+      }
+      let state: PinState;
+      if (s.kind === "tide") {
+        const [timeline, extremes] = own as [TimelineResponse?, ExtremesResponse?];
+        state =
+          timeline && extremes
+            ? tidePinState(
+                timeline.timeline,
+                extremes.extremes,
+                timeline.units,
+                now,
+                detailed,
+                config.locale,
+              )
+            : UNKNOWN_PIN;
+      } else {
+        const [timeline] = own as [CurrentTimelineResponse?];
+        const sets = timeline?.station.current;
+        state = timeline
+          ? currentPinState(
+              timeline.timeline,
+              { flood: sets?.flood_direction, ebb: sets?.ebb_direction },
+              threshold,
+              now,
+              detailed,
+              config.locale,
+            )
+          : UNKNOWN_PIN;
+      }
+      if (s.predictions === false) state = UNAVAILABLE_PIN;
+      return {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [s.longitude, s.latitude] },
+        properties: {
+          key,
+          name: s.name,
+          rank: pinRank(s),
+          shape: state.shape,
+          icon: pinImageId(state, pinColor(state, colors)),
+          bearing: state.bearing ?? 0,
+          ...(state.reading && { reading: state.reading }),
+          ...(pinned.includes(key) && { selected: true }),
+        },
+      };
+    });
+    held.current = holding;
+    const pins: FeatureCollection<Point> = { type: "FeatureCollection", features };
+    return { pins, credits: distinctCredits(shown).map(creditHtml) };
+  }, [visible, data, now, detailed, threshold, colors, config.locale, pinned, camera]);
+
+  const byKey = useMemo(
+    () => new globalThis.Map(visible.map((s) => [stationKey(s), s])),
+    [visible],
+  );
+
+  const settle = useCallback(
+    (map: MapLibreMap) => {
+      const b = map.getBounds();
+      const view = boxFromBounds(b.getWest(), b.getSouth(), b.getEast(), b.getNorth());
+      setCamera({ view, zoom: map.getZoom() });
+      setListBox((held) => (held && boxCovers(held, view) ? held : padBox(view, PIN_VIEWPORT_PAD)));
       onBoundsChange?.({
-        north: mapBounds.getNorth(),
-        south: mapBounds.getSouth(),
-        east: mapBounds.getEast(),
-        west: mapBounds.getWest(),
+        north: b.getNorth(),
+        south: b.getSouth(),
+        east: b.getEast(),
+        west: b.getWest(),
       });
     },
-    [onBoundsChange, debouncedSetBbox],
+    [onBoundsChange],
   );
 
-  const handleMove = useCallback(
-    (e: ViewStateChangeEvent) => {
-      setViewState(e.viewState);
-      updateBbox(e);
+  const handleLoad = useCallback(
+    (e: { target: MapLibreMap }) => {
+      const map = e.target;
+      map.touchZoomRotate.disableRotation();
+      map.keyboard.disableRotation();
+      const draw = (id: string) => {
+        const drawn = drawPinImage(id, colors.mapInk);
+        if (drawn && !map.hasImage(id))
+          map.addImage(id, drawn.image, { pixelRatio: drawn.pixelRatio });
+      };
+      // The resolver arrived in MapLibre 6; earlier versions only fire the event.
+      if (map.setMissingStyleImageResolver) map.setMissingStyleImageResolver(draw);
+      else map.on("styleimagemissing", ({ id }: { id: string }) => draw(id));
+      settle(map);
     },
-    [updateBbox],
+    [colors.mapInk, settle],
   );
 
-  const handleMapClick = useCallback(
+  const handleClick = useCallback(
     (e: MapLayerMouseEvent) => {
-      const feature = e.features?.[0];
-      if (!feature) return;
-
-      const props = feature.properties;
-
-      // Cluster click → zoom in
-      if (props?.cluster) {
-        setViewState((prev) => ({
-          ...prev,
-          longitude: (feature.geometry as Point).coordinates[0],
-          latitude: (feature.geometry as Point).coordinates[1],
-          zoom: Math.min((prev.zoom ?? 3) + 2, 18),
-        }));
-        return;
+      const map = e.target;
+      // A tap can land before the pins join the style, or while a new style loads.
+      if (!map.getLayer(PIN_LAYER)) return;
+      const { x, y } = e.point;
+      const half = PIN_CELL / 2;
+      const hits = map.queryRenderedFeatures(
+        [
+          [x - half, y - half],
+          [x + half, y + half],
+        ],
+        { layers: [PIN_LAYER] },
+      );
+      let nearest: MapStation | undefined;
+      let best = Infinity;
+      for (const hit of hits) {
+        const [lon, lat] = (hit.geometry as Point).coordinates;
+        const p = map.project([lon, lat]);
+        const d = Math.hypot(p.x - x, p.y - y);
+        const station = byKey.get(hit.properties.key as string);
+        if (station && d < best) [nearest, best] = [station, d];
       }
-
-      // Station point click
-      if (props?.id) {
-        const coords = (feature.geometry as Point).coordinates;
-        const station = {
-          ...props,
-          latitude: coords[1],
-          longitude: coords[0],
-        } as StationSummary;
-
-        if (popupContent !== false) {
-          setSelectedStation(station);
-        }
-
-        onStationSelect?.(station);
-      }
+      setSelected(nearest ?? null);
     },
-    [onStationSelect, popupContent],
+    [byKey],
   );
 
-  const handleLocateMe = useCallback(() => {
+  // Center the picked pin in the map the panel and its note leave uncovered.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selected) return;
+    const cover = (panelRef.current?.offsetHeight ?? 0) + PANEL_MARGIN;
+    map.easeTo({ center: [selected.longitude, selected.latitude], offset: [0, -cover / 2] });
+    // Keyed on the pick alone, so a listing refresh of the same station leaves the camera be.
+  }, [selectedKey]);
+
+  const locate = useCallback(() => {
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setViewState((prev) => ({
-          ...prev,
-          longitude: pos.coords.longitude,
-          latitude: pos.coords.latitude,
-          zoom: Math.max(prev.zoom ?? 0, 10),
-        }));
+      ({ coords }) => {
+        setPosition({ latitude: coords.latitude, longitude: coords.longitude });
+        mapRef.current?.easeTo({ center: [coords.longitude, coords.latitude], zoom: LOCATE_ZOOM });
       },
       () => {
-        // Silently ignore geolocation errors
+        // A refused or failed fix leaves the camera where it is.
       },
     );
   }, []);
 
+  const loading = !tides.data && !currents.data && (tides.isFetching || currents.isFetching);
+  const failed = tides.isError && currents.isError;
+  const mapLayers = useMemo(() => layers(colors), [colors]);
+
   return (
-    <div className={`relative w-full h-full ${className ?? ""}`}>
+    <div
+      className={`sw-map relative h-full w-full overflow-hidden bg-(--sw-canvas) ${className ?? ""}`}
+    >
       <Map
-        ref={ref}
         {...mapProps}
-        {...viewState}
-        onLoad={updateBbox}
-        onMove={handleMove}
-        onClick={handleMapClick}
-        interactiveLayerIds={["clusters", "unclustered-point"]}
+        ref={(map) => {
+          mapRef.current = map;
+          setRef(ref, map);
+        }}
+        mapStyle={mapStyle}
+        onLoad={handleLoad}
+        onMoveEnd={(e) => settle(e.target)}
+        onClick={handleClick}
+        interactiveLayerIds={[PIN_LAYER]}
+        onMouseEnter={() => setHovering(true)}
+        onMouseLeave={() => setHovering(false)}
+        cursor={hovering ? "pointer" : "grab"}
         style={{ width: "100%", height: "100%" }}
-        cursor="pointer"
         attributionControl={false}
+        dragRotate={false}
+        touchPitch={false}
+        pitchWithRotate={false}
+        maxPitch={0}
       >
-        <Source
-          id="stations"
-          type="geojson"
-          data={geojson}
-          cluster={clustering}
-          clusterMaxZoom={clusterMaxZoomProp}
-          clusterRadius={clusterRadiusProp}
-        >
-          {/* Clustered circles */}
-          <Layer
-            id="clusters"
-            type="circle"
-            filter={["has", "point_count"]}
-            paint={{
-              "circle-color": [
-                "step",
-                ["get", "point_count"],
-                "#60a5fa",
-                50,
-                "#3b82f6",
-                200,
-                "#2563eb",
-              ],
-              "circle-radius": ["step", ["get", "point_count"], 18, 50, 24, 200, 30],
-              "circle-stroke-width": 2,
-              "circle-stroke-color": "#ffffff",
-            }}
-          />
-
-          {/* Cluster count labels */}
-          <Layer
-            id="cluster-count"
-            type="symbol"
-            filter={["has", "point_count"]}
-            layout={{
-              "text-field": ["get", "point_count_abbreviated"],
-              "text-size": 12,
-              "text-allow-overlap": true,
-            }}
-            paint={{
-              "text-color": "#ffffff",
-            }}
-          />
-
-          {/* Unclustered station points — colored by type */}
-          <Layer
-            id="unclustered-point"
-            type="circle"
-            filter={["!", ["has", "point_count"]]}
-            paint={{
-              "circle-color": [
-                "match",
-                ["get", "type"],
-                "subordinate",
-                colors.secondary,
-                colors.primary,
-              ],
-              "circle-radius": 6,
-              "circle-stroke-width": 2,
-              "circle-stroke-color": "#ffffff",
-            }}
-          />
-
-          {/* Station name labels at higher zoom */}
-          <Layer
-            id="station-labels"
-            type="symbol"
-            filter={["!", ["has", "point_count"]]}
-            minzoom={7}
-            layout={{
-              "text-field": ["get", "name"],
-              "text-size": 13,
-              "text-offset": [0, 1.5],
-              "text-anchor": "top",
-              "text-max-width": 10,
-              "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-            }}
-            paint={{
-              "text-color": colors.mapText,
-              "text-halo-color": colors.mapBg,
-              "text-halo-width": 1.5,
-            }}
-          />
+        <Credits credits={credits} />
+        <Source id={SOURCE} type="geojson" data={pins}>
+          {mapLayers.map((layer) => (
+            <Layer key={layer.id} {...layer} />
+          ))}
         </Source>
-
-        {/* Focus station — rendered above clusters, never absorbed */}
-        {focusGeoJSON && (
-          <Source id="focus-station" type="geojson" data={focusGeoJSON}>
-            <Layer
-              id="focus-station-point"
-              type="circle"
-              paint={{
-                "circle-color": colors.primary,
-                "circle-radius": 10,
-                "circle-stroke-width": 3,
-                "circle-stroke-color": "#ffffff",
-              }}
-            />
-            <Layer
-              id="focus-station-label"
-              type="symbol"
-              layout={{
-                "text-field": ["get", "name"],
-                "text-size": 14,
-                "text-offset": [0, 1.8],
-                "text-anchor": "top",
-                "text-max-width": 10,
-                "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
-              }}
-              paint={{
-                "text-color": colors.mapText,
-                "text-halo-color": colors.mapBg,
-                "text-halo-width": 2,
-              }}
-            />
-          </Source>
-        )}
-
-        {/* Station popup */}
-        {selectedStation && popupContent !== false && (
-          <Popup
-            longitude={selectedStation.longitude}
-            latitude={selectedStation.latitude}
-            maxWidth="none"
-            offset={10}
-            onClose={() => setSelectedStation(null)}
-            closeOnClick={false}
-            closeButton={false}
-          >
-            <div className="relative">
-              {typeof popupContent === "function" ? (
-                popupContent(selectedStation)
-              ) : (
-                <>
-                  <div className="flex gap-2 justify-between items-start mb-2">
-                    <div className="text-base font-semibold text-(--slackwater-text)">
-                      {selectedStation.name}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedStation(null)}
-                      className="text-(--slackwater-text-muted) hover:text-(--slackwater-text) cursor-pointer leading-4 text-lg"
-                      aria-label="Close popup"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  {popupContent === "simple" ? (
-                    <div className="text-xs text-(--slackwater-text-muted)">
-                      {[selectedStation.region, selectedStation.country].filter(Boolean).join(", ")}
-                    </div>
-                  ) : (
-                    <StationPreviewCard stationId={selectedStation.id} />
-                  )}
-                </>
-              )}
-            </div>
-          </Popup>
+        {position && (
+          <Marker longitude={position.longitude} latitude={position.latitude}>
+            <div className="maplibregl-user-location-dot" />
+          </Marker>
         )}
       </Map>
 
-      {/* Locate me button */}
-      {showGeolocation && "geolocation" in navigator && (
+      {showGeolocation && "geolocation" in navigator && !selected && (
         <button
           type="button"
-          onClick={handleLocateMe}
-          className="absolute bottom-6 right-3 z-10 w-8 h-8 flex items-center justify-center bg-(--slackwater-bg) border border-(--slackwater-border) rounded-lg shadow-md cursor-pointer hover:bg-(--slackwater-bg-subtle) transition-colors"
-          aria-label="Center map on my location"
-          title="My location"
+          onClick={locate}
+          className="sw-glass absolute bottom-6 left-4 flex size-14 cursor-pointer items-center justify-center rounded-full border-0 text-(--sw-foam)"
+          aria-label="My Location"
         >
           <svg
             viewBox="0 0 24 24"
-            width="16"
-            height="16"
+            width="21"
+            height="21"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
+            strokeWidth="1.8"
             strokeLinejoin="round"
-            className="text-(--slackwater-text)"
+            aria-hidden="true"
           >
-            <circle cx="12" cy="12" r="3" />
-            <line x1="12" y1="2" x2="12" y2="6" />
-            <line x1="12" y1="18" x2="12" y2="22" />
-            <line x1="2" y1="12" x2="6" y2="12" />
-            <line x1="18" y1="12" x2="22" y2="12" />
+            <path d="M20.5 3.5 3.8 10.6l7 2.6 2.6 7z" />
           </svg>
         </button>
       )}
 
-      {isError && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--slackwater-bg) border border-(--slackwater-border) shadow-md text-sm text-(--slackwater-text-muted)">
-            <svg
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="8" x2="12" y2="12" />
-              <line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            Failed to load stations
-          </div>
+      {(loading || failed) && (
+        <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center">
+          <span
+            role="status"
+            className="sw-glass rounded-full px-3 py-1.5 text-xs text-(--sw-foam)"
+          >
+            {failed ? "Failed to load stations" : "Loading stations…"}
+          </span>
         </div>
       )}
 
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--slackwater-bg) border border-(--slackwater-border) shadow-md text-sm text-(--slackwater-text-muted)">
-            <svg
-              viewBox="0 0 24 24"
-              width="16"
-              height="16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              className="animate-spin"
-            >
-              <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-            </svg>
-            Loading stations…
+      {/* The note stacks above an open card, so it stays in view while readings are on screen. */}
+      <div
+        ref={panelRef}
+        className="pointer-events-none absolute inset-x-3 bottom-3 mx-auto flex max-w-[440px] flex-col items-center gap-2"
+      >
+        <span
+          className={`sw-glass rounded-full px-3 py-1.5 text-[11px] text-(--sw-foam) ${selected ? "" : "mb-3"}`}
+        >
+          Not for navigation.
+        </span>
+        {selected && (
+          <div
+            className="pointer-events-auto w-full rounded-(--sw-radius-card) bg-(--sw-canvas)"
+            style={{ minHeight: 168, boxShadow: "0 8px 28px rgb(0 20 50 / 0.4)" }}
+          >
+            <StationCard
+              key={selectedKey}
+              station={selected}
+              onSelect={onStationSelect}
+              threshold={threshold}
+              now={fixedNow}
+            />
+            <StationCredits stations={[selected]} className="px-5 pt-1 pb-3" />
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {children}
     </div>
