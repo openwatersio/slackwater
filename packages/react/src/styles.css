@@ -43,6 +43,7 @@
   --sw-sunrise: #f0d890;
   --sw-umbra: rgb(107 42 24 / 0.94);
   --sw-umbra-label: #d98a66;
+  --sw-moon-limb: rgb(0 18 44 / 0.92);
 
   /* Cards */
   --sw-card-fill: rgb(255 255 255 / 0.05);

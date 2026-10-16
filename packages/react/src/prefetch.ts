@@ -11,6 +11,7 @@ import {
 } from "./client.js";
 import { getDefaultUnits } from "./utils/defaults.js";
 import { stationWindow } from "./utils/schedule.js";
+import { fortnightWindow } from "./utils/standing.js";
 import { startOfDay } from "./utils/time.js";
 
 export interface PrefetchTideStationOptions {
@@ -22,7 +23,8 @@ export interface PrefetchTideStationOptions {
 
 /**
  * Prefetch all queries that the `<TideStation>` component will make: the
- * station, then its week's window at chart datum. Call this on the server,
+ * station, then its week's window at chart datum and the fortnight of
+ * extremes its Range tile ranks against. Call this on the server,
  * then use `dehydrate(queryClient)` to pass the cache to the client via a
  * pre-hydrated QueryClient.
  *
@@ -38,12 +40,9 @@ export async function prefetchTideStation(
     queryKey: queryKeys.station(id),
     queryFn: () => fetchStation(baseUrl, id),
   });
-  const params = {
-    id,
-    ...stationWindow(startOfDay(now, station.timezone)),
-    datum: station.defaultDatum,
-    units: units ?? getDefaultUnits(locale),
-  };
+  const base = { id, datum: station.defaultDatum, units: units ?? getDefaultUnits(locale) };
+  const params = { ...base, ...stationWindow(startOfDay(now, station.timezone)) };
+  const fortnight = { ...base, ...fortnightWindow(now, station.timezone) };
 
   await Promise.all([
     queryClient.prefetchQuery({
@@ -53,6 +52,10 @@ export async function prefetchTideStation(
     queryClient.prefetchQuery({
       queryKey: queryKeys.extremes(params),
       queryFn: () => fetchStationExtremes(baseUrl, params),
+    }),
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.extremes(fortnight),
+      queryFn: () => fetchStationExtremes(baseUrl, fortnight),
     }),
   ]);
 }

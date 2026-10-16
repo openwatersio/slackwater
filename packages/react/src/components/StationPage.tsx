@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -16,6 +17,7 @@ import {
   stationWindow,
   type ScheduleEntry,
 } from "../utils/schedule.js";
+import { fortnightWindow } from "../utils/standing.js";
 import { localNoon, startOfDay } from "../utils/time.js";
 import type { StationSummary } from "../types.js";
 import { NearbyStations } from "./NearbyStations.js";
@@ -70,6 +72,26 @@ export function useStationWeek(timezone: string | undefined): StationWeek {
   };
 }
 
+/** The fortnight around the day the page opened, which the tiles rank against; a scrub never moves it. */
+export function useFortnight(timezone: string | undefined) {
+  const [opened] = useState(() => Date.now());
+  return useMemo(
+    () => (timezone ? fortnightWindow(opened, timezone) : undefined),
+    [opened, timezone],
+  );
+}
+
+/** The scrubber's selected moment, for readers that follow it without re-rendering the page. */
+export interface Selection {
+  subscribe: (onChange: () => void) => () => void;
+  get: () => number | undefined;
+}
+
+/** The selected moment, re-rendering only the component that reads it. */
+export function useSelected(selection: Selection): number | undefined {
+  return useSyncExternalStore(selection.subscribe, selection.get, selection.get);
+}
+
 /** The schedule and the scrubber, kept in step: the row nearest the selection lights, and a row moves it. */
 export function useScheduleSync(
   entries: ScheduleEntry[] | undefined,
@@ -85,6 +107,17 @@ export function useScheduleSync(
   );
   const listed = useMemo(() => days.flatMap((d) => d.entries), [days]);
   const selected = useRef<number | undefined>(undefined);
+  const listeners = useRef(new Set<() => void>());
+  const selection = useMemo<Selection>(
+    () => ({
+      subscribe: (onChange) => {
+        listeners.current.add(onChange);
+        return () => listeners.current.delete(onChange);
+      },
+      get: () => selected.current,
+    }),
+    [],
+  );
   const [highlight, setHighlight] = useState<number>();
   useEffect(() => {
     if (selected.current !== undefined) setHighlight(nearestEntry(listed, selected.current));
@@ -96,9 +129,11 @@ export function useScheduleSync(
     days,
     highlight,
     moveTo,
+    selection,
     onSelect: useCallback(
       (t: number) => {
         selected.current = t;
+        listeners.current.forEach((onChange) => onChange());
         setHighlight(nearestEntry(listed, t));
       },
       [listed],

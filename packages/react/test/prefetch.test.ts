@@ -11,7 +11,7 @@ import { createTestWrapper } from "./helpers.js";
 const STATION_ID = "noaa/8443970";
 
 describe("prefetchTideStation", () => {
-  test("populates the query cache with station, timeline, and extremes", async () => {
+  test("populates the query cache with station, timeline, extremes, and the fortnight of extremes", async () => {
     const queryClient = new QueryClient();
 
     await prefetchTideStation(queryClient, inject("apiBaseUrl"), STATION_ID, {
@@ -19,7 +19,7 @@ describe("prefetchTideStation", () => {
     });
 
     const queries = queryClient.getQueryCache().getAll();
-    expect(queries.length).toBe(3);
+    expect(queries.length).toBe(4);
     for (const query of queries) {
       expect(query.state.status).toBe("success");
     }

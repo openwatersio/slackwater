@@ -56,7 +56,8 @@ describe("TideStation", () => {
     const urls = fetch.mock.calls.map(([url]) => String(url));
     // The nearby cards load their own windows at their own datums.
     const predictions = urls.filter((u) => u.includes(`/${SEATTLE}/`));
-    expect(predictions.length).toBe(2);
+    // The week's timeline and extremes, and the fortnight the Range tile ranks against.
+    expect(predictions.length).toBe(3);
     for (const url of predictions) expect(new URL(url).searchParams.get("datum")).toBe("MLLW");
   });
 
@@ -72,6 +73,43 @@ describe("TideStation", () => {
       },
       { timeout: 4000 },
     );
+  });
+
+  test("the Range tile follows the selection, ranked against one fortnight's fetch", async () => {
+    const fetch = vi.spyOn(window, "fetch");
+    const { container, slider } = await renderStation();
+    const tile = (label: string) =>
+      [...container.querySelectorAll(".sw-card")].find((t) => t.textContent!.startsWith(label))!;
+    const marks = /^(the fortnight's biggest|beyond normal here)$/;
+    const caption = () => tile("Range").querySelector("p")!.textContent!;
+
+    for (const kind of ["High", "Low"]) {
+      fireEvent.click(rows(container).find((r) => r.textContent!.endsWith(kind))!);
+      const direction = kind === "High" ? "high to low" : "low to high";
+      await waitFor(() => expect(caption()).toMatch(new RegExp(`^${direction}$|${marks.source}`)), {
+        timeout: 4000,
+      });
+      expect(tile("Range").textContent).toMatch(/^Range\d+\.\d ft/);
+    }
+    expect(tile("Moon").textContent).toMatch(
+      /^Moon(New|Full) Moon|(Waxing|Waning) |(First|Last) Q/,
+    );
+
+    // A new week loads a new window, but the fortnight stays the one from the page's opening.
+    const picked = dayStartOf(dateKey(addDays(startOfDay(Date.now(), TZ), 21, TZ), TZ), TZ);
+    const input = container.querySelector<HTMLInputElement>("input[type='date']")!;
+    fireEvent.change(input, { target: { value: dateKey(picked, TZ) } });
+    await waitFor(() => expect(value(slider)).toBe(localNoon(picked, TZ)), { timeout: 10000 });
+    const DAY = 86_400_000;
+    const fortnights = fetch.mock.calls
+      .map(([url]) => new URL(String(url)))
+      .filter((u) => u.pathname.endsWith(`${SEATTLE}/extremes`))
+      .filter((u) => {
+        const span =
+          Date.parse(u.searchParams.get("end")!) - Date.parse(u.searchParams.get("start")!);
+        return span > 29 * DAY;
+      });
+    expect(fortnights.length).toBe(1);
   });
 
   test("one day is open at a time", async () => {

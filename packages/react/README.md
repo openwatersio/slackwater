@@ -67,6 +67,7 @@ function App() {
 A tide station's page, after the app's tide detail screen:
 
 - the name and region over a `<TideScrubber>`, with the reading for the selected moment and pills for the next event and the way back to now;
+- two tiles that follow the selected moment. **Range** is the height between the turn behind it and the turn ahead, captioned "low to high" or "high to low". When that swing is in the top tenth of every swing in the fifteen days either side of the day the page opened, the caption says "beyond normal here", or "the fortnight's biggest" when no swing in that window is bigger. **Moon** names the phase and the tide the Moon is driving: spring or neap, perigean or apogean within two days of perigee or apogee, or how much of it is lit;
 - a schedule card with the week's highs and lows, a day at a time with sunrise, solar noon, and sunset. The row nearest the selection is highlighted, and choosing a row moves the scrubber there. The week bar opens a date picker;
 - where the predictions come from, the station's disclaimers and attribution, and a "Station details" disclosure with its datum, ID, position, time zone, and reference station;
 - the six nearest tide and current stations, as `<NearbyStations>` cards.
@@ -85,7 +86,7 @@ Heights are always above the station's chart datum, which the page names. The pa
 
 ### `<CurrentStation>`
 
-A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, the week's slacks and maxima with their set, where the predictions come from, the station's details, and the nearest stations. Stations whose predictions can't be served, such as CHS stations, show the reason instead. The current components need `@slackwater/api` 1.0.0-beta.3 or later, which serves the `/currents` routes.
+A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb beside the Moon tile, the week's slacks and maxima with their set, where the predictions come from, the station's details, and the nearest stations. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. The current components need `@slackwater/api` 1.0.0-beta.3 or later, which serves the `/currents` routes.
 
 ```tsx
 <CurrentStation id="noaa/PUG1701" />

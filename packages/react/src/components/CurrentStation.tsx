@@ -6,9 +6,10 @@ import {
   useCurrentStation,
   useCurrentTimeline,
 } from "../hooks/use-current-station.js";
-import type { CurrentStationInfo } from "../types.js";
+import type { CurrentEvent, CurrentStationInfo } from "../types.js";
 import { formatSpeed } from "../utils/current.js";
 import type { ScheduleEntry } from "../utils/schedule.js";
+import { nextMaxTile } from "../utils/standing.js";
 import { CurrentScrubber } from "./CurrentScrubber.js";
 import { Schedule } from "./Schedule.js";
 import type { CardStation } from "./StationCard.js";
@@ -22,9 +23,13 @@ import {
   StripPlaceholder,
   distanceKm,
   formatCoord,
+  useFortnight,
   useScheduleSync,
+  useSelected,
   useStationWeek,
+  type Selection,
 } from "./StationPage.js";
+import { SummaryTiles } from "./SummaryTiles.js";
 
 export interface CurrentStationProps {
   /** "source/id", optionally with a depth bin: "noaa/PUG1701", "noaa/EPT0003@11". */
@@ -53,6 +58,25 @@ function provenance(station: CurrentStationInfo, reference: string | undefined) 
   return source ? `Harmonic constants from ${source}.${sets}` : sets.trim() || undefined;
 }
 
+/** The tiles at the scrubber's moment: the maximum the water is heading for, and the Moon. */
+function CurrentTiles(props: {
+  selection: Selection;
+  now: number;
+  events: CurrentEvent[];
+  fortnight: CurrentEvent[] | undefined;
+  timezone: string;
+  locale?: string;
+}) {
+  const time = useSelected(props.selection) ?? props.now;
+  return (
+    <SummaryTiles
+      time={time}
+      timezone={props.timezone}
+      primary={nextMaxTile(props.events, time, props.fortnight, props.timezone, props.locale)}
+    />
+  );
+}
+
 /** A current station's detail page, after the app's current detail screen. */
 export function CurrentStation({ id, threshold, onStationSelect, className }: CurrentStationProps) {
   const { locale } = useSlackwaterConfig();
@@ -62,6 +86,8 @@ export function CurrentStation({ id, threshold, onStationSelect, className }: Cu
   const usable = s?.predictions ? week.range : undefined;
   const timeline = useCurrentTimeline(id, usable);
   const events = useCurrentEvents(id, usable);
+  const fortnight = useFortnight(s?.timezone);
+  const standing = useCurrentEvents(id, s?.predictions ? fortnight : undefined);
   const referenceId = s?.type === "subordinate" ? s.current?.offsets?.reference : undefined;
   const ref = useCurrentStation(referenceId).data;
 
@@ -104,7 +130,15 @@ export function CurrentStation({ id, threshold, onStationSelect, className }: Cu
             moveTo={sync.moveTo}
             onNow={sync.onNow}
           />
-          <div className="mt-3.5">
+          <CurrentTiles
+            selection={sync.selection}
+            now={week.now}
+            events={events.data.events}
+            fortnight={standing.data?.events}
+            timezone={s.timezone}
+            locale={locale}
+          />
+          <div className="mt-[26px]">
             <Schedule
               days={sync.days}
               timezone={s.timezone}

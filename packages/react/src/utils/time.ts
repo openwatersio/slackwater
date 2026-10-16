@@ -186,10 +186,11 @@ export function dayStartOf(date: string, timeZone: string): number {
   return startOfDay(guess + (target - localDate(guess, timeZone)), timeZone);
 }
 
-/** The start of the station-local day `n` days after the one starting at `dayStart`. */
+/** The start of the station-local day `n` days after the one starting at `dayStart`, or before it for a negative `n`. */
 export function addDays(dayStart: number, n: number, timeZone: string): number {
   let d = dayStart;
   for (let i = 0; i < n; i++) d = nextDay(d, timeZone);
+  for (let i = 0; i > n; i--) d = startOfDay(d - 1, timeZone);
   return d;
 }
 

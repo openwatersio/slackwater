@@ -170,6 +170,7 @@ describe("calendar helpers", () => {
     const start = Date.parse("2026-10-31T07:00:00Z");
     expect(addDays(start, 0, "America/Los_Angeles")).toBe(start);
     expect(addDays(start, 2, "America/Los_Angeles")).toBe(Date.parse("2026-11-02T08:00:00Z"));
+    expect(addDays(Date.parse("2026-11-02T08:00:00Z"), -2, "America/Los_Angeles")).toBe(start);
   });
 
   test("weekLabel names the first and last of seven days, with years only away from this one", () => {

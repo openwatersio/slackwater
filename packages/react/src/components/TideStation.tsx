@@ -5,8 +5,9 @@ import { useExtremes } from "../hooks/use-extremes.js";
 import { useStation } from "../hooks/use-station.js";
 import { useTimeline } from "../hooks/use-timeline.js";
 import { useSlackwaterConfig } from "../provider.js";
-import type { Station } from "../types.js";
+import type { Extreme, Station, Units } from "../types.js";
 import type { ScheduleEntry } from "../utils/schedule.js";
+import { rangeTile, swingHeights } from "../utils/standing.js";
 import { formatHeight, heightUnit } from "../utils/tide.js";
 import { Schedule } from "./Schedule.js";
 import type { CardStation } from "./StationCard.js";
@@ -20,9 +21,13 @@ import {
   StripPlaceholder,
   distanceKm,
   formatCoord,
+  useFortnight,
   useScheduleSync,
+  useSelected,
   useStationWeek,
+  type Selection,
 } from "./StationPage.js";
+import { SummaryTiles } from "./SummaryTiles.js";
 import { TideScrubber } from "./TideScrubber.js";
 
 export interface TideStationProps {
@@ -41,6 +46,26 @@ function provenance(station: Station, datum: string | undefined, reference: stri
   }
   if (station.id.startsWith("noaa/")) return `${base}NOAA harmonic prediction.`;
   return `${base}Harmonic constants from ${station.source.name}.`;
+}
+
+/** The tiles at the scrubber's moment: this swing's range, and the Moon. */
+function TideTiles(props: {
+  selection: Selection;
+  now: number;
+  extremes: Extreme[];
+  swings: number[] | undefined;
+  timezone: string;
+  units: Units;
+  locale?: string;
+}) {
+  const time = useSelected(props.selection) ?? props.now;
+  return (
+    <SummaryTiles
+      time={time}
+      timezone={props.timezone}
+      primary={rangeTile(props.extremes, time, props.swings, props.units, props.locale)}
+    />
+  );
 }
 
 /**
@@ -64,6 +89,13 @@ export function TideStation({ id, onStationSelect, className }: TideStationProps
   const timeline = useTimeline(params ?? { id }, query);
   const extremes = useExtremes(params ?? { id }, query);
   const reference = useStation(s?.type === "subordinate" ? s.offsets?.reference : undefined);
+  const fortnight = useFortnight(s?.timezone);
+  const around = s && fortnight ? { id, ...fortnight, datum: s.defaultDatum } : undefined;
+  const standing = useExtremes(around ?? { id }, { enabled: !!around, staleTime: Infinity });
+  const swings = useMemo(
+    () => standing.data && swingHeights(standing.data.extremes),
+    [standing.data],
+  );
 
   const units = timeline.data?.units ?? preferred;
   const datum = timeline.data?.datum ?? s?.defaultDatum;
@@ -98,7 +130,16 @@ export function TideStation({ id, onStationSelect, className }: TideStationProps
             moveTo={sync.moveTo}
             onNow={sync.onNow}
           />
-          <div className="mt-3.5">
+          <TideTiles
+            selection={sync.selection}
+            now={week.now}
+            extremes={extremes.data.extremes}
+            swings={swings}
+            timezone={s.timezone}
+            units={units}
+            locale={locale}
+          />
+          <div className="mt-[26px]">
             <Schedule
               days={sync.days}
               timezone={s.timezone}

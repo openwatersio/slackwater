@@ -160,6 +160,12 @@ describe("CurrentStation", () => {
 
     const rows = [...container.querySelectorAll("button")].map((b) => b.textContent ?? "");
     expect(rows.some((r) => /—Slack$/.test(r))).toBe(true);
+    const nextMax = [...container.querySelectorAll(".sw-card")].find((t) =>
+      t.textContent!.startsWith("Next max"),
+    )!;
+    expect(nextMax.textContent).toMatch(
+      /^Next max\d+\.\d\u00a0kn((Flood|Ebb) at|(Hardest|Strong) (flood|ebb) ·) \d{1,2}:\d\d [AP]M$/,
+    );
     expect(rows.some((r) => /\d kn(ESE|E)Flood$/.test(r))).toBe(true);
     expect(rows.some((r) => /\d kn(WNW|W)Ebb$/.test(r))).toBe(true);
     expect(
