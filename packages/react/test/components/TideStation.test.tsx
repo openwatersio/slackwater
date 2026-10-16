@@ -54,7 +54,8 @@ describe("TideStation", () => {
     await renderStation(SEATTLE, createTestWrapper({ datum: "MSL" }));
 
     const urls = fetch.mock.calls.map(([url]) => String(url));
-    const predictions = urls.filter((u) => /\/(timeline|extremes)\?/.test(u));
+    // The nearby cards load their own windows at their own datums.
+    const predictions = urls.filter((u) => u.includes(`/${SEATTLE}/`));
     expect(predictions.length).toBe(2);
     for (const url of predictions) expect(new URL(url).searchParams.get("datum")).toBe("MLLW");
   });
@@ -149,7 +150,7 @@ describe("TideStation", () => {
       ),
     ).toBeDefined();
     fireEvent.click(screen.getByText("Station details"));
-    expect(screen.getByText(/, \d+ km away$/)).toBeDefined();
+    expect(await screen.findByText(/, \d+ km away$/)).toBeDefined();
   });
 
   test("credits a station's own source", async () => {
@@ -158,6 +159,20 @@ describe("TideStation", () => {
     expect(screen.getByText(/^CD chart datum\. Harmonic constants from Kartverket/)).toBeDefined();
     fireEvent.click(screen.getByText("Station details"));
     expect(screen.getByText("CD chart datum")).toBeDefined();
+  });
+
+  test("ends with the nearest stations of both kinds, and says which was picked", async () => {
+    const onStationSelect = vi.fn();
+    render(<TideStation id="noaa/9448614" onStationSelect={onStationSelect} />, {
+      wrapper: createTestWrapper(),
+    });
+
+    const nearby = await screen.findByRole("region", { name: "Nearby" }, { timeout: 10000 });
+    const items = await within(nearby).findAllByRole("listitem", undefined, { timeout: 10000 });
+    expect(items.length).toBe(6);
+    expect(nearby.textContent).not.toContain("Deception Pass St. Park");
+    fireEvent.click(within(nearby).getByRole("button", { name: /^Deception Pass \(Narrows\)/ }));
+    expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/PUG1701", kind: "current" });
   });
 
   test("shows a fetch error", async () => {

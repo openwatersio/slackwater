@@ -10,6 +10,9 @@ export interface StationSummary {
   continent: string;
   timezone: string;
   type: "reference" | "subordinate";
+  /** Which API serves the station: the tide routes or the current routes. */
+  kind: "tide" | "current";
+  /** Kilometres from the position a nearby listing measured from. */
   distance?: number;
 }
 
@@ -85,9 +88,17 @@ export interface CurrentBin {
   bin?: number;
 }
 
-/** A current station as the current API returns it: the database record plus serving flags. */
-export interface CurrentStationInfo extends StationSummary {
+/** A current station as the current API lists it: identity plus serving flags. */
+export interface CurrentStationSummary extends StationSummary {
   kind: "current";
+  bins: CurrentBin[];
+  /** False for stations the API can't serve (CHS licensing, no model). */
+  predictions: boolean;
+  unavailable?: string;
+}
+
+/** A current station as the current API returns it: the database record plus serving flags. */
+export interface CurrentStationInfo extends CurrentStationSummary {
   locality?: string;
   context?: string;
   source: {
@@ -104,10 +115,6 @@ export interface CurrentStationInfo extends StationSummary {
   };
   disclaimers?: string;
   attribution?: string;
-  bins: CurrentBin[];
-  /** False for stations the API can't serve (CHS licensing, no model). */
-  predictions: boolean;
-  unavailable?: string;
   current?: {
     /** Degrees true. Absent when the station publishes none. */
     flood_direction?: number;

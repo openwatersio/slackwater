@@ -17,6 +17,9 @@ import {
   type ScheduleEntry,
 } from "../utils/schedule.js";
 import { localNoon, startOfDay } from "../utils/time.js";
+import type { StationSummary } from "../types.js";
+import { NearbyStations } from "./NearbyStations.js";
+import type { CardStation } from "./StationCard.js";
 import { StationDisclaimers } from "./StationDisclaimers.js";
 
 const HOUR = 3_600_000;
@@ -224,6 +227,26 @@ export function distanceKm(
     Math.sin(dLat / 2) ** 2 +
     Math.cos(a.latitude * rad) * Math.cos(b.latitude * rad) * Math.sin(dLon / 2) ** 2;
   return Math.round(2 * 6371 * Math.asin(Math.sqrt(h)));
+}
+
+/** The page's last section: the nearest stations of both kinds, 28 below the details. */
+export function StationNearby({
+  id,
+  kind,
+  onStationSelect,
+}: {
+  id: string;
+  kind: StationSummary["kind"];
+  onStationSelect?: (station: CardStation) => void;
+}) {
+  return (
+    <section className="mt-7 px-4" aria-label="Nearby">
+      <h2 className="m-0 mb-2.5 px-2.5 font-mono text-[11px] font-medium tracking-[1.6px] text-(--sw-go) uppercase">
+        Nearby
+      </h2>
+      <NearbyStations stationId={id} kind={kind} maxResults={6} onStationSelect={onStationSelect} />
+    </section>
+  );
 }
 
 /** The strip's height while it loads, so the page doesn't jump. */

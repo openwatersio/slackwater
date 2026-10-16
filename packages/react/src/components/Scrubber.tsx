@@ -26,6 +26,7 @@ import {
   type Stop,
   type StopKind,
 } from "../utils/scrubber.js";
+import type { TideState } from "../utils/tide.js";
 import {
   chartTime,
   dayAnchor,
@@ -201,6 +202,38 @@ export function SlackGlyph() {
       strokeLinejoin="round"
     >
       <path d="M8 1v10M1 6h4.5M3.5 4l2 2-2 2M15 6h-4.5M12.5 4l-2 2 2 2" />
+    </svg>
+  );
+}
+
+export const GLYPH = {
+  fill: "none",
+  stroke: "currentColor",
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+} as const;
+
+/** SF Symbols `arrow.up.to.line` / `arrow.down.to.line` in a 12-unit box: arrives and stops. */
+export function toBarPath(high: boolean) {
+  return high
+    ? "M2 1.5h8M6 11V4.5M2.8 7.7 6 4.5l3.2 3.2"
+    : "M2 10.5h8M6 1v6.5M2.8 4.3 6 7.5l3.2-3.2";
+}
+
+/** SF Symbol `arrow.up`, centered on the origin: rotated to a set, the water goes this way. */
+export const SET_ARROW_PATH = "M0 -5 L0 5 M-3.5 -1.5 L0 -5 L3.5 -1.5";
+
+/** The tide's glyph: to-bar at a turn, `arrow.up.right` / `arrow.down.right` on the way to one. */
+export function TideGlyph({ state, size = 13 }: { state: TideState; size?: number }) {
+  const d =
+    state === "High" || state === "Low"
+      ? toBarPath(state === "High")
+      : state === "Rising"
+        ? "M2.5 9.5 9.5 2.5M4.5 2.5h5v5"
+        : "M2.5 2.5l7 7M9.5 4.5v5h-5";
+  return (
+    <svg width={size} height={size} viewBox="0 0 12 12" aria-hidden="true">
+      <path {...GLYPH} strokeWidth={1.7} d={d} />
     </svg>
   );
 }

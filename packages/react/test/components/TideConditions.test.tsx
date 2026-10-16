@@ -1,267 +1,120 @@
-import { describe, test, expect } from "vitest";
-import { render, within, waitFor } from "@testing-library/react";
-import { WaterLevelAtTime, TideConditions } from "../../src/components/TideConditions.js";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { TideConditions } from "../../src/components/TideConditions.js";
+import { cardRange } from "../../src/utils/card.js";
 import { createTestWrapper } from "../helpers.js";
 import type { Extreme, TimelineEntry } from "../../src/types.js";
 
-// Generate a simple timeline around "now" for testing TideConditionsStatic
-const NOW = Date.now();
-const HALF_CYCLE = 6.2083 * 60 * 60 * 1000; // ~6h 12.5m
+const HOUR = 3_600_000;
+const NOW = Date.parse("2026-10-15T19:00:00Z");
+const PERIOD = 12.42 * HOUR;
 
-function makeTimeline(count: number): TimelineEntry[] {
-  const start = NOW - HALF_CYCLE;
-  const step = (2 * HALF_CYCLE) / (count - 1);
-  return Array.from({ length: count }, (_, i) => ({
-    time: new Date(start + i * step),
-    level: Math.sin((i / (count - 1)) * Math.PI * 2) * 1.5,
-  }));
-}
+// A clean semidiurnal tide with a high at NOW + 3 h, sampled every 10 minutes for a day either side.
+const level = (t: number) => 1.5 + 1.5 * Math.cos(((t - NOW - 3 * HOUR) / PERIOD) * 2 * Math.PI);
+const timeline: TimelineEntry[] = Array.from({ length: 289 }, (_, i) => {
+  const t = NOW - 24 * HOUR + i * 600_000;
+  return { time: new Date(t), level: level(t) };
+});
+const extremes: Extreme[] = [-3, -1, 0, 1, 2].map((k) => {
+  const t = NOW + 3 * HOUR + (k * PERIOD) / 2;
+  const high = k % 2 === 0;
+  return { time: new Date(t), level: level(t), high, low: !high, label: high ? "High" : "Low" };
+});
 
-const timeline = makeTimeline(50);
-
-const extremes: Extreme[] = [
-  { time: new Date(NOW - 3 * 60 * 60 * 1000), level: 1.5, high: true, low: false, label: "High" },
-  { time: new Date(NOW + 3 * 60 * 60 * 1000), level: -0.3, high: false, low: true, label: "Low" },
-];
-
-describe("WaterLevelAtTime", () => {
-  test("renders label, level, and time", () => {
-    const { container } = render(
-      <WaterLevelAtTime
-        label="Now"
-        level={1.5}
-        time={new Date("2025-12-17T12:00:00Z")}
-        units="meters"
-        locale="en-US"
-      />,
-    );
-    const view = within(container);
-
-    expect(view.getByText("Now")).toBeDefined();
-    expect(view.getByText("1.50 m")).toBeDefined();
-  });
-
-  test("renders state icon when state is provided", () => {
-    const { container } = render(
-      <WaterLevelAtTime
-        label="Now"
-        level={1.5}
-        time={new Date("2025-12-17T12:00:00Z")}
-        units="meters"
-        locale="en-US"
-        state="rising"
-      />,
-    );
-    const view = within(container);
-
-    expect(view.getByLabelText("Rising")).toBeDefined();
-  });
-
-  test("renders falling state", () => {
-    const { container } = render(
-      <WaterLevelAtTime
-        label="Next"
-        level={0.2}
-        time={new Date("2025-12-17T18:00:00Z")}
-        units="feet"
-        locale="en-US"
-        state="falling"
-      />,
-    );
-    const view = within(container);
-
-    expect(view.getByLabelText("Falling")).toBeDefined();
-    expect(view.getByText("0.2 ft")).toBeDefined();
-  });
-
-  test("renders high tide state", () => {
-    const { container } = render(
-      <WaterLevelAtTime
-        label="Now"
-        level={2.0}
-        time={new Date("2025-12-17T12:00:00Z")}
-        units="meters"
-        locale="en-US"
-        state="high"
-      />,
-    );
-    const view = within(container);
-
-    expect(view.getByLabelText("High tide")).toBeDefined();
-  });
-
-  test("renders low tide state", () => {
-    const { container } = render(
-      <WaterLevelAtTime
-        label="Now"
-        level={-0.5}
-        time={new Date("2025-12-17T12:00:00Z")}
-        units="meters"
-        locale="en-US"
-        state="low"
-      />,
-    );
-    const view = within(container);
-
-    expect(view.getByLabelText("Low tide")).toBeDefined();
-  });
-
-  test("does not render state icon when no state", () => {
-    const { container } = render(
-      <WaterLevelAtTime
-        label="Now"
-        level={1.0}
-        time={new Date("2025-12-17T12:00:00Z")}
-        units="meters"
-        locale="en-US"
-      />,
-    );
-    const view = within(container);
-
-    expect(view.queryByLabelText("Rising")).toBeNull();
-    expect(view.queryByLabelText("Falling")).toBeNull();
-    expect(view.queryByLabelText("High tide")).toBeNull();
-    expect(view.queryByLabelText("Low tide")).toBeNull();
-  });
-
-  test("applies right variant alignment", () => {
-    const { container } = render(
-      <WaterLevelAtTime
-        label="Now"
-        level={1.0}
-        time={new Date("2025-12-17T12:00:00Z")}
-        units="meters"
-        locale="en-US"
-        variant="right"
-      />,
-    );
-
-    expect(container.firstElementChild!.className).toContain("items-end");
-  });
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("TideConditions", () => {
-  test("renders with data props", () => {
-    const { container } = render(
-      <TideConditions timeline={timeline} extremes={extremes} units="meters" timezone="UTC" />,
-      { wrapper: createTestWrapper() },
+  test("names the station and reads the height with its direction", () => {
+    render(
+      <TideConditions
+        name="Seattle"
+        timeline={timeline}
+        extremes={extremes}
+        units="meters"
+        timezone="America/Los_Angeles"
+        now={NOW}
+      />,
+      { wrapper: createTestWrapper({ locale: "en-US" }) },
     );
-    const view = within(container);
 
-    // Should show "Now" label
-    expect(view.getByText("Now")).toBeDefined();
-    // Should show "Next" label
-    expect(view.getByText("Next")).toBeDefined();
+    expect(screen.getByText("Seattle")).toBeDefined();
+    expect(screen.getByText(`${level(NOW).toFixed(2)} metres, rising`)).toBeDefined();
+    expect(screen.queryByText("Rising")).toBeNull();
   });
 
-  test("shows 'No tide data available' with empty timeline", () => {
-    const { container } = render(
-      <TideConditions timeline={[]} extremes={[]} units="meters" timezone="UTC" />,
-      { wrapper: createTestWrapper() },
-    );
-    const view = within(container);
-
-    expect(view.getByText("No tide data available")).toBeDefined();
-  });
-
-  test("applies className", () => {
-    const { container } = render(
+  test("draws half a swing back to a swing and a half ahead, naming the turns in it", () => {
+    render(
       <TideConditions
         timeline={timeline}
         extremes={extremes}
         units="meters"
-        timezone="UTC"
-        className="my-conditions"
+        timezone="America/Los_Angeles"
+        now={NOW}
       />,
-      { wrapper: createTestWrapper() },
+      { wrapper: createTestWrapper({ locale: "en-US" }) },
     );
 
-    expect(container.querySelector(".my-conditions")).not.toBeNull();
+    // The high at +3 h and the low after it; the turns outside the span go unspoken.
+    expect(screen.getByRole("img").getAttribute("aria-label")).toBe(
+      "12-hour curve: 3.00 m at 3:00 PM, 0.00 m at 9:12 PM",
+    );
   });
 
-  test("shows rising indicator when next extreme is high", () => {
-    const risingExtremes: Extreme[] = [
-      {
-        time: new Date(NOW + 3 * 60 * 60 * 1000),
-        level: 2.0,
-        high: true,
-        low: false,
-        label: "High",
-      },
-    ];
-
-    const { container } = render(
+  test("falls toward a low", () => {
+    render(
       <TideConditions
         timeline={timeline}
-        extremes={risingExtremes}
-        units="meters"
+        extremes={extremes}
+        units="feet"
         timezone="UTC"
+        now={NOW + 4 * HOUR}
       />,
       { wrapper: createTestWrapper() },
     );
-    const view = within(container);
-
-    expect(view.getByLabelText("Rising")).toBeDefined();
+    expect(screen.getByText(/ feet, falling$/)).toBeDefined();
   });
 
-  test("shows falling indicator when next extreme is low", () => {
-    const fallingExtremes: Extreme[] = [
-      {
-        time: new Date(NOW + 3 * 60 * 60 * 1000),
-        level: -0.3,
-        high: false,
-        low: true,
-        label: "Low",
-      },
-    ];
-
-    const { container } = render(
-      <TideConditions
-        timeline={timeline}
-        extremes={fallingExtremes}
-        units="meters"
-        timezone="UTC"
-      />,
-      { wrapper: createTestWrapper() },
-    );
-    const view = within(container);
-
-    expect(view.getByLabelText("Falling")).toBeDefined();
-  });
-});
-
-describe("TideConditions fetch mode", () => {
-  test("fetches and renders conditions by station id", async () => {
-    const { container } = render(<TideConditions id="noaa/8443970" />, {
+  test("is the small widget's 170 px, or the parent's height with fill", () => {
+    const props = { timeline, extremes, units: "feet" as const, timezone: "UTC", now: NOW };
+    const { container, rerender } = render(<TideConditions {...props} className="tile" />, {
       wrapper: createTestWrapper(),
     });
-    const view = within(container);
+    const frame = container.querySelector<HTMLElement>(".tile")!;
+    expect(frame.getBoundingClientRect().height).toBe(170);
 
-    expect(view.getByText("Loading...")).toBeDefined();
-
-    await waitFor(
-      () => {
-        expect(view.queryByText("Loading...")).toBeNull();
-      },
-      { timeout: 15000 },
+    rerender(
+      <div style={{ height: 240 }}>
+        <TideConditions {...props} className="tile" fill />
+      </div>,
     );
-
-    expect(view.getByText("Now")).toBeDefined();
+    expect(container.querySelector<HTMLElement>(".tile")!.getBoundingClientRect().height).toBe(240);
   });
 
-  test("renders an error message when the station does not exist", async () => {
-    const { container } = render(<TideConditions id="nonexistent/station" />, {
+  test("says when there is nothing to show", () => {
+    render(<TideConditions timeline={[]} extremes={[]} units="feet" timezone="UTC" />, {
       wrapper: createTestWrapper(),
     });
-    const view = within(container);
+    expect(screen.getByText("No tide predictions for this period.")).toBeDefined();
+  });
 
-    await waitFor(
-      () => {
-        expect(view.queryByText("Loading...")).toBeNull();
-      },
-      { timeout: 15000 },
-    );
+  test("fetches a station's card window and names it", async () => {
+    const fetch = vi.spyOn(window, "fetch");
+    const { container } = render(<TideConditions id="noaa/9447130" now={NOW} />, {
+      wrapper: createTestWrapper(),
+    });
 
-    expect(container.querySelector(".text-\\(--sw-attention\\)")).not.toBeNull();
+    expect(container.querySelector("[aria-busy='true']")).not.toBeNull();
+    expect(await screen.findByText("Seattle", undefined, { timeout: 10000 })).toBeDefined();
+    expect(screen.getByRole("img", { name: /^12-hour curve/ })).toBeDefined();
+    const urls = fetch.mock.calls.map(([url]) => new URL(String(url)));
+    const extremesUrl = urls.find((u) => u.pathname.endsWith("/extremes"))!;
+    expect(extremesUrl.searchParams.get("end")).toBe(cardRange(NOW).extremes.end);
+  });
+
+  test("shows a failed fetch", async () => {
+    render(<TideConditions id="noaa/0000000" now={NOW} />, { wrapper: createTestWrapper() });
+    expect(await screen.findByText(/not found/i, undefined, { timeout: 10000 })).toBeDefined();
   });
 });

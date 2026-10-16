@@ -7,6 +7,7 @@ import {
   fetchStationExtremes,
   fetchStationTimeline,
   fetchCurrentStation,
+  fetchCurrentStations,
   fetchCurrentStationEvents,
   fetchCurrentStationTimeline,
 } from "../src/client.js";
@@ -123,6 +124,14 @@ describe("fetchStations", () => {
 
     expect(fetch).toHaveBeenCalledWith("https://api.example.com/tides/stations");
   });
+
+  test("marks each station as a tide station", async () => {
+    mockFetch([{ id: "noaa/8722588" }]);
+
+    expect(await fetchStations(BASE_URL, { query: "palm" })).toEqual([
+      { id: "noaa/8722588", kind: "tide" },
+    ]);
+  });
 });
 
 describe("fetchExtremes", () => {
@@ -188,6 +197,17 @@ describe("fetchStationTimeline", () => {
 });
 
 describe("current stations", () => {
+  test("fetchCurrentStations lists current stations, each marked as one", async () => {
+    mockFetch([{ id: "noaa/PUG1701", predictions: true }]);
+
+    const res = await fetchCurrentStations(BASE_URL, { latitude: 48.4, longitude: -122.6 });
+
+    const url = new URL((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string);
+    expect(url.pathname).toBe("/currents/stations");
+    expect(url.searchParams.get("latitude")).toBe("48.4");
+    expect(res).toEqual([{ id: "noaa/PUG1701", predictions: true, kind: "current" }]);
+  });
+
   test("fetchCurrentStation keeps a bin or bare curated id in the path", async () => {
     mockFetch({ id: "noaa/EPT0003" });
 

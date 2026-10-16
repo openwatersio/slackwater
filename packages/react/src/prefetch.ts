@@ -7,6 +7,7 @@ import {
   fetchStationTimeline,
   fetchStationExtremes,
   fetchStations,
+  fetchCurrentStations,
 } from "./client.js";
 import { getDefaultUnits } from "./utils/defaults.js";
 import { stationWindow } from "./utils/schedule.js";
@@ -63,9 +64,9 @@ export interface PrefetchNearbyStationsOptions {
 }
 
 /**
- * Prefetch the nearby-stations query that `<NearbyStations stationId={...}>` will make.
+ * Prefetch the tide and current queries that `<NearbyStations stationId={...}>` will make.
  * The default maxResults matches the component's internal default (5 + 1 for the
- * excluded current station).
+ * excluded station).
  */
 export async function prefetchNearbyStations(
   queryClient: QueryClient,
@@ -74,8 +75,14 @@ export async function prefetchNearbyStations(
 ): Promise<void> {
   const params = { latitude, longitude, maxResults };
 
-  await queryClient.prefetchQuery({
-    queryKey: queryKeys.nearbyStations(params),
-    queryFn: () => fetchStations(baseUrl, params),
-  });
+  await Promise.all([
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.nearbyStations(params),
+      queryFn: () => fetchStations(baseUrl, params),
+    }),
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.currentStations(params),
+      queryFn: () => fetchCurrentStations(baseUrl, params),
+    }),
+  ]);
 }

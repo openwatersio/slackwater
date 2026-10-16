@@ -3,6 +3,7 @@ import { fireEvent, render, within, waitFor } from "@testing-library/react";
 import axe from "axe-core";
 import { StationSearch } from "../src/components/StationSearch.js";
 import { NearbyStations } from "../src/components/NearbyStations.js";
+import { TideConditions } from "../src/components/TideConditions.js";
 import { TideStation } from "../src/components/TideStation.js";
 import { CurrentStation } from "../src/components/CurrentStation.js";
 import { createTestWrapper } from "./helpers.js";
@@ -34,14 +35,27 @@ describe("accessibility", () => {
     const { container } = render(<NearbyStations stationId={STATION_ID} />, {
       wrapper: createTestWrapper(),
     });
-    const view = within(container);
+    await within(container).findByRole("list", undefined, { timeout: 10000 });
 
-    await waitFor(
-      () => {
-        expect(view.queryByText(/Loading/)).toBeNull();
-      },
-      { timeout: 10000 },
-    );
+    await checkA11y(container);
+  });
+
+  test("StationSearch has no violations with results", async () => {
+    const { container } = render(<StationSearch onSelect={() => {}} />, {
+      wrapper: createTestWrapper(),
+    });
+    const view = within(container);
+    fireEvent.change(view.getByRole("searchbox"), { target: { value: "Deception" } });
+    await view.findByRole("list", undefined, { timeout: 10000 });
+
+    await checkA11y(container);
+  });
+
+  test("TideConditions has no violations after loading", async () => {
+    const { container } = render(<TideConditions id={STATION_ID} />, {
+      wrapper: createTestWrapper(),
+    });
+    await within(container).findByRole("img", undefined, { timeout: 10000 });
 
     await checkA11y(container);
   });

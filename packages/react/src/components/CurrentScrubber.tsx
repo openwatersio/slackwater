@@ -26,6 +26,7 @@ import {
   EmptyStrip,
   G,
   HALO_GAP,
+  SET_ARROW_PATH,
   Scrubber,
   SlackGlyph,
   geometry,
@@ -62,7 +63,7 @@ export function SetArrow({ direction, size = 12 }: { direction: number; size?: n
   return (
     <svg width={size} height={size} viewBox="-6 -6 12 12" aria-hidden="true">
       <path
-        d="M0 -5 L0 5 M-3.5 -1.5 L0 -5 L3.5 -1.5"
+        d={SET_ARROW_PATH}
         transform={`rotate(${direction})`}
         fill="none"
         stroke="currentColor"
@@ -252,7 +253,7 @@ function drawCurrent(
             {e.direction !== undefined && (
               <g transform={`translate(0 ${-toward * 8})`}>
                 <path
-                  d="M0 -5 L0 5 M-3.5 -1.5 L0 -5 L3.5 -1.5"
+                  d={SET_ARROW_PATH}
                   transform={`rotate(${e.direction})`}
                   fill="none"
                   stroke="currentColor"

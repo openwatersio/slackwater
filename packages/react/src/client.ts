@@ -5,6 +5,7 @@ import type {
   ExtremesResponse,
   TimelineResponse,
   CurrentStationInfo,
+  CurrentStationSummary,
   CurrentEventsResponse,
   CurrentTimelineResponse,
 } from "./types.js";
@@ -98,11 +99,13 @@ export function fetchStation(baseUrl: string, id: string): Promise<Station> {
   return fetchJSON(buildURL(baseUrl, `/tides/stations/${source}/${stationId}`));
 }
 
-export function fetchStations(
+export async function fetchStations(
   baseUrl: string,
   params: StationsSearchParams = {},
 ): Promise<StationSummary[]> {
-  return fetchJSON(buildURL(baseUrl, "/tides/stations", params));
+  const stations = await fetchJSON<StationSummary[]>(buildURL(baseUrl, "/tides/stations", params));
+  // Searches and bounding boxes don't say which routes serve a station, and lists mix both kinds.
+  return stations.map((s) => ({ ...s, kind: "tide" }));
 }
 
 export async function fetchStationExtremes(
@@ -127,6 +130,17 @@ export async function fetchStationTimeline(
     buildURL(baseUrl, `/tides/stations/${source}/${stationId}/timeline`, rest),
   );
   return { ...data, timeline: data.timeline.map((e) => ({ ...e, time: new Date(e.time) })) };
+}
+
+/** Current stations by query, bounding box, or nearness: the same parameters as `fetchStations`. */
+export async function fetchCurrentStations(
+  baseUrl: string,
+  params: StationsSearchParams = {},
+): Promise<CurrentStationSummary[]> {
+  const stations = await fetchJSON<CurrentStationSummary[]>(
+    buildURL(baseUrl, "/currents/stations", params),
+  );
+  return stations.map((s) => ({ ...s, kind: "current" }));
 }
 
 export interface CurrentPredictionParams {

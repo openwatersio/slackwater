@@ -24,20 +24,22 @@ import {
   tideStops,
   type RatePoint,
   type TideScale,
-  type TideState,
 } from "../utils/tide.js";
 import {
   C,
   EmptyStrip,
   G,
+  GLYPH,
   HALO_GAP,
   Scrubber,
+  TideGlyph,
   geometry,
   nextStopComment,
   prefersReducedMotion,
   type ScrubberProps,
   type StripKit,
   type Track,
+  toBarPath,
 } from "./Scrubber.js";
 
 const HOUR = 3_600_000;
@@ -57,35 +59,6 @@ export interface TideScrubberProps extends Pick<ScrubberProps, "onSelect" | "mov
   /** The current instant; defaults to the clock. Pass it to render deterministically (prerendering). */
   now?: number;
   className?: string;
-}
-
-const GLYPH = {
-  fill: "none",
-  stroke: "currentColor",
-  strokeLinecap: "round",
-  strokeLinejoin: "round",
-} as const;
-
-/** SF Symbols `arrow.up.to.line` / `arrow.down.to.line`: arrives and stops. */
-function toBarPath(high: boolean) {
-  return high
-    ? "M2 1.5h8M6 11V4.5M2.8 7.7 6 4.5l3.2 3.2"
-    : "M2 10.5h8M6 1v6.5M2.8 4.3 6 7.5l3.2-3.2";
-}
-
-/** The lead's eyebrow glyph: to-bar at a turn, a diagonal on the way to one. */
-function TideGlyph({ state }: { state: TideState }) {
-  const d =
-    state === "High" || state === "Low"
-      ? toBarPath(state === "High")
-      : state === "Rising"
-        ? "M2.5 9.5 9.5 2.5M4.5 2.5h5v5"
-        : "M2.5 2.5l7 7M9.5 4.5v5h-5";
-  return (
-    <svg width={13} height={13} viewBox="0 0 12 12" aria-hidden="true">
-      <path {...GLYPH} strokeWidth={1.7} d={d} />
-    </svg>
-  );
 }
 
 /** The fit that opens the strip: the two days either side of now, as the app first builds them. */

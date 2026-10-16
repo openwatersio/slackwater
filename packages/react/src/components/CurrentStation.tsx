@@ -11,11 +11,13 @@ import { formatSpeed } from "../utils/current.js";
 import type { ScheduleEntry } from "../utils/schedule.js";
 import { CurrentScrubber } from "./CurrentScrubber.js";
 import { Schedule } from "./Schedule.js";
+import type { CardStation } from "./StationCard.js";
 import {
   DetailNote,
   DetailRow,
   StationDetails,
   StationFooter,
+  StationNearby,
   StationPage,
   StripPlaceholder,
   distanceKm,
@@ -29,6 +31,8 @@ export interface CurrentStationProps {
   id: string;
   /** Boat-speed threshold for slack windows, in knots. */
   threshold?: number;
+  /** Called when a nearby station is picked; its `kind` says which page it belongs on. */
+  onStationSelect?: (station: CardStation) => void;
   className?: string;
 }
 
@@ -50,7 +54,7 @@ function provenance(station: CurrentStationInfo, reference: string | undefined) 
 }
 
 /** A current station's detail page, after the app's current detail screen. */
-export function CurrentStation({ id, threshold, className }: CurrentStationProps) {
+export function CurrentStation({ id, threshold, onStationSelect, className }: CurrentStationProps) {
   const { locale } = useSlackwaterConfig();
   const station = useCurrentStation(id);
   const s = station.data;
@@ -154,6 +158,7 @@ export function CurrentStation({ id, threshold, className }: CurrentStationProps
               )}
             </StationDetails>
           )}
+          <StationNearby id={id} kind="current" onStationSelect={onStationSelect} />
         </>
       )}
     </StationPage>

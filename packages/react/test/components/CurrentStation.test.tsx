@@ -1,5 +1,5 @@
 import { afterEach, describe, test, expect, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { CurrentStation } from "../../src/components/CurrentStation.js";
 import { createTestWrapper } from "../helpers.js";
 
@@ -25,6 +25,20 @@ describe("CurrentStation", () => {
       await screen.findByRole("slider", { name: "Current timeline" }, { timeout: 10000 }),
     ).toBeDefined();
     expect(screen.getByRole("heading", { level: 1 }).textContent!.trim()).not.toBe("");
+  });
+
+  test("ends with the nearest stations of both kinds, without itself", async () => {
+    const onStationSelect = vi.fn();
+    render(<CurrentStation id="noaa/PUG1701" onStationSelect={onStationSelect} />, {
+      wrapper: createTestWrapper(),
+    });
+
+    const nearby = await screen.findByRole("region", { name: "Nearby" }, { timeout: 10000 });
+    const items = await within(nearby).findAllByRole("listitem", undefined, { timeout: 10000 });
+    expect(items.length).toBe(6);
+    expect(nearby.textContent).not.toContain("Deception Pass (Narrows)");
+    fireEvent.click(within(nearby).getByRole("button", { name: /^Deception Pass St\. Park/ }));
+    expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/9448614", kind: "tide" });
   });
 
   test("explains a station whose predictions can't be served", async () => {

@@ -68,7 +68,8 @@ A tide station's page, after the app's tide detail screen:
 
 - the name and region over a `<TideScrubber>`, with the reading for the selected moment and pills for the next event and the way back to now;
 - a schedule card with the week's highs and lows, a day at a time with sunrise, solar noon, and sunset. The row nearest the selection is highlighted, and choosing a row moves the scrubber there. The week bar opens a date picker;
-- where the predictions come from, the station's disclaimers and attribution, and a "Station details" disclosure with its datum, ID, position, time zone, and reference station.
+- where the predictions come from, the station's disclaimers and attribution, and a "Station details" disclosure with its datum, ID, position, time zone, and reference station;
+- the six nearest tide and current stations, as `<NearbyStations>` cards.
 
 Heights are always above the station's chart datum, which the page names. The page loads a window from 96 hours before to 180 hours after the start of the week in the station's time zone, and moves it when a date is picked, when Now is chosen, or when the page is shown again two or more days later.
 
@@ -76,25 +77,29 @@ Heights are always above the station's chart datum, which the page names. The pa
 <TideStation id="noaa/9447130" />
 ```
 
-| Prop        | Type     | Default | Description                         |
-| ----------- | -------- | ------- | ----------------------------------- |
-| `id`        | `string` | —       | Station ID (e.g. `"noaa/9447130"`)  |
-| `className` | `string` | —       | Extra classes for the outer element |
+| Prop              | Type                | Default | Description                                    |
+| ----------------- | ------------------- | ------- | ---------------------------------------------- |
+| `id`              | `string`            | —       | Station ID (e.g. `"noaa/9447130"`)             |
+| `onStationSelect` | `(station) => void` | —       | Called with a nearby station when it is picked |
+| `className`       | `string`            | —       | Extra classes for the outer element            |
 
 ### `<CurrentStation>`
 
-A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, the week's slacks and maxima with their set, where the predictions come from, and the station's details. Stations whose predictions can't be served, such as CHS stations, show the reason instead. The current components need `@slackwater/api` 1.0.0-beta.3 or later, which serves the `/currents` routes.
+A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, the week's slacks and maxima with their set, where the predictions come from, the station's details, and the nearest stations. Stations whose predictions can't be served, such as CHS stations, show the reason instead. The current components need `@slackwater/api` 1.0.0-beta.3 or later, which serves the `/currents` routes.
 
 ```tsx
 <CurrentStation id="noaa/PUG1701" />
 <CurrentStation id="noaa/EPT0003@11" threshold={1} />
 ```
 
-| Prop        | Type     | Default | Description                                                        |
-| ----------- | -------- | ------- | ------------------------------------------------------------------ |
-| `id`        | `string` | —       | Station ID, optionally with a depth bin (e.g. `"noaa/EPT0003@11"`) |
-| `threshold` | `number` | `0.5`   | Boat speed in knots that sizes the slack windows                   |
-| `className` | `string` | —       | Extra classes for the outer element                                |
+| Prop              | Type                | Default | Description                                                        |
+| ----------------- | ------------------- | ------- | ------------------------------------------------------------------ |
+| `id`              | `string`            | —       | Station ID, optionally with a depth bin (e.g. `"noaa/EPT0003@11"`) |
+| `threshold`       | `number`            | `0.5`   | Boat speed in knots that sizes the slack windows                   |
+| `onStationSelect` | `(station) => void` | —       | Called with a nearby station when it is picked                     |
+| `className`       | `string`            | —       | Extra classes for the outer element                                |
+
+A nearby station's `kind` (`"tide"` or `"current"`) says which page it belongs on.
 
 ### `<TideScrubber>`
 
@@ -155,29 +160,76 @@ Both scrubbers also take `onSelect(time)`, called as the selected moment changes
 
 ### `<TideConditions>`
 
-The water level now, whether it is rising or falling, and the next high or low, over a faint tide curve. Pass data, or a station ID to fetch it.
+The tide now, after the app's small home-screen widget: the station's name, the height with an arrow for rising or falling, and the curve from half a swing back to a swing and a half ahead, whose labels name the next highs and lows. It is 170 px tall, or the parent's height with `fill`. Pass data, or a station ID to fetch it.
 
 ```tsx
 <TideConditions id="noaa/9447130" />
-<TideConditions timeline={timeline} extremes={extremes} units="meters" timezone="UTC" />
+<TideConditions name="Seattle" timeline={timeline} extremes={extremes} units="meters" timezone="UTC" />
 ```
+
+| Prop                                        | Type      | Default   | Description                                                    |
+| ------------------------------------------- | --------- | --------- | -------------------------------------------------------------- |
+| `id`                                        | `string`  | —         | Station ID to fetch, in place of the data props                |
+| `timeline`, `extremes`, `units`, `timezone` | —         | —         | The predictions to show                                        |
+| `name`                                      | `string`  | —         | The station's name, with the data props                        |
+| `fill`                                      | `boolean` | `false`   | Fill the parent's height                                       |
+| `now`                                       | `number`  | the clock | The current instant in ms; pass it to render deterministically |
+| `className`                                 | `string`  | —         | Extra classes for the outer element                            |
+
+### `<StationCard>`
+
+A station's card, after the app's: its name and region, the reading now (height and rising or falling for a tide; speed, flooding, ebbing, or slack, and the set for a current), and a curve from one and a half swings back to two and a half ahead with each high, low, maximum, and slack window. The card loads its own predictions once it scrolls near the viewport, with a skeleton until then. A station the API can't serve shows only its name and region.
+
+```tsx
+<StationCard station={station} onSelect={(station) => navigate(station)} />
+<StationCard station={station} href={`/stations/${station.id}`} distance={2.3} />
+```
+
+| Prop        | Type                | Default   | Description                                                    |
+| ----------- | ------------------- | --------- | -------------------------------------------------------------- |
+| `station`   | `StationSummary`    | —         | The station, from a listing; its `kind` picks the predictions  |
+| `distance`  | `number`            | —         | Kilometres away, shown in nautical miles                       |
+| `href`      | `string`            | —         | Makes the card a link                                          |
+| `onSelect`  | `(station) => void` | —         | Called when the card is activated; makes it a button           |
+| `threshold` | `number`            | `0.5`     | Boat speed in knots that sizes a current's slack windows       |
+| `now`       | `number`            | the clock | The current instant in ms; pass it to render deterministically |
+| `className` | `string`            | —         | Extra classes for the card                                     |
 
 ### `<StationSearch>`
 
-Autocomplete search input for finding stations.
+Station search after the app's: a field, an All / Tides / Currents filter, and the matching tide and current stations as `<StationCard>`s in a grid. Matches in a station's name come before matches in its region. It shows the first 60 and says so, or "No matches".
 
 ```tsx
-<StationSearch onSelect={(station) => console.log(station)} />
+<StationSearch onSelect={(station) => console.log(station.kind, station.id)} />
 ```
+
+| Prop          | Type                | Default                     | Description                                      |
+| ------------- | ------------------- | --------------------------- | ------------------------------------------------ |
+| `onSelect`    | `(station) => void` | —                           | Called with the picked station, including `kind` |
+| `placeholder` | `string`            | `"Harbor, bay, or channel"` | The field's placeholder and label                |
+| `className`   | `string`            | —                           | Extra classes for the outer element              |
 
 ### `<NearbyStations>`
 
-List of stations near a given station or coordinates.
+The tide and current stations nearest a station or a position, as `<StationCard>`s with their distance, nearest first. With `stationId`, the station itself is left out; pass `kind="current"` when it is a current station.
 
 ```tsx
 <NearbyStations stationId="noaa/9447130" maxResults={5} />
+<NearbyStations stationId="noaa/PUG1701" kind="current" />
 <NearbyStations latitude={47.6} longitude={-122.3} />
 ```
+
+| Prop                    | Type                  | Default  | Description                                         |
+| ----------------------- | --------------------- | -------- | --------------------------------------------------- |
+| `stationId`             | `string`              | —        | Measure from this station, leaving it out           |
+| `kind`                  | `"tide" \| "current"` | `"tide"` | Which routes serve `stationId`                      |
+| `latitude`, `longitude` | `number`              | —        | Measure from a position instead                     |
+| `maxResults`            | `number`              | `5`      | How many stations to show                           |
+| `onStationSelect`       | `(station) => void`   | —        | Called with the picked station, including `kind`    |
+| `onHover`, `onHoverEnd` | `(station) => void`   | —        | Called as a station is hovered or focused, and left |
+| `className`             | `string`              | —        | Extra classes for the list                          |
+
+Without the API's `/currents` routes, the search and nearby lists show tide stations only.
 
 ### `<StationsMap>`
 
@@ -204,6 +256,7 @@ All hooks must be used within a `<SlackwaterProvider>`.
 - `useTimeline({ id, start?, end?, datum?, units? }, options?)` — fetch a tide height timeline
 - `useExtremes({ id, start?, end?, datum?, units? }, options?)` — fetch highs and lows
 - `useCurrentStation(id)` — fetch a current station
+- `useCurrentStations({ query?, bbox?, latitude?, longitude? })` — search or list current stations
 - `useCurrentEvents(id, { start, end })` — fetch slack, max flood, and max ebb events
 - `useCurrentTimeline(id, { start, end })` — fetch the signed current speed timeline
 - `useCurrentLevel(timeline)` — the water level now, interpolated and updated each minute

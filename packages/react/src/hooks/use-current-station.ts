@@ -1,11 +1,32 @@
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { useSlackwaterConfig } from "../provider.js";
 import {
+  fetchCurrentStations,
   fetchCurrentStation,
   fetchCurrentStationEvents,
   fetchCurrentStationTimeline,
+  type StationsSearchParams,
 } from "../client.js";
 import { queryKeys } from "../query-keys.js";
+import type { CurrentStationSummary } from "../types.js";
+
+type CurrentStationsQueryOptions = Pick<
+  UseQueryOptions<CurrentStationSummary[]>,
+  "placeholderData" | "enabled"
+>;
+
+/** Search, list, or find current stations near a position. */
+export function useCurrentStations(
+  params: StationsSearchParams = {},
+  options: CurrentStationsQueryOptions = {},
+) {
+  const { baseUrl } = useSlackwaterConfig();
+  return useQuery({
+    queryKey: queryKeys.currentStations(params),
+    queryFn: () => fetchCurrentStations(baseUrl, params),
+    ...options,
+  });
+}
 
 export function useCurrentStation(id: string | undefined) {
   const { baseUrl } = useSlackwaterConfig();

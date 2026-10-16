@@ -9,11 +9,13 @@ import type { Station } from "../types.js";
 import type { ScheduleEntry } from "../utils/schedule.js";
 import { formatHeight, heightUnit } from "../utils/tide.js";
 import { Schedule } from "./Schedule.js";
+import type { CardStation } from "./StationCard.js";
 import {
   DetailNote,
   DetailRow,
   StationDetails,
   StationFooter,
+  StationNearby,
   StationPage,
   StripPlaceholder,
   distanceKm,
@@ -26,6 +28,8 @@ import { TideScrubber } from "./TideScrubber.js";
 export interface TideStationProps {
   /** "source/id": "noaa/9447130". */
   id: string;
+  /** Called when a nearby station is picked; its `kind` says which page it belongs on. */
+  onStationSelect?: (station: CardStation) => void;
   className?: string;
 }
 
@@ -44,7 +48,7 @@ function provenance(station: Station, datum: string | undefined, reference: stri
  * strip with its lead reading, the week's highs and lows, and where the
  * numbers come from. Heights are always above the station's chart datum.
  */
-export function TideStation({ id, className }: TideStationProps) {
+export function TideStation({ id, onStationSelect, className }: TideStationProps) {
   const { locale, units: preferred } = useSlackwaterConfig();
   const station = useStation(id);
   const s = station.data;
@@ -139,6 +143,7 @@ export function TideStation({ id, className }: TideStationProps) {
               <DetailRow label="Reference" value={`${ref.name}, ${distanceKm(s, ref)} km away`} />
             )}
           </StationDetails>
+          <StationNearby id={id} kind="tide" onStationSelect={onStationSelect} />
         </>
       )}
     </StationPage>
