@@ -679,6 +679,8 @@ function Scrubber({
   };
 
   onRestRef.current = () => {
+    // A busy page delays the opening's frames past the rest delay; it rests once it lands.
+    if (opening.current !== undefined) return restSoon(() => onRestRef.current());
     const landing = target.current;
     target.current = undefined;
     if (landing !== undefined && Math.abs(centerTime() - landing) < UNIT_MS) {

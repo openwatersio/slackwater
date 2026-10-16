@@ -113,6 +113,17 @@ afterEach(() => {
 });
 
 describe("CurrentScrubber", () => {
+  test("frames later than the rest delay don't cut the opening short", async () => {
+    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) =>
+      setTimeout(() => frame(performance.now()), 600),
+    );
+    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+    // The opening starts on the slack at 24 h, inside the magnet's reach.
+    const { slider } = renderScrubber({ now: t0 + 26 * H });
+
+    await restsOn(slider, t0 + 26 * H);
+  });
+
   test("glides open onto now and reads the current there", async () => {
     const { slider } = renderScrubber();
 
