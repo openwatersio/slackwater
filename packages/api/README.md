@@ -119,6 +119,8 @@ Every mode includes stations whose predictions can't be served, such as the Cana
 
 - `predictions`: whether this API can serve predictions for the station
 - `unavailable`: why not, when `predictions` is `false`
+- `attribution`: the credit to display wherever the station's data is shown
+- `license`: the station data's license (`type`, `commercial_use`, `url`, and sometimes `notes`). A commercial product must leave out stations marked `commercial_use: false`, the TICON records under CC BY-NC 4.0
 
 ### GET /tides/stations/:source/:id
 
@@ -213,6 +215,7 @@ Each station appears once, at its primary bin. As with `/tides/stations`, a loca
 - `bins`: each depth bin of the station, primary first, e.g. `[{ "id": "noaa/EPT0003" }, { "id": "noaa/EPT0003@11", "bin": 11 }]`
 - `predictions`: whether this API can serve predictions for the station
 - `unavailable`: why not, when `predictions` is `false`
+- `attribution` and `license`, as on `/tides/stations`
 
 ### GET /currents/stations/:source/:id
 

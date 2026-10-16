@@ -14,6 +14,7 @@ async function cards() {
   return within(list).getAllByRole("listitem");
 }
 
+const credits = () => screen.queryAllByText(/^Slackwater database \(/);
 const names = (items: HTMLElement[]) =>
   items.map((li) => li.querySelector(".truncate")!.textContent);
 const distances = (items: HTMLElement[]) =>
@@ -136,6 +137,30 @@ describe("NearbyStations", () => {
     );
     render(<NearbyStations {...DECEPTION_PASS} />, { wrapper: createTestWrapper() });
     expect(await screen.findByText("Down for maintenance")).toBeDefined();
+  });
+
+  test("credits each source of the listed stations once, under the cards", async () => {
+    // Off the Dutch coast, TICON stations under CC BY 4.0 and under CC BY-NC 4.0 sit side by side.
+    render(<NearbyStations latitude={55.4} longitude={3.81} maxResults={4} />, {
+      wrapper: createTestWrapper(),
+    });
+
+    const list = await screen.findByRole("list", undefined, { timeout: 10000 });
+    const shown = credits();
+    expect(shown.map((p) => /Licensed (CC BY(?:-NC)? 4\.0)/.exec(p.textContent!)?.[1])).toEqual([
+      "CC BY-NC 4.0",
+      "CC BY 4.0",
+    ]);
+    expect(shown.every((p) => !list.contains(p))).toBe(true);
+  });
+
+  test("credits NOAA stations with the database's credit alone", async () => {
+    render(<NearbyStations {...DECEPTION_PASS} maxResults={3} />, { wrapper: createTestWrapper() });
+
+    await cards();
+    expect(credits().map((p) => p.textContent)).toEqual([
+      "Slackwater database (https://github.com/openwatersio/slackwater-database)",
+    ]);
   });
 
   test("applies className to the list", async () => {

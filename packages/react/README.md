@@ -161,7 +161,7 @@ Both scrubbers also take `onSelect(time)`, called as the selected moment changes
 
 ### `<TideConditions>`
 
-The tide now, after the app's small home-screen widget: the station's name, the height with an arrow for rising or falling, and the curve from half a swing back to a swing and a half ahead, whose labels name the next highs and lows. It is 170 px tall, or the parent's height with `fill`. Pass data, or a station ID to fetch it; a station the API can't serve, such as `chs-campbell-river`, shows the reason instead.
+The tide now, after the app's small home-screen widget: the station's name, the height with an arrow for rising or falling, and the curve from half a swing back to a swing and a half ahead, whose labels name the next highs and lows. It is 170 px tall, or the parent's height with `fill`, with the station's credit under it. Pass data, or a station ID to fetch it; a station the API can't serve, such as `chs-campbell-river`, shows the reason instead.
 
 ```tsx
 <TideConditions id="noaa/9447130" />
@@ -174,13 +174,14 @@ The tide now, after the app's small home-screen widget: the station's name, the 
 | `timeline`, `extremes`, `units`, `timezone` | —         | —         | The predictions to show                                                                    |
 | `name`                                      | `string`  | —         | The station's name, with the data props                                                    |
 | `chartDatum`                                | `boolean` | `true`    | With the data props, `false` when the heights aren't above a chart datum, so 0 is unmarked |
+| `attribution`                               | `string`  | —         | With the data props, the station's `attribution`, printed under the widget                 |
 | `fill`                                      | `boolean` | `false`   | Fill the parent's height                                                                   |
 | `now`                                       | `number`  | the clock | The current instant in ms; pass it to render deterministically                             |
 | `className`                                 | `string`  | —         | Extra classes for the outer element                                                        |
 
 ### `<StationCard>`
 
-A station's card, after the app's: its name and region, the reading now (height and rising or falling for a tide; speed, flooding, ebbing, or slack, and the set for a current), and a curve from one and a half swings back to two and a half ahead with each high, low, maximum, and slack window. The card loads its own predictions once it scrolls near the viewport, with a skeleton until then. A station the API can't serve shows only its name and region.
+A station's card, after the app's: its name and region, the reading now (height and rising or falling for a tide; speed, flooding, ebbing, or slack, and the set for a current), and a curve from one and a half swings back to two and a half ahead with each high, low, maximum, and slack window. The card loads its own predictions once it scrolls near the viewport, with a skeleton until then. A station the API can't serve shows only its name and region. The card has no room for its station's credit, so put a `<StationCredits>` under the cards you show.
 
 ```tsx
 <StationCard station={station} onSelect={(station) => navigate(station)} />
@@ -199,7 +200,7 @@ A station's card, after the app's: its name and region, the reading now (height 
 
 ### `<StationSearch>`
 
-Station search after the app's: a field, an All / Tides / Currents filter, and the matching tide and current stations as `<StationCard>`s in a grid. Matches in a station's name come before matches in its region. It shows the first 60 and says so, or "No matches".
+Station search after the app's: a field, an All / Tides / Currents filter, and the matching tide and current stations as `<StationCard>`s in a grid. Matches in a station's name come before matches in its region. It shows the first 60 and says so, or "No matches". The credits of the stations shown follow the results, as `<StationCredits>`.
 
 ```tsx
 <StationSearch onSelect={(station) => console.log(station.kind, station.id)} />
@@ -213,7 +214,7 @@ Station search after the app's: a field, an All / Tides / Currents filter, and t
 
 ### `<NearbyStations>`
 
-The tide and current stations nearest a station or a position, as `<StationCard>`s with their distance, nearest first. With `stationId`, the station itself is left out; pass `kind="current"` when it is a current station.
+The tide and current stations nearest a station or a position, as `<StationCard>`s with their distance, nearest first. With `stationId`, the station itself is left out; pass `kind="current"` when it is a current station. The credits of the stations listed follow the list, as `<StationCredits>`.
 
 ```tsx
 <NearbyStations stationId="noaa/9447130" maxResults={5} />
@@ -237,7 +238,7 @@ Without the API's `/currents` routes, the search and nearby lists show tide stat
 
 The app's stations map: every tide and current station in view as a live pin on OpenFreeMap's dark [fiord](https://openfreemap.org) style, north up. A tide is a gauge filled to where the water sits between its last and next turn, teal and pointing up while rising, amber and pointing down while falling. A current is an arrow toward its set, green at slack and otherwise colored by its speed. A station whose state isn't known yet is a steel dot, and one the API can't serve is a hollow ring. Readings ("3.2 ft", "1.8 kn"), gauges, and arrows appear from zoom 9.5 and names from 10.5. Below 9.5 every pin is a dot, in its tide or current color where its predictions are already loaded and steel otherwise. Each 44 px cell keeps one station, a harmonic station before a subordinate.
 
-A tap picks the nearest pin and shows its `<StationCard>` in a panel along the bottom, under the "Not for navigation." notice; tapping the card calls `onStationSelect`, and tapping the water closes it. The locate button centers the map on the reader at zoom 10.5. Requires `maplibre-gl` and `react-map-gl`.
+A tap picks the nearest pin and shows its `<StationCard>` in a panel along the bottom, under the "Not for navigation." notice and over the station's credit; tapping the card calls `onStationSelect`, and tapping the water closes it. The map's ⓘ credits the basemap and every station in view whose predictions color its pin. The locate button centers the map on the reader at zoom 10.5. Requires `maplibre-gl` and `react-map-gl`.
 
 ```tsx
 <StationsMap
@@ -261,9 +262,26 @@ Other props pass through to react-map-gl's `<Map>`, and the forwarded ref is its
 
 Station listings load by bounding box once the camera settles, padded by half the view so a small pan needs nothing new. From zoom 9.5, each station in view loads the same predictions its card does (a tide's timeline and extremes, a current's timeline), so the card in the panel opens without another request. Pins update each minute from what is loaded, and a new window loads on the hour.
 
+### `<StationCredits>`
+
+The credits owed for a set of stations, each distinct `attribution` once, as quiet small print. A credit another contains is left out, so NOAA stations, whose credit is only the database's, add nothing beside a Kartverket or TICON station. Renders nothing when no station carries one.
+
+```tsx
+<StationCredits stations={shownStations} />
+```
+
+| Prop        | Type                 | Default | Description                         |
+| ----------- | -------------------- | ------- | ----------------------------------- |
+| `stations`  | `{ attribution? }[]` | —       | The stations whose data is shown    |
+| `className` | `string`             | —       | Extra classes for the outer element |
+
 ### `<StationDisclaimers>`
 
 A station's disclaimers as a paragraph, or nothing when it has none.
+
+## Station licenses
+
+Each station's data carries a license, in its `license` (`type`, `commercial_use`, `url`, `notes`), and a credit, in its `attribution`. The station pages, the search and nearby lists, the widget, and the map show the credit for you; keep it visible wherever you show a station's predictions some other way. The components don't filter by license: a commercial product must leave out stations marked `commercial_use: false`, the TICON records under CC BY-NC 4.0. `license` and `attribution` come with every listing from an API that includes them.
 
 ## Hooks
 

@@ -1,5 +1,14 @@
 export type Units = "meters" | "feet";
 
+/** The license a station's data is under. */
+export interface StationLicense {
+  type: string;
+  /** False for CC BY-NC stations (TICON records relayed from CMEMS); a host must not use their data commercially. */
+  commercial_use: boolean;
+  url?: string;
+  notes?: string;
+}
+
 export interface StationSummary {
   id: string;
   name: string;
@@ -18,6 +27,9 @@ export interface StationSummary {
   predictions?: boolean;
   /** Why predictions can't be served, when `predictions` is false. */
   unavailable?: string;
+  /** The credit to display wherever the station's data is shown; absent from APIs that predate it in listings. */
+  attribution?: string;
+  license?: StationLicense;
 }
 
 export interface Station extends StationSummary {
@@ -26,14 +38,8 @@ export interface Station extends StationSummary {
     name: string;
     url: string;
   };
-  license: {
-    type: string;
-    commercial_use: boolean;
-    url?: string;
-    notes?: string;
-  };
+  license: StationLicense;
   disclaimers?: string;
-  attribution?: string;
   datums: Record<string, number>;
   /** The datum predictions default to: the station's chart datum. */
   defaultDatum?: string;
@@ -111,14 +117,8 @@ export interface CurrentStationInfo extends CurrentStationSummary {
     url: string;
     published_harmonics: boolean;
   };
-  license: {
-    type: string;
-    commercial_use: boolean;
-    url: string;
-    notes?: string;
-  };
+  license: StationLicense & { url: string };
   disclaimers?: string;
-  attribution?: string;
   current?: {
     /** Degrees true. Absent when the station publishes none. */
     flood_direction?: number;

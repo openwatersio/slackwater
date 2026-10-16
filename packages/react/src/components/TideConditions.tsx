@@ -22,6 +22,8 @@ interface TideConditionsDataProps {
   name?: string;
   /** False when the heights aren't above a chart datum (a response without `datum`), so 0 is unmarked. */
   chartDatum?: boolean;
+  /** The station's credit, printed under the widget; pass the station's `attribution`. */
+  attribution?: string;
 }
 
 interface TideConditionsFetchProps {
@@ -70,6 +72,7 @@ function TideConditionsStatic({
   timezone,
   name,
   chartDatum,
+  attribution,
   fill,
   now: fixedNow,
   className,
@@ -78,8 +81,9 @@ function TideConditionsStatic({
   const now = useMinuteClock(fixedNow);
   const reading = readTideCard(timeline, extremes, now);
 
-  return (
-    <Frame fill={fill} className={className}>
+  const widget = (
+    // Under a caption, the square gives up the caption's height when it fills its parent.
+    <Frame fill={fill} className={attribution ? (fill ? "min-h-0 flex-1" : undefined) : className}>
       {reading && timeline.length > 1 ? (
         <>
           {/* The graph clears the name and reading, and bleeds past the sides to leave on its own slope. */}
@@ -104,6 +108,18 @@ function TideConditionsStatic({
         <Message>{EMPTY_TIDE_MESSAGE}</Message>
       )}
     </Frame>
+  );
+  if (!attribution) return widget;
+  return (
+    <figure className={`m-0 flex flex-col gap-1.5 ${fill ? "h-full" : ""} ${className ?? ""}`}>
+      {widget}
+      <figcaption
+        className="px-1 text-[11px] leading-snug text-(--sw-foam)/62 wrap-anywhere"
+        style={{ fontFamily: "var(--sw-font-sans)" }}
+      >
+        {attribution}
+      </figcaption>
+    </figure>
   );
 }
 
@@ -165,6 +181,7 @@ function TideConditionsFetcher({
       timezone={config.timezone ?? timeline.data.station.timezone}
       name={timeline.data.station.name}
       chartDatum={!!timeline.data.datum}
+      attribution={timeline.data.station.attribution}
       fill={fill}
       now={fixedNow}
       className={className}

@@ -489,7 +489,28 @@ const tides = {
             type: "string",
             enum: ["reference", "subordinate"],
           },
+          license: {
+            $ref: "#/components/schemas/StationLicense",
+          },
+          attribution: {
+            $ref: "#/components/schemas/StationAttribution",
+          },
         },
+      },
+      StationLicense: {
+        type: "object",
+        description:
+          "The license of the station's data. Hosts must honor `commercial_use: false` (CC BY-NC stations).",
+        properties: {
+          type: { type: "string" },
+          commercial_use: { type: "boolean" },
+          url: { type: "string" },
+          notes: { type: "string" },
+        },
+      },
+      StationAttribution: {
+        type: "string",
+        description: "The credit to display wherever the station's data is shown",
       },
       Station: {
         type: "object",
@@ -531,13 +552,10 @@ const tides = {
             },
           },
           license: {
-            type: "object",
-            properties: {
-              type: { type: "string" },
-              commercial_use: { type: "boolean" },
-              url: { type: "string" },
-              notes: { type: "string" },
-            },
+            $ref: "#/components/schemas/StationLicense",
+          },
+          attribution: {
+            $ref: "#/components/schemas/StationAttribution",
           },
           disclaimers: {
             type: "string",

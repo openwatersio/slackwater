@@ -497,6 +497,29 @@ describe("GET /stations", () => {
     expect(response.status).toBe(400);
     expect(response.body).toHaveProperty("message");
   });
+
+  // Bergen is CC BY 4.0; Aigio, a TICON station relayed from CMEMS, is CC BY-NC 4.0.
+  describe.each(["kartverket/BGO", "ticon/aigio-aig-grc-cmems"])("credit for %s", (id) => {
+    const station = dbStations.find((s) => s.id === id)!;
+    const near = { latitude: station.latitude, longitude: station.longitude };
+    const box = [near.longitude - 0.05, near.latitude - 0.05, near.longitude + 0.05];
+
+    test.each([
+      ["search", { query: station.name }],
+      ["bounding box", { bbox: [...box, near.latitude + 0.05].join(",") }],
+      ["proximity", near],
+      ["full list", {}],
+    ])("is listed in %s listings", async (_mode, query) => {
+      const response = await request(app).get("/stations").query(query);
+
+      expect(response.status).toBe(200);
+      const listed = (response.body as { id: string }[]).find((s) => s.id === id);
+      expect(listed).toMatchObject({
+        attribution: station.attribution,
+        license: station.license,
+      });
+    });
+  });
 });
 
 describe("GET /stations/:source/:id/extremes", () => {

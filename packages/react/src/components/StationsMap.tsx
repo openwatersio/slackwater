@@ -9,11 +9,11 @@ import {
   type Ref,
 } from "react";
 import {
-  AttributionControl,
   Layer,
   Map,
   Marker,
   Source,
+  useControl,
   type LayerProps,
   type MapLayerMouseEvent,
   type MapRef,
@@ -36,6 +36,7 @@ import { useThemeColors, type ThemeColors } from "../hooks/use-theme-colors.js";
 import { useSlackwaterConfig } from "../provider.js";
 import type { CurrentTimelineResponse, ExtremesResponse, TimelineResponse } from "../types.js";
 import { cardRange } from "../utils/card.js";
+import { creditHtml, distinctCredits } from "../utils/credit.js";
 import { DEFAULT_SLACK_THRESHOLD } from "../utils/current.js";
 import { drawPinImage, pinImageId } from "../utils/pin-images.js";
 import {
@@ -64,6 +65,7 @@ import {
   type PinState,
 } from "../utils/pin.js";
 import { StationCard } from "./StationCard.js";
+import { StationCredits } from "./StationCredits.js";
 import { useMinuteClock } from "./StationCardFace.js";
 
 /** OpenFreeMap's fiord: the app's dark basemap, whose water the pin colors are tuned against. */
@@ -232,6 +234,20 @@ function layers(colors: ThemeColors): LayerProps[] {
   ];
 }
 
+/** The map's attribution: the basemap's credit, then the credits of the stations predicted in view. */
+function Credits({ credits }: { credits: string[] }) {
+  const control = useControl(
+    ({ mapLib }) => new mapLib.AttributionControl({ compact: true, customAttribution: credits }),
+    { position: "top-right" },
+  );
+  useEffect(() => {
+    // MapLibre reads the options only when the control is added; a new control would open again after a pan collapsed it.
+    control.options = { ...control.options, customAttribution: credits };
+    control._updateAttributions();
+  }, [control, credits]);
+  return null;
+}
+
 function setRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (typeof ref === "function") ref(value);
   else if (ref) ref.current = value;
@@ -314,15 +330,21 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
   // useQueries can't keep previous data, so each pin keeps its last window until the next hour's loads.
   const held = useRef(new globalThis.Map<string, unknown[]>());
 
-  const pins = useMemo<FeatureCollection<Point>>(() => {
+  const { pins, credits } = useMemo(() => {
     let i = 0;
     const holding = new globalThis.Map<string, unknown[]>();
+    const shown: (string | undefined)[] = [];
     const features = visible.map((s): Feature<Point> => {
       const key = stationKey(s);
       const count = s.kind === "tide" ? 2 : 1;
       const fresh = data.slice(i, (i += count));
       const own = fresh.every((d) => d !== undefined) ? fresh : (held.current.get(key) ?? fresh);
       holding.set(key, own);
+      // A pin's color and reading are the station's predictions, so a pin on screen owes its credit.
+      const response = own[0] as TimelineResponse | CurrentTimelineResponse | undefined;
+      if (response && camera && boxContains(camera.view, s.latitude, s.longitude)) {
+        shown.push(response.station.attribution);
+      }
       let state: PinState;
       if (s.kind === "tide") {
         const [timeline, extremes] = own as [TimelineResponse?, ExtremesResponse?];
@@ -368,8 +390,9 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
       };
     });
     held.current = holding;
-    return { type: "FeatureCollection", features };
-  }, [visible, data, now, detailed, threshold, colors, config.locale, pinned]);
+    const pins: FeatureCollection<Point> = { type: "FeatureCollection", features };
+    return { pins, credits: distinctCredits(shown).map(creditHtml) };
+  }, [visible, data, now, detailed, threshold, colors, config.locale, pinned, camera]);
 
   const byKey = useMemo(
     () => new globalThis.Map(visible.map((s) => [stationKey(s), s])),
@@ -488,7 +511,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
         pitchWithRotate={false}
         maxPitch={0}
       >
-        <AttributionControl position="top-right" compact />
+        <Credits credits={credits} />
         <Source id={SOURCE} type="geojson" data={pins}>
           {mapLayers.map((layer) => (
             <Layer key={layer.id} {...layer} />
@@ -556,6 +579,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
               threshold={threshold}
               now={fixedNow}
             />
+            <StationCredits stations={[selected]} className="px-5 pt-1 pb-3" />
           </div>
         )}
       </div>

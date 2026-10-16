@@ -179,6 +179,86 @@ describe("StationsMap", () => {
     }
   });
 
+  describe("credits", () => {
+    const bergen = { longitude: 5.320487, latitude: 60.398046 };
+
+    async function renderBergen() {
+      const ref = createRef<MapRef>();
+      const { container } = render(
+        <StationsMap
+          ref={ref}
+          mapStyle={style}
+          now={NOW}
+          initialViewState={{ ...bergen, zoom: 11 }}
+          onStationSelect={() => {}}
+        />,
+        { wrapper: mapWrapper() },
+      );
+      return { container, map: await loadedMap(ref) };
+    }
+
+    test("the stations predicted in view, beside the basemap's", async () => {
+      const { container, map } = await renderBergen();
+      const controls = () => [...container.querySelectorAll(".maplibregl-ctrl-attrib")];
+      // MapLibre hides an emptied control without clearing its text.
+      const control = () => {
+        const [only] = controls();
+        return only?.classList.contains("maplibregl-attrib-empty") ? "" : only?.textContent;
+      };
+      const folded = () => controls().map((c) => !c.classList.contains("maplibregl-compact-show"));
+
+      await waitFor(() => expect(control()).toMatch(/Source: Kartverket .+ Licensed CC BY 4\.0/), {
+        timeout: 10000,
+      });
+
+      // A drag folds the control to its ⓘ, and a change of credits leaves it folded.
+      map.fire("drag");
+      expect(folded()).toEqual([true]);
+
+      // Just off screen, Bergen's pin keeps its predictions in the margin but shows none of them.
+      map.jumpTo({ center: map.unproject([500, 150]) });
+      await waitFor(() => expect(control()).toBe(""));
+      map.jumpTo({ center: [bergen.longitude, bergen.latitude] });
+      await waitFor(() => expect(control()).toMatch(/Source: Kartverket/));
+      expect(folded()).toEqual([true]);
+
+      // Off Seattle only NOAA's stations are predicted, whose credit is the database's alone.
+      map.jumpTo({ center: [SEATTLE.longitude, SEATTLE.latitude] });
+      await waitFor(
+        () =>
+          expect(control()).toBe(
+            "Slackwater database (https://github.com/openwatersio/slackwater-database)",
+          ),
+        { timeout: 10000 },
+      );
+    });
+
+    test("the open card's station, under the card", async () => {
+      const { container, map } = await renderBergen();
+      await waitFor(
+        () =>
+          expect(
+            map
+              .queryRenderedFeatures({ layers: ["sw-pins"] })
+              .some((f) => f.properties.key === "tide:kartverket/BGO"),
+          ).toBe(true),
+        { timeout: 10000 },
+      );
+
+      const canvas = container.querySelector("canvas")!;
+      const pin = map.project([bergen.longitude, bergen.latitude]);
+      tap(canvas, pin.x - 20, pin.y);
+      const card = await screen.findByRole("button", { name: /Bergen/ }, { timeout: 10000 });
+      const [credit, ...more] = screen
+        .getAllByText(/^Slackwater database \(.+Source: Kartverket/)
+        .filter((p) => !p.closest(".maplibregl-ctrl"));
+      expect(more).toEqual([]);
+      expect(credit.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+        card.getBoundingClientRect().bottom,
+      );
+    });
+  });
+
   test("a tap shows the station's card, the card opens it, and water deselects", async () => {
     const ref = createRef<MapRef>();
     const onStationSelect = vi.fn();

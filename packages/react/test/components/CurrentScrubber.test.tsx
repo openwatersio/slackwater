@@ -307,9 +307,9 @@ describe("CurrentScrubber", () => {
     tap(slider, sunrise + 5 * M, 378);
     await restsOn(slider, sunrise);
 
+    // The tap is handled in the event, so a date that moved the strip would have moved it already.
     tap(slider, t0 + 36 * H, 364);
-    await new Promise((r) => setTimeout(r, 600));
-    expect(value(slider)).toBe(sunrise);
+    await restsOn(slider, sunrise);
   });
 
   test("a scroll comes to rest on a stop within the magnet's reach", async () => {

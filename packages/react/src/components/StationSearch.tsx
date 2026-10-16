@@ -6,6 +6,7 @@ import { useStations } from "../hooks/use-stations.js";
 import type { StationSummary } from "../types.js";
 import { SEARCH_LIMIT, rankSearch } from "../utils/card.js";
 import { StationCard, type CardStation } from "./StationCard.js";
+import { StationCredits } from "./StationCredits.js";
 
 export interface StationSearchProps {
   /** Called with the picked station; its `kind` says which routes serve it. */
@@ -179,6 +180,7 @@ export function StationSearch({
             ))}
           </ul>
         )}
+        <StationCredits stations={results} />
       </div>
     </div>
   );

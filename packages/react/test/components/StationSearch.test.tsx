@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StationSearch } from "../../src/components/StationSearch.js";
 import { createTestWrapper } from "../helpers.js";
@@ -165,6 +165,25 @@ describe("StationSearch", () => {
     await user.type(field, "Deception");
 
     expect(await results()).toEqual(["Deception Pass St. Park", "Yokeko Point", "Cornet Bay"]);
+  });
+
+  test("credits the sources of the results shown, once, under them", async () => {
+    const credits = () =>
+      screen.queryAllByText(/^Slackwater database \(/).map((p) => p.textContent);
+    const { field, user } = renderSearch();
+    await user.type(field, "Bergen");
+
+    expect(await results()).toContain("Bergen");
+    // Kartverket's credit opens with the database's, which the NOAA results carry alone.
+    expect(credits()).toEqual([expect.stringContaining("Source: Kartverket")]);
+    expect(within(screen.getByRole("list")).queryByText(/^Slackwater database/)).toBeNull();
+
+    await user.click(chip("Show currents"));
+    await waitFor(() =>
+      expect(credits()).toEqual([
+        "Slackwater database (https://github.com/openwatersio/slackwater-database)",
+      ]),
+    );
   });
 
   test("says why when the search fails", async () => {

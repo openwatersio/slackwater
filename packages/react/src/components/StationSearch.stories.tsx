@@ -30,6 +30,9 @@ const search = (query: string) =>
 /** Tide and current stations together, ranked by where the query matches. */
 export const Results: Story = { play: search("Deception") };
 
+/** Results from Kartverket and NOAA, with the credit they owe under them. */
+export const Credited: Story = { play: search("Bergen") };
+
 /** A broad query stops at sixty results and says so. */
 export const Truncated: Story = { play: search("bay") };
 

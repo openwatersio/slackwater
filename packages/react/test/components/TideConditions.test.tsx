@@ -118,6 +118,31 @@ describe("TideConditions", () => {
     expect(container.querySelector<HTMLElement>(".tile")!.getBoundingClientRect().height).toBe(240);
   });
 
+  test("prints the credit it is given under the square, inside the parent's height with fill", () => {
+    const credit = "Slackwater database. Source: Kartverket. Licensed CC BY 4.0.";
+    const props = { timeline, extremes, units: "feet" as const, timezone: "UTC", now: NOW };
+    const { container, rerender } = render(
+      <TideConditions {...props} attribution={credit} className="tile" />,
+      { wrapper: createTestWrapper() },
+    );
+    const caption = screen.getByText(credit);
+    expect(caption.tagName).toBe("FIGCAPTION");
+    const square = container.querySelector("figure > div")!.getBoundingClientRect();
+    expect(square.height).toBe(170);
+    expect(caption.getBoundingClientRect().top).toBeGreaterThanOrEqual(square.bottom);
+
+    rerender(
+      <div style={{ height: 240 }}>
+        <TideConditions {...props} attribution={credit} className="tile" fill />
+      </div>,
+    );
+    const tile = container.querySelector<HTMLElement>(".tile")!.getBoundingClientRect();
+    expect(tile.height).toBe(240);
+    expect(screen.getByText(credit).getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      tile.bottom,
+    );
+  });
+
   test("shades amber below chart datum and marks it with a line", () => {
     const { container } = render(
       <TideConditions
@@ -178,6 +203,15 @@ describe("TideConditions", () => {
     const urls = fetch.mock.calls.map(([url]) => new URL(String(url)));
     const extremesUrl = urls.find((u) => u.pathname.endsWith("/extremes"))!;
     expect(extremesUrl.searchParams.get("end")).toBe(cardRange(NOW).extremes.end);
+  });
+
+  test("credits a fetched station under the widget", async () => {
+    render(<TideConditions id="kartverket/BGO" now={NOW} />, { wrapper: createTestWrapper() });
+
+    expect(await screen.findByText("Bergen", undefined, { timeout: 10000 })).toBeDefined();
+    expect(screen.getByText(/^Slackwater database \(/).textContent).toMatch(
+      /Source: Kartverket .+ Licensed CC BY 4\.0/,
+    );
   });
 
   test("gives an unservable station's reason without asking for its predictions", async () => {

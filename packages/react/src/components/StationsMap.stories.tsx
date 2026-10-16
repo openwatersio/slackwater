@@ -53,11 +53,21 @@ export const SelectedStation: Story = {
         for (const type of ["mousedown", "mouseup", "click"]) {
           canvas.dispatchEvent(new MouseEvent(type, { ...at, bubbles: true }));
         }
-        await within(canvasElement).findByRole("button", { name: /Seattle/ }, { timeout: 500 });
+        await within(canvasElement).findByRole(
+          "button",
+          { name: /Seattle|Bergen/ },
+          { timeout: 500 },
+        );
       },
       { timeout: 30000 },
     );
   },
+};
+
+/** Bergen's card, with Kartverket's credit under it and in the map's ⓘ. */
+export const NorwayStation: Story = {
+  args: { initialViewState: { longitude: 5.320487, latitude: 60.398046, zoom: 11.5 } },
+  play: SelectedStation.play,
 };
 
 export const Loading: Story = {

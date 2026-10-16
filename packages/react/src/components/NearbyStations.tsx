@@ -5,6 +5,7 @@ import type { StationSummary } from "../types.js";
 import { mergeNearby } from "../utils/card.js";
 import { NEARBY_RESULTS, nearbyParams } from "../utils/page.js";
 import { StationCard, type CardStation } from "./StationCard.js";
+import { StationCredits } from "./StationCredits.js";
 
 export interface NearbyStationsPositionProps {
   latitude: number;
@@ -121,18 +122,21 @@ function NearbyFromPosition({
   );
 
   return (
-    <ul className={`m-0 flex list-none flex-col gap-3 p-0 ${className ?? ""}`}>
-      {stations.map((station) => (
-        <li
-          key={`${station.kind}:${station.id}`}
-          onMouseEnter={() => onHover?.(station)}
-          onMouseLeave={() => onHoverEnd?.(station)}
-          onFocus={() => onHover?.(station)}
-          onBlur={() => onHoverEnd?.(station)}
-        >
-          <StationCard station={station} distance={station.distance} onSelect={onStationSelect} />
-        </li>
-      ))}
-    </ul>
+    <div>
+      <ul className={`m-0 flex list-none flex-col gap-3 p-0 ${className ?? ""}`}>
+        {stations.map((station) => (
+          <li
+            key={`${station.kind}:${station.id}`}
+            onMouseEnter={() => onHover?.(station)}
+            onMouseLeave={() => onHoverEnd?.(station)}
+            onFocus={() => onHover?.(station)}
+            onBlur={() => onHoverEnd?.(station)}
+          >
+            <StationCard station={station} distance={station.distance} onSelect={onStationSelect} />
+          </li>
+        ))}
+      </ul>
+      <StationCredits stations={stations} className="mt-3" />
+    </div>
   );
 }

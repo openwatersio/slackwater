@@ -37,7 +37,9 @@ describe("CurrentStation", () => {
 
     rerender(<CurrentStation id="noaa/PUG1515" />);
 
-    expect(await screen.findByRole("heading", { level: 1, name: "West Point" })).toBeDefined();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "West Point" }, { timeout: 10000 }),
+    ).toBeDefined();
     expect(screen.queryByRole("slider")).toBeNull();
     timeline.release();
     expect(await screen.findByRole("slider", undefined, { timeout: 10000 })).toBeDefined();

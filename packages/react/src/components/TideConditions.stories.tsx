@@ -42,6 +42,9 @@ export const Fill: Story = {
   ],
 };
 
+/** A Kartverket station, whose CC BY 4.0 credit sits under the widget. */
+export const Credited: Story = { args: { id: "kartverket/BGO" } };
+
 export const NoData: Story = {
   args: { timeline: [], extremes: [], units: "feet", timezone: "UTC" },
 };
