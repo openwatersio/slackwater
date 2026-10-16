@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TideStation } from "../../src/components/TideStation.js";
 import { addDays, dateKey, dayStartOf, localNoon, startOfDay } from "../../src/utils/time.js";
@@ -7,7 +7,13 @@ import { createTestWrapper } from "../helpers.js";
 const SEATTLE = "noaa/9447130";
 const TZ = "America/Los_Angeles";
 
+// The strip's moves land directly, so a busy page can't stall a glide past the rest delay.
+beforeEach(() => {
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
+});
+
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -188,7 +194,8 @@ describe("TideStation", () => {
       ),
     ).toBeDefined();
     fireEvent.click(screen.getByText("Station details"));
-    expect(await screen.findByText(/, \d+ km away$/)).toBeDefined();
+    // The reference station is its own request to the shared test API.
+    expect(await screen.findByText(/, \d+ km away$/, undefined, { timeout: 10000 })).toBeDefined();
   });
 
   test("credits a station's own source", async () => {

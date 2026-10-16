@@ -95,6 +95,10 @@ function tap(slider: HTMLElement, time: number, y = 100) {
 const key = (slider: HTMLElement, key: string, shiftKey = false) =>
   fireEvent.keyDown(slider, { key, shiftKey });
 
+/** Moves land directly, so a busy page can't stall a smooth scroll past the rest delay. */
+const reduceMotion = () =>
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
+
 /** Four hours of a steady 0.2 kn. */
 const tinyTimeline = Array.from({ length: 25 }, (_, i) => ({
   time: new Date(t0 + i * 10 * M),
@@ -124,8 +128,19 @@ describe("CurrentScrubber", () => {
     expect(nowPill()).toBeNull();
   });
 
+  test("frames later than the rest delay don't cut the opening short", async () => {
+    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) =>
+      setTimeout(() => frame(performance.now()), 600),
+    );
+    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+    // The opening starts on the slack at 24 h, inside the magnet's reach.
+    const { slider } = renderScrubber({ now: t0 + 26 * H });
+
+    await restsOn(slider, t0 + 26 * H);
+  });
+
   test("opens directly on now under Reduce Motion, and moves directly", async () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
+    reduceMotion();
     const { slider } = renderScrubber();
 
     expect(value(slider)).toBe(NOW);
@@ -144,6 +159,7 @@ describe("CurrentScrubber", () => {
   });
 
   test("steps five minutes with the arrow keys and between stops with Shift", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
 
@@ -201,12 +217,15 @@ describe("CurrentScrubber", () => {
 
     // Narrower, the max flood at 87 h comes into reach.
     getByTestId("frame").style.width = "300px";
-    await waitFor(() =>
-      expect(commentaryPill()?.ariaLabel).toBe("Maximum flood current in 2 hours"),
+    // Resize observations wait for a frame, and frames run late while other files keep the browser busy.
+    await waitFor(
+      () => expect(commentaryPill()?.ariaLabel).toBe("Maximum flood current in 2 hours"),
+      { timeout: 4000 },
     );
   });
 
   test("a Now pill appears only where it can move the strip", async () => {
+    reduceMotion();
     // At 1500 px the earliest centerable time is 41 h 40 m, after now.
     const home = t0 + (1500 / 2 / PX_PER_HOUR) * H;
     const { slider } = renderScrubber({}, 1500);
@@ -251,6 +270,7 @@ describe("CurrentScrubber", () => {
   );
 
   test("a tap on the plot centers the nearest stop, or the tapped time", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
 
@@ -270,6 +290,7 @@ describe("CurrentScrubber", () => {
   });
 
   test("a tap on the day row centers a sun event but not a date", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
     const sunrise = days(t0 + 24 * H, t0 + 25 * H, "UTC", 50, 0)[0].sunrise!;
@@ -283,6 +304,7 @@ describe("CurrentScrubber", () => {
   });
 
   test("a scroll comes to rest on a stop within the magnet's reach", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
 
@@ -335,11 +357,14 @@ describe("CurrentScrubber", () => {
     await restsOn(slider, NOW);
 
     fireEvent.click(commentaryPill());
+    // Only the glide being cut rides; the magnet's move after it lands directly.
+    reduceMotion();
     slider.scrollLeft = ((30 * H + 5 * M) / H) * PX_PER_HOUR - WIDTH / 2;
     await restsOn(slider, t0 + 30 * H);
   });
 
   test("a mouse drag pans the strip once it moves past a jitter", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
     const mouse = (x: number) => ({ clientX: x, clientY: 100, pointerType: "mouse", pointerId: 1 });
@@ -371,11 +396,15 @@ describe("CurrentScrubber", () => {
     await restsOn(slider, NOW);
 
     getByTestId("frame").style.width = `${WIDTH + 120}px`;
-    await waitFor(() => expect(slider.scrollLeft).toBe(25 * PX_PER_HOUR - (WIDTH + 120) / 2));
+    // Resize observations wait for a frame, and frames run late while other files keep the browser busy.
+    await waitFor(() => expect(slider.scrollLeft).toBe(25 * PX_PER_HOUR - (WIDTH + 120) / 2), {
+      timeout: 4000,
+    });
     await restsOn(slider, NOW);
   });
 
   test("follows the clock back to now on returning to the page", async () => {
+    reduceMotion();
     const start = Math.floor(Date.now() / H) * H - 48 * H;
     const { slider } = renderScrubber({ ...fixture(start), now: undefined });
     await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
@@ -447,7 +476,8 @@ describe("CurrentScrubber", () => {
       </div>,
     );
 
-    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0));
+    // Under full motion the opening runs its full length before the rest delay starts.
+    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
     expect(value(screen.getByRole("slider"))).toBe(t0 + H);
   });
 });

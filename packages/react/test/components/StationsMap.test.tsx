@@ -143,7 +143,12 @@ describe("StationsMap", () => {
         { wrapper: mapWrapper() },
       );
       const map = await loadedMap(ref);
-      await waitFor(() => expect(sourcePins(map).length).toBeGreaterThan(0), { timeout: 10000 });
+      // Tides and currents list separately, and a late list changes which station holds each cell.
+      const kinds = () =>
+        new Set(sourcePins(map).map((f) => String(f.properties!.key).split(":")[0]));
+      await waitFor(() => expect([...kinds()].sort()).toEqual(["current", "tide"]), {
+        timeout: 10000,
+      });
       await new Promise((resolve) => setTimeout(resolve, 1000));
       expect(fetches.mock.calls.some(([url]) => String(url).includes("/stations?bbox="))).toBe(
         true,

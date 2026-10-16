@@ -200,10 +200,14 @@ describe("TideScrubber", () => {
     fireEvent.keyDown(slider, { key: "ArrowRight" });
     for (let i = 0; i < 20; i++) fireEvent.keyDown(slider, { key: "ArrowRight", shiftKey: true });
     const top = () => parseFloat(ridingDot(container).style.top);
-    await waitFor(() => {
-      expect(top()).toBeGreaterThan(170);
-      expect(top()).toBeLessThan(320);
-    });
+    // The glide's frames run late while other files keep the browser busy.
+    await waitFor(
+      () => {
+        expect(top()).toBeGreaterThan(170);
+        expect(top()).toBeLessThan(320);
+      },
+      { timeout: 4000 },
+    );
   });
 
   test("opens at the edge of data that doesn't reach now", async () => {

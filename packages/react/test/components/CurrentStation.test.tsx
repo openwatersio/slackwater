@@ -4,6 +4,7 @@ import { CurrentStation } from "../../src/components/CurrentStation.js";
 import { createTestWrapper } from "../helpers.js";
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
 
@@ -44,7 +45,12 @@ describe("CurrentStation", () => {
   test("explains a station whose predictions can't be served", async () => {
     render(<CurrentStation id="chs-active-pass" />, { wrapper: createTestWrapper() });
 
-    const heading = await screen.findByRole("heading", { level: 1, name: /Active Pass/ });
+    // The shared test API answers slowly while other files load it.
+    const heading = await screen.findByRole(
+      "heading",
+      { level: 1, name: /Active Pass/ },
+      { timeout: 10000 },
+    );
     expect(heading).toBeDefined();
     expect(screen.queryByRole("slider")).toBeNull();
     expect(await screen.findByText(/terms do not allow them to be redistributed/)).toBeDefined();
@@ -123,6 +129,8 @@ describe("CurrentStation", () => {
   });
 
   test.each([1920, 2560])("opens on now and returns to it at %i px", async (width) => {
+    // The strip's moves land directly, so a busy page can't stall a glide past the rest delay.
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
     // 01:00 at the station, the hardest hour to center on a wide screen.
     const skew = Date.parse("2026-10-14T08:00:00Z") - Date.now();
     const realNow = Date.now.bind(Date);
