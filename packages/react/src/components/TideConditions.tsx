@@ -1,10 +1,9 @@
-import { useMemo } from "react";
-import { useCurrentLevel } from "../hooks/use-current-level.js";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { interpolateLevel, useCurrentLevel } from "../hooks/use-current-level.js";
 import { useTimeline } from "../hooks/use-timeline.js";
 import { useExtremes } from "../hooks/use-extremes.js";
 import { useSlackwaterConfig } from "../provider.js";
 import { formatLevel } from "../utils/format.js";
-import { TideCycleGraph } from "./TideCycleGraph.js";
 import type { Extreme, TimelineEntry, Units } from "../types.js";
 import { HALF_TIDE_CYCLE_MS } from "../constants.js";
 
@@ -56,10 +55,10 @@ function getNearestExtremes(extremes: Extreme[]): {
 type TideState = "rising" | "falling" | "high" | "low";
 
 const STATE_ICON: Record<TideState, { icon: string; label: string; color: string }> = {
-  rising: { icon: "↗", label: "Rising", color: "text-(--slackwater-high)" },
-  falling: { icon: "↘", label: "Falling", color: "text-(--slackwater-low)" },
-  high: { icon: "⤒", label: "High tide", color: "text-(--slackwater-high)" },
-  low: { icon: "⤓", label: "Low tide", color: "text-(--slackwater-low)" },
+  rising: { icon: "↗", label: "Rising", color: "text-(--sw-graph-high)" },
+  falling: { icon: "↘", label: "Falling", color: "text-(--sw-graph-low)" },
+  high: { icon: "⤒", label: "High tide", color: "text-(--sw-graph-high)" },
+  low: { icon: "⤓", label: "Low tide", color: "text-(--sw-graph-low)" },
 };
 
 export function WaterLevelAtTime({
@@ -85,7 +84,7 @@ export function WaterLevelAtTime({
   return (
     <div className={`flex flex-col${variant === "right" ? " items-end text-right" : ""}`}>
       <div
-        className={`flex items-baseline gap-1 text-(--slackwater-text-muted) text-2xs uppercase tracking-wide${variant === "right" ? " flex-row-reverse" : ""}`}
+        className={`flex items-baseline gap-1 text-(--sw-foam)/55 text-[11px] uppercase tracking-wide${variant === "right" ? " flex-row-reverse" : ""}`}
       >
         <span>{label}</span>
         {stateIcon && (
@@ -99,16 +98,100 @@ export function WaterLevelAtTime({
         )}
       </div>
       <span
-        className={`flex items-baseline gap-1 text-xl @md:text-2xl text-nowrap font-semibold tabular-nums text-(--slackwater-text)${variant === "right" ? " flex-row-reverse" : ""}`}
+        className={`flex items-baseline gap-1 text-xl @md:text-2xl text-nowrap font-semibold tabular-nums text-white${variant === "right" ? " flex-row-reverse" : ""}`}
       >
         {formatLevel(level, units)}
       </span>
-      <span className="text-sm text-(--slackwater-text-muted)">
+      <span className="text-sm tabular-nums text-(--sw-foam)/55">
         {time.toLocaleString(locale, {
           timeStyle: "short",
           timeZone: timezone,
         })}
       </span>
+    </div>
+  );
+}
+
+/** A tide cycle either side of now, faint behind the readings. */
+function CycleCurve({ timeline, extremes }: { timeline: TimelineEntry[]; extremes: Extreme[] }) {
+  const id = useId().replace(/\W/g, "");
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    const observer = new ResizeObserver(([entry]) =>
+      setSize({ width: entry.contentRect.width, height: entry.contentRect.height }),
+    );
+    observer.observe(ref.current!);
+    return () => observer.disconnect();
+  }, []);
+
+  const from = now - HALF_TIDE_CYCLE_MS;
+  const to = now + HALF_TIDE_CYCLE_MS;
+  const points = timeline.filter((p) => p.time.getTime() >= from && p.time.getTime() <= to);
+  const { width, height } = size;
+  const levels = points.map((p) => p.level);
+  const lo = Math.min(0, ...levels);
+  const hi = Math.max(...levels);
+  const pad = (hi - lo) * 0.2 || 0.5;
+  const x = (t: number) => ((t - from) / (to - from)) * width;
+  const y = (level: number) => height - ((level - lo + pad) / (hi - lo + 2 * pad)) * height;
+  const line = points
+    .map((p, i) => `${i ? "L" : "M"}${x(p.time.getTime()).toFixed(1)} ${y(p.level).toFixed(1)}`)
+    .join("");
+  const current = interpolateLevel(points, now);
+
+  return (
+    <div ref={ref} className="absolute inset-0">
+      {width > 0 && points.length > 1 && (
+        <svg width={width} height={height} aria-label="Tide cycle graph">
+          <defs>
+            <linearGradient id={`${id}fill`} x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0" stopColor="var(--sw-graph-line)" stopOpacity={0.5} />
+              <stop offset="1" stopColor="var(--sw-graph-line)" stopOpacity={0.05} />
+            </linearGradient>
+          </defs>
+          <path
+            d={`${line}L${x(points[points.length - 1].time.getTime())} ${height}L${x(points[0].time.getTime())} ${height}Z`}
+            fill={`url(#${id}fill)`}
+            opacity={0.3}
+          />
+          <path
+            d={line}
+            fill="none"
+            stroke="var(--sw-graph-line)"
+            strokeWidth={2}
+            strokeOpacity={0.5}
+          />
+          {extremes
+            .filter((e) => e.time.getTime() >= from && e.time.getTime() <= to)
+            .map((e) => (
+              <circle
+                key={e.time.getTime()}
+                cx={x(e.time.getTime())}
+                cy={y(e.level)}
+                r={3}
+                fill={e.high ? "var(--sw-graph-high)" : "var(--sw-graph-low)"}
+              />
+            ))}
+          {current && (
+            <line
+              x1={x(now)}
+              x2={x(now)}
+              y1={0}
+              y2={height}
+              stroke="var(--sw-paper)"
+              strokeOpacity={0.4}
+            />
+          )}
+        </svg>
+      )}
     </div>
   );
 }
@@ -128,7 +211,7 @@ function TideConditionsStatic({
 
   if (!currentLevel) {
     return (
-      <div className={`text-(--slackwater-text) ${className ?? ""}`}>
+      <div className={`text-white ${className ?? ""}`}>
         <h2 className="text-lg">No tide data available</h2>
       </div>
     );
@@ -140,13 +223,9 @@ function TideConditionsStatic({
   });
 
   return (
-    <div
-      className={`@container text-(--slackwater-text) ${fill ? "h-full" : ""} ${className ?? ""}`}
-    >
-      <div
-        className={`relative ${fill ? "h-full" : "min-h-60"} border border-(--slackwater-border) rounded-md overflow-hidden`}
-      >
-        <TideCycleGraph timeline={timeline} extremes={extremes} className="absolute inset-0" />
+    <div className={`@container text-white ${fill ? "h-full" : ""} ${className ?? ""}`}>
+      <div className={`sw-card relative ${fill ? "h-full" : "min-h-60"} overflow-hidden`}>
+        <CycleCurve timeline={timeline} extremes={extremes} />
         {showDate && (
           <div className="hidden @sm:block absolute top-0 left-0 m-4">
             <h2 className="text-lg font-semibold">{dateLabel}</h2>
@@ -219,9 +298,9 @@ function TideConditionsFetcher({
 
   if (timeline.isLoading || extremes.isLoading) {
     return (
-      <div className={`text-(--slackwater-text) ${fill ? "h-full" : ""} ${className ?? ""}`}>
+      <div className={`text-white ${fill ? "h-full" : ""} ${className ?? ""}`}>
         <div
-          className={`${fill ? "h-full" : "min-h-60"} border border-(--slackwater-border) rounded-md flex items-center justify-center text-sm text-(--slackwater-text-muted)`}
+          className={`sw-card ${fill ? "h-full" : "min-h-60"} flex items-center justify-center text-sm text-(--sw-foam)/62`}
         >
           Loading...
         </div>
@@ -232,9 +311,9 @@ function TideConditionsFetcher({
   const error = timeline.error ?? extremes.error;
   if (error) {
     return (
-      <div className={`text-(--slackwater-text) ${fill ? "h-full" : ""} ${className ?? ""}`}>
+      <div className={`text-white ${fill ? "h-full" : ""} ${className ?? ""}`}>
         <div
-          className={`${fill ? "h-full" : "min-h-60"} border border-(--slackwater-border) rounded-md flex items-center justify-center p-4 text-center text-sm text-red-500`}
+          className={`sw-card ${fill ? "h-full" : "min-h-60"} flex items-center justify-center p-4 text-center text-sm text-(--sw-attention)`}
         >
           {error.message}
         </div>

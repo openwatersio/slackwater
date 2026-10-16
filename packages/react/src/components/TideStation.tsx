@@ -1,425 +1,146 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useMemo } from "react";
+import { keepPreviousData } from "@tanstack/react-query";
 
-import { useStation } from "../hooks/use-station.js";
 import { useExtremes } from "../hooks/use-extremes.js";
+import { useStation } from "../hooks/use-station.js";
 import { useTimeline } from "../hooks/use-timeline.js";
-import { useContainerSize } from "../hooks/use-container-size.js";
-import { useHashTab } from "../hooks/use-hash-tab.js";
 import { useSlackwaterConfig } from "../provider.js";
-import { TideConditions } from "./TideConditions.js";
-import { TideGraph } from "./TideGraph/index.js";
-import { TideTable } from "./TideTable.js";
-import type { Extreme, Station, TimelineEntry, Units } from "../types.js";
-import { TideStationHeader } from "./TideStationHeader.js";
-import { StationDisclaimers } from "./StationDisclaimers.js";
-import { TideSettings } from "./TideSettings.js";
-import { getDefaultRange } from "../utils/defaults.js";
-
-// A height-constrained container shorter than this can't fit the stacked
-// layout, so the sections collapse into tabs (e.g. embedded as a dashboard
-// widget). Width alone never collapses: a narrow content-sized container
-// (a phone in portrait) grows to fit its content and the page scrolls.
-const COMPACT_MAX_HEIGHT = 500;
-// Below this height the tab bar itself crowds out the panel, so it collapses
-// further into a dropdown beside the station name.
-const DROPDOWN_MAX_HEIGHT = 260;
-
-const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
-
-function evaluateCompact(el: HTMLElement, prev: boolean): boolean {
-  const { clientHeight, scrollHeight } = el;
-  if (clientHeight >= COMPACT_MAX_HEIGHT) return false;
-  // Below the height threshold. A content-sized container is always at least
-  // as tall as its content, so a height this small with overflowing content
-  // means an ancestor is constraining us (e.g. a fixed-size dashboard panel).
-  // Stay collapsed once collapsed: the tabbed layout fits by design, so
-  // overflow would never re-trigger.
-  return prev || scrollHeight > clientHeight + 1;
-}
-
-function useCompactLayout() {
-  const [element, setElement] = useState<HTMLDivElement | null>(null);
-  const [compact, setCompact] = useState(false);
-  const [short, setShort] = useState(false);
-
-  const measure = (el: HTMLElement) => {
-    if (el.clientWidth === 0) return; // not laid out (e.g. display: none)
-    setCompact((prev) => evaluateCompact(el, prev));
-    setShort(el.clientHeight < DROPDOWN_MAX_HEIGHT);
-  };
-
-  useEffect(() => {
-    if (!element) return;
-    const observer = new ResizeObserver(() => measure(element));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [element]);
-
-  // Re-evaluate after every render: swapping layouts changes the content size
-  // without resizing the container, which ResizeObserver doesn't report.
-  useIsomorphicLayoutEffect(() => {
-    if (element) measure(element);
-  });
-
-  return { ref: setElement, compact, dropdown: compact && short };
-}
-
-type TabId = "conditions" | "graph" | "table" | "settings";
-
-const TAB_LABELS: Record<TabId, string> = {
-  conditions: "Conditions",
-  graph: "Graph",
-  table: "Table",
-  settings: "Settings",
-};
+import type { Station } from "../types.js";
+import type { ScheduleEntry } from "../utils/schedule.js";
+import { formatHeight, heightUnit } from "../utils/tide.js";
+import { Schedule } from "./Schedule.js";
+import {
+  DetailNote,
+  DetailRow,
+  StationDetails,
+  StationFooter,
+  StationPage,
+  StripPlaceholder,
+  distanceKm,
+  formatCoord,
+  useScheduleSync,
+  useStationWeek,
+} from "./StationPage.js";
+import { TideScrubber } from "./TideScrubber.js";
 
 export interface TideStationProps {
+  /** "source/id": "noaa/9447130". */
   id: string;
-  showGraph?: boolean;
-  showTable?: boolean;
   className?: string;
 }
 
-export function TideStation({
-  id,
-  showGraph = true,
-  showTable = true,
-  className,
-}: TideStationProps) {
-  const config = useSlackwaterConfig();
-  const range = useMemo(getDefaultRange, []);
-  const { ref, compact, dropdown } = useCompactLayout();
+/** Where the heights come from, after the app's tide footer. */
+function provenance(station: Station, datum: string | undefined, reference: string | undefined) {
+  const base = datum ? `${datum} chart datum. ` : "";
+  if (station.type === "subordinate") {
+    return `${base}Based on ${reference ?? "reference station"} tides and NOAA's published offsets.`;
+  }
+  if (station.id.startsWith("noaa/")) return `${base}NOAA harmonic prediction.`;
+  return `${base}Harmonic constants from ${station.source.name}.`;
+}
 
-  const tabs = useMemo<TabId[]>(() => {
-    const ids: TabId[] = ["conditions"];
-    if (showGraph) ids.push("graph");
-    if (showTable) ids.push("table");
-    ids.push("settings");
-    return ids;
-  }, [showGraph, showTable]);
-  const [activeTab, setActiveTab] = useHashTab<TabId>(tabs, "conditions");
-
+/**
+ * A tide station's detail page, after the app's tide detail: the scrubbing
+ * strip with its lead reading, the week's highs and lows, and where the
+ * numbers come from. Heights are always above the station's chart datum.
+ */
+export function TideStation({ id, className }: TideStationProps) {
+  const { locale, units: preferred } = useSlackwaterConfig();
   const station = useStation(id);
-  const timeline = useTimeline({ id, start: range.start, end: range.end });
-  const extremes = useExtremes({ id, start: range.start, end: range.end });
+  const s = station.data;
+  const week = useStationWeek(s?.timezone);
+  const params = s && week.range ? { id, ...week.range, datum: s.defaultDatum } : undefined;
+  const query = {
+    enabled: !!params,
+    // Predictions for a fixed window never change, and refetching would rebuild the strip.
+    staleTime: Infinity,
+    // A moved window keeps showing the old one until the new one loads.
+    placeholderData: keepPreviousData,
+  };
+  const timeline = useTimeline(params ?? { id }, query);
+  const extremes = useExtremes(params ?? { id }, query);
+  const reference = useStation(s?.type === "subordinate" ? s.offsets?.reference : undefined);
 
-  if (station.isLoading || timeline.isLoading || extremes.isLoading) {
-    return (
-      <div
-        ref={ref}
-        className={`h-full bg-(--slackwater-bg) border border-(--slackwater-border) rounded-lg overflow-hidden p-4 text-center text-sm text-(--slackwater-text-muted) ${className ?? ""}`}
-      >
-        Loading...
-      </div>
-    );
-  }
-
-  if (station.error || timeline.error || extremes.error) {
-    const err = station.error ?? timeline.error ?? extremes.error;
-    return (
-      <div
-        ref={ref}
-        className={`h-full bg-(--slackwater-bg) border border-(--slackwater-border) rounded-lg overflow-hidden p-4 text-center text-sm text-red-500 ${className ?? ""}`}
-      >
-        {err!.message}
-      </div>
-    );
-  }
-
-  const s = station.data!;
-  const units: Units = timeline.data?.units ?? config.units;
-  const timezone = config.timezone ?? s.timezone;
-  const timelineData = timeline.data?.timeline ?? [];
-  const extremesData = extremes.data?.extremes ?? [];
-
-  // Tabs only make sense when there is more than one section to show.
-  const canTab = showGraph || showTable;
-
-  if (canTab && compact) {
-    return (
-      <div
-        ref={ref}
-        className={`@container/station h-full min-h-0 bg-(--slackwater-bg) flex flex-col gap-2 ${className ?? ""}`}
-      >
-        <div className="flex items-start justify-between gap-2">
-          <TideStationHeader station={s} className="min-w-0 flex-1" />
-          {/* When the container is too short for the tab bar, it collapses
-              into this dropdown */}
-          {dropdown && <TabsDropdown tabs={tabs} active={activeTab} onSelect={setActiveTab} />}
-        </div>
-        <TideStationTabs
-          id={id}
-          station={s}
-          timeline={timelineData}
-          extremes={extremesData}
-          units={units}
-          timezone={timezone}
-          tabs={tabs}
-          active={activeTab}
-          onSelect={setActiveTab}
-          tabBar={!dropdown}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={ref}
-      className={`@container/station h-full bg-(--slackwater-bg) space-y-4 ${className ?? ""}`}
-    >
-      <TideStationHeader station={s} />
-
-      <StationDisclaimers disclaimers={s.disclaimers} />
-
-      <TideConditions
-        timeline={timelineData}
-        extremes={extremesData}
-        units={units}
-        timezone={timezone}
-      />
-
-      {showGraph && <TideGraph id={id} />}
-
-      {showTable && <TideTable extremes={extremesData} timezone={timezone} units={units} />}
-
-      <TideSettings station={s} />
-    </div>
+  const units = timeline.data?.units ?? preferred;
+  const datum = timeline.data?.datum ?? s?.defaultDatum;
+  const entries = useMemo(
+    () =>
+      extremes.data?.extremes.map((e): ScheduleEntry => ({
+        time: e.time.getTime(),
+        pill: e.high ? "high" : "low",
+        value: `${formatHeight(e.level, units, locale)} ${heightUnit(units)}`,
+      })),
+    [extremes.data, units, locale],
   );
-}
-
-function TideStationTabs({
-  id,
-  station,
-  timeline,
-  extremes,
-  units,
-  timezone,
-  tabs,
-  active,
-  onSelect,
-  tabBar,
-}: {
-  id: string;
-  station: Station;
-  timeline: TimelineEntry[];
-  extremes: Extreme[];
-  units: Units;
-  timezone: string;
-  tabs: TabId[];
-  active: TabId;
-  onSelect: (tab: TabId) => void;
-  tabBar: boolean;
-}) {
-  const uid = useId();
-  const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
-
-  const tabId = (tab: TabId) => `${uid}-tab-${tab}`;
-  const panelId = (tab: TabId) => `${uid}-panel-${tab}`;
-
-  function onKeyDown(event: React.KeyboardEvent) {
-    const index = tabs.indexOf(active);
-    let next: number;
-    if (event.key === "ArrowRight") next = (index + 1) % tabs.length;
-    else if (event.key === "ArrowLeft") next = (index - 1 + tabs.length) % tabs.length;
-    else if (event.key === "Home") next = 0;
-    else if (event.key === "End") next = tabs.length - 1;
-    else return;
-    event.preventDefault();
-    onSelect(tabs[next]);
-    tabRefs.current[tabs[next]]?.focus();
-  }
-
-  function tabButton(tab: TabId) {
-    const selected = tab === active;
-    return (
-      <button
-        key={tab}
-        ref={(el) => {
-          tabRefs.current[tab] = el;
-        }}
-        type="button"
-        role="tab"
-        id={tabId(tab)}
-        aria-selected={selected}
-        aria-controls={panelId(tab)}
-        aria-label={TAB_LABELS[tab]}
-        title={TAB_LABELS[tab]}
-        tabIndex={selected ? 0 : -1}
-        onClick={() => onSelect(tab)}
-        className={`px-3 py-2 border-b-2 -mb-px cursor-pointer transition-colors ${
-          selected
-            ? "border-(--slackwater-primary) text-(--slackwater-text)"
-            : "border-transparent text-(--slackwater-text-muted) hover:text-(--slackwater-text)"
-        }`}
-      >
-        <TabIcon tab={tab} />
-      </button>
-    );
-  }
+  const sync = useScheduleSync(entries, week, s?.timezone);
+  const error = station.error ?? timeline.error ?? extremes.error;
+  const ref = reference.data;
 
   return (
-    <>
-      {tabBar && (
-        <div
-          role="tablist"
-          aria-label="Tide station sections"
-          onKeyDown={onKeyDown}
-          className="flex items-center border-b border-(--slackwater-border)"
-        >
-          {tabs.filter((tab) => tab !== "settings").map(tabButton)}
-          <span className="flex-1" />
-          {tabButton("settings")}
-        </div>
-      )}
-
-      {/* Without the tab bar there are no tab elements to label the panel,
-          so it becomes a plain named region */}
-      <div
-        role={tabBar ? "tabpanel" : "region"}
-        id={panelId(active)}
-        aria-labelledby={tabBar ? tabId(active) : undefined}
-        aria-label={tabBar ? undefined : TAB_LABELS[active]}
-        tabIndex={0}
-        className={`flex-1 min-h-0 ${active === "settings" ? "overflow-y-auto" : "overflow-hidden"}`}
-      >
-        {active === "conditions" && (
-          <TideConditions
-            timeline={timeline}
-            extremes={extremes}
+    <StationPage name={s?.name} region={s?.region ?? s?.country} className={className}>
+      {error ? (
+        <p className="m-0 px-5 py-8 text-sm opacity-80">{error.message}</p>
+      ) : s && timeline.data && extremes.data && week.anchor !== undefined ? (
+        <>
+          <TideScrubber
+            timeline={timeline.data.timeline}
+            extremes={extremes.data.extremes}
+            timezone={s.timezone}
+            latitude={s.latitude}
+            longitude={s.longitude}
             units={units}
-            timezone={timezone}
-            fill
+            locale={locale}
+            onSelect={sync.onSelect}
+            moveTo={sync.moveTo}
+            onNow={sync.onNow}
           />
-        )}
-        {active === "graph" && <GraphPanel id={id} />}
-        {active === "table" && (
-          <TideTable extremes={extremes} timezone={timezone} units={units} fill />
-        )}
-        {active === "settings" && (
-          <div className="space-y-4">
-            <TideSettings station={station} />
-            <StationDisclaimers disclaimers={station.disclaimers} />
+          <div className="mt-3.5">
+            <Schedule
+              days={sync.days}
+              timezone={s.timezone}
+              latitude={s.latitude}
+              longitude={s.longitude}
+              anchor={week.anchor}
+              now={week.now}
+              highlight={sync.highlight}
+              locale={locale}
+              onSelect={sync.onRow}
+              onPick={sync.onPick}
+            />
           </div>
-        )}
-      </div>
-    </>
-  );
-}
-
-// Replaces the tab bar when the container is too short for it: a visually
-// combined icon + chevron with an invisible native select on top, so picking
-// a section keeps native dropdown behavior and accessibility.
-function TabsDropdown({
-  tabs,
-  active,
-  onSelect,
-}: {
-  tabs: TabId[];
-  active: TabId;
-  onSelect: (tab: TabId) => void;
-}) {
-  return (
-    <div className="relative shrink-0">
-      <span
-        aria-hidden="true"
-        className="flex items-center gap-1 px-2 py-1.5 rounded-md border border-(--slackwater-border) text-(--slackwater-text-muted)"
-      >
-        <TabIcon tab={active} />
-        <svg
-          viewBox="0 0 24 24"
-          width={12}
-          height={12}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="m6 9 6 6 6-6" />
-        </svg>
-      </span>
-      <select
-        value={active}
-        onChange={(event) => onSelect(event.target.value as TabId)}
-        aria-label="Section"
-        className="absolute inset-0 w-full opacity-0 cursor-pointer"
-      >
-        {tabs.map((tab) => (
-          <option key={tab} value={tab}>
-            {TAB_LABELS[tab]}
-          </option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-const TAB_ICONS: Record<TabId, React.ReactNode> = {
-  // Clock — current conditions
-  conditions: (
-    <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M12 20a8 8 0 0 0 8-8a8 8 0 0 0-8-8a8 8 0 0 0-8 8a8 8 0 0 0 8 8m0-18a10 10 0 0 1 10 10a10 10 0 0 1-10 10C6.47 22 2 17.5 2 12A10 10 0 0 1 12 2m.5 5v5.25l4.5 2.67l-.75 1.23L11 13V7z"
-      />
-    </svg>
-  ),
-  // Tide curve over a datum line
-  graph: (
-    <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true">
-      <g fill="none" stroke="currentColor" strokeLinecap="round" strokeWidth={1.5}>
-        <path d="M21 9.011C21 12.001 20.087 21 16.177 21c-2.045 0-3.343-3.62-4.177-9S9.868 3 7.823 3C3.913 3 3 12 3 14.989" />
-        <path strokeLinejoin="round" d="M2 12h3m3 0h2m4 0h2m3 0h3" />
-      </g>
-    </svg>
-  ),
-  // Bulleted rows
-  table: (
-    <svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M8 9q-.425 0-.712-.288T7 8t.288-.712T8 7h12q.425 0 .713.288T21 8t-.288.713T20 9zm0 4q-.425 0-.712-.288T7 12t.288-.712T8 11h12q.425 0 .713.288T21 12t-.288.713T20 13zm0 4q-.425 0-.712-.288T7 16t.288-.712T8 15h12q.425 0 .713.288T21 16t-.288.713T20 17zM4 9q-.425 0-.712-.288T3 8t.288-.712T4 7t.713.288T5 8t-.288.713T4 9m0 4q-.425 0-.712-.288T3 12t.288-.712T4 11t.713.288T5 12t-.288.713T4 13m0 4q-.425 0-.712-.288T3 16t.288-.712T4 15t.713.288T5 16t-.288.713T4 17"
-      />
-    </svg>
-  ),
-  // Horizontal sliders
-  settings: (
-    <svg
-      viewBox="0 0 24 24"
-      width="1em"
-      height="1em"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M21 4h-7" />
-      <path d="M10 4H3" />
-      <path d="M21 12h-9" />
-      <path d="M8 12H3" />
-      <path d="M21 20h-5" />
-      <path d="M12 20H3" />
-      <path d="M14 2v4" />
-      <path d="M8 10v4" />
-      <path d="M16 18v4" />
-    </svg>
-  ),
-};
-
-function TabIcon({ tab }: { tab: TabId }) {
-  return <>{TAB_ICONS[tab]}</>;
-}
-
-// The graph renders at a fixed pixel height, so measure the panel and let
-// the chart fill it (minus its border) instead of the default height.
-function GraphPanel({ id }: { id: string }) {
-  const { ref, height } = useContainerSize();
-  return (
-    <div ref={ref} className="h-full min-h-0">
-      {height > 0 && <TideGraph id={id} height={Math.max(140, Math.floor(height) - 2)} />}
-    </div>
+        </>
+      ) : (
+        <StripPlaceholder />
+      )}
+      {s && (
+        <>
+          <StationFooter
+            provenance={provenance(s, datum, ref?.name)}
+            disclaimers={s.disclaimers}
+            attribution={s.attribution}
+          />
+          <StationDetails>
+            {datum && (
+              <DetailRow
+                label="Datum"
+                value={
+                  s.id.startsWith("noaa/") ? `${datum} (NOAA chart datum)` : `${datum} chart datum`
+                }
+              />
+            )}
+            <DetailNote>
+              Heights are measured from chart datum. A negative value predicts less water than the
+              charted depth.
+            </DetailNote>
+            <DetailRow label="Station" value={s.id} />
+            <DetailRow label="Position" value={formatCoord(s.latitude, s.longitude)} />
+            <DetailRow label="Time zone" value={s.timezone} />
+            {ref && (
+              <DetailRow label="Reference" value={`${ref.name}, ${distanceKm(s, ref)} km away`} />
+            )}
+          </StationDetails>
+        </>
+      )}
+    </StationPage>
   );
 }

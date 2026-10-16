@@ -6,7 +6,5 @@ export interface StationDisclaimersProps {
 export function StationDisclaimers({ disclaimers, className }: StationDisclaimersProps) {
   if (!disclaimers) return null;
 
-  return (
-    <p className={`text-xs text-(--slackwater-text-muted) ${className ?? ""}`}>{disclaimers}</p>
-  );
+  return <p className={`m-0 text-[11px] text-(--sw-foam)/62 ${className ?? ""}`}>{disclaimers}</p>;
 }

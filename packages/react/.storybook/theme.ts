@@ -6,11 +6,6 @@ const brand = {
   brandUrl: "https://openwaters.io/tides/slackwater/",
 };
 
-export const light = create({
-  base: "light",
-  ...brand,
-  brandImage: "brand/slackwater-logo-on-light.svg",
-});
 export const dark = create({
   base: "dark",
   ...brand,

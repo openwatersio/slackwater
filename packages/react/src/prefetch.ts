@@ -8,18 +8,22 @@ import {
   fetchStationExtremes,
   fetchStations,
 } from "./client.js";
-import { getDefaultRange, getDefaultUnits } from "./utils/defaults.js";
+import { getDefaultUnits } from "./utils/defaults.js";
+import { stationWindow } from "./utils/schedule.js";
+import { startOfDay } from "./utils/time.js";
 
 export interface PrefetchTideStationOptions {
   units?: Units;
   locale?: string;
-  datum?: string;
+  /** The instant the page opens on; defaults to the clock. */
+  now?: number;
 }
 
 /**
- * Prefetch all queries that the `<TideStation>` component will make.
- * Call this on the server, then use `dehydrate(queryClient)` to pass the
- * cache to the client via a pre-hydrated QueryClient.
+ * Prefetch all queries that the `<TideStation>` component will make: the
+ * station, then its week's window at chart datum. Call this on the server,
+ * then use `dehydrate(queryClient)` to pass the cache to the client via a
+ * pre-hydrated QueryClient.
  *
  * Pass either `units` directly or `locale` to derive units automatically.
  */
@@ -27,17 +31,20 @@ export async function prefetchTideStation(
   queryClient: QueryClient,
   baseUrl: string,
   id: string,
-  { units, locale, datum }: PrefetchTideStationOptions = {},
+  { units, locale, now = Date.now() }: PrefetchTideStationOptions = {},
 ): Promise<void> {
-  const resolvedUnits = units ?? getDefaultUnits(locale);
-  const range = getDefaultRange();
-  const params = { id, start: range.start, end: range.end, units: resolvedUnits, datum };
+  const station = await queryClient.fetchQuery({
+    queryKey: queryKeys.station(id),
+    queryFn: () => fetchStation(baseUrl, id),
+  });
+  const params = {
+    id,
+    ...stationWindow(startOfDay(now, station.timezone)),
+    datum: station.defaultDatum,
+    units: units ?? getDefaultUnits(locale),
+  };
 
   await Promise.all([
-    queryClient.prefetchQuery({
-      queryKey: queryKeys.station(id),
-      queryFn: () => fetchStation(baseUrl, id),
-    }),
     queryClient.prefetchQuery({
       queryKey: queryKeys.timeline(params),
       queryFn: () => fetchStationTimeline(baseUrl, params),

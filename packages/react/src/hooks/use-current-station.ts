@@ -7,11 +7,12 @@ import {
 } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 
-export function useCurrentStation(id: string) {
+export function useCurrentStation(id: string | undefined) {
   const { baseUrl } = useSlackwaterConfig();
   return useQuery({
     queryKey: queryKeys.currentStation(id),
-    queryFn: () => fetchCurrentStation(baseUrl, id),
+    queryFn: () => fetchCurrentStation(baseUrl, id!),
+    enabled: !!id,
   });
 }
 

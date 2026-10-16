@@ -230,18 +230,10 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
             type="circle"
             filter={["has", "point_count"]}
             paint={{
-              "circle-color": [
-                "step",
-                ["get", "point_count"],
-                "#60a5fa",
-                50,
-                "#3b82f6",
-                200,
-                "#2563eb",
-              ],
+              "circle-color": colors.steel,
               "circle-radius": ["step", ["get", "point_count"], 18, 50, 24, 200, 30],
               "circle-stroke-width": 2,
-              "circle-stroke-color": "#ffffff",
+              "circle-stroke-color": colors.mapInk,
             }}
           />
 
@@ -256,26 +248,20 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
               "text-allow-overlap": true,
             }}
             paint={{
-              "text-color": "#ffffff",
+              "text-color": colors.mapLabel,
             }}
           />
 
-          {/* Unclustered station points — colored by type */}
+          {/* Unclustered stations: a steel dot on an ink plate, since the map reads no state yet. */}
           <Layer
             id="unclustered-point"
             type="circle"
             filter={["!", ["has", "point_count"]]}
             paint={{
-              "circle-color": [
-                "match",
-                ["get", "type"],
-                "subordinate",
-                colors.secondary,
-                colors.primary,
-              ],
-              "circle-radius": 6,
-              "circle-stroke-width": 2,
-              "circle-stroke-color": "#ffffff",
+              "circle-color": colors.steel,
+              "circle-radius": 5,
+              "circle-stroke-width": 2.5,
+              "circle-stroke-color": colors.mapInk,
             }}
           />
 
@@ -294,9 +280,9 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
               "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
             }}
             paint={{
-              "text-color": colors.mapText,
-              "text-halo-color": colors.mapBg,
-              "text-halo-width": 1.5,
+              "text-color": colors.mapLabel,
+              "text-halo-color": colors.mapInk,
+              "text-halo-width": 1,
             }}
           />
         </Source>
@@ -308,10 +294,10 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
               id="focus-station-point"
               type="circle"
               paint={{
-                "circle-color": colors.primary,
-                "circle-radius": 10,
+                "circle-color": colors.paper,
+                "circle-radius": 8,
                 "circle-stroke-width": 3,
-                "circle-stroke-color": "#ffffff",
+                "circle-stroke-color": colors.mapInk,
               }}
             />
             <Layer
@@ -326,9 +312,9 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
                 "text-font": ["Open Sans Bold", "Arial Unicode MS Bold"],
               }}
               paint={{
-                "text-color": colors.mapText,
-                "text-halo-color": colors.mapBg,
-                "text-halo-width": 2,
+                "text-color": colors.mapLabel,
+                "text-halo-color": colors.mapInk,
+                "text-halo-width": 1,
               }}
             />
           </Source>
@@ -344,6 +330,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
             onClose={() => setSelectedStation(null)}
             closeOnClick={false}
             closeButton={false}
+            className="sw-popup"
           >
             <div className="relative">
               {typeof popupContent === "function" ? (
@@ -351,20 +338,18 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
               ) : (
                 <>
                   <div className="flex gap-2 justify-between items-start mb-2">
-                    <div className="text-base font-semibold text-(--slackwater-text)">
-                      {selectedStation.name}
-                    </div>
+                    <div className="text-base font-semibold text-white">{selectedStation.name}</div>
                     <button
                       type="button"
                       onClick={() => setSelectedStation(null)}
-                      className="text-(--slackwater-text-muted) hover:text-(--slackwater-text) cursor-pointer leading-4 text-lg"
+                      className="text-(--sw-foam)/55 hover:text-white cursor-pointer leading-4 text-lg"
                       aria-label="Close popup"
                     >
                       ×
                     </button>
                   </div>
                   {popupContent === "simple" ? (
-                    <div className="text-xs text-(--slackwater-text-muted)">
+                    <div className="text-xs text-(--sw-foam)/55">
                       {[selectedStation.region, selectedStation.country].filter(Boolean).join(", ")}
                     </div>
                   ) : (
@@ -382,7 +367,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
         <button
           type="button"
           onClick={handleLocateMe}
-          className="absolute bottom-6 right-3 z-10 w-8 h-8 flex items-center justify-center bg-(--slackwater-bg) border border-(--slackwater-border) rounded-lg shadow-md cursor-pointer hover:bg-(--slackwater-bg-subtle) transition-colors"
+          className="absolute bottom-6 right-3 z-10 w-8 h-8 flex items-center justify-center bg-(--sw-canvas) border border-(--sw-card-stroke) rounded-lg shadow-md cursor-pointer hover:bg-(--sw-shadow) transition-colors"
           aria-label="Center map on my location"
           title="My location"
         >
@@ -395,7 +380,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="text-(--slackwater-text)"
+            className="text-(--sw-foam)"
           >
             <circle cx="12" cy="12" r="3" />
             <line x1="12" y1="2" x2="12" y2="6" />
@@ -408,7 +393,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
 
       {isError && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--slackwater-bg) border border-(--slackwater-border) shadow-md text-sm text-(--slackwater-text-muted)">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--sw-canvas) border border-(--sw-card-stroke) shadow-md text-sm text-(--sw-foam)/70">
             <svg
               viewBox="0 0 24 24"
               width="16"
@@ -430,7 +415,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
 
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--slackwater-bg) border border-(--slackwater-border) shadow-md text-sm text-(--slackwater-text-muted)">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-(--sw-canvas) border border-(--sw-card-stroke) shadow-md text-sm text-(--sw-foam)/70">
             <svg
               viewBox="0 0 24 24"
               width="16"

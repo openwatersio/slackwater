@@ -26,8 +26,11 @@ export interface Station extends StationSummary {
     notes?: string;
   };
   disclaimers?: string;
+  attribution?: string;
   datums: Record<string, number>;
+  /** The datum predictions default to: the station's chart datum. */
   defaultDatum?: string;
+  chart_datum?: string;
   harmonic_constituents: {
     name: string;
     amplitude: number;
@@ -109,7 +112,10 @@ export interface CurrentStationInfo extends StationSummary {
     /** Degrees true. Absent when the station publishes none. */
     flood_direction?: number;
     ebb_direction?: number;
+    /** Net drift after the tide averages out, in knots: positive toward flood. */
     mean_flow?: number;
+    /** A subordinate station's reference, "source/id[@bin]". */
+    offsets?: { reference: string };
   };
 }
 

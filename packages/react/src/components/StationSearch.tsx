@@ -153,7 +153,7 @@ export function StationSearch({
         }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className="w-full px-3 py-2 border border-(--slackwater-border) rounded-lg bg-(--slackwater-bg) text-(--slackwater-text) text-sm outline-none transition-colors focus:border-(--slackwater-primary) focus:ring-3 focus:ring-(--slackwater-primary)/20"
+        className="w-full min-h-12 px-4 py-[13px] border border-white/10 rounded-full bg-white/8 backdrop-blur-xl text-white text-[17px] placeholder:text-(--sw-foam)/62 outline-none transition-colors focus:border-(--sw-go)/60 focus:ring-2 focus:ring-(--sw-go)/25"
         role="combobox"
         aria-expanded={showResults || showRecent}
         aria-controls={listboxId}
@@ -164,11 +164,11 @@ export function StationSearch({
         <ul
           ref={listRef}
           id={listboxId}
-          className="absolute top-full left-0 right-0 z-50 mt-1 p-1 list-none bg-(--slackwater-bg) border border-(--slackwater-border) rounded-lg shadow-md max-h-80 overflow-y-auto"
+          className="absolute top-full left-0 right-0 z-50 mt-2 p-1 list-none bg-(--sw-canvas) border-[0.5px] border-(--sw-card-stroke) rounded-[18px] shadow-md max-h-80 overflow-y-auto"
           role="listbox"
         >
           <li
-            className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-(--slackwater-text-muted)"
+            className="px-3 py-1 font-mono text-[11px] font-medium uppercase tracking-[1.6px] text-(--sw-go)"
             role="presentation"
           >
             Recent
@@ -179,15 +179,13 @@ export function StationSearch({
               id={`${instanceId}-option-${i}`}
               role="option"
               aria-selected={i === activeIndex}
-              className={`flex flex-col px-3 py-2 rounded-md cursor-pointer ${
-                i === activeIndex
-                  ? "bg-(--slackwater-bg-subtle)"
-                  : "hover:bg-(--slackwater-bg-subtle)"
+              className={`flex flex-col px-3 py-2 rounded-xl cursor-pointer ${
+                i === activeIndex ? "bg-white/8" : "hover:bg-white/5"
               }`}
               onMouseDown={() => handleRecentSelect(recent)}
             >
-              <span className="font-medium text-(--slackwater-text)">{recent.name}</span>
-              <span className="text-xs text-(--slackwater-text-muted)">
+              <span className="text-[15px] font-medium text-white">{recent.name}</span>
+              <span className="text-xs text-(--sw-foam)/55">
                 {[recent.region, recent.country].filter(Boolean).join(", ")}
               </span>
             </li>
@@ -198,7 +196,7 @@ export function StationSearch({
         <ul
           ref={listRef}
           id={listboxId}
-          className="absolute top-full left-0 right-0 z-50 mt-1 p-1 list-none bg-(--slackwater-bg) border border-(--slackwater-border) rounded-lg shadow-md max-h-80 overflow-y-auto"
+          className="absolute top-full left-0 right-0 z-50 mt-2 p-1 list-none bg-(--sw-canvas) border-[0.5px] border-(--sw-card-stroke) rounded-[18px] shadow-md max-h-80 overflow-y-auto"
           role="listbox"
         >
           {results.map((station, i) => (
@@ -207,15 +205,13 @@ export function StationSearch({
               id={`${instanceId}-option-${i}`}
               role="option"
               aria-selected={i === activeIndex}
-              className={`flex flex-col px-3 py-2 rounded-md cursor-pointer ${
-                i === activeIndex
-                  ? "bg-(--slackwater-bg-subtle)"
-                  : "hover:bg-(--slackwater-bg-subtle)"
+              className={`flex flex-col px-3 py-2 rounded-xl cursor-pointer ${
+                i === activeIndex ? "bg-white/8" : "hover:bg-white/5"
               }`}
               onMouseDown={() => handleSelect(station)}
             >
-              <span className="font-medium text-(--slackwater-text)">{station.name}</span>
-              <span className="text-xs text-(--slackwater-text-muted)">
+              <span className="text-[15px] font-medium text-white">{station.name}</span>
+              <span className="text-xs text-(--sw-foam)/55">
                 {[station.region, station.country].filter(Boolean).join(", ")}
               </span>
             </li>

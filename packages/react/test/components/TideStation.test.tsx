@@ -1,233 +1,179 @@
-import { describe, test, expect, afterEach } from "vitest";
-import { render, within, waitFor } from "@testing-library/react";
-import { userEvent } from "@testing-library/user-event";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { TideStation } from "../../src/components/TideStation.js";
+import { addDays, dateKey, dayStartOf, localNoon, startOfDay } from "../../src/utils/time.js";
 import { createTestWrapper } from "../helpers.js";
 
+const SEATTLE = "noaa/9447130";
+const TZ = "America/Los_Angeles";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+async function renderStation(id = SEATTLE, wrapper = createTestWrapper()) {
+  const view = render(<TideStation id={id} className="extra" />, { wrapper });
+  const slider = await screen.findByRole("slider", { name: "Tide timeline" }, { timeout: 10000 });
+  return { ...view, slider };
+}
+
+const rows = (container: HTMLElement) =>
+  [...container.querySelectorAll<HTMLButtonElement>("button")].filter((b) =>
+    /\d ft(High|Low)$/.test(b.textContent ?? ""),
+  );
+const weekBar = () => screen.getByRole("button", { name: /^Showing .+\. Choose a date\.$/ });
+
 describe("TideStation", () => {
-  test("shows loading state initially", () => {
-    const { container } = render(<TideStation id="noaa/8443970" />, {
-      wrapper: createTestWrapper(),
-    });
-    const view = within(container);
-
-    expect(view.getByText("Loading...")).toBeDefined();
+  test("is busy while loading", () => {
+    const { container } = render(<TideStation id={SEATTLE} />, { wrapper: createTestWrapper() });
+    expect(container.querySelector("[aria-busy='true']")).not.toBeNull();
   });
 
-  test("renders station name and region after loading", async () => {
-    const { container } = render(<TideStation id="noaa/8443970" />, {
-      wrapper: createTestWrapper(),
-    });
-    const view = within(container);
+  test("shows the station, its strip, the week's turns and where they come from", async () => {
+    const { container } = await renderStation();
 
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Seattle");
+    expect(container.querySelector("section.extra")).not.toBeNull();
+    expect(weekBar()).toBeDefined();
+    const today = screen.getByRole("button", { name: /^Today/ });
+    expect(today.getAttribute("aria-expanded")).toBe("true");
+    expect(rows(container).length).toBeGreaterThan(2);
+    expect(container.querySelectorAll("[aria-current='true']").length).toBe(1);
+    expect(screen.getByText("Predictions — not for navigation")).toBeDefined();
+    expect(screen.getByText("MLLW chart datum. NOAA harmonic prediction.")).toBeDefined();
+
+    fireEvent.click(screen.getByText("Station details"));
+    expect(screen.getByText("MLLW (NOAA chart datum)")).toBeDefined();
+    expect(screen.getByText(SEATTLE)).toBeDefined();
+    expect(screen.getByText(TZ)).toBeDefined();
+    expect(screen.getByText(/^47\.\d{3}°N, 122\.\d{3}°W$/)).toBeDefined();
+  });
+
+  test("always predicts at the station's chart datum", async () => {
+    const fetch = vi.spyOn(window, "fetch");
+    await renderStation(SEATTLE, createTestWrapper({ datum: "MSL" }));
+
+    const urls = fetch.mock.calls.map(([url]) => String(url));
+    const predictions = urls.filter((u) => /\/(timeline|extremes)\?/.test(u));
+    expect(predictions.length).toBe(2);
+    for (const url of predictions) expect(new URL(url).searchParams.get("datum")).toBe("MLLW");
+  });
+
+  test("a row moves the strip to its turn, and the highlight follows", async () => {
+    const { container, slider } = await renderStation();
+    const target = rows(container).find((r) => r.getAttribute("aria-current") !== "true")!;
+
+    fireEvent.click(target);
     await waitFor(
       () => {
-        expect(view.queryByText("Loading...")).toBeNull();
+        expect(text(slider)).toMatch(/^(High|Low) /);
+        expect(target.getAttribute("aria-current")).toBe("true");
+      },
+      { timeout: 4000 },
+    );
+  });
+
+  test("one day is open at a time", async () => {
+    await renderStation();
+    const today = screen.getByRole("button", { name: /^Today/ });
+    const tomorrow = screen.getByRole("button", { name: /^Tomorrow/ });
+    expect(tomorrow.getAttribute("aria-expanded")).toBe("false");
+    expect(within(tomorrow).getByText("Sunrise")).toBeDefined();
+
+    fireEvent.click(tomorrow);
+    expect(tomorrow.getAttribute("aria-expanded")).toBe("true");
+    expect(today.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByText("Solar noon")).toBeDefined();
+
+    fireEvent.click(tomorrow);
+    expect(tomorrow.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  test("picking a date moves the week and the strip, and Now brings both back", async () => {
+    const { container, slider } = await renderStation();
+    const before = weekBar().ariaLabel;
+    const picked = dayStartOf(dateKey(addDays(startOfDay(Date.now(), TZ), 21, TZ), TZ), TZ);
+    const input = container.querySelector<HTMLInputElement>("input[type='date']")!;
+
+    fireEvent.click(weekBar());
+    fireEvent.change(input, { target: { value: dateKey(picked, TZ) } });
+    expect(weekBar().ariaLabel).not.toBe(before);
+    await waitFor(
+      () => {
+        expect(value(slider)).toBe(localNoon(picked, TZ));
+        // The timeline and the extremes arrive separately.
+        const firstDay = container.querySelector("button[aria-expanded]")!;
+        expect(firstDay.ariaExpanded).toBe("true");
+        expect(firstDay.textContent).not.toMatch(/^Today/);
       },
       { timeout: 10000 },
     );
 
-    // Station name should be in an h3
-    const heading = view.getByRole("heading", { level: 1 });
-    expect(heading.textContent!.length).toBeGreaterThan(0);
-  });
-
-  test("shows current level with arrow indicator", async () => {
-    const { container } = render(<TideStation id="noaa/8443970" />, {
-      wrapper: createTestWrapper(),
+    const now = await screen.findByRole("button", { name: "Return to now" }, { timeout: 4000 });
+    await waitFor(() => expect(now.tabIndex).toBe(0), { timeout: 4000 });
+    fireEvent.click(now);
+    await waitFor(() => expect(Math.abs(value(slider) - Date.now())).toBeLessThan(60_000), {
+      timeout: 10000,
     });
-    const view = within(container);
-
-    await waitFor(
-      () => {
-        expect(view.queryByText("Loading...")).toBeNull();
-      },
-      { timeout: 10000 },
-    );
-
-    // Should have a Rising or Falling indicator
-    const rising = view.queryByLabelText("Rising");
-    const falling = view.queryByLabelText("Falling");
-    expect(rising ?? falling).toBeDefined();
+    expect(weekBar().ariaLabel).toBe(before);
   });
 
-  test("renders graph and table by default", async () => {
-    const { container } = render(<TideStation id="noaa/8443970" />, {
-      wrapper: createTestWrapper(),
+  test("a date already on the strip keeps the selection", async () => {
+    const { container, slider } = await renderStation();
+    await waitFor(() => expect(Math.abs(value(slider) - Date.now())).toBeLessThan(60_000), {
+      timeout: 4000,
     });
-    const view = within(container);
+    const tomorrow = addDays(startOfDay(Date.now(), TZ), 1, TZ);
+    const selected = value(slider);
 
-    await waitFor(
-      () => {
-        expect(view.queryByText("Loading...")).toBeNull();
-      },
-      { timeout: 10000 },
-    );
-
-    expect(container.querySelector("canvas")).toBeDefined();
-    expect(view.getByRole("table")).toBeDefined();
-  });
-
-  test("does not use tabs in a large container", async () => {
-    const { container } = render(
-      <div style={{ width: 800 }}>
-        <TideStation id="noaa/8443970" />
-      </div>,
-      { wrapper: createTestWrapper() },
-    );
-    const view = within(container);
-
-    await waitFor(
-      () => {
-        expect(view.queryByText("Loading...")).toBeNull();
-      },
-      { timeout: 10000 },
-    );
-
-    expect(view.queryByRole("tablist")).toBeNull();
-    expect(view.getByRole("table")).toBeDefined();
-  });
-
-  test("renders table when showTable is true", async () => {
-    const { container } = render(<TideStation id="noaa/8443970" showTable showGraph={false} />, {
-      wrapper: createTestWrapper(),
+    fireEvent.change(container.querySelector("input[type='date']")!, {
+      target: { value: dateKey(tomorrow, TZ) },
     });
-    const view = within(container);
-
-    await waitFor(
-      () => {
-        expect(view.queryByText("Loading...")).toBeNull();
-      },
-      { timeout: 10000 },
-    );
-
-    expect(view.getByRole("table")).toBeDefined();
+    expect(screen.getByRole("button", { name: /^Tomorrow/ }).ariaExpanded).toBe("true");
+    expect(value(slider)).toBe(selected);
+    fireEvent.change(container.querySelector("input[type='date']")!, { target: { value: "" } });
+    fireEvent.change(container.querySelector("input[type='date']")!, {
+      target: { value: dateKey(Date.now(), TZ) },
+    });
+    expect(screen.getByRole("button", { name: /^Today/ }).ariaExpanded).toBe("true");
   });
 
-  describe("compact layout", () => {
-    afterEach(() => {
-      window.history.replaceState(null, "", window.location.pathname + window.location.search);
-    });
+  test("a subordinate station names its reference", async () => {
+    await renderStation("noaa/9440597");
 
-    async function renderCompact(style: React.CSSProperties = { width: 400, height: 320 }) {
-      const result = render(
-        <div style={style}>
-          <TideStation id="noaa/8443970" />
-        </div>,
-        { wrapper: createTestWrapper() },
-      );
-      const view = within(result.container);
-
-      await waitFor(
-        () => {
-          expect(view.queryByText("Loading...")).toBeNull();
-        },
+    expect(
+      await screen.findByText(
+        /^MLLW chart datum\. Based on .+ tides and NOAA's published offsets\.$/,
+        undefined,
         { timeout: 10000 },
-      );
-
-      return { ...result, view };
-    }
-
-    test("collapses to tabs in a small container", async () => {
-      const { view } = await renderCompact();
-
-      expect(view.getByRole("tablist")).toBeDefined();
-      expect(view.getByRole("tab", { name: "Conditions" })).toBeDefined();
-      expect(view.getByRole("tab", { name: "Graph" })).toBeDefined();
-      expect(view.getByRole("tab", { name: "Table" })).toBeDefined();
-      expect(view.getByRole("tab", { name: "Settings" })).toBeDefined();
-
-      // Only the conditions panel is rendered initially
-      expect(view.queryByRole("table")).toBeNull();
-    });
-
-    test("collapses to tabs when only the height is constrained", async () => {
-      const { view } = await renderCompact({ width: 700, height: 300 });
-
-      expect(view.getByRole("tablist")).toBeDefined();
-    });
-
-    test("stays stacked when narrow but not height-constrained (phone portrait)", async () => {
-      const { view } = await renderCompact({ width: 375 });
-
-      expect(view.queryByRole("tablist")).toBeNull();
-      expect(view.queryByRole("combobox", { name: "Section" })).toBeNull();
-      expect(view.getByRole("table")).toBeDefined();
-    });
-
-    test("switches tabs on click and updates the URL hash", async () => {
-      const user = userEvent.setup();
-      const { view } = await renderCompact();
-
-      await user.click(view.getByRole("tab", { name: "Table" }));
-
-      expect(view.getByRole("table")).toBeDefined();
-      expect(view.getByRole("tab", { name: "Table" }).getAttribute("aria-selected")).toBe("true");
-      expect(window.location.hash).toBe("#table");
-    });
-
-    test("shows settings and disclaimers behind the settings tab", async () => {
-      const user = userEvent.setup();
-      const { view } = await renderCompact();
-
-      await user.click(view.getByRole("tab", { name: "Settings" }));
-
-      expect(view.getByLabelText("Units")).toBeDefined();
-    });
-
-    test("opens the tab from the URL hash", async () => {
-      window.history.replaceState(null, "", "#table");
-      const { view } = await renderCompact();
-
-      expect(view.getByRole("tab", { name: "Table" }).getAttribute("aria-selected")).toBe("true");
-      expect(view.getByRole("table")).toBeDefined();
-    });
-
-    test("collapses the tab bar into a dropdown when the container is too short", async () => {
-      const user = userEvent.setup();
-      const { view } = await renderCompact({ width: 400, height: 220 });
-
-      expect(view.queryByRole("tablist")).toBeNull();
-      const dropdown = view.getByRole("combobox", { name: "Section" });
-
-      await user.selectOptions(dropdown, "Table");
-
-      expect(view.getByRole("table")).toBeDefined();
-      expect(window.location.hash).toBe("#table");
-    });
-
-    test("shows the tab bar instead of the dropdown when tall enough", async () => {
-      const { view } = await renderCompact({ width: 400, height: 320 });
-
-      expect(view.getByRole("tablist")).toBeDefined();
-      expect(view.queryByRole("combobox", { name: "Section" })).toBeNull();
-    });
-
-    test("supports arrow key navigation between tabs", async () => {
-      const user = userEvent.setup();
-      const { view } = await renderCompact();
-
-      await user.click(view.getByRole("tab", { name: "Conditions" }));
-      await user.keyboard("{ArrowRight}");
-
-      expect(view.getByRole("tab", { name: "Graph" }).getAttribute("aria-selected")).toBe("true");
-      expect(window.location.hash).toBe("#graph");
-    });
+      ),
+    ).toBeDefined();
+    fireEvent.click(screen.getByText("Station details"));
+    expect(screen.getByText(/, \d+ km away$/)).toBeDefined();
   });
 
-  test("applies className", async () => {
-    const { container } = render(<TideStation id="noaa/8443970" className="my-station" />, {
+  test("credits a station's own source", async () => {
+    await renderStation("kartverket/BGO");
+
+    expect(screen.getByText(/^CD chart datum\. Harmonic constants from Kartverket/)).toBeDefined();
+    fireEvent.click(screen.getByText("Station details"));
+    expect(screen.getByText("CD chart datum")).toBeDefined();
+  });
+
+  test("shows a fetch error", async () => {
+    const { container } = render(<TideStation id="noaa/0000000" />, {
       wrapper: createTestWrapper(),
     });
-    const view = within(container);
 
-    await waitFor(
-      () => {
-        expect(view.queryByText("Loading...")).toBeNull();
-      },
-      { timeout: 10000 },
-    );
-
-    expect(container.querySelector(".my-station")).toBeDefined();
+    await screen.findByText(/not found/i, undefined, { timeout: 10000 });
+    expect(container.querySelector("[aria-busy='true']")).toBeNull();
   });
 });
+
+function value(slider: HTMLElement) {
+  return Number(slider.getAttribute("aria-valuenow"));
+}
+
+function text(slider: HTMLElement) {
+  return slider.getAttribute("aria-valuetext") ?? "";
+}

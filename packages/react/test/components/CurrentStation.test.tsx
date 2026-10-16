@@ -137,4 +137,73 @@ describe("CurrentStation", () => {
     fireEvent.click(nowPill()!);
     await waitFor(() => expect(offNow()).toBeLessThan(60_000), { timeout: 4000 });
   });
+
+  test("lists the week's slacks and maxima, and says where they come from", async () => {
+    const { container } = render(<CurrentStation id="noaa/PUG1701" />, {
+      wrapper: createTestWrapper(),
+    });
+    await screen.findByRole("slider", undefined, { timeout: 10000 });
+
+    const rows = [...container.querySelectorAll("button")].map((b) => b.textContent ?? "");
+    expect(rows.some((r) => /—Slack$/.test(r))).toBe(true);
+    expect(rows.some((r) => /\d kn(ESE|E)Flood$/.test(r))).toBe(true);
+    expect(rows.some((r) => /\d kn(WNW|W)Ebb$/.test(r))).toBe(true);
+    expect(
+      screen.getByText("NOAA harmonic current prediction. Flood sets 102°T. Speeds use knots."),
+    ).toBeDefined();
+
+    fireEvent.click(screen.getByText("Station details"));
+    expect(screen.getByText("102°T")).toBeDefined();
+    expect(screen.getByText("282°T")).toBeDefined();
+    expect(screen.getByText("0.6 kn toward ebb")).toBeDefined();
+    expect(screen.getByText(/^48\.\d{3}°N, 122\.\d{3}°W$/)).toBeDefined();
+  });
+
+  test("a subordinate station names its reference", async () => {
+    render(<CurrentStation id="noaa/ACT0091" />, { wrapper: createTestWrapper() });
+    await screen.findByRole("slider", undefined, { timeout: 10000 });
+
+    expect(
+      await screen.findByText(
+        /^NOAA subordinate station: .+'s slacks and maxima, corrected by published offsets\. Flood sets 210°T\.$/,
+        undefined,
+        { timeout: 10000 },
+      ),
+    ).toBeDefined();
+    fireEvent.click(screen.getByText("Station details"));
+    expect(screen.getByText(/, \d+ km away$/)).toBeDefined();
+    expect(screen.queryByText("Mean flow")).toBeNull();
+  });
+
+  test("a station from another source credits it, and slack-free water says none measured", async () => {
+    const station = {
+      id: "test/STILL",
+      name: "Still Water",
+      type: "reference",
+      timezone: "UTC",
+      latitude: -10,
+      longitude: 20,
+      predictions: true,
+      source: { name: "Test Survey" },
+      current: { mean_flow: 0.01 },
+    };
+    const t = Date.now();
+    vi.spyOn(window, "fetch").mockImplementation(async (url) => {
+      const path = new URL(String(url)).pathname;
+      if (path.endsWith("/timeline")) {
+        return Response.json({
+          station,
+          timeline: [-2, 2].map((h) => ({ time: new Date(t + h * 3_600_000), speed: 1 })),
+        });
+      }
+      if (path.endsWith("/events")) return Response.json({ station, events: [] });
+      return Response.json(station);
+    });
+    render(<CurrentStation id="test/STILL" />, { wrapper: createTestWrapper() });
+
+    expect(await screen.findByText("Harmonic constants from Test Survey.")).toBeDefined();
+    fireEvent.click(screen.getByText("Station details"));
+    expect(screen.getByText("None measured")).toBeDefined();
+    expect(screen.getByText("10.000°S, 20.000°E")).toBeDefined();
+  });
 });

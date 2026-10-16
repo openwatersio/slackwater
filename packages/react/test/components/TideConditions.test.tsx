@@ -262,6 +262,6 @@ describe("TideConditions fetch mode", () => {
       { timeout: 15000 },
     );
 
-    expect(container.querySelector(".text-red-500")).not.toBeNull();
+    expect(container.querySelector(".text-\\(--sw-attention\\)")).not.toBeNull();
   });
 });

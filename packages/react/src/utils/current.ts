@@ -1,6 +1,7 @@
 import type { CurrentEvent, CurrentTimelineEntry } from "../types.js";
-import { type Day, spokenTime } from "./time.js";
-import { UNIT_MS } from "./scrubber.js";
+import { spokenTime } from "./time.js";
+import { KNOT_ANCHORS, rampColor } from "./color.js";
+import { UNIT_MS, interpolate, targetsWithin, type Stop } from "./scrubber.js";
 
 /** A run of time around slack when the current stays within the boat-speed threshold. */
 export interface SlackWindow {
@@ -14,29 +15,12 @@ export const EMPTY_MESSAGE = "No current predictions for this period.";
 /** The app's default boat-speed threshold for slack windows, in knots. */
 export const DEFAULT_SLACK_THRESHOLD = 0.5;
 
-/** Absolute speed anchors (knots) for the ramp stops, shared with the app. */
-const RAMP_ANCHORS = [0.5, 3, 8, 12];
-const RAMP_STOPS: [number, number, number][] = [
-  [0xf5, 0xc9, 0x6b],
-  [0xf5, 0xc9, 0x6b],
-  [0xe8, 0x76, 0x3c],
-  [0xc9, 0x3a, 0x32],
-];
-
-const hex = (c: number[]) =>
-  "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
-
 /**
  * The speed ramp color for an absolute speed in knots. The ramp is the same
  * at every station, never enters green, and clamps at both ends.
  */
 export function speedColor(knots: number): string {
-  const s = Math.abs(knots);
-  const i = RAMP_ANCHORS.findIndex((a) => s < a);
-  if (i === 0) return hex(RAMP_STOPS[0]);
-  if (i === -1) return hex(RAMP_STOPS[RAMP_STOPS.length - 1]);
-  const f = (s - RAMP_ANCHORS[i - 1]) / (RAMP_ANCHORS[i] - RAMP_ANCHORS[i - 1]);
-  return hex(RAMP_STOPS[i - 1].map((c, k) => c + (RAMP_STOPS[i][k] - c) * f));
+  return rampColor(knots, KNOT_ANCHORS);
 }
 
 /** The speed thread's opacity: invisible below 0.5 kn, opaque from 3 kn. */
@@ -134,20 +118,7 @@ export function runCenter(run: SlackWindow): number {
 
 /** Signed speed at `time`, linearly interpolated; undefined outside the timeline. */
 export function speedAt(timeline: CurrentTimelineEntry[], time: number): number | undefined {
-  let lo = 0;
-  let hi = timeline.length - 1;
-  if (hi < 0 || time < timeline[0].time.getTime() || time > timeline[hi].time.getTime()) {
-    return undefined;
-  }
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (timeline[mid].time.getTime() <= time) lo = mid;
-    else hi = mid;
-  }
-  const a = timeline[lo];
-  const b = timeline[hi];
-  const span = b.time.getTime() - a.time.getTime();
-  return span === 0 ? a.speed : a.speed + ((b.speed - a.speed) * (time - a.time.getTime())) / span;
+  return interpolate(timeline, time, (p) => p.speed);
 }
 
 export type CurrentState = "Slack" | "Max flood" | "Max ebb" | "Flooding" | "Ebbing";
@@ -193,24 +164,6 @@ export function readCurrent(
   return direction === undefined ? { state, speed } : { state, speed, direction };
 }
 
-export type StopKind = "Slack" | "Flood" | "Ebb" | "Max flood" | "Max ebb" | "Sunrise" | "Sunset";
-
-export interface Stop {
-  time: number;
-  label: StopKind;
-}
-
-/** What a screen reader hears for each stop, after the app's VoiceOver labels. */
-const SPOKEN: Record<StopKind, string> = {
-  Slack: "Slack current",
-  Flood: "Flood current",
-  Ebb: "Ebb current",
-  "Max flood": "Maximum flood current",
-  "Max ebb": "Maximum ebb current",
-  Sunrise: "Sunrise",
-  Sunset: "Sunset",
-};
-
 /**
  * The water stops the commentary walks: each run's opening, its closing named
  * for the water that follows, and each maximum. A dot run is one stop at its
@@ -243,17 +196,6 @@ export function currentStops(
   return stops.sort((a, b) => a.time - b.time);
 }
 
-/** Water and sun stops inside the drawn data, in time order; a sun event sharing an instant comes first. */
-export function scrubberStops(water: Stop[], days: Day[], start: number, end: number): Stop[] {
-  const sun = days.flatMap((d): Stop[] => [
-    ...(d.sunrise === undefined ? [] : [{ time: d.sunrise, label: "Sunrise" as const }]),
-    ...(d.sunset === undefined ? [] : [{ time: d.sunset, label: "Sunset" as const }]),
-  ]);
-  return [...sun, ...water]
-    .filter((s) => s.time >= start && s.time <= end)
-    .sort((a, b) => a.time - b.time);
-}
-
 /**
  * The magnet's targets: every stop plus each slack instant, inside the drawn
  * data, sorted and unique. A slack inside a dot run snaps to the dot instead.
@@ -270,8 +212,7 @@ export function snapTargets(
     .filter((e) => e.kind === "slack")
     .map((e) => e.time.getTime())
     .filter((t) => !dots.some((w) => w.start.getTime() <= t && t <= w.end.getTime()));
-  const times = [...stops.map((s) => s.time), ...slacks].filter((t) => t >= start && t <= end);
-  return [...new Set(times)].sort((a, b) => a - b);
+  return targetsWithin([...stops.map((s) => s.time), ...slacks], start, end);
 }
 
 /** Absolute speed to one decimal in the locale's digits, never "-0.0". */
@@ -299,46 +240,4 @@ export function spokenReading(
     ...set,
     spokenTime(time, timeZone, locale),
   ].join(", ");
-}
-
-/** "28m" or "3h 28m", floored to whole minutes. */
-export function formatCountdown(ms: number): string {
-  const minutes = Math.floor(ms / 60_000);
-  const h = Math.floor(minutes / 60);
-  return h > 0 ? `${h}h ${minutes % 60}m` : `${minutes}m`;
-}
-
-/** A countdown in words, for screen readers: "3 hours, 28 minutes". */
-export function spokenDuration(ms: number, locale?: string): string {
-  const minutes = Math.floor(ms / 60_000);
-  const unit = (n: number, unit: string) =>
-    new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "long" }).format(n);
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return unit(m, "minute");
-  return m === 0
-    ? unit(h, "hour")
-    : new Intl.ListFormat(locale, { style: "short", type: "unit" }).format([
-        unit(h, "hour"),
-        unit(m, "minute"),
-      ]);
-}
-
-export interface Commentary {
-  stop: Stop;
-  /** Compact countdown: "28m", "3h 28m". */
-  duration: string;
-  /** The whole relationship for screen readers: "Maximum flood current in 28 minutes". */
-  spoken: string;
-}
-
-/** The commentary pill: the first stop more than a second after `time`. */
-export function commentary(time: number, stops: Stop[], locale?: string): Commentary | undefined {
-  const stop = stops.find((s) => s.time > time + 1000);
-  if (!stop) return undefined;
-  return {
-    stop,
-    duration: formatCountdown(stop.time - time),
-    spoken: `${SPOKEN[stop.label]} in ${spokenDuration(stop.time - time, locale)}`,
-  };
 }

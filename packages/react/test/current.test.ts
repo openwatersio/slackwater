@@ -1,14 +1,11 @@
 import { describe, expect, test } from "vitest";
 import {
-  commentary,
   compass16,
   currentStops,
-  formatCountdown,
   formatSpeed,
   isDotRun,
   readCurrent,
   runCenter,
-  scrubberStops,
   slackRuns,
   slackWindowAround,
   snapTargets,
@@ -17,6 +14,7 @@ import {
   spokenReading,
   threadOpacity,
 } from "../src/utils/current.js";
+import { commentary, formatCountdown, scrubberStops } from "../src/utils/scrubber.js";
 import type { CurrentEvent } from "../src/types.js";
 
 const H = 3_600_000;

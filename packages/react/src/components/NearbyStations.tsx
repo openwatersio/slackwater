@@ -61,9 +61,11 @@ function NearbyFromStation({
   const station = useStation(stationId);
 
   if (station.isLoading)
-    return <div className="p-4 text-center text-sm text-(--slackwater-text-muted)">Loading...</div>;
+    return <div className="p-4 text-center text-sm text-(--sw-foam)/62">Loading...</div>;
   if (station.error)
-    return <div className="p-4 text-center text-sm text-red-500">{station.error.message}</div>;
+    return (
+      <div className="p-4 text-center text-sm text-(--sw-attention)">{station.error.message}</div>
+    );
 
   return (
     <NearbyFromPosition
@@ -111,22 +113,21 @@ function NearbyFromPosition({
 
   if (isLoading)
     return (
-      <div className="p-4 text-center text-sm text-(--slackwater-text-muted)">
-        Loading nearby stations...
-      </div>
+      <div className="p-4 text-center text-sm text-(--sw-foam)/62">Loading nearby stations...</div>
     );
-  if (error) return <div className="p-4 text-center text-sm text-red-500">{error.message}</div>;
+  if (error)
+    return <div className="p-4 text-center text-sm text-(--sw-attention)">{error.message}</div>;
 
   return (
-    <ul className={`list-none m-0 p-0 ${className ?? ""}`}>
+    <ul className={`sw-card list-none m-0 p-0 overflow-hidden ${className ?? ""}`}>
       {stations
         .filter((station) => station.id !== excludeId)
         .slice(0, maxResults)
         .map((station) => (
-          <li key={station.id} className="border-b border-(--slackwater-border) last:border-b-0">
+          <li key={station.id} className="border-b border-white/5.5 last:border-b-0">
             <button
               type="button"
-              className="flex gap-3 items-center justify-between w-full px-4 py-3 border-none bg-transparent cursor-pointer text-left transition-colors hover:bg-(--slackwater-bg-subtle)"
+              className="flex gap-3 items-center justify-between w-full min-h-11 px-4 py-3 border-none bg-transparent cursor-pointer text-left transition-colors hover:bg-white/5"
               onClick={() => onStationSelect?.(station)}
               onMouseEnter={() => onHover?.(station)}
               onMouseLeave={() => onHoverEnd?.(station)}
@@ -134,16 +135,16 @@ function NearbyFromPosition({
               onBlur={() => onHoverEnd?.(station)}
             >
               <div className="min-w-0">
-                <span className="block font-medium text-(--slackwater-text) truncate">
+                <span className="block text-[15px] font-medium text-white truncate">
                   {station.name}
                 </span>
-                <span className="block text-xs text-(--slackwater-text-muted) truncate">
+                <span className="block text-xs text-(--sw-foam)/55 truncate">
                   {[station.region, station.country].filter(Boolean).join(", ")}
                 </span>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {station.distance !== undefined && (
-                  <span className="text-sm font-medium text-(--slackwater-text-muted)">
+                  <span className="font-mono text-xs tabular-nums text-(--sw-foam)/85">
                     {formatDistance(station.distance * 1000, config.units)}
                   </span>
                 )}

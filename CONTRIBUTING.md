@@ -85,6 +85,10 @@ app.use("/api/tides", createRoutes());
 app.use("/api/currents", createCurrentRoutes());
 ```
 
+### @slackwater/react Architecture
+
+The React components follow the Slackwater iOS app, which is their design source; its `docs/scrubber.md` specifies the timeline. `src/components/Scrubber.tsx` is the strip shell every timeline shares: scrolling, the magnet, the opening glide, the slider semantics, the lead and pill overlays, and the day, sun, and past chrome. A `Track` object supplies what differs by kind: the curve and its marks, the lead reading, the stops, and the magnet targets. `CurrentScrubber.tsx` and `TideScrubber.tsx` each build one; the tide track also governs its vertical scale against the water in view (`utils/tide.ts`). `TideStation` and `CurrentStation` share the page scaffold, week window, and schedule card in `StationPage.tsx` and `Schedule.tsx`. Colors come only from the `--sw-*` variables in `src/styles.css`. Tests run in vitest browser mode against a real `@slackwater/api` server started by `test/globalSetup.ts`.
+
 ### @slackwater/cli Architecture
 
 The CLI package (`packages/cli`) provides a terminal interface for tide predictions. Key design patterns:
