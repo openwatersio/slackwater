@@ -54,7 +54,7 @@
     }
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.64.0",
+    "@tanstack/react-query": "^5.104.2",
     "@visx/axis": "^4.0.1-alpha.0",
     "@visx/curve": "^4.0.1-alpha.0",
     "@visx/event": "^4.0.1-alpha.0",
