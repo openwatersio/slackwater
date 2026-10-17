@@ -70,7 +70,7 @@
   "devDependencies": {
     "@storybook/addon-themes": "^10.2.16",
     "@storybook/react": "^10.2.10",
-    "@storybook/react-vite": "^10.2.10",
+    "@storybook/react-vite": "^10.6.2",
     "@tailwindcss/vite": "^4.2.0",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.6.1",
