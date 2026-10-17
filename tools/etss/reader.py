@@ -20,6 +20,12 @@ DATUM = ":WATER LEVEL VALUES REFERENCED TO MLLW IN FEET"
 PROVIDER = ":PROVIDED BY DOC/NOAA/NWS/OSTI/MDL"
 FIELDS = ("TIDE", "OB", "SURGE", "BIAS", "TWL")
 MAX_BODY_BYTES = 16 * 1024 * 1024
+MAPPING_CONTRACT = {
+    "id": "noaa-confirmed-csv-time-2026-10-14-v1",
+    "source": "https://github.com/openwatersio/slackwater/issues/401#issuecomment-6170503674",
+    "forecastSource": "CSV TWL at TIME",
+    "scope": "Three West gauges; observed October 2026 export layout",
+}
 
 
 class ContractError(ValueError):
@@ -165,7 +171,7 @@ def parse_csv(text):
     return {"rows": rows, "missingRows": missing}
 
 
-def compare_station(native, csv_series, cycle):
+def compare_station(native, csv_series, cycle, *, csv_mapping=False):
     rows = csv_series["rows"]
     compared, missing, max_error, disagreements = 0, 0, Decimal("0.000"), []
     for index, value in enumerate(native["values"]):
@@ -200,7 +206,7 @@ def compare_station(native, csv_series, cycle):
     span_complete = min(rows) == expected_start and max(rows) == expected_end and not csv_series["missingRows"]
     status = "disagreement" if disagreements or exceptions or flags else (
         "incomplete" if missing or not span_complete or not arithmetic else "consistent")
-    return {"status": status, "flags": flags, "declaredStart": iso(native["start"]),
+    result = {"status": status, "flags": flags, "declaredStart": iso(native["start"]),
             "declaredEnd": iso(native["start"] + timedelta(hours=len(native["values"]) - 1)),
             "bulletinCreatedAt": iso(native["createdAt"]), "parameter": "HMIFV",
             "datum": "MLLW", "units": "feet", "timeZone": "UTC", "printedDecimals": 3,
@@ -213,6 +219,55 @@ def compare_station(native, csv_series, cycle):
             "arithmetic": {"formula": "TWL = TIDE + SURGE + BIAS", "compared": arithmetic,
                            "missingComponents": skipped, "maxAbsFeet": str(arithmetic_max),
                            "toleranceFeet": "0.002", "exceptions": exceptions}}
+    if csv_mapping:
+        result["mapping"] = map_csv_forecast(native, csv_series, cycle, result)
+    return result
+
+
+def map_csv_forecast(native, csv_series, cycle, diagnostics):
+    rows = csv_series["rows"]
+    hours = [cycle + timedelta(hours=i) for i in range(103)]
+    # The early bias blends observations; the audited branch signature uses +24h onward (#401).
+    bias_values = [rows.get(at, {}).get("BIAS") for at in hours[24:]]
+    present = sum(value is not None for value in bias_values)
+    mode = "unknown" if present != 79 else "constant" if len(set(bias_values)) == 1 else "varying"
+    offset = None if mode == "unknown" else int(mode == "varying")
+    comparison = {"compared": 0, "missing": 0, "maxAbsFeet": "0.000",
+                  "toleranceFeet": "0.001", "disagreements": []}
+    maximum = Decimal("0.000")
+    if offset is not None:
+        for i, value in enumerate(native["values"]):
+            declared = native["start"] + timedelta(hours=i)
+            # NOAA confirms varying FFT bias mislabels SHEF; CSV TIME stays authoritative (#401).
+            csv_at = declared + timedelta(hours=offset)
+            other = rows.get(csv_at, {}).get("TWL")
+            if value is None or other is None:
+                comparison["missing"] += 1
+                continue
+            comparison["compared"] += 1
+            error = value - other
+            maximum = max(maximum, abs(error))
+            if abs(error) > Decimal("0.001"):
+                comparison["disagreements"].append({"shefDeclaredAt": iso(declared),
+                    "csvValidAt": iso(csv_at), "shefFeet": str(value), "csvFeet": str(other),
+                    "errorFeet": str(error)})
+    comparison["maxAbsFeet"] = str(maximum)
+    missing_components = [iso(at) for at in hours if any(
+        rows.get(at, {}).get(field) is None for field in ("TIDE", "SURGE", "BIAS", "TWL"))]
+    unexplained = bool(diagnostics["flags"] or diagnostics["arithmetic"]["exceptions"]
+                       or comparison["disagreements"])
+    incomplete = (mode == "unknown" or comparison["compared"] != 102
+                  or not diagnostics["csv"]["observedSpanComplete"] or bool(missing_components))
+    status = "unexplained" if unexplained else "incomplete" if incomplete else "accepted"
+    forecast = []
+    if status == "accepted":
+        forecast = [{"validAt": iso(at), "csvFeet": str(rows[at]["TWL"]),
+                     "heightMeters": str(rows[at]["TWL"] * Decimal("0.3048"))} for at in hours]
+    return {"status": status, "biasMode": mode, "expectedCsvOffsetHours": offset,
+            "biasSupport": {"start": iso(hours[24]), "end": iso(hours[-1]),
+                            "expected": 79, "present": present, "cadenceHours": 1},
+            "expectedTime": comparison, "missingForecastComponentsAt": missing_components,
+            "forecastSource": "CSV TWL at TIME", "datum": "MLLW", "forecast": forecast}
 
 
 def verified_body(root, record):
@@ -242,7 +297,7 @@ def verify_receipt(record):
     require(times == sorted(times), "capture receipt times are not monotonic")
 
 
-def validate_manifest(path):
+def validate_manifest(path, *, csv_mapping=False):
     path = Path(path)
     with path.open("rb") as stream:
         data = stream.read(1024 * 1024 + 1)
@@ -258,6 +313,8 @@ def validate_manifest(path):
               "scope": "West: Friday Harbor, Port Townsend, Seattle; native export consistency only",
               "scoringPermitted": False, "adapterAccepted": False, "receiptIsFirstPublication": False,
               "atomicPublication": False, "products": {}, "stations": {}}
+    if csv_mapping:
+        report["mappingContract"] = dict(MAPPING_CONTRACT)
     selected, errors, incomplete = {}, False, False
     prefix = f"etss.{date}/"
     names = {"shef": {prefix + f"shef.etss.t{hour}z.totalwater.west"},
@@ -301,7 +358,8 @@ def validate_manifest(path):
                 incomplete = True
             else:
                 try:
-                    row.update(compare_station(native["stations"][nws], parse_csv(selected["csv"][csv_name]), cycle))
+                    row.update(compare_station(native["stations"][nws], parse_csv(selected["csv"][csv_name]), cycle,
+                                               csv_mapping=csv_mapping))
                 except ContractError as error:
                     row.update(status="unsupported", error=str(error))
                     errors = True
@@ -309,19 +367,27 @@ def validate_manifest(path):
     statuses = {row["status"] for row in report["stations"].values()}
     report["status"] = ("unsupported" if errors else "disagreement" if "disagreement" in statuses
                         else "incomplete" if incomplete or statuses != {"consistent"} else "consistent")
+    if csv_mapping:
+        mappings = {row.get("mapping", {}).get("status", "incomplete") for row in report["stations"].values()}
+        report["mappingStatus"] = ("unsupported" if errors else "unexplained" if "unexplained" in mappings
+                                   else "incomplete" if incomplete or mappings != {"accepted"} else "accepted")
     return report
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("manifest", type=Path)
+    parser.add_argument("--csv-mapping", action="store_true",
+                        help="validate NOAA-confirmed mapping and emit hourly CSV TWL in meters")
     args = parser.parse_args()
     try:
-        report = validate_manifest(args.manifest)
+        report = validate_manifest(args.manifest, csv_mapping=args.csv_mapping)
     except (ContractError, OSError, ValueError, TypeError, AttributeError) as error:
         report = {"status": "unsupported", "error": str(error), "scoringPermitted": False,
                   "adapterAccepted": False}
     print(json.dumps(report, indent=2))
+    if args.csv_mapping:
+        return 0 if report.get("mappingStatus") == "accepted" else 1
     return 0 if report["status"] == "consistent" else 1
 
 

@@ -1,0 +1,53 @@
+{
+  "scope": "Original Seattle member text from preserved paired receipts. Development/contract evidence only; no accuracy scores. CSV fixtures use lossless gzip with mtime=0; receipts refer to original archives, not fixture compression.",
+  "fixtures": {
+    "seattle-20261013-18-full.csv.gz": {
+      "sha256": "e3abaedbbd955e2fa4ec58ac3418a9548b0dfc737add93d50ec0db2211f46d78",
+      "textSha256": "b5580f1c52b30d837ac40c94d2603c1791bf3d2f056683ed70a789d425f9ab97",
+      "sourceArchiveSha256": "fd9aefa787aabbb367b8086c68aa49be9f1ef586878d3e1a64ec0dc906f042e9",
+      "sourceMemberSha256": "b5580f1c52b30d837ac40c94d2603c1791bf3d2f056683ed70a789d425f9ab97",
+      "sourceMember": "etss.20261013/t18z.csv/9447130.csv",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/etss.20261013/etss.t18z.csv.tar.gz",
+      "requestStartedAt": "2026-10-14T03:53:10.148992Z",
+      "receivedAt": "2026-10-14T03:53:10.405554Z",
+      "sourceManifest": "attempt-20261013-18-36f9a296203640e995f24756d3354ff7.json",
+      "extraction": "Complete original CSV member, losslessly compressed"
+    },
+    "seattle-20261013-18-full.shef": {
+      "sha256": "273a0ac851aa3c98c5b41c5dffc46993a8b12ff1083feefc7ff33988c56d6837",
+      "textSha256": "273a0ac851aa3c98c5b41c5dffc46993a8b12ff1083feefc7ff33988c56d6837",
+      "sourceArchiveSha256": "8e26a563668274e947f2c28d1c671e75635bc41a64dbe1c97741e666eef63cea",
+      "sourceMemberSha256": "48ea2eda401a92f97ae85dac604b3128b704450d197dc2269bee7d90f2b671f0",
+      "sourceMember": "etss.20261013/shef.etss.t18z.totalwater.west",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/etss.20261013/etss.t18z.shef.tar.gz",
+      "requestStartedAt": "2026-10-14T03:53:10.045762Z",
+      "receivedAt": "2026-10-14T03:53:10.142096Z",
+      "sourceManifest": "attempt-20261013-18-36f9a296203640e995f24756d3354ff7.json",
+      "extraction": "Original declaration lines and complete EBSW1 section; other stations omitted"
+    },
+    "seattle-20261014-00-full.csv.gz": {
+      "sha256": "3d9aedb35d66e7036bfbe1c7ab065d864a3806c5a5a01f87dc6482ed1e52c45e",
+      "textSha256": "b52a236249d0514f5185241faaa29089b4878f3f21f6952cf395ffdd0b90b1aa",
+      "sourceArchiveSha256": "198364cc70547b2b6eb5bb8767b28f4a5ca61aa1419987a8fe32303a21426531",
+      "sourceMemberSha256": "b52a236249d0514f5185241faaa29089b4878f3f21f6952cf395ffdd0b90b1aa",
+      "sourceMember": "etss.20261014/t00z.csv/9447130.csv",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/etss.20261014/etss.t00z.csv.tar.gz",
+      "requestStartedAt": "2026-10-14T04:55:07.315609Z",
+      "receivedAt": "2026-10-14T04:55:07.923909Z",
+      "sourceManifest": "attempt-20261014-00-8a26103c562d4dde9c794c084f4d7550.json",
+      "extraction": "Complete original CSV member, losslessly compressed"
+    },
+    "seattle-20261014-00-full.shef": {
+      "sha256": "9c4fb16a7392a863aa194bad93cc3cfbf1ffd185bc97ded4c4e0fc8f0bc283a1",
+      "textSha256": "9c4fb16a7392a863aa194bad93cc3cfbf1ffd185bc97ded4c4e0fc8f0bc283a1",
+      "sourceArchiveSha256": "9d8c6b6343685ada21c25473b2ac61e067909e0a15afa1adf577fa4f3ea12486",
+      "sourceMemberSha256": "684e9c1cec5095852dc434cec2a058a0c625bb0570fc14d9cbde854e0d8f9a2f",
+      "sourceMember": "etss.20261014/shef.etss.t00z.totalwater.west",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/etss.20261014/etss.t00z.shef.tar.gz",
+      "requestStartedAt": "2026-10-14T04:55:07.011753Z",
+      "receivedAt": "2026-10-14T04:55:07.309342Z",
+      "sourceManifest": "attempt-20261014-00-8a26103c562d4dde9c794c084f4d7550.json",
+      "extraction": "Original declaration lines and complete EBSW1 section; other stations omitted"
+    }
+  }
+}
