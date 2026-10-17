@@ -1,6 +1,6 @@
 # Slackwater for Swift
 
-The open, offline tide & current engine behind **Slackwater** — *Offline Tides & Currents*.
+The open, offline tide & current engine behind **Slackwater** — _Offline Tides & Currents_.
 
 Tide prediction is deterministic astronomy, not a live feed. Given a station's harmonic
 constituents you can compute heights and the high/low turns for any minute, years ahead,
@@ -75,6 +75,28 @@ two-slack / speed-ratio offsets. `speeds(from:to:step:)` draws a half-cosine thr
 events, on the same timeline as a harmonic station's — NOAA publishes no curve for a
 subordinate, so it is a drawing of the table, not a prediction between its rows.
 
+### Water-level residuals
+
+Supply observed and predicted heights in metres, paired at the same UTC instant and on the same datum:
+
+```swift
+let readings = [WaterLevelReading(time: time, observed: 1.4, predicted: 1.2)]
+let raw = try residuals(readings: readings)
+let filtered = try filterResiduals(samples: hourlySamples)
+let trend = try residualTrend(samples: filtered)
+// trend: ResidualTrend? with time, slopePerHour, and direction
+```
+
+`WaterLevelReading`, `ResidualSample(time:value:)`, and `ResidualTrend(time:slopePerHour:direction:)` are public `Sendable` types available without Accelerate. `ResidualTrend.Direction` has string values `rising`, `steady`, and `falling`. `residuals(readings:)` subtracts predicted from observed without rounding. The caller establishes datum compatibility; numeric validation cannot detect a mismatch. A subordinate uses its reference gauge's residual.
+
+`filterResiduals(samples:)` accepts hourly samples on a grid starting at any instant, including a half-hour or millisecond offset. A missing hour splits support; complete windows on each side remain usable. Three means of 24, 24, and 25 samples require 71 consecutive hourly readings and preserve the center timestamp. Every output describes the anomaly 35 hours before its newest supporting observation. With 97 hourly samples spanning 96 hours, 27 outputs remain. Six-minute observations need a separate hourly conversion policy.
+
+`residualTrend(samples:)` fits the final 25 consecutive hourly values over 24 elapsed hours and returns `nil` when that recent window is unavailable. The returned timestamp is the last sample time and `slopePerHour` is metres per hour. The direction is `steady` for an absolute fitted 24-hour change of at most `0.01 + 1e-12` metres; larger changes use their sign. The one-centimetre cutoff is provisional and has no station uncertainty calibration.
+
+All three functions require finite values and timestamps in strictly increasing order. `ResidualError.invalidSamples` covers non-finite input, duplicates, and descending times; `.invalidCadence` covers off-grid filter/trend timestamps; `.nonFiniteResult` covers arithmetic overflow. Empty residual/filter input produces an empty array. The functions never mutate, sort, round, pad, extrapolate, or implicitly downsample input.
+
+Swift and [TypeScript](../packages/engine/README.md#water-level-residuals) consume `fixtures/residuals-parity.json`, generated with independent integer convolution weights and centered regression. Value tolerance is `1e-9` metres and slope tolerance is `1e-10` metres/hour; timestamps and directions match exactly. The fixed NOAA Friday Harbor capture preserves all six-minute rows and quality flags, request metadata, immutable prediction inputs, and predictions. Exact-hour selection prepares this fixture only; `npm run fixtures:check` checks the oracle offline. This comparison establishes math parity, not forecast accuracy. [Kotlin parity #395](https://github.com/openwatersio/slackwater/issues/395) is required follow-up work. Observation fetching, a current-anomaly estimate, and calibrated outlooks remain separate work.
+
 ### Harmonic fitting
 
 `fit(samples:constituents:)` fits an offset and a fixed list of constituents to heights or signed current velocities. Available on macOS 13, iOS 16, and watchOS 9.
@@ -109,6 +131,7 @@ node fixtures/generate/gen-realworld.mjs    # refresh the NOAA tide real-world f
 > ```sh
 > npx --package=@openwaters/noaa-current-stations@0.4.0 noaa-current-stations golden <out.json> --station ID --bin N --start ISO --end ISO
 > ```
+>
 > regenerates a NOAA currents oracle fixture.
 
 ## Layout

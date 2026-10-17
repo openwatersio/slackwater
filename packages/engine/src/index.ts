@@ -5,6 +5,14 @@ import type { TimelinePoint, Extreme, ExtremeOffsets } from "./harmonics/predict
 
 export { default as astro } from "./astronomy/index.js";
 export { fit, type HarmonicSample, type HarmonicFit } from "./fit.js";
+export {
+  residuals,
+  filterResiduals,
+  residualTrend,
+  type WaterLevelReading,
+  type ResidualSample,
+  type ResidualTrend,
+} from "./residuals.js";
 export { default as constituents } from "./constituents/index.js";
 export type * from "./astronomy/index.js";
 export type * from "./constituents/index.js";
