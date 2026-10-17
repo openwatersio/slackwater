@@ -84,7 +84,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-map-gl": "^8.1.1",
-    "storybook": "^10.2.10",
+    "storybook": "^10.6.2",
     "tailwindcss": "^4.2.0"
   }
 }
