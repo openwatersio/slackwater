@@ -68,7 +68,7 @@
     "d3-array": "^3.2.1"
   },
   "devDependencies": {
-    "@storybook/addon-themes": "^10.2.16",
+    "@storybook/addon-themes": "^10.6.2",
     "@storybook/react": "^10.2.10",
     "@storybook/react-vite": "^10.2.10",
     "@tailwindcss/vite": "^4.2.0",
