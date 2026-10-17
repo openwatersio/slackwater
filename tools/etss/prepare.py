@@ -68,7 +68,8 @@ def choose_forecast(paths, station, decision_at):
     return result
 
 
-def prepare(data_root, tide_path, tide_hash, decision_at, truth_as_of):
+def prepare(data_root, tide_path, tide_hash, decision_at, truth_as_of, *,
+            observation_paths=None, forecast_paths=None, receipt_caches=None):
     data_root, tide_path = Path(data_root), Path(tide_path)
     decision, truth_cutoff = utc(decision_at), utc(truth_as_of)
     require((decision.hour, decision.minute, decision.second, decision.microsecond) == (2, 0, 0, 0),
@@ -85,15 +86,16 @@ def prepare(data_root, tide_path, tide_hash, decision_at, truth_as_of):
               "tideSha256": tide_hash, "tideProvenance": tides["provenance"], "stations": {},
               "codeHashes": {s: hashlib.sha256(Path(__file__).with_name(s).read_bytes()).hexdigest() for s in sources},
               "scoresComputed": False, "productionAccepted": False}
-    obs_paths = sorted(p for p in (data_root / "observations").glob("attempt-*.json") if not p.name.endswith("-start.json"))
+    obs_paths = sorted(observation_paths) if observation_paths is not None else sorted(
+        p for p in (data_root / "observations").glob("attempt-*.json") if not p.name.endswith("-start.json"))
     grouped = {p: json_station(p) for p in obs_paths}
     result["unassignedObservationManifests"] = [p.name for p, station in grouped.items() if station not in reader.STATIONS.values()]
-    forecast_paths = sorted(p for p in (data_root / "forecasts").glob("attempt-*.json")
-                            if not p.name.endswith(("-start.json", "-contract.json")))
+    forecast_paths = sorted(forecast_paths) if forecast_paths is not None else sorted(
+        p for p in (data_root / "forecasts").glob("attempt-*.json") if not p.name.endswith(("-start.json", "-contract.json")))
     for station in reader.STATIONS.values():
         # Partitioning is only an optimization; each body must independently match its station.
         paths = [p for p, identity in grouped.items() if identity == station]
-        receipt_cache = {}
+        receipt_cache = {} if receipt_caches is None else receipt_caches.setdefault(station, {})
         history = observations.select_hourly(paths, station, iso(decision - timedelta(hours=96)),
                                               iso(decision - timedelta(hours=1)), iso(decision), receipt_cache=receipt_cache)
         tide = tides["stations"][station]

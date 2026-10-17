@@ -45,6 +45,8 @@ Tidal currents reuse the harmonic machinery with the result read as signed veloc
 
 `tools/etss/prepare.py` prepares offline daily comparison inputs under the versioned [evaluation policy](tools/etss/evaluation-policy.md). Observation normalization distinguishes preliminary outlier counts from verified inference flags and selects exact-hour rows by actual receipt time. The fixed comparators consume a hash-pinned tide bundle; primary research truth uses a fixed 24-hour revision window. Preparation emits provenance and fallback reasons without scoring outcomes. This research policy does not establish shipping quality thresholds, caching or numeric expiry.
 
+`tools/etss/report.py` scores those inputs under #402's fixed calendars, retaining fallback and missing-truth denominators. Post-hoc Godin labels use the same per-sample truth vintage, with episode IDs assigned before filtering targets. Calibration radii are shared across gauges per method/horizon and frozen before confirmation; the original calibration report is required to verify their source and recompute them. Code or input changes invalidate the width contract. A manifest index bounds each preparation to relevant query windows; shared receipt caches expire as decisions advance. JSON retains case and label provenance, paired errors, sensitivity ranges and acquisition records. Development results cannot pass confirmation gates, and no report accepts a production adapter.
+
 ### @slackwater/api Architecture
 
 The API package (`packages/api`) exposes tide and tidal current predictions via Express HTTP endpoints. Key design patterns:

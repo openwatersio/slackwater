@@ -1,6 +1,6 @@
 # ETSS preservation and offline contract checks
 
-These Python 3.11+ standard-library research tools preserve finite deterministic NOAA ETSS export attempts and original gauge observations. An external scheduler can invoke a collection tick. The tools do not score forecasts, tune timing, or accept a production adapter. A `consistent` result describes native export consistency. The optional CSV mapping validates the [NOAA-confirmed clock](provider-contract.md) and emits forecast samples for offline evaluation. `scoringPermitted` and `adapterAccepted` remain false: observation normalization, pinned comparators and truth policy, and accuracy/uncertainty acceptance are separate requirements under [slackwater#402](https://github.com/openwatersio/slackwater/issues/402).
+These Python 3.11+ standard-library research tools preserve finite deterministic NOAA ETSS export attempts and original gauge observations. An external scheduler can invoke a collection tick. The offline report scores fixed comparison methods under [slackwater#402](https://github.com/openwatersio/slackwater/issues/402); it never tunes timing or accepts a production adapter. A `consistent` reader result describes native export consistency. The optional CSV mapping validates the [NOAA-confirmed clock](provider-contract.md) and emits forecast samples for offline evaluation. The reader's `scoringPermitted` and `adapterAccepted` remain false because mapping alone does not establish evaluation eligibility.
 
 From the repository root:
 
@@ -94,3 +94,26 @@ python3 -B tools/etss/prepare.py \
 ```
 
 Use a new report path for each snapshot. The output includes original selected row fields, body and manifest hashes, receipt cutoffs, forecast selection, per-method fallback reasons and independent truth availability at each horizon. Primary truth accepts preliminary or verified rows within a fixed 24-hour revision window; it is unavailable until that window has elapsed. `observations.select_hourly(..., verified_only=True)` supports separately labeled verified-data checks. A later truth snapshot cannot alter decision inputs or advance the primary truth cutoff.
+
+## Accuracy report
+
+`report.py` reads retained receipts and the tide bundle identified by `evaluation-pin.json`. It verifies the pinned input files before preparing every scheduled station-decision. Report, label and scoring source hashes identify a separate reporting contract. A manifest index selects only query windows that overlap each decision's history or targets and receipts that can meet its latest truth deadline. Preparation still validates selected bodies and applies each individual cutoff. Parsed receipts are reused across nearby decisions and evicted after their window expires. The report retains the full manifest index and rejected metadata separately from each decision's selected evidence. Store derived JSON and Markdown outside the evidence directory and use a new filename for each run. The command never fetches observations or forecasts.
+
+```sh
+python3 -B tools/etss/report.py \
+  --data /path/to/etss-collection/data \
+  --tides /path/to/frozen-tides.json \
+  --phase development --first 2026-10-14 --last 2026-10-15 \
+  --truth-as-of 2026-10-15T16:53:53.060135Z \
+  --markdown /path/to/new-development.md > /path/to/new-development.json
+```
+
+Development dates must precede November 1, 2026. `--phase calibration` always includes November 1–30, 2026; `--phase confirmation` always includes December 4, 2026 through January 31, 2027. Formal phases reject `--first` and `--last`. The snapshot must follow the last scheduled decision and cannot be in the future. Missing targets remain in the calendar and are counted separately at each horizon.
+
+The JSON contains MAE, RMSE, linear p95 and maximum absolute error, corrected and fallback counts, fallback reasons, missing truth, unknown labels, all pairwise overall MAE/RMSE differences, rapid differences against unchanged tide, worst rapid episodes and leave-one-date-out difference ranges. Each omission removes a whole decision date within a gauge/horizon. These ranges describe sensitivity, not independent-sample confidence intervals. Predictions, selected truth, label support and receipt/body/source hashes remain attached. Acquisition records distinguish saved failures, expected unpublished cycles, interrupted starts and recorded host/scheduler gaps; their presence does not prove continuous collection or a provider-wide outage.
+
+`labels.py` subtracts frozen tide from exact-hour primary research truth, then applies centered 24/24/25 Godin means at decision and decision plus 24 hours. All 95 hours in their combined support must exist; every observation has its own sample-plus-24-hour receipt deadline. A label matures 83 hours after the decision. The 0.10-meter rapid threshold allows `1e-12` meters for floating-point arithmetic. Unknown days cannot split an episode; only a known nonrapid day can. Labels are diagnostic and never enter a prediction.
+
+Calibration computes a separate linear p90 absolute-error radius for each method, gauge and horizon, including fallback, then selects the maximum of the three gauges for each method/horizon. An absent gauge leaves the radius unavailable. Run calibration with `--freeze-widths /path/to/new-widths.json` after all label truth matures at December 3, 2026 13:00 UTC and before the first confirmation decision at December 4 02:00 UTC. The tool records its actual freeze time and the calibration report hash. Archive that report and the widths together. Width and Markdown files use exclusive creation; existing files are never overwritten.
+
+Confirmation requires `--widths /path/to/widths.json --widths-sha256 <recorded-sha256> --calibration-report /path/to/calibration.json`. The contract, tide and code hashes must match. The calibration report's canonical JSON hash must match the freeze artifact. The loader requires its full 30-day calendar and recomputes shared radii from its retained case errors at all three gauges. Each confirmation gauge/horizon needs 20 scorable dates, five rapid dates and three episodes, the frozen point-error gates, and 90% coverage overall and on rapid cases. An incomplete calendar maturity window or insufficient evidence yields `inconclusive`. The aggregate verdict passes only if every gauge/horizon passes. Development and calibration cannot pass confirmation; `productionAccepted` is always false. Shared-radius coverage is absent until frozen widths are supplied. No widths are fitted to development or confirmation errors.
