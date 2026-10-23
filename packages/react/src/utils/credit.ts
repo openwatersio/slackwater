@@ -1,4 +1,4 @@
-/** Each credit once, dropping any another contains, since every credit opens with the database's, which is all a NOAA station's says. */
+/** Each credit once, dropping any that another contains: every credit starts with the database credit, and a NOAA station's is only that, so a longer credit already covers it. */
 export function distinctCredits(attributions: Iterable<string | undefined>): string[] {
   const unique = [...new Set([...attributions].filter((a): a is string => !!a?.trim()))];
   return unique.filter((a) => !unique.some((b) => b !== a && b.includes(a)));
