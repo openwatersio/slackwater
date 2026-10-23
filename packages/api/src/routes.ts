@@ -5,6 +5,7 @@ import {
   getTimelinePrediction,
   findStation,
   stationsNear,
+  currentStationUnavailable,
 } from "slackwater";
 import openapi from "./openapi.js";
 import * as validate from "./validate.js";
@@ -14,8 +15,30 @@ import { createApiRouter, type RouterOptions } from "./router.js";
 const tideOnly = (station: Station) => station.kind === "tide";
 // CHS tide stations carry identity only, since CHS terms forbid re-serving its
 // predictions; picking one by location would serve a flat zero tide.
-const hasTideModel = (station: Station) =>
+type ModelFields = { harmonic_constituents: unknown[]; offsets?: unknown };
+const hasTideModel = (station: ModelFields) =>
   station.harmonic_constituents.length > 0 || station.offsets !== undefined;
+
+/** Whether these routes can predict the station, and why not when they can't. */
+function availability(station: Parameters<typeof currentStationUnavailable>[0] & ModelFields) {
+  if (hasTideModel(station)) return { predictions: true };
+  // With no model, the current rule gives the same reasons: CHS terms, or nothing to predict from.
+  return { predictions: false, unavailable: currentStationUnavailable(station)!.message };
+}
+
+// The curated CHS records have no source prefix, so a single path segment names them.
+const unprefixedIds = new Set(
+  stations.filter((s) => tideOnly(s) && !s.id.includes("/")).map((s) => s.id),
+);
+
+function show(id: string, res: Response) {
+  try {
+    const station = findStation(id);
+    return res.json({ ...station, ...availability(station) });
+  } catch (error) {
+    return res.status(404).json({ message: (error as Error).message });
+  }
+}
 
 /** The tide routes. */
 export function createRoutes(options: RouterOptions = {}) {
@@ -45,13 +68,16 @@ export function createRoutes(options: RouterOptions = {}) {
       }
     });
 
-    router.get("/stations/:source/:id", (req: Request, res: Response) => {
-      try {
-        return res.json(findStation(`${req.params.source}/${req.params.id}`));
-      } catch (error) {
-        return res.status(404).json({ message: (error as Error).message });
-      }
+    router.get("/stations/:id", (req: Request, res: Response) => {
+      const { id } = req.params as { id: string };
+      if (!unprefixedIds.has(id))
+        return res.status(404).json({ message: `Station not found: ${id}` });
+      return show(id, res);
     });
+
+    router.get("/stations/:source/:id", (req: Request, res: Response) =>
+      show(`${req.params.source}/${req.params.id}`, res),
+    );
 
     router.get("/stations", (req: Request, res: Response) => {
       const { latitude, longitude } = positionOptions(req);
@@ -66,24 +92,22 @@ export function createRoutes(options: RouterOptions = {}) {
       const bboxParam = validate.bbox(req.query);
 
       if (query) {
-        return res.json(search(query, { filter: tideOnly, maxResults }).map(stripStationDetails));
+        return res.json(search(query, { filter: tideOnly, maxResults }).map(summarize));
       }
 
       if (bboxParam) {
-        return res.json(bboxQuery(bboxParam, { filter: tideOnly }).map(stripStationDetails));
+        return res.json(bboxQuery(bboxParam, { filter: tideOnly }).map(summarize));
       }
 
       if (latitude === undefined || longitude === undefined) {
-        return res.json(stations.filter(tideOnly).map(stripStationDetails));
+        return res.json(stations.filter(tideOnly).map(summarize));
       }
 
       res.json(
-        stationsNear({
-          latitude,
-          longitude,
-          maxResults,
-          maxDistance,
-        }),
+        stationsNear({ latitude, longitude, maxResults, maxDistance }).map((station) => ({
+          ...station,
+          ...availability(station),
+        })),
       );
     });
 
@@ -138,7 +162,21 @@ function predictionOptions(req: Request) {
   };
 }
 
-function stripStationDetails(station: Station) {
+function summarize(station: Station) {
   const { id, name, region, country, continent, latitude, longitude, timezone, type } = station;
-  return { id, name, region, country, continent, latitude, longitude, timezone, type };
+  return {
+    id,
+    name,
+    region,
+    country,
+    continent,
+    latitude,
+    longitude,
+    timezone,
+    type,
+    // A list shows these stations' predictions, so it owes their credit and terms.
+    attribution: station.attribution,
+    license: station.license,
+    ...availability(station),
+  };
 }

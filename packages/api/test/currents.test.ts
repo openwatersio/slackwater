@@ -276,6 +276,22 @@ describe("GET /currents/stations", () => {
 
     expect(response.status).toBe(400);
   });
+
+  test.each([
+    ["search", { query: "Deception Pass" }],
+    ["bounding box", { bbox: "-122.7,48.35,-122.6,48.45" }],
+    ["proximity", deceptionPass],
+    ["full list", {}],
+  ])("lists each station's credit and license in %s listings", async (_mode, query) => {
+    const station = dbStations.find((s) => s.id === "noaa/PUG1701")!;
+    const response = await request(app).get("/currents/stations").query(query);
+
+    expect(response.status).toBe(200);
+    expect(response.body.find((s: Summary) => s.id === station.id)).toMatchObject({
+      attribution: station.attribution,
+      license: station.license,
+    });
+  });
 });
 
 describe("GET /currents/stations/:source/:id", () => {

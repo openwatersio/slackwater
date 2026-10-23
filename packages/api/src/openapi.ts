@@ -107,6 +107,26 @@ const tides = {
         },
       },
     },
+    "/stations/{id}": {
+      get: {
+        summary: "Get station by unprefixed ID",
+        description:
+          "Find a station whose ID has no source prefix (the curated CHS records). These carry identity only, with `predictions: false`.",
+        parameters: [{ $ref: "#/components/parameters/unprefixedStationId" }],
+        responses: {
+          "200": {
+            description: "Station found",
+            content: {
+              "application/json": { schema: { $ref: "#/components/schemas/TideStation" } },
+            },
+          },
+          "404": {
+            description: "Station not found",
+            content: { "application/json": { schema: { $ref: "#/components/schemas/Error" } } },
+          },
+        },
+      },
+    },
     "/stations/{source}/{id}": {
       get: {
         summary: "Get station by ID",
@@ -121,7 +141,7 @@ const tides = {
             content: {
               "application/json": {
                 schema: {
-                  $ref: "#/components/schemas/Station",
+                  $ref: "#/components/schemas/TideStation",
                 },
               },
             },
@@ -143,7 +163,7 @@ const tides = {
       get: {
         summary: "Find stations",
         description:
-          "Search stations by name/ID, find stations near the given coordinates, or list all stations when no filters are provided",
+          "Search stations by name/ID, find stations near the given coordinates, or list all stations when no filters are provided. Stations whose predictions can't be served are included with `predictions: false`.",
         parameters: [
           { $ref: "#/components/parameters/stationQuery" },
           { $ref: "#/components/parameters/optionalLatitude" },
@@ -162,13 +182,13 @@ const tides = {
                     {
                       type: "array",
                       items: {
-                        $ref: "#/components/schemas/Station",
+                        $ref: "#/components/schemas/TideStation",
                       },
                     },
                     {
                       type: "array",
                       items: {
-                        $ref: "#/components/schemas/StationSummary",
+                        $ref: "#/components/schemas/TideStationSummary",
                       },
                     },
                   ],
@@ -380,6 +400,15 @@ const tides = {
           type: "string",
         },
       },
+      unprefixedStationId: {
+        name: "id",
+        in: "path",
+        required: true,
+        description: "Station ID with no source prefix (e.g. 'chs-campbell-river')",
+        schema: {
+          type: "string",
+        },
+      },
       stationQuery: {
         name: "query",
         in: "query",
@@ -460,7 +489,28 @@ const tides = {
             type: "string",
             enum: ["reference", "subordinate"],
           },
+          license: {
+            $ref: "#/components/schemas/StationLicense",
+          },
+          attribution: {
+            $ref: "#/components/schemas/StationAttribution",
+          },
         },
+      },
+      StationLicense: {
+        type: "object",
+        description:
+          "The license of the station's data. Hosts must honor `commercial_use: false` (CC BY-NC stations).",
+        properties: {
+          type: { type: "string" },
+          commercial_use: { type: "boolean" },
+          url: { type: "string" },
+          notes: { type: "string" },
+        },
+      },
+      StationAttribution: {
+        type: "string",
+        description: "The credit to display wherever the station's data is shown",
       },
       Station: {
         type: "object",
@@ -502,13 +552,10 @@ const tides = {
             },
           },
           license: {
-            type: "object",
-            properties: {
-              type: { type: "string" },
-              commercial_use: { type: "boolean" },
-              url: { type: "string" },
-              notes: { type: "string" },
-            },
+            $ref: "#/components/schemas/StationLicense",
+          },
+          attribution: {
+            $ref: "#/components/schemas/StationAttribution",
           },
           disclaimers: {
             type: "string",
@@ -641,6 +688,32 @@ const tides = {
             },
           },
         },
+      },
+      TideAvailability: {
+        type: "object",
+        properties: {
+          predictions: {
+            type: "boolean",
+            description: "Whether this API can serve predictions for the station",
+          },
+          unavailable: {
+            type: "string",
+            description: "Why predictions can't be served, when `predictions` is false",
+          },
+        },
+        required: ["predictions"],
+      },
+      TideStationSummary: {
+        allOf: [
+          { $ref: "#/components/schemas/StationSummary" },
+          { $ref: "#/components/schemas/TideAvailability" },
+        ],
+      },
+      TideStation: {
+        allOf: [
+          { $ref: "#/components/schemas/Station" },
+          { $ref: "#/components/schemas/TideAvailability" },
+        ],
       },
       Error: {
         type: "object",

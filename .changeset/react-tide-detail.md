@@ -1,0 +1,13 @@
+---
+"@slackwater/react": major
+---
+
+`TideStation` is the Slackwater app's tide detail screen: a `TideScrubber` timeline with the reading for the selected moment, a schedule card with the week's highs and lows, where the predictions come from, and the station's details. Heights are above the station's chart datum, and a station whose `datums` don't include it names no datum and marks nothing at 0. `CurrentStation` shares the layout, with the week's slacks and maxima in its schedule.
+
+The components are dark only. Their colors are the `--sw-*` variables in `styles.css`, which replace the `--slackwater-*` palette, and they need Tailwind CSS v4 with `@source` pointing at the package. Tailwind v4 is an optional peer dependency.
+
+`TideScrubber` is new; its `chartDatum={false}` leaves 0 unmarked for heights that aren't above a chart datum. `TideGraph`, `TideGraphChart`, `NightBands`, `YAxisOverlay`, `TideTable`, `TideSettings`, `TideStationHeader`, and `TideCycleGraph` are removed, along with the `useTideChunks`, `useTideScales`, `useContainerSize`, `useHashTab`, and `useDarkMode` hooks, `withAlpha`, and `getDefaultRange`. `TideStation`'s props other than `id` and `className` are removed. A station page given a new `id` starts over on that station's week. `useThemeColors` returns the map's colors from the `--sw-*` variables as `rgb()` or `rgba()`, whatever color syntax an override uses. `useTimeline` and `useExtremes` take query options. `prefetchTideStation` fills the queries the new `TideStation` reads, and its `datum` option is removed.
+
+As in the app, there is one datum everywhere: `SlackwaterProvider`'s `datum` prop and setting are removed, a `datum` that `TideSettings` saved in the browser is ignored and dropped, and `useTimeline`, `useExtremes`, `timelineQuery`, and `extremesQuery` take no `datum`. Cards, map pins, widgets, and pages all ask for the API's default, the station's chart datum, and share their queries. The `fetch*` client functions still pass a `datum` through. `ExtremesResponse` and `TimelineResponse` have no `datum` for a station whose `datums` don't include its chart datum.
+
+`StationSummary` carries the listings' `predictions` and `unavailable`. `TideStation`, like `CurrentStation`, gives the reason for a station whose predictions the API can't serve instead of loading them, and `fetchStation` takes the bare ID of a curated record such as `chs-campbell-river`. The station client functions encode the ID and throw "Invalid station ID" for one that isn't `source/id` or a single bare segment. `fetchStationExtremes` and `fetchStationTimeline` take only `source/id`, as the API serves tide predictions. The tide components and client functions need `@slackwater/api` 1.0.0-beta.4 or later.

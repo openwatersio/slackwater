@@ -146,6 +146,51 @@ describe("tide stations without a model", () => {
     expect(response.body.station.id).not.toBe(chs.id);
     expect(response.body.timeline.some((p: { level: number }) => p.level !== 0)).toBe(true);
   });
+
+  type Listed = { id: string; predictions: boolean; unavailable?: string };
+  const flagged = (body: Listed[]) => body.find((s) => s.id === chs.id)!;
+  const unavailable = expect.stringContaining("Canadian Hydrographic Service");
+
+  test.each([
+    ["search", { query: "Campbell River" }],
+    [
+      "bounding box",
+      {
+        bbox: `${chs.longitude - 0.1},${chs.latitude - 0.1},${chs.longitude + 0.1},${chs.latitude + 0.1}`,
+      },
+    ],
+    ["proximity", { latitude: chs.latitude, longitude: chs.longitude }],
+    ["full list", {}],
+  ])("are flagged in %s listings", async (_mode, query) => {
+    const response = await request(app).get("/stations").query(query);
+
+    expect(response.status).toBe(200);
+    expect(flagged(response.body)).toMatchObject({ predictions: false, unavailable });
+    const other = (response.body as Listed[]).find((s) => s.id.includes("/"))!;
+    expect(other.predictions).toBe(true);
+    expect(other).not.toHaveProperty("unavailable");
+  });
+
+  test("are found by their unprefixed ID", async () => {
+    const response = await request(app).get(`/stations/${chs.id}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({ id: chs.id, predictions: false, unavailable });
+  });
+
+  test("an unknown unprefixed ID is not found", async () => {
+    const response = await request(app).get("/stations/8722588");
+
+    expect(response.status).toBe(404);
+    expect(response.body.message).toContain("8722588");
+  });
+
+  test("a station with a model is flagged as predictable", async () => {
+    const response = await request(app).get("/stations/noaa/8722588");
+
+    expect(response.body.predictions).toBe(true);
+    expect(response.body).not.toHaveProperty("unavailable");
+  });
 });
 
 describe("GET /timeline", () => {
@@ -452,6 +497,29 @@ describe("GET /stations", () => {
     expect(response.status).toBe(400);
     expect(response.body).toHaveProperty("message");
   });
+
+  // Bergen is CC BY 4.0; Aigio, a TICON station relayed from CMEMS, is CC BY-NC 4.0.
+  describe.each(["kartverket/BGO", "ticon/aigio-aig-grc-cmems"])("credit for %s", (id) => {
+    const station = dbStations.find((s) => s.id === id)!;
+    const near = { latitude: station.latitude, longitude: station.longitude };
+    const box = [near.longitude - 0.05, near.latitude - 0.05, near.longitude + 0.05];
+
+    test.each([
+      ["search", { query: station.name }],
+      ["bounding box", { bbox: [...box, near.latitude + 0.05].join(",") }],
+      ["proximity", near],
+      ["full list", {}],
+    ])("is listed in %s listings", async (_mode, query) => {
+      const response = await request(app).get("/stations").query(query);
+
+      expect(response.status).toBe(200);
+      const listed = (response.body as { id: string }[]).find((s) => s.id === id);
+      expect(listed).toMatchObject({
+        attribution: station.attribution,
+        license: station.license,
+      });
+    });
+  });
 });
 
 describe("GET /stations/:source/:id/extremes", () => {
@@ -530,6 +598,26 @@ describe("GET /stations/:source/:id/extremes", () => {
 
     expect(response.status).toBe(400);
     expect(response.body).toHaveProperty("errors");
+  });
+
+  test("defaults to the chart datum, and names none for a station without one", async () => {
+    const window = { start: "2025-12-17T00:00:00Z", end: "2025-12-18T00:00:00Z" };
+    const charted = await request(app).get("/stations/noaa/8722588/extremes").query(window);
+    expect(charted.body.datum).toBe(charted.body.station.chart_datum);
+
+    // Fort Wadsworth names a chart datum but has no datums to place it.
+    const uncharted = await request(app).get("/stations/noaa/8519024/extremes").query(window);
+    expect(uncharted.status).toBe(200);
+    expect(uncharted.body.station.chart_datum).toBe("STND");
+    expect(uncharted.body.station.datums).toEqual({});
+    expect(uncharted.body.extremes.length).toBeGreaterThan(0);
+    expect(uncharted.body).not.toHaveProperty("datum");
+  });
+
+  test("an encoded slash is one segment, so it names no station", async () => {
+    const response = await request(app).get("/stations/noaa%2F8722588/extremes");
+
+    expect(response.status).toBe(404);
   });
 });
 

@@ -82,6 +82,15 @@ function scrollTo(slider: HTMLElement, time: number) {
   slider.scrollLeft = ((time - t0) / H) * PX_PER_HOUR - slider.clientWidth / 2;
 }
 
+/** A finger down on the strip, then moved by `dx`, `dy`. */
+function swipe(slider: HTMLElement, dx: number, dy: number) {
+  const at = (clientX: number, clientY: number) => [
+    new Touch({ identifier: 1, target: slider, clientX, clientY }),
+  ];
+  fireEvent.touchStart(slider, { touches: at(100, 100) });
+  fireEvent.touchMove(slider, { touches: at(100 + dx, 100 + dy) });
+}
+
 /** A tap at `time` on the strip, `y` px below its top. */
 function tap(slider: HTMLElement, time: number, y = 100) {
   const rect = slider.getBoundingClientRect();
@@ -94,6 +103,10 @@ function tap(slider: HTMLElement, time: number, y = 100) {
 
 const key = (slider: HTMLElement, key: string, shiftKey = false) =>
   fireEvent.keyDown(slider, { key, shiftKey });
+
+/** Moves land directly, so a busy page can't stall a smooth scroll past the rest delay. */
+const reduceMotion = () =>
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
 
 /** Four hours of a steady 0.2 kn. */
 const tinyTimeline = Array.from({ length: 25 }, (_, i) => ({
@@ -113,17 +126,6 @@ afterEach(() => {
 });
 
 describe("CurrentScrubber", () => {
-  test("frames later than the rest delay don't cut the opening short", async () => {
-    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) =>
-      setTimeout(() => frame(performance.now()), 600),
-    );
-    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
-    // The opening starts on the slack at 24 h, inside the magnet's reach.
-    const { slider } = renderScrubber({ now: t0 + 26 * H });
-
-    await restsOn(slider, t0 + 26 * H);
-  });
-
   test("glides open onto now and reads the current there", async () => {
     const { slider } = renderScrubber();
 
@@ -135,8 +137,19 @@ describe("CurrentScrubber", () => {
     expect(nowPill()).toBeNull();
   });
 
+  test("frames later than the rest delay don't cut the opening short", async () => {
+    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) =>
+      setTimeout(() => frame(performance.now()), 600),
+    );
+    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+    // The opening starts on the slack at 24 h, inside the magnet's reach.
+    const { slider } = renderScrubber({ now: t0 + 26 * H });
+
+    await restsOn(slider, t0 + 26 * H);
+  });
+
   test("opens directly on now under Reduce Motion, and moves directly", async () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
+    reduceMotion();
     const { slider } = renderScrubber();
 
     expect(value(slider)).toBe(NOW);
@@ -155,6 +168,7 @@ describe("CurrentScrubber", () => {
   });
 
   test("steps five minutes with the arrow keys and between stops with Shift", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
 
@@ -212,12 +226,15 @@ describe("CurrentScrubber", () => {
 
     // Narrower, the max flood at 87 h comes into reach.
     getByTestId("frame").style.width = "300px";
-    await waitFor(() =>
-      expect(commentaryPill()?.ariaLabel).toBe("Maximum flood current in 2 hours"),
+    // Resize observations wait for a frame, and frames run late while other files keep the browser busy.
+    await waitFor(
+      () => expect(commentaryPill()?.ariaLabel).toBe("Maximum flood current in 2 hours"),
+      { timeout: 4000 },
     );
   });
 
   test("a Now pill appears only where it can move the strip", async () => {
+    reduceMotion();
     // At 1500 px the earliest centerable time is 41 h 40 m, after now.
     const home = t0 + (1500 / 2 / PX_PER_HOUR) * H;
     const { slider } = renderScrubber({}, 1500);
@@ -262,6 +279,7 @@ describe("CurrentScrubber", () => {
   );
 
   test("a tap on the plot centers the nearest stop, or the tapped time", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
 
@@ -281,6 +299,7 @@ describe("CurrentScrubber", () => {
   });
 
   test("a tap on the day row centers a sun event but not a date", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
     const sunrise = days(t0 + 24 * H, t0 + 25 * H, "UTC", 50, 0)[0].sunrise!;
@@ -288,12 +307,13 @@ describe("CurrentScrubber", () => {
     tap(slider, sunrise + 5 * M, 378);
     await restsOn(slider, sunrise);
 
+    // The tap is handled in the event, so a date that moved the strip would have moved it already.
     tap(slider, t0 + 36 * H, 364);
-    await new Promise((r) => setTimeout(r, 600));
-    expect(value(slider)).toBe(sunrise);
+    await restsOn(slider, sunrise);
   });
 
   test("a scroll comes to rest on a stop within the magnet's reach", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
 
@@ -301,7 +321,7 @@ describe("CurrentScrubber", () => {
     await restsOn(slider, t0 + 27 * H);
 
     // Out of reach of any stop, it rests where it was left.
-    fireEvent.touchMove(slider);
+    swipe(slider, -30, 0);
     scrollTo(slider, t0 + 26 * H);
     await restsOn(slider, t0 + 26 * H);
 
@@ -320,6 +340,29 @@ describe("CurrentScrubber", () => {
     fireEvent.wheel(slider, { deltaX: 30, deltaY: 2 });
     await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
     expect(value(slider)).toBeLessThan(NOW - H);
+  });
+
+  test("a sideways swipe stops the opening glide, and a vertical one doesn't", async () => {
+    const first = renderScrubber();
+    swipe(first.slider, 2, 30);
+    await restsOn(first.slider, NOW);
+    first.unmount();
+
+    const { slider } = renderScrubber();
+    swipe(slider, 30, 2);
+    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
+    expect(value(slider)).toBeLessThan(NOW - H);
+  });
+
+  test("unmounting mid-opening cancels its next frame", () => {
+    const cancel = vi.fn();
+    vi.stubGlobal("requestAnimationFrame", () => 7);
+    vi.stubGlobal("cancelAnimationFrame", cancel);
+    const { unmount } = renderScrubber();
+
+    unmount();
+
+    expect(cancel).toHaveBeenCalledWith(7);
   });
 
   test("draws a slack dot at the edge of the data", () => {
@@ -346,11 +389,14 @@ describe("CurrentScrubber", () => {
     await restsOn(slider, NOW);
 
     fireEvent.click(commentaryPill());
+    // Only the glide being cut rides; the magnet's move after it lands directly.
+    reduceMotion();
     slider.scrollLeft = ((30 * H + 5 * M) / H) * PX_PER_HOUR - WIDTH / 2;
     await restsOn(slider, t0 + 30 * H);
   });
 
   test("a mouse drag pans the strip once it moves past a jitter", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
     const mouse = (x: number) => ({ clientX: x, clientY: 100, pointerType: "mouse", pointerId: 1 });
@@ -382,11 +428,15 @@ describe("CurrentScrubber", () => {
     await restsOn(slider, NOW);
 
     getByTestId("frame").style.width = `${WIDTH + 120}px`;
-    await waitFor(() => expect(slider.scrollLeft).toBe(25 * PX_PER_HOUR - (WIDTH + 120) / 2));
+    // Resize observations wait for a frame, and frames run late while other files keep the browser busy.
+    await waitFor(() => expect(slider.scrollLeft).toBe(25 * PX_PER_HOUR - (WIDTH + 120) / 2), {
+      timeout: 4000,
+    });
     await restsOn(slider, NOW);
   });
 
   test("follows the clock back to now on returning to the page", async () => {
+    reduceMotion();
     const start = Math.floor(Date.now() / H) * H - 48 * H;
     const { slider } = renderScrubber({ ...fixture(start), now: undefined });
     await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
@@ -458,7 +508,8 @@ describe("CurrentScrubber", () => {
       </div>,
     );
 
-    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0));
+    // Under full motion the opening runs its full length before the rest delay starts.
+    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
     expect(value(screen.getByRole("slider"))).toBe(t0 + H);
   });
 });

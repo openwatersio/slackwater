@@ -1,156 +1,142 @@
-import { useStation } from "../hooks/use-station.js";
+import { useCurrentStation, useCurrentStations } from "../hooks/use-current-station.js";
 import { useNearbyStations } from "../hooks/use-nearby-stations.js";
-import { useSlackwaterConfig } from "../provider.js";
-import { formatDistance } from "../utils/format.js";
+import { useStation } from "../hooks/use-station.js";
 import type { StationSummary } from "../types.js";
+import { mergeNearby } from "../utils/card.js";
+import { NEARBY_RESULTS, nearbyParams } from "../utils/page.js";
+import { StationCard, type CardStation } from "./StationCard.js";
+import { StationCredits } from "./StationCredits.js";
 
 export interface NearbyStationsPositionProps {
   latitude: number;
   longitude: number;
   stationId?: undefined;
+  kind?: undefined;
 }
 
 export interface NearbyStationsStationProps {
   stationId: string;
+  /** Which routes serve `stationId`; a tide station by default. */
+  kind?: StationSummary["kind"];
   latitude?: undefined;
   longitude?: undefined;
 }
 
 export type NearbyStationsProps = (NearbyStationsPositionProps | NearbyStationsStationProps) & {
   maxResults?: number;
-  onStationSelect?: (station: StationSummary) => void;
-  /** Called when the user hovers over a station item. */
-  onHover?: (station: StationSummary) => void;
-  /** Called when the user stops hovering over a station item. */
-  onHoverEnd?: (station: StationSummary) => void;
+  onStationSelect?: (station: CardStation) => void;
+  /** Called when the user hovers over or focuses a station. */
+  onHover?: (station: CardStation) => void;
+  /** Called when the user stops hovering over or focusing a station. */
+  onHoverEnd?: (station: CardStation) => void;
   className?: string;
 };
 
-export function NearbyStations(props: NearbyStationsProps) {
-  if (props.stationId) {
-    return <NearbyFromStation {...props} stationId={props.stationId} />;
+type ListProps = Omit<NearbyStationsProps, "stationId" | "kind" | "latitude" | "longitude">;
+
+/** The tide and current stations nearest a station or a position, as cards with their distance. */
+export function NearbyStations({
+  stationId,
+  kind,
+  latitude,
+  longitude,
+  ...props
+}: NearbyStationsProps) {
+  if (stationId !== undefined) {
+    return kind === "current" ? (
+      <NearCurrentStation stationId={stationId} {...props} />
+    ) : (
+      <NearTideStation stationId={stationId} {...props} />
+    );
   }
+  return <NearbyFromPosition latitude={latitude} longitude={longitude} {...props} />;
+}
+
+function NearTideStation({ stationId, ...props }: ListProps & { stationId: string }) {
+  const station = useStation(stationId);
+  return <NearStation station={station} exclude={{ id: stationId, kind: "tide" }} {...props} />;
+}
+
+function NearCurrentStation({ stationId, ...props }: ListProps & { stationId: string }) {
+  const station = useCurrentStation(stationId);
+  // Listings name each station by its primary bin.
+  const id = stationId.split("@")[0];
+  return <NearStation station={station} exclude={{ id, kind: "current" }} {...props} />;
+}
+
+function NearStation({
+  station,
+  exclude,
+  ...props
+}: ListProps & {
+  station: { data?: StationSummary; error: Error | null };
+  exclude: { id: string; kind: StationSummary["kind"] };
+}) {
+  if (station.error) return <Status error>{station.error.message}</Status>;
+  if (!station.data) return <Status>Loading nearby stations</Status>;
   return (
     <NearbyFromPosition
-      latitude={props.latitude!}
-      longitude={props.longitude!}
-      maxResults={props.maxResults}
-      onStationSelect={props.onStationSelect}
-      onHover={props.onHover}
-      onHoverEnd={props.onHoverEnd}
-      className={props.className}
+      latitude={station.data.latitude}
+      longitude={station.data.longitude}
+      exclude={exclude}
+      {...props}
     />
   );
 }
 
-function NearbyFromStation({
-  stationId,
-  maxResults,
-  onStationSelect,
-  onHover,
-  onHoverEnd,
-  className,
-}: {
-  stationId: string;
-  maxResults?: number;
-  onStationSelect?: (station: StationSummary) => void;
-  onHover?: (station: StationSummary) => void;
-  onHoverEnd?: (station: StationSummary) => void;
-  className?: string;
-}) {
-  const station = useStation(stationId);
-
-  if (station.isLoading)
-    return <div className="p-4 text-center text-sm text-(--slackwater-text-muted)">Loading...</div>;
-  if (station.error)
-    return <div className="p-4 text-center text-sm text-red-500">{station.error.message}</div>;
-
-  return (
-    <NearbyFromPosition
-      latitude={station.data!.latitude}
-      longitude={station.data!.longitude}
-      excludeId={stationId}
-      maxResults={maxResults}
-      onStationSelect={onStationSelect}
-      onHover={onHover}
-      onHoverEnd={onHoverEnd}
-      className={className}
-    />
+function Status({ error, children }: { error?: boolean; children: string }) {
+  return error ? (
+    <p className="m-0 p-4 text-center text-sm text-(--sw-attention)">{children}</p>
+  ) : (
+    <p className="sr-only" role="status">
+      {children}
+    </p>
   );
 }
 
 function NearbyFromPosition({
   latitude,
   longitude,
-  excludeId,
-  maxResults = 5,
+  exclude,
+  maxResults = NEARBY_RESULTS,
   onStationSelect,
   onHover,
   onHoverEnd,
   className,
-}: {
+}: ListProps & {
   latitude: number;
   longitude: number;
-  excludeId?: string;
-  maxResults?: number;
-  onStationSelect?: (station: StationSummary) => void;
-  onHover?: (station: StationSummary) => void;
-  onHoverEnd?: (station: StationSummary) => void;
-  className?: string;
+  exclude?: { id: string; kind: StationSummary["kind"] };
 }) {
-  const config = useSlackwaterConfig();
-  const {
-    data: stations = [],
-    isLoading,
-    error,
-  } = useNearbyStations({
-    latitude,
-    longitude,
-    maxResults: excludeId ? maxResults + 1 : maxResults,
-  });
+  const params = nearbyParams(latitude, longitude, maxResults, !!exclude);
+  const tides = useNearbyStations(params);
+  const currents = useCurrentStations(params);
 
-  if (isLoading)
-    return (
-      <div className="p-4 text-center text-sm text-(--slackwater-text-muted)">
-        Loading nearby stations...
-      </div>
-    );
-  if (error) return <div className="p-4 text-center text-sm text-red-500">{error.message}</div>;
+  if (tides.isLoading || currents.isLoading) return <Status>Loading nearby stations</Status>;
+  // An API without the current routes still lists its tide stations.
+  if (tides.error && currents.error) return <Status error>{tides.error.message}</Status>;
+  const stations = mergeNearby<CardStation>(
+    [tides.data ?? [], currents.data ?? []],
+    maxResults,
+    exclude,
+  );
 
   return (
-    <ul className={`list-none m-0 p-0 ${className ?? ""}`}>
-      {stations
-        .filter((station) => station.id !== excludeId)
-        .slice(0, maxResults)
-        .map((station) => (
-          <li key={station.id} className="border-b border-(--slackwater-border) last:border-b-0">
-            <button
-              type="button"
-              className="flex gap-3 items-center justify-between w-full px-4 py-3 border-none bg-transparent cursor-pointer text-left transition-colors hover:bg-(--slackwater-bg-subtle)"
-              onClick={() => onStationSelect?.(station)}
-              onMouseEnter={() => onHover?.(station)}
-              onMouseLeave={() => onHoverEnd?.(station)}
-              onFocus={() => onHover?.(station)}
-              onBlur={() => onHoverEnd?.(station)}
-            >
-              <div className="min-w-0">
-                <span className="block font-medium text-(--slackwater-text) truncate">
-                  {station.name}
-                </span>
-                <span className="block text-xs text-(--slackwater-text-muted) truncate">
-                  {[station.region, station.country].filter(Boolean).join(", ")}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {station.distance !== undefined && (
-                  <span className="text-sm font-medium text-(--slackwater-text-muted)">
-                    {formatDistance(station.distance * 1000, config.units)}
-                  </span>
-                )}
-              </div>
-            </button>
+    <div>
+      <ul className={`m-0 flex list-none flex-col gap-3 p-0 ${className ?? ""}`}>
+        {stations.map((station) => (
+          <li
+            key={`${station.kind}:${station.id}`}
+            onMouseEnter={() => onHover?.(station)}
+            onMouseLeave={() => onHoverEnd?.(station)}
+            onFocus={() => onHover?.(station)}
+            onBlur={() => onHoverEnd?.(station)}
+          >
+            <StationCard station={station} distance={station.distance} onSelect={onStationSelect} />
           </li>
         ))}
-    </ul>
+      </ul>
+      <StationCredits stations={stations} className="mt-3" />
+    </div>
   );
 }
