@@ -79,8 +79,8 @@ The error also rejects cases that would come out right, such as ratios of exactl
 
 `getTimelinePrediction` keeps the reference curve's shape between extremes and rescales it to the subordinate's corrected extremes:
 
-1. Find the reference's extremes from 36 hours before the window to 36 hours after it, so that every output time sits between two of them, even at a diurnal station.
-2. Build a keyframe for each one. A keyframe holds the reference time and level, plus the subordinate time (reference time plus the time offset) and level (the corrected extreme).
+1. Find the reference's extremes from 36 hours before the window to 36 hours after it, so that every output time sits between two of them, even at a diurnal station. Where the extremes found don't surround the window, as at a micro-tidal reference whose kept extremes can be days apart, the keyframes for the whole window come from the reference's raw turning points instead.
+2. Build a keyframe for each one, in subordinate-time order. A keyframe holds the reference time and level, plus the subordinate time (reference time plus the time offset) and level (the reference level, corrected). The reference level is the reference curve's value at that time, evaluated from the window's start as in step 4, so the normalized level in step 5 is exactly 0 or 1 at each keyframe. It can differ from the extreme's reported level, found from its day's own midnight, by a fraction of a millimetre.
 3. For each output time, find the keyframes on either side of it in subordinate time and take the fraction of the way between them.
 4. Map that fraction linearly onto reference time and evaluate the reference curve there.
 5. Normalize that reference level between the two reference extremes, then interpolate the subordinate levels by the same fraction. When both reference extremes have the same level, use the time fraction instead.

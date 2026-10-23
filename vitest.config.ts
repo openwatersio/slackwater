@@ -6,7 +6,7 @@ export default defineConfig({
     typecheck: {
       enabled: true,
     },
-    projects: ["packages/*"],
+    projects: ["packages/*", "benchmarks"],
     environment: "node",
     setupFiles: [resolve(__dirname, "./test/setup.ts")],
     coverage: {

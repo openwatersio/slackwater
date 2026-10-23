@@ -19,10 +19,10 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version-file: mise.toml
 
       - name: Install modules
-        run: npm install
+        run: npm ci
 
       - name: Build
         run: npm run build
@@ -37,8 +37,9 @@ jobs:
         with:
           path: .test-cache
           # Month-stamped so cached reference predictions roll over and the
-          # scheduled run compares against fresh data.
-          key: benchmarks-${{ env.FAST }}-${{ steps.month.outputs.month }}-${{ hashFiles('benchmarks/*.ts') }}
+          # scheduled run compares against fresh data. Test files don't fetch,
+          # so editing one keeps the cache.
+          key: benchmarks-${{ env.FAST }}-${{ steps.month.outputs.month }}-${{ hashFiles('benchmarks/*.ts', '!benchmarks/*.test.ts') }}
 
       - name: Run benchmarks
         run: npm run benchmarks

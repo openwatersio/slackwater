@@ -5,6 +5,7 @@ import type { TimelinePoint, Extreme, ExtremeOffsets } from "./harmonics/predict
 
 export { default as astro } from "./astronomy/index.js";
 export { fit, type HarmonicSample, type HarmonicFit } from "./fit.js";
+export { chsCurrentFit, chsTideFit, projectChsCurrent } from "./chs.js";
 export { default as constituents } from "./constituents/index.js";
 export type * from "./astronomy/index.js";
 export type * from "./constituents/index.js";

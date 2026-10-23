@@ -7,7 +7,7 @@
   </picture>
 </h1>
 
-Tide and current predictions. This repository holds the Slackwater engine for TypeScript and Swift, and the packages built on it. The engine predicts tides and currents in both TypeScript and Swift; the CLI predicts tides, and the React package shows tides and currents. Documentation lives at [openwaters.io/tides/slackwater](https://openwaters.io/tides/slackwater/).
+Tide and current predictions. This repository holds the Slackwater engine for TypeScript, Swift and Kotlin, and the packages built on it. The engine predicts tides and currents in TypeScript, Swift and Kotlin; the CLI predicts both, and the React package shows tides and currents. Documentation lives at [openwaters.io/tides/slackwater](https://openwaters.io/tides/slackwater/).
 
 > [!WARNING]
 > **Not for navigational use**
@@ -23,8 +23,11 @@ Slackwater is one name for everything Open Waters publishes about tides and curr
 | App      | [Slackwater for iPhone](https://slackwater.xyz)                               | Tide and current predictions on iPhone, offline ([source](https://github.com/openwatersio/slackwater-ios))       |
 | Engine   | [`slackwater`](packages/slackwater)                                           | Tide and current predictions with the station database built in, for TypeScript                                  |
 |          | [`@slackwater/engine`](packages/engine)                                       | The harmonic tide and current engine for TypeScript, with no station data attached                               |
+|          | [SlackwaterIWLS](swift/Sources/SlackwaterIWLS)                                | Device-side CHS fetching with a shared contract and synthetic fixtures                                           |
 |          | [SlackwaterKit](swift)                                                        | The harmonic tide and current engine for Swift                                                                   |
-| CLI      | [`@slackwater/cli`](packages/cli)                                             | Tide predictions in your terminal: `brew install openwatersio/tap/slackwater`                                    |
+|          | [Slackwater for Kotlin](kotlin)                                               | The harmonic tide and current engine for Kotlin/JVM and Android, consumed from source                            |
+|          | [slackwater-iwls](kotlin#iwls-fetching)                                       | Device-side CHS fetching for Kotlin/JVM and Android, on the same contract as SlackwaterIWLS                      |
+| CLI      | [`@slackwater/cli`](packages/cli)                                             | Tide and current predictions in your terminal: `brew install openwatersio/tap/slackwater`                        |
 | API      | [`@slackwater/api`](packages/api)                                             | HTTP API for tide and current predictions, hosted at [api.openwaters.io/tides](https://api.openwaters.io/tides/) |
 | React    | [`@slackwater/react`](packages/react)                                         | React components for tide and current predictions                                                                |
 | Database | [`@slackwater/database`](https://github.com/openwatersio/slackwater-database) | The tide and current station database                                                                            |
@@ -36,7 +39,7 @@ The name, logo, and colors are in [brand](brand).
 
 ### CLI
 
-Install the command line tool to get tide predictions from your terminal. Homebrew covers Apple Silicon macOS and x86_64 Linux; on other platforms, use npm (`npm install -g @slackwater/cli`).
+Install the command line tool to get tide and current predictions from your terminal. Homebrew covers Apple Silicon macOS and x86_64 Linux; on other platforms, use npm (`npm install -g @slackwater/cli`).
 
 ```sh
 brew install openwatersio/tap/slackwater
@@ -47,7 +50,9 @@ slackwater help                             # Show help and available commands
 slackwater extremes --near 37.8,-122.5      # High/low tides near San Francisco
 slackwater timeline --station noaa/9414290  # Water level timeline
 slackwater stations "portland"              # Search for stations
-slackwater serve                            # Start the REST API server
+slackwater currents --near 48.406,-122.643  # Slack water and max currents at Deception Pass
+slackwater currents stations "deception"    # Search for current stations
+slackwater serve                            # Start the REST API server for tides and currents
 ```
 
 See the [CLI README](packages/cli) for full usage and installation options.
@@ -268,6 +273,14 @@ As of Feb 2026:
 
 Slackwater reproduces high and low tide timing with **sub-minute accuracy** and tide heights with **millimeter-level accuracy** compared to NOAA's tide predictions. Validation is automated and enforced in CI to prevent regressions as the model evolves.
 
+### Fitted CHS tide ports
+
+Canadian Hydrographic Service ports have no redistributable constants, so clients fit them on device from CHS's own predictions with `chsTideFit`. `benchmarks/chs-fit.ts` scores that recipe monthly on 64 ports at held-out weeks 28 to 270 days out. On the run recorded in the [validation record](docs/validation/chs-tides.md), fitted from the samples a device fetches, about half the ports met the accuracy bar at the first held-out week, and the median held-out RMSE was 5–8 cm. Most misses come from the seasonal mean level, which a 60-day fit cannot carry ([#428](https://github.com/openwatersio/slackwater/issues/428)).
+
+### Fitted CHS current gates
+
+CHS current gates are fitted the same way from CHS's speed and direction predictions with `chsCurrentFit`, over 60 or 210 days per gate. `benchmarks/chs-current-fit.ts` scores both windows monthly on 23 gates at held-out weeks 28 to 270 days out against CHS's published slack and peak times. On the run with the fit ending October 1, 2026, 10 to 19 gates met the [accuracy bar](docs/validation/chs-currents.md) at 210 days depending on the week, and verdicts for gates near the bar change with the season.
+
 ## License
 
-The libraries in this repository (`slackwater`, `@slackwater/engine`, `@slackwater/cli`, `@slackwater/api`, and `@slackwater/react`) are [MIT](LICENSE) licensed, and so is SlackwaterKit ([swift/LICENSE](swift/LICENSE)). The [iOS app](https://github.com/openwatersio/slackwater-ios) is GPL-3.0. The [station database](https://github.com/openwatersio/slackwater-database) code is MIT, and its station data carries a license per station: CC BY 4.0 unless noted, NOAA stations in the public domain, and some stations CC BY-NC 4.0, marked `commercial_use: false`. Every station has an `attribution` string to display wherever you show its data, and the `@slackwater/react` components display it. Nothing in these libraries enforces `commercial_use: false`: a commercial host must leave those stations out, which today are TICON records under CC BY-NC 4.0.
+The libraries in this repository (`slackwater`, `@slackwater/engine`, `@slackwater/cli`, `@slackwater/api`, and `@slackwater/react`) are [MIT](LICENSE) licensed, and so are SlackwaterKit ([swift/LICENSE](swift/LICENSE)), SlackwaterIWLS ([module license](swift/Sources/SlackwaterIWLS/LICENSE)), the [Kotlin engine](kotlin) and its [IWLS client](kotlin#iwls-fetching). The [iOS app](https://github.com/openwatersio/slackwater-ios) is GPL-3.0. The [station database](https://github.com/openwatersio/slackwater-database) code is MIT, and its station data carries a license per station: CC BY 4.0 unless noted, NOAA stations in the public domain, and some stations CC BY-NC 4.0, marked `commercial_use: false`. Every station has an `attribution` string to display wherever you show its data, and the `@slackwater/react` components display it. Nothing in these libraries enforces `commercial_use: false`: a commercial host must leave those stations out, which today are TICON records under CC BY-NC 4.0.

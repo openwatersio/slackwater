@@ -69,6 +69,10 @@ export function createParamsFactory({
 
     return (hour: number): ConstituentParam[] => {
       if (hour >= nextCorrectionAt) {
+        // Catch up to the chunk holding `hour`, however many chunks it skips.
+        nextCorrectionAt +=
+          Math.floor((hour - nextCorrectionAt) / CORRECTION_INTERVAL_HOURS) *
+          CORRECTION_INTERVAL_HOURS;
         const chunkEnd = Math.min(nextCorrectionAt + CORRECTION_INTERVAL_HOURS, endHour);
         params = prepareParams(new Date(startMs + ((nextCorrectionAt + chunkEnd) / 2) * 3600000));
         nextCorrectionAt += CORRECTION_INTERVAL_HOURS;

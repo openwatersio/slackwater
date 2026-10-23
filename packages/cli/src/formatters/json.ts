@@ -17,5 +17,21 @@ export default function json(): Formatter {
     listStations(stations) {
       write(stations);
     },
+
+    currentEvents(prediction) {
+      write(prediction);
+    },
+
+    currentTimeline(prediction) {
+      write(prediction);
+    },
+
+    currentSlackWindows(prediction) {
+      write(prediction);
+    },
+
+    listCurrentStations(stations) {
+      write(stations);
+    },
   };
 }

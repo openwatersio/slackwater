@@ -10,7 +10,7 @@ set -e
 
 # Create git tags first so changesets/action can create GitHub Releases
 # even if an npm publish fails
-changeset tag
+changeset git-tag
 
 # `changeset publish` would take the dist-tag from pre mode; npm publish needs it passed
 tag=latest

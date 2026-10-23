@@ -2,6 +2,8 @@
 
 HTTP API for tide and current predictions, built on [Slackwater](https://openwaters.io/tides/slackwater/). A hosted instance runs at [api.openwaters.io/tides](https://api.openwaters.io/tides/).
 
+See the [Tides API reference](https://openwaters.io/api/tides/) and [Currents API reference](https://openwaters.io/api/currents/) for hosted endpoints, parameters, and request examples.
+
 ## Installation
 
 ```bash

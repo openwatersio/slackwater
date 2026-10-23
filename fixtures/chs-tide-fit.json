@@ -1,0 +1,30 @@
+{
+  "source": "CHS on-device tide fit; evidence in docs/validation/chs-tides.md",
+  "basis": [
+    "M2",
+    "S2",
+    "N2",
+    "K2",
+    "K1",
+    "O1",
+    "P1",
+    "Q1",
+    "M4",
+    "MS4",
+    "MN4",
+    "2N2",
+    "MU2",
+    "NU2",
+    "L2",
+    "T2",
+    "J1",
+    "MM",
+    "MSF",
+    "MF",
+    "M6",
+    "S4",
+    "M3"
+  ],
+  "days": 60,
+  "sampleMinutes": 15
+}

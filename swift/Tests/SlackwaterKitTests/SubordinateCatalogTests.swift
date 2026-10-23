@@ -53,7 +53,7 @@ private func nearestSameKind(_ events: [CurrentEvent], _ kind: CurrentEventKind,
 }
 
 /// Review finding on #8: an 8 h reference search and a 24 h one disagreed on
-/// events — the extrema filter skips a window holding two or fewer results —
+/// events — the extrema filter then skipped a window holding two or fewer results —
 /// so `speeds` and `speed(at:along:)` over caller-held events gave ACT8791
 /// −0.18 vs −0.40 kn at the same instant. Extraction is now per UTC day, so any
 /// range's list is a concatenation of per-day lists, and the two agree for

@@ -1,0 +1,11 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    // `node` runs these files by stripping types, so local imports name the real `.ts` file.
+    // Packages keep `.js` imports, so only the files here allow it; the root config excludes
+    // the ones that import a sibling.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["*.ts"],
+  "exclude": []
+}

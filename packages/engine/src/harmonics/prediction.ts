@@ -129,18 +129,27 @@ function predictionFactory({
     endHour,
   });
 
-  /** Options shared by both extremes call sites */
-  const extremesOptions = { startMs, prominenceThreshold };
+  /** Options shared by both extremes call sites; each UTC day is searched from its own midnight. */
+  const extremesOptions = {
+    startMs,
+    prominenceThreshold,
+    paramsFrom: (dayStart: Date) =>
+      createParamsFactory({
+        constituents,
+        constituentModels,
+        fundamentals,
+        start: dayStart,
+        endHour: 24,
+      })(),
+  };
 
   function getExtremesPrediction({ labels, offsets }: ExtremesOptions = {}) {
-    return findExtremes(0, endHour, { ...extremesOptions, getParams: correctedParams() }).map(
-      (extreme) => {
-        if (labels) {
-          extreme.label = getExtremeLabel(extreme.high ? "high" : "low", labels);
-        }
-        return addExtremesOffsets(extreme, offsets);
-      },
-    );
+    return findExtremes(0, endHour, extremesOptions).map((extreme) => {
+      if (labels) {
+        extreme.label = getExtremeLabel(extreme.high ? "high" : "low", labels);
+      }
+      return addExtremesOffsets(extreme, offsets);
+    });
   }
 
   /** 36-hour buffer in hours — ensures diurnal stations are fully bracketed by extremes. */
@@ -171,11 +180,18 @@ function predictionFactory({
       findExtremes(-BUFFER_HOURS, endHour + BUFFER_HOURS, {
         ...extremesOptions,
         prominenceThreshold: threshold,
-        getParams: correctedParams(),
       });
+    // Keyframes have to surround the window in subordinate time. A tide whose
+    // turns are all below the threshold, or kept only days apart, still gets
+    // them from its raw turning points.
+    const subTime = (e: Extreme) =>
+      e.time.getTime() + ((e.high ? offsets.time?.high : offsets.time?.low) ?? 0) * 60 * 1000;
+    const surrounds = (list: Extreme[]) =>
+      list.length >= 2 &&
+      list.some((e) => subTime(e) <= startMs) &&
+      list.some((e) => subTime(e) >= startMs + endHour * 3600000);
     let refExtremes = findRefExtremes(prominenceThreshold);
-    // A tide whose every turn is below the threshold still needs keyframes; use its raw turning points.
-    if (refExtremes.length < 2) refExtremes = findRefExtremes(0);
+    if (!surrounds(refExtremes)) refExtremes = findRefExtremes(0);
 
     // This should never happen since the input timeline should be fully bracketed by extremes,
     // but we need at least two extremes to interpolate between.
@@ -183,19 +199,28 @@ function predictionFactory({
     if (refExtremes.length < 2)
       throw new Error("At least two extremes are required for interpolation with offsets");
 
-    // Build keyframes mapping subordinate time → reference time + corrected levels
+    // Build keyframes mapping subordinate time → reference time + corrected levels.
+    // The reference curve below is evaluated from this window's start, while
+    // extremes are found from each day's own midnight; taking each keyframe's
+    // reference level from the same curve keeps the mapping exactly 0 and 1 at
+    // its knots. The params closure only moves forward, so keyframes get their own.
+    const keyframeParams = correctedParams();
     const isFixed = offsets.height?.type === "fixed";
     const keyframes = refExtremes.map((extreme) => {
       const timeOffset = (extreme.high ? offsets.time?.high : offsets.time?.low) ?? 0;
       const heightAdj = getHeightOffset(extreme.high, offsets);
+      const refHour = (extreme.time.getTime() - startMs) / 3600000;
+      const refLevel = evalH(refHour, keyframeParams(refHour));
 
       return {
         subTime: extreme.time.getTime() + timeOffset * 60 * 1000,
         refTime: extreme.time.getTime(),
-        refLevel: extreme.level,
-        subLevel: isFixed ? extreme.level + heightAdj : extreme.level * heightAdj,
+        refLevel,
+        subLevel: isFixed ? refLevel + heightAdj : refLevel * heightAdj,
       };
     });
+    // Unequal high and low offsets can reorder neighbouring turns.
+    keyframes.sort((a, b) => a.subTime - b.subTime);
 
     const getParams = correctedParams();
 

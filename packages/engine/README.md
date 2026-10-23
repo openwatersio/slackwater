@@ -229,11 +229,19 @@ The full-rank least-squares fit evaluates equilibrium arguments and IHO nodal co
 
 Invalid input throws `RangeError` with a message beginning with `invalidSamples`, `unknownConstituent`, `duplicateConstituent`, or `rankDeficient`. These correspond to the [Swift fitter's](../../swift/README.md#harmonic-fitting) errors. Swift uses Accelerate QR on Apple platforms; TypeScript works on Linux and in browsers.
 
-The catalog entries `3(SM)N2`, `(SK)K5`, `4ML12`, and `5MSN12` have speeds but no equilibrium-argument definitions. They cannot supply Greenwich phases and are rejected as `rankDeficient`; listing a speed alone is not enough to support a constituent in this fit.
-
 Both implementations consume the same noisy 60- and 210-day inputs, independent SVD expected coefficients, and invalid-input fixtures. Parity tolerances are `1e-7` for offset/RMS, `1e-6` for amplitudes, and `1e-3` degrees for circular phase differences. Run `npm run coverage` and `swift test -c release`. Regenerate the SVD oracle with `node fixtures/generate/gen-fit.mjs` after building the predictor; `npm run fixtures:check` checks for drift.
 
 Callers choose a resolvable basis and validate predictions on held-out observations. Training RMS is not a forecast accuracy guarantee. Not for navigation.
+
+### CHS tide ports
+
+`chsTideFit` is the recipe every Slackwater client uses to fit a Canadian Hydrographic Service tide port from IWLS `wlp` predictions: `chsTideFit.days` of samples on a `chsTideFit.sampleMinutes` grid, fitted with `fit(samples, chsTideFit.basis)`. Swift's and Kotlin's `ChsTideFit` carry the same values, checked against `fixtures/chs-tide-fit.json`. `benchmarks/chs-fit.ts` scores the recipe against CHS's own predictions on held-out weeks, and [CHS tide fit validation](../../docs/validation/chs-tides.md) records the bar and the results.
+
+### CHS current gates
+
+`chsCurrentFit` is the recipe for a Canadian Hydrographic Service current gate. Fetch IWLS `chsCurrentFit.speedSeries` (`wcsp1`) and `chsCurrentFit.directionSeries` (`wcdp1`) on a `chsCurrentFit.sampleMinutes` grid, combine them into signed flood-axis velocity with `projectChsCurrent(speeds, directions, floodDirection)`, using the flood direction from the station's IWLS metadata (a station without flood and ebb directions there cannot be fitted), and fit with `fit(samples, chsCurrentFit.basis)`. Predict with `createCurrentPredictor(result.constituents, { floodDirection, ebbDirection, meanFlow: result.offset })`.
+
+Each gate fits over one of `chsCurrentFit.days`, chosen per gate from validation; that choice is curated gate data, not part of the engine. A 210-day gate can show the fit of its trailing 60 days first as a provisional answer, when that fit matched every slack and its measured worst slack error, rounded up to 5 minutes, is at most `chsCurrentFit.provisionalSlackMaxMinutes`. Swift's and Kotlin's `ChsCurrentFit` carry the same recipe, checked against `fixtures/chs-current-fit.json`. `benchmarks/chs-current-fit.ts` scores every window against CHS's published `wcp1-events`, and [CHS current fit validation](../../docs/validation/chs-currents.md) records the bar and the results.
 
 ## Data definitions
 

@@ -1014,7 +1014,7 @@
   {
     "name": "3(SM)N2",
     "speed": 31.4874168,
-    "xdo": null,
+    "xdo": [2, 10, -1, 6, 5, 5, 5],
     "nodalCorrection": "x",
     "aliases": []
   },
@@ -1658,7 +1658,7 @@
   {
     "name": "(SK)K5",
     "speed": 75.1232059,
-    "xdo": null,
+    "xdo": [5, 10, 3, 5, 5, 5, 6],
     "nodalCorrection": "x",
     "aliases": []
   },
@@ -2554,7 +2554,7 @@
   {
     "name": "5MSN10",
     "speed": 146.5629217,
-    "xdo": null,
+    "xdo": [10, 8, 5, 4, 5, 5, 5],
     "nodalCorrection": "x",
     "aliases": []
   },
@@ -2589,7 +2589,7 @@
   {
     "name": "4M2SN10",
     "speed": 147.578825,
-    "xdo": null,
+    "xdo": [10, 10, 3, 4, 5, 5, 5],
     "nodalCorrection": "x",
     "aliases": []
   },
@@ -2673,7 +2673,7 @@
   {
     "name": "3N2MS12",
     "speed": 173.362457,
-    "xdo": null,
+    "xdo": [12, 4, 5, 6, 6, 5, 5],
     "nodalCorrection": "x",
     "aliases": []
   },
@@ -2694,7 +2694,7 @@
   {
     "name": "MA12",
     "speed": 173.863557,
-    "xdo": null,
+    "xdo": [12, 5, 4, 5, 5, 5, 5],
     "nodalCorrection": "x",
     "aliases": []
   },
@@ -2715,7 +2715,7 @@
   {
     "name": "4ML12",
     "speed": 174.449,
-    "xdo": null,
+    "xdo": [12, 6, 5, 4, 5, 5, 7],
     "nodalCorrection": "x",
     "aliases": []
   },
@@ -2778,7 +2778,7 @@
   {
     "name": "5MSN12",
     "speed": 175.547033,
-    "xdo": null,
+    "xdo": [12, 8, 5, 4, 5, 5, 5],
     "nodalCorrection": "x",
     "aliases": []
   },
