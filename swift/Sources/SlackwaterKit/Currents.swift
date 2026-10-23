@@ -121,8 +121,14 @@ public struct CurrentStation: Sendable {
     /// of velocity, not slope high/low (NOAA's convention): a relaxation extremum
     /// that never reverses stays flood or ebb per its sign. Matches NOAA max_slack.
     public func maxima(from: Date, to: Date) -> [CurrentEvent] {
-        let (p, endHour) = provider(from: from, to: to)
-        let raw = findExtremes(fromHour: 0, toHour: endHour, provider: p, prominenceThreshold: 0.01)
+        let step = 600.0
+        let startSec = (from.timeIntervalSince1970 / step).rounded(.down) * step
+        let endSec = (to.timeIntervalSince1970 / step).rounded(.up) * step
+        let raw = findExtremes(from: Date(timeIntervalSince1970: startSec), to: Date(timeIntervalSince1970: endSec),
+                               prominenceThreshold: 0.01) { day in
+            ParamProvider(constituents: constituents, baseAstro: astro(day), catalog: catalog,
+                          startMs: day.timeIntervalSince1970 * 1000, endHour: 24)
+        }
         return raw.map { CurrentEvent(time: $0.time, speed: $0.level,
                                       kind: $0.level >= 0 ? .maxFlood : .maxEbb) }
     }
@@ -143,16 +149,17 @@ public struct CurrentStation: Sendable {
 
 extension CurrentStation {
     /// The margin each day is searched with on either side. Neighbouring events
-    /// are at most ~6 h apart (diurnal), so a day's own events always have
-    /// their neighbours in view when the prominence filter runs.
+    /// are at most ~6 h apart (diurnal); slacks are found from the search's own
+    /// start, so the margin keeps a day's own slacks well inside it. Maxima find
+    /// their own context (`findExtremes`).
     static let dayMargin: TimeInterval = 8 * 3600
 
     /// Events over whole UTC days covering `from...to`, each day searched on
     /// its own with `dayMargin` either side and trimmed to the day. The list
     /// for any range is therefore a concatenation of per-day lists and never
-    /// depends on the range asked for — `events(from:to:)` can: the extrema
+    /// depends on the range asked for — `events(from:to:)` can: the slack
     /// search refreshes node corrections every 24 h from its own start, so two
-    /// searches can disagree at a flat turn near a refresh. A subordinate
+    /// searches can disagree at a slack near a refresh. A subordinate
     /// reduces these, and so can a caller holding them for many subordinates.
     public func eventsByDay(from: Date, to: Date) -> [CurrentEvent] {
         let day = 86_400.0

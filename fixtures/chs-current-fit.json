@@ -1,0 +1,154 @@
+{
+  "source": "CHS on-device current gate fit; evidence in docs/validation/chs-currents.md",
+  "speedSeries": "wcsp1",
+  "directionSeries": "wcdp1",
+  "basis": [
+    "M2",
+    "S2",
+    "N2",
+    "K2",
+    "K1",
+    "O1",
+    "P1",
+    "Q1",
+    "M4",
+    "MS4",
+    "MN4",
+    "2N2",
+    "MU2",
+    "NU2",
+    "L2",
+    "T2",
+    "J1",
+    "MM",
+    "MSF",
+    "MF",
+    "M6",
+    "S4",
+    "M3"
+  ],
+  "days": [
+    60,
+    210
+  ],
+  "sampleMinutes": 15,
+  "provisionalSlackMaxMinutes": 45,
+  "projections": [
+    {
+      "note": "along, against and across the axis; a speed with no direction is dropped; a repeated direction keeps its first value; a direction with no speed is ignored",
+      "floodDirection": 135,
+      "speeds": [
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "value": 2
+        },
+        {
+          "time": "2026-01-01T00:15:00Z",
+          "value": 3
+        },
+        {
+          "time": "2026-01-01T00:30:00Z",
+          "value": 1.5
+        },
+        {
+          "time": "2026-01-01T00:45:00Z",
+          "value": 4
+        },
+        {
+          "time": "2026-01-01T01:00:00Z",
+          "value": 2.5
+        },
+        {
+          "time": "2026-01-01T01:15:00Z",
+          "value": 1
+        }
+      ],
+      "directions": [
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "value": 135
+        },
+        {
+          "time": "2026-01-01T00:15:00Z",
+          "value": 315
+        },
+        {
+          "time": "2026-01-01T00:30:00Z",
+          "value": 225
+        },
+        {
+          "time": "2026-01-01T00:45:00Z",
+          "value": 165
+        },
+        {
+          "time": "2026-01-01T01:15:00Z",
+          "value": 105
+        },
+        {
+          "time": "2026-01-01T01:15:00Z",
+          "value": 300
+        },
+        {
+          "time": "2026-01-01T01:30:00Z",
+          "value": 135
+        }
+      ],
+      "expected": [
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "value": 2
+        },
+        {
+          "time": "2026-01-01T00:15:00Z",
+          "value": -3
+        },
+        {
+          "time": "2026-01-01T00:30:00Z",
+          "value": 9.184850993605148e-17
+        },
+        {
+          "time": "2026-01-01T00:45:00Z",
+          "value": 3.464101615137755
+        },
+        {
+          "time": "2026-01-01T01:15:00Z",
+          "value": 0.8660254037844387
+        }
+      ]
+    },
+    {
+      "note": "the difference wraps through north",
+      "floodDirection": 350,
+      "speeds": [
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "value": 2
+        },
+        {
+          "time": "2026-01-01T00:15:00Z",
+          "value": 2
+        }
+      ],
+      "directions": [
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "value": 10
+        },
+        {
+          "time": "2026-01-01T00:15:00Z",
+          "value": 170
+        }
+      ],
+      "expected": [
+        {
+          "time": "2026-01-01T00:00:00Z",
+          "value": 1.8793852415718169
+        },
+        {
+          "time": "2026-01-01T00:15:00Z",
+          "value": -2
+        }
+      ]
+    }
+  ]
+}

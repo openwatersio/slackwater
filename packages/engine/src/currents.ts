@@ -67,9 +67,10 @@ const PROVIDER_STEP_SECONDS = 600;
 const DAY_MS = 86_400_000;
 
 /**
- * The margin each UTC day is searched with on either side. Neighbouring
- * events are at most ~6 h apart (diurnal), so a day's own events always have
- * their neighbours in view when the prominence filter runs.
+ * The margin each UTC day is searched with on either side. Slacks are found
+ * from the search window's own start, and a root on the window's edge is not
+ * guaranteed, so the margin keeps a day's own slacks well inside its search.
+ * Maxima find their own context (`findExtremes`).
  */
 const DAY_MARGIN_MS = 8 * 3_600_000;
 
@@ -129,7 +130,14 @@ export function createCurrentPredictor(
     const maxima = findExtremes(0, endHour, {
       startMs,
       prominenceThreshold: PROMINENCE_THRESHOLD,
-      getParams: correctedParams(),
+      paramsFrom: (dayStart) =>
+        createParamsFactory({
+          constituents,
+          constituentModels: defaultConstituentModels,
+          fundamentals,
+          start: dayStart,
+          endHour: 24,
+        })(),
     }).map(({ time, level }): CurrentEvent =>
       level >= 0
         ? { time, speed: level, kind: "maxFlood", ...withDirection(floodDirection) }
@@ -169,7 +177,7 @@ export function createCurrentPredictor(
      * its own with an 8 h margin either side and trimmed to the day. The list
      * for any range is therefore a concatenation of per-day lists and never
      * depends on the range asked for; a single-window search does, because
-     * the extrema filter skips a window holding two or fewer results.
+     * slacks are found from the window's own start.
      */
     getEventsPrediction({ start, end }: TimeSpan): CurrentEvent[] {
       checkTimeSpan({ start, end });

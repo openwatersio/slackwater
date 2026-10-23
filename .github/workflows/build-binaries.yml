@@ -62,10 +62,10 @@ jobs:
         with:
           # SEA binary build uses `node --build-sea` (needs Node 25.5+).
           # On 26 (Current, LTS-track) rather than 25, which is now EOL.
-          node-version: "26"
+          node-version-file: .github/sea/mise.toml
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build packages
         run: npm run build --workspaces --if-present

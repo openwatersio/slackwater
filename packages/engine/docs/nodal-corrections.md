@@ -32,7 +32,9 @@ The phase constants were spot-checked against Schureman's Table 2. That covered 
 
 Prediction evaluates `V0` once at the start and advances it at the tabulated `speed`. Fitting evaluates `V` at every sample. The two agree as long as each tabulated speed matches its Doodson number. The speeds come from the IHO table, and they match the Doodson rates to within 8e-6 °/h; the worst case is M(KS)2, which drifts 0.07° a year.
 
-A constituent with no `xdo` gets `V0` from its compound members. If the members' speeds don't add up to the tabulated speed, `V0` and `ω` describe different frequencies, and the constituent's phase then depends on when the prediction starts. [#361](https://github.com/openwatersio/slackwater/issues/361) lists the constituents where this happens.
+A constituent with no `xdo` gets `V0` from its compound members. If the members' speeds didn't add up to the tabulated speed, `V0` and `ω` would describe different frequencies, and the constituent's phase would depend on when the prediction starts. Extremes, found from each day's own midnight, would then drift away from a timeline started months earlier. A test checks that every constituent's `V0` advances at its tabulated speed to within 1e-5 °/h.
+
+The IHO list gives eight constituents an alphabetical XDO but no numerical one, because some of their digits fall outside 0–9: 3(SM)N2, (SK)K5, 5MSN10, 4M2SN10, 3N2MS12, MA12, 4ML12 and 5MSN12. `data.json` carries their alphabetical codes in numerical form. After the first letter, which is the species (A = 1), Z is 5, each letter from A onwards adds one (A = 6, E = 10), and each letter from Y backwards subtracts one (Y = 4, T = −1). For seven of them the code reproduces the tabulated speed. 3N2MS12's code (L YZA YZZ) gives N′ a coefficient of −1, but its tabulated speed of 173.362457 °/h needs +1, so `data.json` follows the speed: published constants are fitted at the tabulated speed.
 
 ## Nodal corrections
 

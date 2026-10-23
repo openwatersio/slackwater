@@ -4,7 +4,9 @@ The open, offline tide & current engine behind **Slackwater** — *Offline Tides
 
 Tide prediction is deterministic astronomy, not a live feed. Given a station's harmonic
 constituents you can compute heights and the high/low turns for any minute, years ahead,
-with **zero network**. This package is a pure-Swift harmonic engine that does exactly that.
+with **zero network**. The `SlackwaterKit` product is a pure-Swift harmonic engine that does exactly that.
+
+The separate [`SlackwaterIWLS`](Sources/SlackwaterIWLS) product fetches CHS inputs directly on a user's device. It follows the shared [fetching contract](../docs/iwls-fetch.md) and has no dependency on the prediction engine. Pass `try IwlsSampleGrid(sampleMinutes: ChsTideFit.sampleMinutes)` (or `ChsCurrentFit.sampleMinutes` for currents) to the client's `series` call. Supported steps are 1, 3, 5, 15, and 60 minutes; the default is 15. `IwlsChunkCacheEntry` validates full-week endpoints and grid identity, keeps complete weeks indefinitely, and expires successfully empty weeks after 24 hours. Configure `IwlsChunkCache(directory:)` on the client for persistent fetch-through caching; the module owns storage, migration, synchronization, and backup exclusion. The application chooses the directory and requests station cleanup or reset.
 
 **It's all open — the engine MIT, the app GPL v3.** If you sail somewhere our numbers are
 off, read the code, check it against your home waters, and send a fix.
@@ -84,11 +86,9 @@ let fitted = try fit(samples: samples, constituents: ["M2", "S2", "K1", "O1"])
 let station = Station(constituents: fitted.constituents, offset: fitted.offset)
 ```
 
-Samples are `HarmonicSample(time:value:)`, finite and ordered by time, with at least `max(2, 1 + 2 * constituents.count)` entries spanning a positive duration. Repeated timestamps retain their weight, including overlapping fetch boundaries. Unknown names, duplicate aliases, and rank-deficient bases throw `HarmonicFitError`. The fit uses Accelerate QR least squares with equilibrium arguments and IHO nodal corrections evaluated at every sample. `rms` measures training residuals; `unseparable` reports Rayleigh pairs without dropping them. Callers choose the basis and validate on held-out samples. In particular, SA/SSA should not be added to CHS 60-day fits.
+Samples are `HarmonicSample(time:value:)`, finite and ordered by time, with at least `max(2, 1 + 2 * constituents.count)` entries spanning a positive duration. Repeated timestamps retain their weight, including overlapping fetch boundaries. Unknown names, duplicate aliases, and rank-deficient bases throw `HarmonicFitError`. The fit uses Accelerate QR least squares with equilibrium arguments and IHO nodal corrections evaluated at every sample. `rms` measures training residuals; `unseparable` reports Rayleigh pairs without dropping them. Callers choose the basis and validate on held-out samples. CHS tide ports use `ChsTideFit`: `ChsTideFit.days` of samples on a `ChsTideFit.sampleMinutes` grid, fitted with `ChsTideFit.basis`, the same recipe `@slackwater/engine` and the Kotlin engine export. [CHS tide fit validation](../docs/validation/chs-tides.md) records how it scores. CHS current gates use `ChsCurrentFit`: `ChsCurrentFit.project(speeds:directions:floodDirection:)` turns `wcsp1` speed and `wcdp1` direction into signed flood-axis velocity, fitted with `ChsCurrentFit.basis` over one of `ChsCurrentFit.days`. [CHS current fit validation](../docs/validation/chs-currents.md) records how it scores.
 
 The synthetic inputs in `fixtures/harmonic-fit.json` cover 60- and 210-day windows and retain the frozen CHS fitter outputs for historical comparison. The current shared oracle is `fixtures/harmonic-fit-parity.json`, generated independently with SVD and per-sample astronomy by `node fixtures/generate/gen-fit.mjs`. Swift and [`@slackwater/engine`](../packages/engine#harmonic-fitting) check coefficients, offset, RMS, Rayleigh warnings, and the same invalid-input fixtures. No CHS observations are included.
-
-The catalog entries `3(SM)N2`, `(SK)K5`, `4ML12`, and `5MSN12` lack equilibrium-argument definitions and are rejected as `rankDeficient`. A catalog speed alone does not define their Greenwich phase.
 
 ## Develop
 

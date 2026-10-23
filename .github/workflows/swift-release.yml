@@ -26,18 +26,24 @@ jobs:
               targets: [
                   .executableTarget(
                       name: "slackwater-smoke",
-                      dependencies: [.product(name: "SlackwaterKit", package: "slackwater")]
+                      dependencies: [
+                          .product(name: "SlackwaterKit", package: "slackwater"),
+                          .product(name: "SlackwaterIWLS", package: "slackwater"),
+                      ]
                   )
               ]
           )
           EOF
           cat > Sources/slackwater-smoke/main.swift <<'EOF'
           import Foundation
+          import SlackwaterIWLS
           import SlackwaterKit
 
           let station = Station(constituents: [
               HarmonicConstituent(name: "M2", amplitude: 1, phase: 0)
           ])
           print(station.heights(from: Date(), to: Date().addingTimeInterval(600)).count)
+          // No request: building a plan is enough to prove the product resolves from a tag.
+          print(IwlsFetch.chunkPlan(days: 60, end: Date()).count)
           EOF
           swift run

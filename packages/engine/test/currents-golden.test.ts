@@ -313,7 +313,7 @@ test("subordinate reduction is separable from the search", () => {
 });
 
 // Regression: an 8 h reference search and a 24 h one can disagree on events —
-// the extrema filter skips a window holding two or fewer results — which once
+// the extrema filter then skipped a window holding two or fewer results — which once
 // gave ACT8791 −0.18 vs −0.40 kn at the same instant. Event extraction is per
 // UTC day, so any range's list is a concatenation of per-day lists, and a
 // held list agrees with the search for every bundled subordinate.

@@ -251,3 +251,22 @@ describe("Base constituent definitions", () => {
     }
   });
 });
+
+describe("equilibrium arguments", () => {
+  // Prediction evaluates V0 at a start and advances it at `speed`, so a V0 that moves at
+  // another rate makes the phase depend on that start, and extremes, which start each
+  // day from its own midnight, then disagree with a timeline started months earlier.
+  it("advance at every constituent's listed speed", () => {
+    const start = Date.UTC(2026, 0, 1);
+    const V0 = astro(new Date(start));
+    const drifting: string[] = [];
+    for (const c of new Set(Object.values(constituents))) {
+      for (const hours of [1, 240, 24 * 365]) {
+        const moved = c.value(astro(new Date(start + hours * 3_600_000))) - c.value(V0);
+        const behind = ((((moved - c.speed * hours) % 360) + 540) % 360) - 180;
+        if (Math.abs(behind / hours) > 1e-5) drifting.push(`${c.name} after ${hours} h`);
+      }
+    }
+    expect(drifting).toEqual([]);
+  });
+});

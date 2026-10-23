@@ -1,14 +1,17 @@
 // Slackwater — MIT. Harmonic least squares, ported from @sailingnaturali/chs-constituents.
 // Copyright (c) 2026 Bryan Clark. See swift/LICENSE.
-#if canImport(Accelerate)
-import Accelerate
 import Foundation
 
+/// A sample is available on every platform, because `ChsCurrentFit.project`
+/// builds them; only the fit needs Accelerate.
 public struct HarmonicSample: Sendable {
     public let time: Date
     public let value: Double
     public init(time: Date, value: Double) { self.time = time; self.value = value }
 }
+
+#if canImport(Accelerate)
+import Accelerate
 
 public struct HarmonicFit: Sendable {
     public let constituents: [HarmonicConstituent]

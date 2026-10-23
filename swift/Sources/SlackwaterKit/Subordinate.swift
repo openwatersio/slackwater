@@ -62,14 +62,18 @@ public struct SubordinateTideStation: Sendable {
     }
 
     private func curve(from: Date, to: Date, step: TimeInterval) -> [(time: Date, height: Double, rate: Double)] {
-        let pad = 15.0 * 3600  // longer than any gap between neighbouring extremes
+        // Longer than the gap between neighbouring turning points of any daily or faster
+        // constituent. A tide of the annual cycles alone has none within it and draws flat.
+        let pad = 15.0 * 3600
+        let items = makeTimeline(from: from, to: to, step: step).items
+        guard let first = items.first, let last = items.last else { return [] }
         var ex = extremes(from: from.addingTimeInterval(-pad), to: to.addingTimeInterval(pad))
-        // A tide whose every turn is below the threshold still needs knots; use its raw turning points.
-        if ex.count < 2 {
+        // Knots have to surround the window. A tide whose turns are all below the threshold,
+        // or kept only days apart, still gets them from its raw turning points.
+        if ex.count < 2 || ex.first!.time > first || ex.last!.time < last {
             ex = extremes(from: from.addingTimeInterval(-pad), to: to.addingTimeInterval(pad), prominenceThreshold: 0)
         }
-        return halfCosineCurve(through: ex.map { ($0.time, $0.height) },
-                               on: makeTimeline(from: from, to: to, step: step).items)
+        return halfCosineCurve(through: ex.map { ($0.time, $0.height) }, on: items)
             .map { (time: $0.time, height: $0.value, rate: $0.rate) }
     }
 }

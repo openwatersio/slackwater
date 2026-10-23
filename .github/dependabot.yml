@@ -4,7 +4,7 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 100
+    open-pull-requests-limit: 5
     # vitest and every @vitest/* package pin each other's exact version, so a
     # bump to one alone fails `npm ci` with ERESOLVE before a test runs.
     groups:
@@ -12,8 +12,70 @@ updates:
         patterns:
           - "vitest"
           - "@vitest/*"
+      storybook:
+        patterns:
+          - "storybook"
+          - "@storybook/*"
+      npm-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  # The Kotlin build, whose IWLS module carries the only third-party Kotlin
+  # runtime dependencies (kotlinx-coroutines, kotlinx-serialization), and the
+  # separate smoke build that consumes it with the same Kotlin plugin. Kotlin and
+  # kotlinx stay out of the routine group: even a minor of either can raise the
+  # Kotlin version Android apps need, so each is its own PR (coroutines' core and
+  # test artifacts together), and one PR covers both builds. Their security
+  # updates arrive alone too.
+  - package-ecosystem: "gradle"
+    directories:
+      - "/kotlin"
+      - "/kotlin/smoke"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    # Major upgrades need a coordinated toolchain and Android compatibility review.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      kotlinx-coroutines:
+        patterns:
+          - "org.jetbrains.kotlinx:kotlinx-coroutines*"
+      kotlin:
+        group-by: dependency-name
+        patterns:
+          - "org.jetbrains.kotlin*"
+      gradle-minor-and-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "org.jetbrains.kotlin*"
+        update-types:
+          - "minor"
+          - "patch"
+      gradle-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "org.jetbrains.kotlin*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 100
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"

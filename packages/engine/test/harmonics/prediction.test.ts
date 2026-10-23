@@ -259,16 +259,28 @@ describe("filterExtremes", () => {
     label: high ? "High" : "Low",
   });
   const levels = (extremes: { level: number }[]) => extremes.map((e) => e.level);
+  // A tall turn of the other kind on each side decides the list's own ends;
+  // the frame itself has nothing beyond it and is dropped.
+  const framed = (list: ReturnType<typeof extreme>[]) => {
+    const first = list[0];
+    const last = list[list.length - 1];
+    const hourOf = (e: typeof first) => e.time.getTime() / 3600000;
+    return [
+      extreme(hourOf(first) - 6, first.high ? -10 : 10, !first.high),
+      ...list,
+      extreme(hourOf(last) + 6, last.high ? -10 : 10, !last.high),
+    ];
+  };
 
   it("removes a stand on the falling tide as a low-high pair", () => {
     const results = filterExtremes(
-      [
+      framed([
         extreme(0, -0.926, false),
         extreme(8, 0.945, true),
         extreme(17, -0.112, false),
         extreme(17.5, -0.109, true),
         extreme(24, -0.72, false),
-      ],
+      ]),
       0.01,
     );
     expect(levels(results)).toEqual([-0.926, 0.945, -0.72]);
@@ -276,13 +288,13 @@ describe("filterExtremes", () => {
 
   it("keeps the higher high of a double high water with a shallow dip", () => {
     const results = filterExtremes(
-      [
+      framed([
         extreme(0, 0, false),
         extreme(6, 1.002, true),
         extreme(7, 0.995, false),
         extreme(8, 1.0, true),
         extreme(14, 0, false),
-      ],
+      ]),
       0.01,
     );
     expect(levels(results)).toEqual([0, 1.002, 0]);
@@ -296,69 +308,72 @@ describe("filterExtremes", () => {
       extreme(8, 1.02, true),
       extreme(14, 0, false),
     ];
-    expect(filterExtremes(input, 0.01)).toEqual(input);
+    expect(filterExtremes(framed(input), 0.01)).toEqual(input);
   });
 
-  it("never removes the first or last extreme", () => {
-    const input = [
-      extreme(0, 1.0, true),
-      extreme(1, 0.999, false),
-      extreme(4, 1.5, true),
-      extreme(10, -1, false),
-      extreme(11, -0.9995, true),
-    ];
-    expect(filterExtremes(input, 0.01)).toEqual(input);
-  });
-
-  it("keeps a double high's first high when its second lies past the end", () => {
+  it("drops an extreme whose deciding turn lies beyond the list", () => {
     const results = filterExtremes(
       [extreme(0, 0, false), extreme(6, 1.002, true), extreme(7, 0.995, false)],
       0.01,
     );
-    expect(levels(results)).toContain(1.002);
+    expect(levels(results)).not.toContain(1.002);
   });
 
-  it("keeps a double high's second high when its first lies before the start", () => {
-    const results = filterExtremes(
-      [extreme(7, 0.995, false), extreme(8, 1.0, true), extreme(14, 0, false)],
-      0.01,
-    );
-    expect(levels(results)).toContain(1.0);
+  it("decides each extreme from turns within 32 days of it", () => {
+    const dipAt = (hour: number) =>
+      filterExtremes(
+        [
+          extreme(-6, -1, false),
+          extreme(0, 0.5, true),
+          extreme(6, 0.497, false),
+          extreme(12, 0.499, true),
+          extreme(hour, 0.4, false),
+          extreme(hour + 6, 1, true),
+        ],
+        0.01,
+      );
+    expect(levels(dipAt(32 * 24 - 1))).toContain(0.5);
+    expect(levels(dipAt(32 * 24 + 1))).not.toContain(0.5);
   });
 
   it("drops one copy of a turn found twice", () => {
     const results = filterExtremes(
-      [
+      framed([
         extreme(0, -0.4, false),
         extreme(7.6, 0.03, true),
         extreme(7.6005, 0.03, true),
         extreme(10.4, -0.008, false),
-      ],
+      ]),
       0.01,
     );
     expect(results.map((e) => e.high)).toEqual([false, true, false]);
   });
 
-  it("removes in the same order as rescanning for the smallest change", () => {
-    const rescan = (input: ReturnType<typeof extreme>[], threshold: number) => {
+  it("keeps what removing the closest pair below the threshold keeps, away from the ends", () => {
+    const pairRule = (input: ReturnType<typeof extreme>[], threshold: number) => {
       const kept = input.slice();
       const change = (i: number) => Math.abs(kept[i + 1].level - kept[i].level);
       while (kept.length > 3) {
         let worst = 1;
         for (let i = 2; i < kept.length - 2; i++) if (change(i) < change(worst)) worst = i;
         if (change(worst) >= threshold) break;
-        kept.splice(worst, kept[worst].high === kept[worst + 1].high ? 1 : 2);
+        kept.splice(worst, 2);
       }
       return kept;
     };
-    // Coarse levels force ties; random kinds force same-kind neighbours.
     let seed = 1;
     const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
-    for (let run = 0; run < 500; run++) {
-      const input = Array.from({ length: 2 + Math.floor(random() * 40) }, (_, i) =>
-        extreme(i, Math.round(random() * 20) / 100, random() < 0.5),
-      );
-      expect(filterExtremes(input, 0.05)).toEqual(rescan(input, 0.05));
+    for (let run = 0; run < 200; run++) {
+      // Alternating turns an hour apart, each a random rise or fall from the last.
+      let level = 0;
+      const input = Array.from({ length: 200 }, (_, i) => {
+        const high = i % 2 === 0;
+        level += (high ? 1 : -1) * random() * 0.1;
+        return extreme(i, level, high);
+      });
+      const inner = (list: ReturnType<typeof extreme>[]) =>
+        list.filter((e) => e.time.getTime() >= 60 * 3600000 && e.time.getTime() <= 140 * 3600000);
+      expect(inner(filterExtremes(input, 0.05))).toEqual(inner(pairRule(input, 0.05)));
     }
   });
 });
@@ -408,7 +423,12 @@ describe("extremes edge cases", () => {
     const extremes = findExtremes(0, 24 * 30, {
       startMs: 0,
       prominenceThreshold: 0,
-      getParams: () => params,
+      // Each day is searched from its own midnight, so its phases are taken from there.
+      paramsFrom: (start) => {
+        const hours = start.getTime() / 3600000;
+        const shifted = params.map((p) => ({ ...p, phi: p.phi + p.w * hours }));
+        return () => shifted;
+      },
     });
     expect(extremes.length).toBeGreaterThan(100);
     for (const { time } of extremes) {

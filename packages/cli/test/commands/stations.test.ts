@@ -1,6 +1,6 @@
 import { describe, test, expect, afterEach } from "vitest";
 import nock from "nock";
-import { stations as dbStations } from "@slackwater/database";
+import { stations as dbStations, search, near, type Station } from "@slackwater/database";
 import { run } from "../helpers.js";
 
 afterEach(() => {
@@ -138,6 +138,52 @@ describe("slackwater stations", () => {
     const limitedData = JSON.parse(limited);
     const allData = JSON.parse(all);
     expect(allData.length).toBeGreaterThan(limitedData.length);
+  });
+
+  test("--all --near returns more than the database's default of 10", async () => {
+    const { stdout } = await run([
+      "stations",
+      "--near",
+      "37.8,-122.5",
+      "--all",
+      "--format",
+      "json",
+    ]);
+    expect(JSON.parse(stdout).length).toBeGreaterThan(10);
+  });
+
+  test("--all with a query returns more than the database's default of 20", async () => {
+    const { stdout } = await run(["stations", "port", "--all", "--format", "json"]);
+    expect(JSON.parse(stdout).length).toBeGreaterThan(20);
+  });
+
+  test("ranks every text match by distance with --near", async () => {
+    const isTide = (s: Station) => s.kind === "tide";
+    const matches = new Set(
+      search("port", { filter: isTide, maxResults: Infinity }).map((s) => s.id),
+    );
+    const [[nearest]] = near({
+      latitude: 37.8,
+      longitude: -122.5,
+      maxResults: 1,
+      filter: (s) => matches.has(s.id),
+    });
+    const { stdout } = await run([
+      "stations",
+      "port",
+      "--near",
+      "37.8,-122.5",
+      "--limit",
+      "1",
+      "--format",
+      "json",
+    ]);
+    expect(JSON.parse(stdout)[0].id).toBe(nearest.id);
+  });
+
+  test("errors on an invalid --limit", async () => {
+    const { error } = await run(["stations", "--limit", "0"]);
+    expect(error!.message).toBe('Invalid limit: "0". Expected a positive whole number.');
   });
 
   test("text output shows Country column without --near", async () => {

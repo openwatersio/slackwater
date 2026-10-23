@@ -1,29 +1,4 @@
 {
   "mode": "pre",
-  "tag": "beta",
-  "initialVersions": {
-    "@slackwater/api": "1.0.0-beta.0",
-    "@slackwater/cli": "1.0.0-beta.0",
-    "@slackwater/engine": "1.0.0-beta.0",
-    "@slackwater/react": "1.0.0-beta.0",
-    "slackwater": "1.0.0-beta.0"
-  },
-  "changesets": [
-    "api-currents",
-    "current-stations",
-    "extremes-alternate",
-    "family-metadata",
-    "heap-filter-extremes",
-    "illinois-root-finding",
-    "kartverket-constituents",
-    "lazy-extremes-timeline",
-    "rename-to-slackwater",
-    "sea-binary-database",
-    "steady-harmonics-parity",
-    "subordinate-ratio-chart-datum",
-    "ticon-3n2-line",
-    "tide-database-0-10",
-    "tidy-bbox-validation",
-    "water-level-exact-time"
-  ]
+  "tag": "beta"
 }

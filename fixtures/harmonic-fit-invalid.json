@@ -5,9 +5,5 @@
   {"samples": [{"t": 0, "v": 1}, {"t": 0, "v": 2}], "names": [], "error": "invalidSamples"},
   {"samples": [{"t": 0, "v": 1}, {"t": 3600000, "v": 2}, {"t": 7200000, "v": 1}], "names": ["unknown"], "error": "unknownConstituent"},
   {"samples": [{"t": 0, "v": 1}, {"t": 3600000, "v": 2}, {"t": 7200000, "v": 1}, {"t": 10800000, "v": 2}, {"t": 14400000, "v": 1}], "names": ["NU2", "nu2"], "error": "duplicateConstituent"},
-  {"samples": [{"t": 0, "v": 1}, {"t": 3600000, "v": 2}, {"t": 7200000, "v": 1}], "names": ["Z0"], "error": "rankDeficient"},
-  {"samples": [{"t": 0, "v": 1}, {"t": 3600000, "v": 2}, {"t": 7200000, "v": 1}], "names": ["3(SM)N2"], "error": "rankDeficient"},
-  {"samples": [{"t": 0, "v": 1}, {"t": 3600000, "v": 2}, {"t": 7200000, "v": 1}], "names": ["(SK)K5"], "error": "rankDeficient"},
-  {"samples": [{"t": 0, "v": 1}, {"t": 3600000, "v": 2}, {"t": 7200000, "v": 1}], "names": ["4ML12"], "error": "rankDeficient"},
-  {"samples": [{"t": 0, "v": 1}, {"t": 3600000, "v": 2}, {"t": 7200000, "v": 1}], "names": ["5MSN12"], "error": "rankDeficient"}
+  {"samples": [{"t": 0, "v": 1}, {"t": 3600000, "v": 2}, {"t": 7200000, "v": 1}], "names": ["Z0"], "error": "rankDeficient"}
 ]

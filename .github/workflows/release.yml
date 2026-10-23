@@ -20,31 +20,35 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v7
         with:
-          # Existing tags let `changeset tag` skip releases that are already tagged
+          # Existing tags let `changeset git-tag` skip releases that are already tagged
           fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: "24"
+          node-version-file: mise.toml
 
       - name: Install Dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build
         run: npm run build
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets
-        uses: changesets/action@v1.9.0
+        uses: changesets/action@v2.1.2
         with:
-          publish: npm run release
+          # changeset version bumps workspace versions without touching
+          # package-lock.json; the version script refreshes it so the release
+          # PR passes the lockfile check.
+          version-script: npm run version
+          publish-script: npm run release
         env:
           NPM_CONFIG_PROVENANCE: true
 
       # Releases created with the workflow token don't trigger `release` events, but dispatches do
       - name: Build CLI binaries
-        if: steps.changesets.outputs.published == 'true' && contains(steps.changesets.outputs.publishedPackages, '"name":"@slackwater/cli"')
+        if: steps.changesets.outputs.published == 'true' && contains(steps.changesets.outputs['published-packages'], '"name":"@slackwater/cli"')
         run: gh workflow run build-binaries.yml --ref "$GITHUB_REF_NAME"
         env:
           GH_TOKEN: ${{ github.token }}

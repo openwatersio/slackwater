@@ -58,6 +58,8 @@ final class ParamProvider {
 
     func callAsFunction(_ hour: Double) -> [PreparedParam] {
         if hour >= nextCorrectionAt {
+            // Catch up to the chunk holding `hour`, however many chunks it skips.
+            nextCorrectionAt += ((hour - nextCorrectionAt) / correctionIntervalHours).rounded(.down) * correctionIntervalHours
             let chunkEnd = min(nextCorrectionAt + correctionIntervalHours, endHour)
             let mid = startMs + (nextCorrectionAt + chunkEnd) / 2 * 3.6e6
             params = Self.prepare(constituents, baseAstro, catalog, Date(timeIntervalSince1970: mid / 1000))

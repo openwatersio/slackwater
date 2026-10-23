@@ -2,6 +2,7 @@
 // Slackwater is the oracle: Slackwater (Swift) must match these to the tolerances in the plan.
 // Usage: node fixtures/generate/gen-golden.mjs
 import { astro, constituents, createTidePredictor } from '@slackwater/engine';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { writeJSON } from './write.mjs';
@@ -89,6 +90,23 @@ write('extremes-victoria.json', {
   note: 'Slackwater getExtremesPrediction for the same set/window. Heights metres, times ISO.',
   start: iso(predStart), end: iso(predEnd),
   extremes: extremes.map((e) => ({ time: iso(e.time), height: e.level, kind: e.high ? 'high' : 'low' })),
+});
+
+// ---- Task 5b: a turn on UTC midnight ----
+// Cambridge, MD (noaa/8571892) puts the low of 26 July 2026 within a second of 00:00 UTC, where
+// each day's search hands over to the next day's parameters. Its constants are a copy, so a
+// database update can't move the low off midnight.
+const cambridge = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'cambridge-md.json'), 'utf8'));
+const midnightSet = cambridge.constituents;
+const midnightStart = new Date('2026-07-25T12:00:00Z');
+const midnightEnd = new Date('2026-07-27T12:00:00Z');
+write('extremes-midnight.json', {
+  note: 'Slackwater getExtremesPrediction for noaa/8571892, whose low of 2026-07-26 falls on 00:00 UTC. Heights metres, times ISO.',
+  station: cambridge.station,
+  constituents: midnightSet,
+  start: iso(midnightStart), end: iso(midnightEnd),
+  extremes: createTidePredictor(midnightSet).getExtremesPrediction({ start: midnightStart, end: midnightEnd })
+    .map((e) => ({ time: iso(e.time), height: e.level, kind: e.high ? 'high' : 'low' })),
 });
 
 console.log('done');

@@ -4,14 +4,15 @@ import { join } from "path";
 import { findStation } from "slackwater";
 import { stations as db } from "@slackwater/database";
 
-// Every tide station's extremes over one calendar year, checked for highs and
-// lows that fail to alternate. Local only: no official data is fetched. See
+// Every tide station's extremes over two calendar years, checked for highs and
+// lows that fail to alternate. Two years, so a station whose extremes come once
+// a year still has a pair to compare. Local only: no official data is fetched. See
 // packages/engine/docs/extremes.md for what the numbers mean.
 
 const __dirname = new URL(".", import.meta.url).pathname;
 const YEAR = Number(process.env.YEAR ?? 2025);
 const start = new Date(Date.UTC(YEAR, 0, 1));
-const end = new Date(Date.UTC(YEAR + 1, 0, 1));
+const end = new Date(Date.UTC(YEAR + 2, 0, 1));
 const days = (end.getTime() - start.getTime()) / 86_400_000;
 
 // Stations from openwatersio/slackwater#219: micro-tidal Baltic and a Dutch river.
@@ -32,7 +33,7 @@ interface Stat {
 }
 
 const ids = db.filter((station) => station.kind === "tide").map((station) => station.id);
-console.log(`Checking extremes alternation at ${ids.length} tide stations for ${YEAR}`);
+console.log(`Checking extremes alternation at ${ids.length} tide stations for ${YEAR}–${YEAR + 1}`);
 
 const stats: Stat[] = [];
 for (const id of ids) {
@@ -79,6 +80,9 @@ const stationsWithSameKind = stats.filter((s) => s.same_kind > 0).length;
 console.log({ stations: stats.length, sameKind, stationsWithSameKind });
 console.table(stats.filter((s) => WATCHED.includes(s.station)));
 
-// Baseline expectation. The root finder can miss or double-count a turn where
-// node corrections refresh, which leaves a few same-kind neighbours; the goal is zero.
-expect(sameKind, "same-kind neighbours across all stations").toBeLessThanOrEqual(31);
+// Persistence keeps highs and lows alternating at every station in the database
+// (packages/engine/docs/extremes.md). It is not guaranteed: a station whose every
+// turn stays below the threshold for more than 32 days can leave two of a kind in
+// a row, so a database bump can fail this with no engine change. Read that
+// station's curve before raising the bar.
+expect(sameKind, "same-kind neighbours across all stations").toBe(0);

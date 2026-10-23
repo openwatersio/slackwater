@@ -69,11 +69,10 @@ public struct DerivedSlackStation: Sendable {
     /// high-water slack ⇒ tide rising ⇒ flooding; toward low water ⇒ ebbing. Within
     /// `slackWindowMinutes` of any slack it reads slack.
     ///
-    /// Takes the caller's already-derived `slacks` rather than recomputing: the
-    /// prominence filter behind `extremes` is window-relative, so a fresh
-    /// derive over a different window can disagree about which slack is "next" at a
-    /// diurnal transition. Mirrors current.ts `withNowCurrent`, which feeds the one
-    /// event set into `derivedNowFields`.
+    /// Takes the caller's already-derived `slacks` rather than recomputing, so the
+    /// phase and the list the caller shows come from one event set. Mirrors
+    /// current.ts `withNowCurrent`, which feeds the one event set into
+    /// `derivedNowFields`.
     public func phase(at t: Date, slacks: [DerivedSlackEvent]) -> DerivedPhase {
         guard !slacks.isEmpty else { return .slack }
         let nowMs = t.timeIntervalSince1970
