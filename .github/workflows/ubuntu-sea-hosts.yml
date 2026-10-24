@@ -1,0 +1,64 @@
+name: Ubuntu SEA artifact host compatibility
+
+on:
+  pull_request:
+    paths: [".github/workflows/ubuntu-sea-hosts.yml"]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["ubuntu:22.04", "ubuntu:24.04"]
+    env:
+      CONTAINER_IMAGE: sea-compat
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: 7dc69f3e9f2e469a325f17241a450e201663f597
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .github/sea/mise.toml
+      - name: Download the exact Ubuntu 26 candidate artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/openwatersio/slackwater/actions/artifacts/12541260590
+          gh api repos/openwatersio/slackwater/actions/artifacts/12541260590/zip --allow-escape-sequences > "$RUNNER_TEMP/binary.zip"
+          echo "cfdfe7db9efa552be21902f0608a3d248128c41d27d0278e9ffd5d025415f275  $RUNNER_TEMP/binary.zip" | sha256sum -c -
+          SEA_DIRECTORY="$RUNNER_TEMP/sea"
+          echo "SEA_DIRECTORY=$SEA_DIRECTORY" >> "$GITHUB_ENV"
+          mkdir -p "$SEA_DIRECTORY"
+          unzip -q "$RUNNER_TEMP/binary.zip" -d "$SEA_DIRECTORY"
+          tar -xzf "$SEA_DIRECTORY/slackwater-linux-x64.tar.gz" -C "$SEA_DIRECTORY"
+          sha256sum "$SEA_DIRECTORY/slackwater-linux-x64.tar.gz" "$SEA_DIRECTORY/slackwater"
+          file "$SEA_DIRECTORY/slackwater"
+          readelf --version-info "$SEA_DIRECTORY/slackwater"
+      - name: Prepare an older userspace with the runtime library
+        env:
+          BASE_IMAGE: ${{ matrix.image }}
+        run: |
+          docker build --pull --build-arg BASE_IMAGE="$BASE_IMAGE" -t "$CONTAINER_IMAGE" - <<'DOCKERFILE'
+          ARG BASE_IMAGE
+          FROM ${BASE_IMAGE}
+          RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 ca-certificates && rm -rf /var/lib/apt/lists/*
+          DOCKERFILE
+          docker image inspect "$BASE_IMAGE" --format '{{json .RepoDigests}}'
+          docker run --rm --network none "$CONTAINER_IMAGE" ldd --version
+      - name: Run the artifact's unchanged release smoke in the older userspace
+        run: |
+          mkdir -p packages/cli/dist
+          cp "$SEA_DIRECTORY/NOTICE" packages/cli/dist/NOTICE
+          cat > packages/cli/dist/slackwater <<'SH'
+          #!/bin/bash
+          exec docker run --rm --network none --read-only --tmpfs /tmp --mount "type=bind,src=$SEA_DIRECTORY,dst=/sea,readonly" "$CONTAINER_IMAGE" /sea/slackwater "$@"
+          SH
+          chmod +x packages/cli/dist/slackwater
+          node packages/cli/scripts/smoke-sea.ts
