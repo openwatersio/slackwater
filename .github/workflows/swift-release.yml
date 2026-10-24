@@ -7,7 +7,7 @@ on:
 
 jobs:
   smoke-swiftpm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Resolve and run this tag from SwiftPM
         run: |

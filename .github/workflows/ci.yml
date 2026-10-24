@@ -4,7 +4,7 @@ on:
 
 jobs:
   changes:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       typescript: ${{ steps.filter.outputs.typescript }}
       swift: ${{ steps.filter.outputs.swift }}
@@ -99,7 +99,7 @@ jobs:
   changeset:
     needs: changes
     if: github.ref != 'refs/heads/main' && needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
         with:
@@ -118,7 +118,7 @@ jobs:
   lint:
     needs: changes
     if: needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -135,7 +135,7 @@ jobs:
   test:
     needs: changes
     if: needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       id-token: write
       pull-requests: write
@@ -170,7 +170,7 @@ jobs:
     if: needs.changes.outputs.swift == 'true'
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-26.04, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -185,7 +185,7 @@ jobs:
   kotlin:
     needs: changes
     if: needs.changes.outputs.kotlin == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -220,7 +220,7 @@ jobs:
   fixtures:
     needs: changes
     if: needs.changes.outputs.fixtures == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -237,7 +237,7 @@ jobs:
   publish:
     needs: changes
     if: needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     permissions:
       id-token: write
       pull-requests: write
@@ -267,7 +267,7 @@ jobs:
   examples:
     needs: changes
     if: needs.changes.outputs.typescript == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 

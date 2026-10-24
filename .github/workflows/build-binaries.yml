@@ -9,7 +9,7 @@ on:
 jobs:
   resolve-tag:
     name: Resolve release tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
       should_release: ${{ steps.resolve.outputs.should_release }}
@@ -47,7 +47,7 @@ jobs:
       matrix:
         include:
           - target: linux-x64
-            os: ubuntu-latest
+            os: ubuntu-26.04
           - target: darwin-arm64
             os: macos-latest
           - target: win-x64
@@ -114,7 +114,7 @@ jobs:
     if: needs.resolve-tag.outputs.should_release == 'true'
     name: Upload release assets
     needs: [resolve-tag, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     # The only job with a write token; it runs no checkout, install, or build
     permissions:
       contents: write
@@ -148,7 +148,7 @@ jobs:
     if: needs.resolve-tag.outputs.should_release == 'true'
     name: Update Homebrew tap
     needs: [resolve-tag, build, checksums]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     steps:
       - name: Checkout
         uses: actions/checkout@v7
