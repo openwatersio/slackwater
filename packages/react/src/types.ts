@@ -75,3 +75,69 @@ export interface TimelineResponse {
   distance: number;
   timeline: TimelineEntry[];
 }
+
+export interface CurrentBin {
+  id: string;
+  /** Absent for the primary bin, which the bare station ID selects. */
+  bin?: number;
+}
+
+/** A current station as the current API returns it: the database record plus serving flags. */
+export interface CurrentStationInfo extends StationSummary {
+  kind: "current";
+  locality?: string;
+  context?: string;
+  source: {
+    id: string;
+    name: string;
+    url: string;
+    published_harmonics: boolean;
+  };
+  license: {
+    type: string;
+    commercial_use: boolean;
+    url: string;
+    notes?: string;
+  };
+  disclaimers?: string;
+  attribution?: string;
+  bins: CurrentBin[];
+  /** False for stations the API can't serve (CHS licensing, no model). */
+  predictions: boolean;
+  unavailable?: string;
+  current?: {
+    /** Degrees true. Absent when the station publishes none. */
+    flood_direction?: number;
+    ebb_direction?: number;
+    mean_flow?: number;
+  };
+}
+
+export type CurrentEventKind = "slack" | "maxFlood" | "maxEbb";
+
+export interface CurrentEvent {
+  time: Date;
+  /** Signed knots: positive flood, negative ebb. */
+  speed: number;
+  kind: CurrentEventKind;
+  /** Degrees true; absent for slack and when the station has none. */
+  direction?: number;
+}
+
+export interface CurrentTimelineEntry {
+  time: Date;
+  /** Signed knots: positive flood, negative ebb. */
+  speed: number;
+}
+
+export interface CurrentEventsResponse {
+  units: "knots";
+  station: CurrentStationInfo;
+  events: CurrentEvent[];
+}
+
+export interface CurrentTimelineResponse {
+  units: "knots";
+  station: CurrentStationInfo;
+  timeline: CurrentTimelineEntry[];
+}

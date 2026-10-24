@@ -4,6 +4,9 @@ import type {
   StationSummary,
   ExtremesResponse,
   TimelineResponse,
+  CurrentStationInfo,
+  CurrentEventsResponse,
+  CurrentTimelineResponse,
 } from "./types.js";
 
 export interface PredictionParams {
@@ -40,10 +43,11 @@ async function fetchJSON<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** `path` starts with "/". */
 function buildURL(base: string, path: string, params: object = {}): string {
   const normalizedBase = base.endsWith("/") ? base : base + "/";
-  const relativePath = path.startsWith("/") ? path.slice(1) : path;
-  const url = new URL(relativePath, normalizedBase);
+  // Relative to the base's path, so an API mounted below the origin keeps its prefix.
+  const url = new URL(path.slice(1), normalizedBase);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) {
       url.searchParams.set(key, String(value));
@@ -121,6 +125,40 @@ export async function fetchStationTimeline(
   const { source, stationId } = parseStationId(id);
   const data = await fetchJSON<RawTimelineResponse>(
     buildURL(baseUrl, `/tides/stations/${source}/${stationId}/timeline`, rest),
+  );
+  return { ...data, timeline: data.timeline.map((e) => ({ ...e, time: new Date(e.time) })) };
+}
+
+export interface CurrentPredictionParams {
+  id: string;
+  start?: string;
+  end?: string;
+}
+
+/**
+ * Fetch a current station. `id` is "source/id", optionally with a bin
+ * ("noaa/EPT0003@11"), or a bare id for curated records ("chs-active-pass").
+ */
+export function fetchCurrentStation(baseUrl: string, id: string): Promise<CurrentStationInfo> {
+  return fetchJSON(buildURL(baseUrl, `/currents/stations/${id}`));
+}
+
+export async function fetchCurrentStationEvents(
+  baseUrl: string,
+  { id, ...params }: CurrentPredictionParams,
+): Promise<CurrentEventsResponse> {
+  const data = await fetchJSON<JSONResponse<CurrentEventsResponse>>(
+    buildURL(baseUrl, `/currents/stations/${id}/events`, params),
+  );
+  return { ...data, events: data.events.map((e) => ({ ...e, time: new Date(e.time) })) };
+}
+
+export async function fetchCurrentStationTimeline(
+  baseUrl: string,
+  { id, ...params }: CurrentPredictionParams,
+): Promise<CurrentTimelineResponse> {
+  const data = await fetchJSON<JSONResponse<CurrentTimelineResponse>>(
+    buildURL(baseUrl, `/currents/stations/${id}/timeline`, params),
   );
   return { ...data, timeline: data.timeline.map((e) => ({ ...e, time: new Date(e.time) })) };
 }
