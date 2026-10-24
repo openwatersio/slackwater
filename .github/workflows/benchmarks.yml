@@ -8,7 +8,7 @@ on:
 
 jobs:
   benchmarks:
-    runs-on: ubuntu-26.04
+    runs-on: ubuntu-latest
     concurrency:
       group: benchmarks-${{ github.ref }}-${{ github.event_name }}
       cancel-in-progress: true
