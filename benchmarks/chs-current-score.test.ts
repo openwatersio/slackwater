@@ -166,8 +166,109 @@ describe("scoreWeek", () => {
     expect(week([weak(1000)], [slack(940), slack(1060)]).invented).toBe(2);
   });
 
-  test("still counts a predicted slack pair with no weak-and-variable event between them", () => {
-    expect(week([weak(900)], [slack(940), flood(1000, 0.2), slack(1060)]).invented).toBe(2);
+  test("excuses a weak predicted slack pair an event lies outside when both slacks are within the window", () => {
+    expect(week([weak(900)], [slack(940), flood(1000, 0.2), slack(1060)]).invented).toBe(0);
+  });
+
+  test("excuses a weak predicted slack pair that lies wholly before the event", () => {
+    // Johnstone Strait Central: CHS stamps the weak event after the model's lull has ended.
+    expect(week([weak(1000)], [slack(900), flood(930, 0.01), slack(980)]).invented).toBe(0);
+    // The model's next slack, hours away, is the only one left to count.
+    expect(
+      week([weak(1000)], [slack(900), flood(930, 0.01), slack(980), ebb(1150, -2), slack(1300)])
+        .invented,
+    ).toBe(1);
+  });
+
+  test("excuses a weak predicted slack pair that lies wholly after the event", () => {
+    expect(week([weak(1000)], [slack(1001), flood(1015, 0.01), slack(1031)]).invented).toBe(0);
+  });
+
+  test("excuses a weak predicted slack pair when no predicted slack follows the event", () => {
+    expect(week([weak(1100)], [slack(940), flood(990, 0.2), slack(1040)]).invented).toBe(0);
+  });
+
+  test("excuses one of two qualifying weak predicted slack pairs, never both", () => {
+    // The nearer pair follows the event, then precedes it. The other pair's two slacks stay
+    // invented; the tests below pin which pair is the nearer one.
+    expect(
+      week(
+        [weak(1000)],
+        [slack(850), flood(880, 0.2), slack(910), slack(1030), flood(1050, 0.2), slack(1070)],
+      ).invented,
+    ).toBe(2);
+    expect(
+      week(
+        [weak(1000)],
+        [slack(930), flood(950, 0.2), slack(970), slack(1090), flood(1120, 0.2), slack(1150)],
+      ).invented,
+    ).toBe(2);
+  });
+
+  test("excuses the nearer of two weak predicted slack pairs, not the earlier, at the week's start", () => {
+    // The pair before the week is 130 minutes from the event and the pair after it 20, so
+    // excusing the earlier pair would leave the in-week pair invented.
+    expect(
+      week(
+        [weak(0)],
+        [slack(-170), flood(-150, 0.2), slack(-130), slack(20), flood(40, 0.2), slack(60)],
+      ).invented,
+    ).toBe(0);
+  });
+
+  test("excuses the nearest pair for the first of two events, leaving the farther pair invented", () => {
+    // The second event is beyond the window of the farther pair, which an earliest-first choice
+    // for the first event would have excused.
+    expect(
+      week(
+        [weak(1000), weak(1100)],
+        [slack(850), flood(880, 0.2), slack(910), slack(1030), flood(1050, 0.2), slack(1070)],
+      ).invented,
+    ).toBe(2);
+  });
+
+  test("prefers a weak pair around the event to a narrower pair with a nearer centre", () => {
+    // The pair around the event is 0 minutes away, the narrower pair 20; only the first is excused.
+    expect(
+      week(
+        [weak(0)],
+        [slack(-170), flood(-80, 0.2), slack(10), slack(20), flood(30, 0.2), slack(40)],
+      ).invented,
+    ).toBe(2);
+  });
+
+  test("excuses the earlier of two equally near weak predicted slack pairs", () => {
+    // Both pairs are 80 minutes from the event. At the week's start only the later pair is in the
+    // week to count, and at its end only the earlier, so each end tells earlier-wins apart from
+    // later-wins and from nothing excused.
+    expect(
+      week(
+        [weak(0)],
+        [slack(-120), flood(-100, 0.2), slack(-80), slack(80), flood(100, 0.2), slack(120)],
+      ).invented,
+    ).toBe(2);
+    const w = 7 * 1440;
+    expect(
+      week(
+        [weak(w)],
+        [
+          slack(w - 120),
+          flood(w - 100, 0.2),
+          slack(w - 80),
+          slack(w + 80),
+          flood(w + 100, 0.2),
+          slack(w + 120),
+        ],
+      ).invented,
+    ).toBe(0);
+  });
+
+  test("excuses a weak pair beside the event while the pair around it reverses strongly", () => {
+    // The strong pair shares its second slack with the weak pair, so only its first slack stays invented.
+    expect(
+      week([weak(1000)], [slack(950), flood(1000, 2), slack(1050), ebb(1080, -0.2), slack(1110)])
+        .invented,
+    ).toBe(1);
   });
 
   test("excuses nothing when only one unpaired predicted slack lies beside a weak-and-variable event", () => {
@@ -187,9 +288,9 @@ describe("scoreWeek", () => {
     expect(week([weak(1000)], [slack(820), flood(1000, 0.2), slack(1180)]).invented).toBe(0);
   });
 
-  test("counts a predicted slack at a weak-and-variable event's own time as the slack before it", () => {
+  test("excuses a weak predicted slack pair when the event falls at either slack's own time", () => {
     expect(week([weak(1000)], [slack(1000), flood(1050, 0.2), slack(1100)]).invented).toBe(0);
-    expect(week([weak(1000)], [slack(900), flood(950, 0.2), slack(1000)]).invented).toBe(2);
+    expect(week([weak(1000)], [slack(900), flood(950, 0.2), slack(1000)]).invented).toBe(0);
   });
 
   test("lets a weak-and-variable event excuse one pair, and a predicted slack be excused once", () => {

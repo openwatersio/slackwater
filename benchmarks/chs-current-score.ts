@@ -5,8 +5,8 @@
 import { CONTEXT_MIN, MATCH_WINDOW_MIN } from "./chs-current-grid.ts";
 import { parseEventDate } from "./iwls.ts";
 
-/** Bumped whenever a rule changes how this benchmark fits or scores (the fetch plan, the fit end, event parsing, pairing context, pairing), so the results repository can pool only rows scored by the same rules. It also keys the events cache, which holds parsed events, so a parsing change without a bump would reuse events parsed by the old rule. Version 3: a pair of predicted slacks around a CHS weak-and-variable event, with a weak predicted reversal between them, is not invented. */
-export const SCORER_VERSION = 3;
+/** Bumped whenever a rule changes how this benchmark fits or scores (the fetch plan, the fit end, event parsing, pairing context, pairing), so the results repository can pool only rows scored by the same rules. It also keys the events cache, which holds parsed events, so a parsing change without a bump would reuse events parsed by the old rule. Version 4: the nearest pair of predicted slacks within the match window of a CHS weak-and-variable event, with a weak predicted reversal between them, is not invented, whether the event lies between them or beside them. */
+export const SCORER_VERSION = 4;
 /** CHS extrema weaker than this get no timing or speed score: the peak of a weak drift is noise. */
 export const SIGNIFICANT_KN = 0.75;
 /** A model with the wrong sign at this share of a week's CHS extrema has its flood axis reversed. */
@@ -153,14 +153,22 @@ export function pairSlacks(
  * at most MATCH_WINDOW_MIN apart, and only slacks inside the week are scored.
  *
  * A CHS weak-and-variable event stands for a reversal CHS publishes no slacks
- * for, so it excuses the two predicted slacks either side of it when neither
- * paired, no predicted slack lies between them, each is within
- * MATCH_WINDOW_MIN of the event, and the model's reversal between them is
- * weak too: it has a predicted extremum, and every one is under SIGNIFICANT_KN.
- * A predicted slack at the event's own time counts as the one before it. An
- * event excuses one pair and a slack is excused once. Events within
- * CONTEXT_MIN of the week count, so a pair straddling the week's edge is
- * judged the same from either week. The event is not an extremum.
+ * for, so it excuses one pair of consecutive predicted slacks: the nearest
+ * pair, around the event or on either side of it, that qualifies. A pair
+ * qualifies when neither slack paired or was excused already, each is within
+ * MATCH_WINDOW_MIN of the event, and the model's reversal between them is weak
+ * too: it has a predicted extremum, and every one is under SIGNIFICANT_KN.
+ * CHS's event need not fall at the lull's centre, so the model's pair need not
+ * bracket it. A pair is as far as the event is from its nearer slack, or 0
+ * when the event lies between them, ends included; of two equally near pairs
+ * the earlier is excused. A slack is excused once, and events take their pairs
+ * in time order. Two events can reach the same pair only when they lie within
+ * 2 * MATCH_WINDOW_MIN of each other, and CHS's weak events are at least ten
+ * hours apart where checked (docs/validation/chs-currents.md); only then can
+ * the order, or an event in one week's context but not the other's, change a
+ * count. Events within CONTEXT_MIN of the week
+ * count, so a pair straddling the week's edge is otherwise judged the same from
+ * either week. The event is not an extremum.
  */
 export function scoreWeek({
   start,
@@ -192,17 +200,26 @@ export function scoreWeek({
 
   const excused = new Set<number>();
   for (const w of timesInContext(observed, "weak")) {
-    // pred is sorted, so the slacks either side of the event have none between them.
-    const after = pred.findIndex((t) => t > w);
-    if (after < 1) continue;
-    const pair = [after - 1, after];
     const excusable = (p: number) =>
       !paired.has(p) && !excused.has(p) && Math.abs(pred[p] - w) / 60_000 <= MATCH_WINDOW_MIN;
-    const peaks = predicted.filter(
-      (e) => isExtremum(e) && e.time > pred[after - 1] && e.time < pred[after],
-    );
-    const weakReversal = peaks.length > 0 && peaks.every((e) => Math.abs(e.speed) < SIGNIFICANT_KN);
-    if (weakReversal && pair.every(excusable)) for (const p of pair) excused.add(p);
+    let nearest = -1;
+    let nearestGap = Infinity;
+    // pred is sorted, so slacks i and i + 1 have none between them.
+    for (let i = 0; i + 1 < pred.length; i++) {
+      // Zero when the event lies between the pair, else the gap to the nearer slack.
+      const gap = Math.max(pred[i] - w, w - pred[i + 1], 0);
+      if (gap >= nearestGap || !excusable(i) || !excusable(i + 1)) continue;
+      const peaks = predicted.filter(
+        (e) => isExtremum(e) && e.time > pred[i] && e.time < pred[i + 1],
+      );
+      const weakReversal =
+        peaks.length > 0 && peaks.every((e) => Math.abs(e.speed) < SIGNIFICANT_KN);
+      if (weakReversal) {
+        nearest = i;
+        nearestGap = gap;
+      }
+    }
+    if (nearest >= 0) for (const p of [nearest, nearest + 1]) excused.add(p);
   }
 
   const slack_errors = obs.flatMap((t, o) => {
