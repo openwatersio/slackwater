@@ -45,12 +45,14 @@ jobs:
         env:
           BASE_IMAGE: ${{ matrix.image }}
         run: |
-          docker build --pull --build-arg BASE_IMAGE="$BASE_IMAGE" -t "$CONTAINER_IMAGE" - <<'DOCKERFILE'
-          ARG BASE_IMAGE
+          docker pull "$BASE_IMAGE"
+          BASE_REF=$(docker image inspect "$BASE_IMAGE" --format '{{index .RepoDigests 0}}')
+          echo "Base image: $BASE_REF"
+          docker build --build-arg BASE_IMAGE="$BASE_REF" -t "$CONTAINER_IMAGE" - <<'DOCKERFILE'
+          ARG BASE_IMAGE=ubuntu:22.04
           FROM ${BASE_IMAGE}
           RUN apt-get update && apt-get install -y --no-install-recommends libstdc++6 ca-certificates && rm -rf /var/lib/apt/lists/*
           DOCKERFILE
-          docker image inspect "$BASE_IMAGE" --format '{{json .RepoDigests}}'
           docker run --rm --network none "$CONTAINER_IMAGE" ldd --version
       - name: Run the artifact's unchanged release smoke in the older userspace
         run: |
