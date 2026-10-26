@@ -98,7 +98,7 @@ The CLI package (`packages/cli`) provides a terminal interface for tide and curr
 
 **Commands:** `extremes`, `timeline`, `stations`, `currents` (`events` by default, `timeline`, `slack`, `stations`), `serve`
 
-**Distribution:** npm (`@slackwater/cli`), Homebrew (`openwatersio/tap/slackwater`), shell installer (`install.sh`), and pre-built binaries on GitHub Releases.
+**Distribution:** npm (`@slackwater/cli`), Homebrew (`openwatersio/tap/slackwater`), shell installer (`install.sh`), and pre-built binaries on GitHub Releases. The Homebrew formula (`packages/cli/homebrew/slackwater.rb`) installs the npm package on Homebrew's `node`, so the release workflow renders it from the published npm tarball rather than the SEA binaries. The SEA binaries serve the shell installer and the Releases page; `install.sh` runs the binary before installing it so a missing system library fails with instructions.
 
 **Testing:** Uses `vitest` with a `run()` helper (`test/helpers.ts`) that invokes the CLI programmatically via Commander's `parseAsync`. The serve command exports a `stop()` function for test cleanup.
 
