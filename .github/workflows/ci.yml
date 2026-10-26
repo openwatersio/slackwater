@@ -155,6 +155,9 @@ jobs:
       # Do not run npm build here! This intentonally runs tests against the unbuilt source
       # to ensure that the tests are properly configured to run against the source files.
 
+      - name: Test ETSS research tools
+        run: python3 -B -m unittest discover -s tools/etss -p "test_*.py"
+
       - name: Test
         run: npm run coverage
 
