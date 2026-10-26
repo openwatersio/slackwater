@@ -147,16 +147,13 @@ jobs:
   update-homebrew:
     if: needs.resolve-tag.outputs.should_release == 'true'
     name: Update Homebrew tap
-    needs: [resolve-tag, build, checksums]
+    # The formula installs the npm package, which the release workflow publishes
+    # before it dispatches this one, so it does not wait on the binaries
+    needs: [resolve-tag]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-
-      - name: Download checksums artifact
-        uses: actions/download-artifact@v8
-        with:
-          name: checksums
 
       - name: Generate formula
         env:
@@ -164,16 +161,17 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           VERSION="${TAG##*@}"
-          SHA_DARWIN_ARM64=$(grep slackwater-darwin-arm64.tar.gz checksums.txt | cut -d' ' -f1)
-          SHA_LINUX_X64=$(grep slackwater-linux-x64.tar.gz checksums.txt | cut -d' ' -f1)
+          TARBALL="https://registry.npmjs.org/@slackwater/cli/-/cli-${VERSION}.tgz"
+          # The registry can lag a moment behind the publish that dispatched this run
+          curl -fsSL --retry 5 --retry-delay 10 --retry-all-errors "$TARBALL" -o cli.tgz
+          SHA_NPM=$(sha256sum cli.tgz | cut -d' ' -f1)
 
           sed \
-            -e "s|{{TAG}}|${TAG}|g" \
             -e "s|{{VERSION}}|${VERSION}|g" \
             -e "s|{{REPO}}|${REPO}|g" \
-            -e "s|{{SHA256_DARWIN_ARM64}}|${SHA_DARWIN_ARM64}|g" \
-            -e "s|{{SHA256_LINUX_X64}}|${SHA_LINUX_X64}|g" \
+            -e "s|{{SHA256_NPM}}|${SHA_NPM}|g" \
             packages/cli/homebrew/slackwater.rb > slackwater.rb
+          if grep -n '{{' slackwater.rb; then exit 1; fi
 
       - name: Push to Homebrew tap
         env:

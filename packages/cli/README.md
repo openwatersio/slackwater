@@ -4,11 +4,13 @@ Command line interface for tide and current predictions. Search for stations, vi
 
 ## Install
 
-### Homebrew (Apple Silicon macOS / x86_64 Linux)
+### Homebrew (macOS / Linux)
 
 ```sh
 brew install openwatersio/tap/slackwater
 ```
+
+The formula installs the npm package on Homebrew's Node, so Homebrew supplies the runtime.
 
 ### Shell script (Apple Silicon macOS / x86_64 Linux)
 
@@ -28,7 +30,7 @@ Pre-built binaries for macOS (Apple Silicon), Linux (x86_64), and Windows (x64) 
 
 ### Linux runtime libraries
 
-The standalone Linux binary requires `libstdc++` and `libatomic`. It embeds Node 26, whose [official Linux binaries require the libatomic runtime](https://github.com/nodejs/node/blob/v26.x/BUILDING.md#official-binary-platforms-and-toolchains). The shell installer downloads the binary; it does not install system libraries.
+The standalone Linux binary, which the shell installer and the Releases page provide, requires `libstdc++` and `libatomic`. It embeds Node 26, whose [official Linux binaries require the libatomic runtime](https://github.com/nodejs/node/blob/v26.x/BUILDING.md#official-binary-platforms-and-toolchains). The shell installer runs the binary before installing it and stops with these instructions if a library is missing; it does not install system libraries. Homebrew and npm installs don't use this binary.
 
 On Debian or Ubuntu, install the runtime packages before running the binary:
 
