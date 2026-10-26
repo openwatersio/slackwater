@@ -6,6 +6,9 @@ import {
   fetchTimeline,
   fetchStationExtremes,
   fetchStationTimeline,
+  fetchCurrentStation,
+  fetchCurrentStationEvents,
+  fetchCurrentStationTimeline,
 } from "../src/client.js";
 
 const BASE_URL = "https://api.example.com";
@@ -74,6 +77,22 @@ describe("fetchStation", () => {
 
     await expect(fetchStation(BASE_URL, "noaa/999999")).rejects.toThrow("Station not found");
   });
+
+  test("falls back to the status when the error body has no message or isn't JSON", async () => {
+    mockFetch({}, 500);
+    await expect(fetchStation(BASE_URL, "noaa/1")).rejects.toThrow("Request failed: 500");
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        statusText: "Bad Gateway",
+        json: () => Promise.reject(new SyntaxError("Unexpected token")),
+      }),
+    );
+    await expect(fetchStation(BASE_URL, "noaa/1")).rejects.toThrow("Bad Gateway");
+  });
 });
 
 describe("fetchStations", () => {
@@ -108,9 +127,9 @@ describe("fetchStations", () => {
 
 describe("fetchExtremes", () => {
   test("includes all params in URL", async () => {
-    mockFetch({ extremes: [] });
+    mockFetch({ extremes: [{ time: "2025-01-01T06:00:00Z", level: 1, high: true }] });
 
-    await fetchExtremes(BASE_URL, {
+    const res = await fetchExtremes(BASE_URL, {
       latitude: 26.7,
       longitude: -80.05,
       start: "2025-01-01T00:00:00Z",
@@ -124,17 +143,19 @@ describe("fetchExtremes", () => {
     expect(parsed.pathname).toBe("/tides/extremes");
     expect(parsed.searchParams.get("latitude")).toBe("26.7");
     expect(parsed.searchParams.get("units")).toBe("feet");
+    expect(res.extremes[0].time).toEqual(new Date("2025-01-01T06:00:00Z"));
   });
 });
 
 describe("fetchTimeline", () => {
   test("builds correct URL", async () => {
-    mockFetch({ timeline: [] });
+    mockFetch({ timeline: [{ time: "2025-01-01T00:00:00Z", level: 1 }] });
 
-    await fetchTimeline(BASE_URL, { latitude: 26.7, longitude: -80.05 });
+    const res = await fetchTimeline(BASE_URL, { latitude: 26.7, longitude: -80.05 });
 
     const url = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(new URL(url).pathname).toBe("/tides/timeline");
+    expect(res.timeline[0].time).toEqual(new Date("2025-01-01T00:00:00Z"));
   });
 });
 
@@ -163,5 +184,45 @@ describe("fetchStationTimeline", () => {
 
     const url = (fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(new URL(url).pathname).toBe("/tides/stations/noaa/8722588/timeline");
+  });
+});
+
+describe("current stations", () => {
+  test("fetchCurrentStation keeps a bin or bare curated id in the path", async () => {
+    mockFetch({ id: "noaa/EPT0003" });
+
+    await fetchCurrentStation(BASE_URL, "noaa/EPT0003@11");
+    await fetchCurrentStation(BASE_URL, "chs-active-pass");
+
+    const calls = (fetch as ReturnType<typeof vi.fn>).mock.calls.map((c) => new URL(c[0]).pathname);
+    expect(calls).toEqual([
+      "/currents/stations/noaa/EPT0003@11",
+      "/currents/stations/chs-active-pass",
+    ]);
+  });
+
+  test("fetchCurrentStationEvents parses event times and sends the range", async () => {
+    mockFetch({ events: [{ time: "2026-10-10T03:00:00Z", speed: 3, kind: "maxFlood" }] });
+
+    const res = await fetchCurrentStationEvents(BASE_URL, {
+      id: "noaa/PUG1701",
+      start: "2026-10-10T00:00:00Z",
+    });
+
+    const url = new URL((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string);
+    expect(url.pathname).toBe("/currents/stations/noaa/PUG1701/events");
+    expect(url.searchParams.get("start")).toBe("2026-10-10T00:00:00Z");
+    expect(url.searchParams.has("id")).toBe(false);
+    expect(res.events[0].time).toEqual(new Date("2026-10-10T03:00:00Z"));
+  });
+
+  test("fetchCurrentStationTimeline parses timeline times", async () => {
+    mockFetch({ timeline: [{ time: "2026-10-10T00:00:00Z", speed: -1 }] });
+
+    const res = await fetchCurrentStationTimeline(BASE_URL, { id: "noaa/PUG1701" });
+
+    const url = new URL((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string);
+    expect(url.pathname).toBe("/currents/stations/noaa/PUG1701/timeline");
+    expect(res.timeline[0].time).toEqual(new Date("2026-10-10T00:00:00Z"));
   });
 });

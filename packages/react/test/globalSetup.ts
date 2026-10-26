@@ -16,6 +16,8 @@ export default async function setup({ provide }: TestProject) {
   return function teardown() {
     return new Promise<void>((resolve, reject) => {
       server.close((err) => (err ? reject(err) : resolve()));
+      // The browser closes after this teardown, so a socket it holds open would keep close waiting forever.
+      server.closeAllConnections();
     });
   };
 }
