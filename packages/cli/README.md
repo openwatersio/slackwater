@@ -26,19 +26,7 @@ npm install -g @slackwater/cli
 
 ### Download binary
 
-Pre-built binaries for macOS (Apple Silicon), Linux (x86_64), and Windows (x64) are available on the [GitHub Releases](https://github.com/openwatersio/slackwater/releases) page.
-
-### Linux runtime libraries
-
-The standalone Linux binary, which the shell installer and the Releases page provide, requires `libstdc++` and `libatomic`. It embeds Node 26, whose [official Linux binaries require the libatomic runtime](https://github.com/nodejs/node/blob/v26.x/BUILDING.md#official-binary-platforms-and-toolchains). The shell installer runs the binary before installing it and stops with these instructions if a library is missing; it does not install system libraries. Homebrew and npm installs don't use this binary.
-
-On Debian or Ubuntu, install the runtime packages before running the binary:
-
-```sh
-sudo apt-get install libstdc++6 libatomic1
-```
-
-A missing `libatomic.so.1` error means `libatomic1` is not installed or available to the system loader.
+Pre-built binaries for macOS (Apple Silicon), Linux (x86_64), and Windows (x64) are available on the [GitHub Releases](https://github.com/openwatersio/slackwater/releases) page. The Linux binary needs `libstdc++` and `libatomic` (`sudo apt-get install libstdc++6 libatomic1` on Debian or Ubuntu); the shell installer checks for them.
 
 ## Usage
 

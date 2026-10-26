@@ -4,7 +4,6 @@ class Slackwater < Formula
   # Installs the npm package on Homebrew's Node rather than the standalone binary,
   # so Homebrew supplies the runtime and its libraries on every platform it supports
   url "https://registry.npmjs.org/@slackwater/cli/-/cli-{{VERSION}}.tgz"
-  version "{{VERSION}}"
   sha256 "{{SHA256_NPM}}"
   license "MIT"
 
