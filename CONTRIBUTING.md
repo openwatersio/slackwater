@@ -68,6 +68,8 @@ Current routes live in `src/currents.ts` with their own spec (`currentsOpenapi` 
 
 **Prefix mounting:** `createApp` mounts the tide routes at `prefix` (default: `/tides`) and the current routes at `currentsPrefix` (default: `/currents`). Each group's OpenAPI document sets `servers` to wherever it is mounted.
 
+**Bounding-box listings:** Both station route groups use `stationsInBounds` in `packages/api/src/bbox.ts`. A validated box whose west longitude exceeds its east longitude crosses the dateline; the helper queries each side separately because the database's spatial index requires ordered longitude bounds. Both queries retain the route's station filter, including the current primary-bin rule. This does not change harmonic predictions or the database itself.
+
 ```typescript
 // Standalone server with default /tides prefix
 import { createApp } from "@slackwater/api";

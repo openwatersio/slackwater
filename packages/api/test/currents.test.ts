@@ -271,6 +271,32 @@ describe("GET /currents/stations", () => {
     expect(isListed(response.body, "noaa/EPT0003@11")).toBe(false);
   });
 
+  test.each([
+    [170, -90, -170, 90],
+    [170, 50, -170, 70],
+  ])(
+    "returns the complete primary current station set across the dateline for %j,%j,%j,%j",
+    async (west, south, east, north) => {
+      const expected = dbStations.filter(
+        (s) =>
+          s.kind === "current" &&
+          !s.id.includes("@") &&
+          (s.longitude >= west || s.longitude <= east) &&
+          s.latitude >= south &&
+          s.latitude <= north,
+      );
+      expect(expected.length).toBeGreaterThan(0);
+      const response = await request(app)
+        .get("/currents/stations")
+        .query({ bbox: [west, south, east, north].join(",") });
+
+      expect(response.status).toBe(200);
+      expect(response.body.map((s: Summary) => s.id).sort()).toEqual(
+        expected.map((s) => s.id).sort(),
+      );
+    },
+  );
+
   test("returns 400 for invalid bbox", async () => {
     const response = await request(app).get("/currents/stations").query({ bbox: "1,2,3" });
 

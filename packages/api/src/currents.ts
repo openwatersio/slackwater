@@ -4,7 +4,6 @@ import {
   search,
   near,
   nearest as nearestStation,
-  bbox as bboxQuery,
   type Station,
   type Filter,
 } from "@slackwater/database";
@@ -12,6 +11,7 @@ import { findCurrentStation, parseCurrentBin, currentStationUnavailable } from "
 import * as validate from "./validate.js";
 import { currentsOpenapi } from "./openapi.js";
 import { createApiRouter, type RouterOptions } from "./router.js";
+import { stationsInBounds } from "./bbox.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -216,7 +216,7 @@ export function createCurrentRoutes(options: RouterOptions = {}) {
       }
 
       if (bboxParam) {
-        return res.json(bboxQuery(bboxParam, { filter: primaryCurrent }).map(summarize));
+        return res.json(stationsInBounds(bboxParam, primaryCurrent).map(summarize));
       }
 
       if (latitude === undefined || longitude === undefined) {

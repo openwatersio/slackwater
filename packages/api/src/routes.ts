@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { stations, Station, search, bbox as bboxQuery } from "@slackwater/database";
+import { stations, Station, search } from "@slackwater/database";
 import {
   getExtremesPrediction,
   getTimelinePrediction,
@@ -9,6 +9,7 @@ import {
 import openapi from "./openapi.js";
 import * as validate from "./validate.js";
 import { createApiRouter, type RouterOptions } from "./router.js";
+import { stationsInBounds } from "./bbox.js";
 
 // The database also carries current stations, which createCurrentRoutes serves.
 const tideOnly = (station: Station) => station.kind === "tide";
@@ -70,7 +71,7 @@ export function createRoutes(options: RouterOptions = {}) {
       }
 
       if (bboxParam) {
-        return res.json(bboxQuery(bboxParam, { filter: tideOnly }).map(stripStationDetails));
+        return res.json(stationsInBounds(bboxParam, tideOnly).map(stripStationDetails));
       }
 
       if (latitude === undefined || longitude === undefined) {
