@@ -395,6 +395,31 @@ describe("GET /stations", () => {
     }
   });
 
+  test.each([
+    [170, -90, -170, 90],
+    [170, 50, -170, 70],
+  ])(
+    "returns the complete tide station set across the dateline for %j,%j,%j,%j",
+    async (west, south, east, north) => {
+      const expected = dbStations.filter(
+        (s) =>
+          s.kind === "tide" &&
+          (s.longitude >= west || s.longitude <= east) &&
+          s.latitude >= south &&
+          s.latitude <= north,
+      );
+      expect(expected.length).toBeGreaterThan(0);
+      const response = await request(app)
+        .get("/stations")
+        .query({ bbox: [west, south, east, north].join(",") });
+
+      expect(response.status).toBe(200);
+      expect(response.body.map((s: { id: string }) => s.id).sort()).toEqual(
+        expected.map((s) => s.id).sort(),
+      );
+    },
+  );
+
   describe("excludes current stations", () => {
     // The database also carries current stations, which the tide predictor
     // can't use; every lookup mode must filter them out.

@@ -103,6 +103,7 @@ Search stations or find them near a location.
 - `longitude` (optional): Longitude for proximity search
 - `maxResults` (optional): Maximum number of stations to return (1-100, defaults to 10)
 - `maxDistance` (optional): Maximum search radius for proximity search
+- `bbox` (optional): Bounding box in `west,south,east,north` order, with longitudes in -180..180 and latitudes in -90..90. When west is greater than east, the box crosses the dateline and includes stations on both sides of 180°. South must be less than or equal to north.
 
 **Examples:**
 
@@ -115,6 +116,9 @@ curl "http://localhost:3000/tides/stations?latitude=26.772&longitude=-80.05&maxR
 
 # Find stations within a specific distance
 curl "http://localhost:3000/tides/stations?latitude=26.772&longitude=-80.05&maxDistance=100"
+
+# Find stations on both sides of the dateline
+curl "http://localhost:3000/tides/stations?bbox=170,50,-170,70"
 ```
 
 ### GET /tides/stations/:id/extremes
