@@ -2,7 +2,7 @@
 // to the tide authority's own official predictions. Friday Harbor (NOAA 9449880).
 // Constituents come from @slackwater/database (sourced from NOAA); the comparison
 // target is NOAA's live CO-OPS prediction API — an independent authority check.
-import { stations } from '@slackwater/database';
+import { loadStations } from '@slackwater/database';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { writeJSON } from './write.mjs';
@@ -13,6 +13,7 @@ const write = (name, obj) => writeJSON(join(FIX, name), obj);
 const BEGIN = '20260715', END = '20260717';
 const startISO = '2026-07-15T00:00:00Z', endISO = '2026-07-17T23:59:00Z';
 
+const { accepted: stations } = await loadStations();
 const fh = stations.find((s) => s.id === 'noaa/9449880');
 // The database stores values as 32-bit floats; round off the float32 noise so
 // the fixture holds the source data's precision (NOAA publishes 1-3 decimals).

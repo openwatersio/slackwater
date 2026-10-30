@@ -18,7 +18,7 @@ npm install slackwater
 ```typescript
 import { getExtremesPrediction } from "slackwater";
 
-const prediction = getExtremesPrediction({
+const prediction = await getExtremesPrediction({
   lat: 37.8,
   lon: -122.5,
   start: new Date("2025-12-17"),
@@ -32,6 +32,8 @@ for (const { time, level, label } of prediction.extremes) {
 }
 ```
 
+Every function that reads the station database returns a promise, and the database loads on the first call rather than on import.
+
 ### Currents
 
 Current predictions are signed speeds in knots along the station's flood axis: positive is flood, negative is ebb, zero is slack.
@@ -39,7 +41,7 @@ Current predictions are signed speeds in knots along the station's flood axis: p
 ```typescript
 import { getCurrentEventsPrediction } from "slackwater";
 
-const prediction = getCurrentEventsPrediction({
+const prediction = await getCurrentEventsPrediction({
   lat: 48.4,
   lon: -122.64,
   start: new Date("2025-12-17"),

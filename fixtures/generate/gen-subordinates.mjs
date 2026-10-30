@@ -2,7 +2,7 @@
 // the subordinate's NOAA offsets, compared to NOAA's own hi/lo for the subordinate.
 // Two stations cover both height-offset forms: Nurse Channel (ratio, Bahamas,
 // 600 km from its reference) and Kamalo Harbor (fixed, Hawaii).
-import { stations } from '@slackwater/database';
+import { loadStations } from '@slackwater/database';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { writeJSON } from './write.mjs';
@@ -27,6 +27,7 @@ const noaa = async (id) => {
   return predictions.map((p) => ({ time: p.t.replace(' ', 'T') + ':00Z', height: parseFloat(p.v), kind: p.type === 'H' ? 'high' : 'low' }));
 };
 
+const { accepted: stations } = await loadStations();
 const cases = [];
 for (const id of ['noaa/TEC4635', 'noaa/1613077']) {
   const sub = stations.find((s) => s.id === id);

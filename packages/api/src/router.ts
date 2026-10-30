@@ -15,7 +15,7 @@ interface Spec {
  * `{ message, errors }` with the error's `status`.
  */
 export function createApiRouter(
-  spec: Spec,
+  loadSpec: () => Promise<Spec>,
   { middleware = [] }: RouterOptions,
   define: (router: Router) => void,
 ) {
@@ -26,7 +26,8 @@ export function createApiRouter(
   // Extra middleware runs in front of the error handler below, so its rejections are formatted too.
   for (const handler of middleware) router.use(handler);
 
-  router.get("/", (req, res) => {
+  router.get("/", async (req, res) => {
+    const spec = await loadSpec();
     res.json({
       name: spec.info.title,
       version: spec.info.version,
@@ -34,8 +35,8 @@ export function createApiRouter(
     });
   });
 
-  router.get("/openapi.json", (req, res) => {
-    res.json({ ...spec, servers: [{ url: req.baseUrl || "/" }] });
+  router.get("/openapi.json", async (req, res) => {
+    res.json({ ...(await loadSpec()), servers: [{ url: req.baseUrl || "/" }] });
   });
 
   define(router);

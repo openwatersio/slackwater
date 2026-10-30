@@ -9,7 +9,7 @@ const options = {
 
 // Slack, max flood, and max ebb events. Speeds are signed knots along the
 // flood axis: positive is flood, negative is ebb.
-const { station, events } = getCurrentEventsPrediction(options);
+const { station, events } = await getCurrentEventsPrediction(options);
 console.log(station.name);
 for (const event of events) {
   const direction = event.direction === undefined ? "" : ` toward ${event.direction}°`;
@@ -18,7 +18,7 @@ for (const event of events) {
 
 // The signed speed curve, and the windows where |speed| stays under a
 // threshold around a reversal — the transitable water.
-const { timeline } = getCurrentTimelinePrediction(options);
+const { timeline } = await getCurrentTimelinePrediction(options);
 for (const window of slackWindows(timeline, 0.5)) {
   console.log(`slack window ${window.start.toISOString()} – ${window.end.toISOString()}`);
 }
