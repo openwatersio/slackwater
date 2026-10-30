@@ -29,6 +29,43 @@ dependencies {
 
 See [smoke](smoke) for a complete separate consumer. Prediction needs no station database, JSON parser, Android framework or bundled asset.
 
+## Use through JitPack
+
+The engine is also served as a Maven artifact through [JitPack](https://jitpack.io), so projects can depend on it without a composite build. Add the JitPack repository and depend on a commit of this repository, using its first 10 hex digits as the version:
+
+```kotlin
+// Gradle (Kotlin DSL)
+repositories { maven("https://jitpack.io") }
+dependencies { implementation("com.github.openwatersio:slackwater:<commit>") }
+```
+
+```scala
+// sbt
+resolvers += "jitpack" at "https://jitpack.io"
+libraryDependencies += "com.github.openwatersio" % "slackwater" % "<commit>"
+```
+
+The POM declares `kotlin-stdlib`, so consumers get it transitively. The artifact holds only the engine, not the IWLS module. From Java, pass the station offset explicitly because the Kotlin default is not visible there:
+
+```java
+Station station = new Station(Arrays.asList(new HarmonicConstituent("M2", 1.71, 133.7)), 0.0);
+List<TideExtreme> highLow = station.extremes(from, from.plusSeconds(86400));
+```
+
+JitPack builds a commit the first time anyone requests it, which takes about a minute; the log is at `https://jitpack.io/com/github/openwatersio/slackwater/<commit>/build.log`. Built commits stay cached. The build is driven by two files at the repository root, so the Gradle build in `kotlin/` needs no publishing setup of its own:
+
+- [`jitpack.yml`](../jitpack.yml) selects JDK 17 and runs `./gradlew :publishToMavenLocal` in `kotlin/` with configuration on demand, so IWLS is not configured and tests and coverage do not run.
+- [`jitpack.gradle`](../jitpack.gradle) is a Gradle init script that applies `maven-publish` to the engine project and publishes its jar, sources jar and POM. On JitPack it sets the coordinates from JitPack's `GROUP`, `ARTIFACT` and `VERSION` variables, which gives `com.github.openwatersio:slackwater:<commit>`.
+
+To check a change before pushing, run the same build locally and inspect the published POM:
+
+```sh
+cd kotlin
+JITPACK=true GROUP=com.github.openwatersio ARTIFACT=slackwater VERSION=local \
+  ./gradlew --configure-on-demand -I ../jitpack.gradle :publishToMavenLocal
+cat ~/.m2/repository/com/github/openwatersio/slackwater/local/slackwater-local.pom
+```
+
 ## Predict
 
 ```kotlin

@@ -1,0 +1,5 @@
+# JitPack build: publishes only the Kotlin engine in kotlin/ (not iwls), without tests or coverage.
+jdk:
+  - openjdk17
+install:
+  - cd kotlin && ./gradlew --no-daemon --configure-on-demand -I ../jitpack.gradle :publishToMavenLocal
