@@ -13,10 +13,6 @@ import { stationsInBounds } from "./bbox.js";
 
 // The database also carries current stations, which createCurrentRoutes serves.
 const tideOnly = (station: Station) => station.kind === "tide";
-// CHS tide stations carry identity only, since CHS terms forbid re-serving its
-// predictions; picking one by location would serve a flat zero tide.
-const hasTideModel = (station: Station) =>
-  station.harmonic_constituents.length > 0 || station.offsets !== undefined;
 
 /** The tide routes. */
 export function createRoutes(options: RouterOptions = {}) {
@@ -26,7 +22,6 @@ export function createRoutes(options: RouterOptions = {}) {
         getExtremesPrediction({
           ...positionOptions(req, { required: true }),
           ...predictionOptions(req),
-          filter: hasTideModel,
         }),
       );
     });
@@ -37,7 +32,6 @@ export function createRoutes(options: RouterOptions = {}) {
       const options = {
         ...positionOptions(req, { required: true }),
         ...predictionOptions(req),
-        filter: hasTideModel,
       };
       try {
         res.json(getTimelinePrediction(options));

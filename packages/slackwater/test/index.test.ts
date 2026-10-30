@@ -185,6 +185,34 @@ describe("stationsNear", () => {
   });
 });
 
+describe("skips tide stations that can't be predicted", () => {
+  // CHS tide stations carry identity only, so a location lookup right on top of
+  // one must pick a station that predicts.
+  const chs = dbStations.find((s) => s.id === "chs-campbell-river")!;
+  const position = { latitude: chs.latitude, longitude: chs.longitude };
+
+  test("nearestStation picks a station with a model", () => {
+    const station = nearestStation(position);
+    expect(station.id).not.toBe(chs.id);
+    expect(station.harmonic_constituents.length).toBeGreaterThan(0);
+  });
+
+  test("stationsNear leaves it out", () => {
+    const nearby = stationsNear({ ...position, maxResults: 10 });
+    expect(nearby.length).toBeGreaterThan(0);
+    expect(nearby.map((s) => s.id)).not.toContain(chs.id);
+  });
+
+  test("the caller's filter still applies", () => {
+    const station = nearestStation({ ...position, filter: (s) => s.type === "subordinate" });
+    expect(station.type).toBe("subordinate");
+  });
+
+  test("findStation still finds it by id", () => {
+    expect(findStation(chs.id).id).toBe(chs.id);
+  });
+});
+
 describe("excludes current stations", () => {
   // The database also carries current stations, which the tide predictor
   // can't use; every lookup must filter them out before useStation.
