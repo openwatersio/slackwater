@@ -1,12 +1,12 @@
 import type { Request, Response } from "express";
-import { stations, Station, search } from "@slackwater/database";
+import { loadStations, type Station } from "@slackwater/database";
 import {
   getExtremesPrediction,
   getTimelinePrediction,
   findStation,
   stationsNear,
 } from "slackwater";
-import openapi from "./openapi.js";
+import { loadOpenapi } from "./openapi.js";
 import * as validate from "./validate.js";
 import { createApiRouter, type RouterOptions } from "./router.js";
 import { stationsInBounds } from "./bbox.js";
@@ -20,41 +20,41 @@ const hasTideModel = (station: Station) =>
 
 /** The tide routes. */
 export function createRoutes(options: RouterOptions = {}) {
-  return createApiRouter(openapi, options, (router) => {
-    router.get("/extremes", (req: Request, res: Response) => {
+  return createApiRouter(loadOpenapi, options, (router) => {
+    router.get("/extremes", async (req: Request, res: Response) => {
       res.json(
-        getExtremesPrediction({
+        await getExtremesPrediction({
           ...positionOptions(req, { required: true }),
-          ...predictionOptions(req),
+          ...(await predictionOptions(req)),
           filter: hasTideModel,
         }),
       );
     });
 
-    router.get("/timeline", (req: Request, res: Response) => {
+    router.get("/timeline", async (req: Request, res: Response) => {
       // Validate before the try so bad params surface as 400 {message, errors}
       // via the error handler, not the predictor's plain 400.
       const options = {
         ...positionOptions(req, { required: true }),
-        ...predictionOptions(req),
+        ...(await predictionOptions(req)),
         filter: hasTideModel,
       };
       try {
-        res.json(getTimelinePrediction(options));
+        res.json(await getTimelinePrediction(options));
       } catch (error) {
         res.status(400).json({ message: (error as Error).message });
       }
     });
 
-    router.get("/stations/:source/:id", (req: Request, res: Response) => {
+    router.get("/stations/:source/:id", async (req: Request, res: Response) => {
       try {
-        return res.json(findStation(`${req.params.source}/${req.params.id}`));
+        res.json(await findStation(`${req.params.source}/${req.params.id}`));
       } catch (error) {
-        return res.status(404).json({ message: (error as Error).message });
+        res.status(404).json({ message: (error as Error).message });
       }
     });
 
-    router.get("/stations", (req: Request, res: Response) => {
+    router.get("/stations", async (req: Request, res: Response) => {
       const { latitude, longitude } = positionOptions(req);
       const query = validate.string(req.query, "query");
       const maxResults = validate.number(req.query, "maxResults", {
@@ -65,21 +65,25 @@ export function createRoutes(options: RouterOptions = {}) {
       });
       const maxDistance = validate.number(req.query, "maxDistance", { min: 0 });
       const bboxParam = validate.bbox(req.query);
+      const db = await loadStations();
 
       if (query) {
-        return res.json(search(query, { filter: tideOnly, maxResults }).map(stripStationDetails));
+        res.json(db.search(query, { filter: tideOnly, maxResults }).map(stripStationDetails));
+        return;
       }
 
       if (bboxParam) {
-        return res.json(stationsInBounds(bboxParam, tideOnly).map(stripStationDetails));
+        res.json(stationsInBounds(db, bboxParam, tideOnly).map(stripStationDetails));
+        return;
       }
 
       if (latitude === undefined || longitude === undefined) {
-        return res.json(stations.filter(tideOnly).map(stripStationDetails));
+        res.json(db.accepted.filter(tideOnly).map(stripStationDetails));
+        return;
       }
 
       res.json(
-        stationsNear({
+        await stationsNear({
           latitude,
           longitude,
           maxResults,
@@ -88,28 +92,30 @@ export function createRoutes(options: RouterOptions = {}) {
       );
     });
 
-    router.get("/stations/:source/:id/extremes", (req: Request, res: Response) => {
-      let station: ReturnType<typeof findStation>;
+    router.get("/stations/:source/:id/extremes", async (req: Request, res: Response) => {
+      let station: Awaited<ReturnType<typeof findStation>>;
 
       try {
-        station = findStation(`${req.params.source}/${req.params.id}`);
+        station = await findStation(`${req.params.source}/${req.params.id}`);
       } catch (error) {
-        return res.status(404).json({ message: (error as Error).message });
+        res.status(404).json({ message: (error as Error).message });
+        return;
       }
 
-      res.json(station.getExtremesPrediction(predictionOptions(req)));
+      res.json(station.getExtremesPrediction(await predictionOptions(req)));
     });
 
-    router.get("/stations/:source/:id/timeline", (req: Request, res: Response) => {
-      let station: ReturnType<typeof findStation>;
+    router.get("/stations/:source/:id/timeline", async (req: Request, res: Response) => {
+      let station: Awaited<ReturnType<typeof findStation>>;
 
       try {
-        station = findStation(`${req.params.source}/${req.params.id}`);
+        station = await findStation(`${req.params.source}/${req.params.id}`);
       } catch (error) {
-        return res.status(404).json({ message: (error as Error).message });
+        res.status(404).json({ message: (error as Error).message });
+        return;
       }
 
-      res.json(station.getTimelinePrediction(predictionOptions(req)));
+      res.json(station.getTimelinePrediction(await predictionOptions(req)));
     });
   });
 }
@@ -129,8 +135,9 @@ function positionOptions(req: Request, { required = false } = {}) {
   };
 }
 
-function predictionOptions(req: Request) {
-  const datum = validate.datum(req.query);
+async function predictionOptions(req: Request) {
+  const { datums } = await loadStations();
+  const datum = validate.datum(req.query, datums);
   return {
     start: validate.date(req.query, "start", () => new Date()),
     end: validate.date(req.query, "end", () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),

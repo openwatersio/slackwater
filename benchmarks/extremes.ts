@@ -2,7 +2,7 @@ import { expect } from "vitest";
 import { createWriteStream } from "fs";
 import { join } from "path";
 import { findStation } from "slackwater";
-import { stations as db } from "@slackwater/database";
+import { loadStations } from "@slackwater/database";
 
 // Every tide station's extremes over two calendar years, checked for highs and
 // lows that fail to alternate. Two years, so a station whose extremes come once
@@ -32,12 +32,13 @@ interface Stat {
   min_gap_h: number;
 }
 
+const { accepted: db } = await loadStations();
 const ids = db.filter((station) => station.kind === "tide").map((station) => station.id);
 console.log(`Checking extremes alternation at ${ids.length} tide stations for ${YEAR}–${YEAR + 1}`);
 
 const stats: Stat[] = [];
 for (const id of ids) {
-  const { extremes } = findStation(id).getExtremesPrediction({ start, end });
+  const { extremes } = (await findStation(id)).getExtremesPrediction({ start, end });
   let sameKind = 0;
   let minChange = Infinity;
   let minGap = Infinity;

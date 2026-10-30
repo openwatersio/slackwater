@@ -15,8 +15,8 @@ export const formatters = {
 };
 
 export type Formats = keyof typeof formatters;
-export type ExtremesPrediction = ReturnType<typeof getExtremesPrediction>;
-export type TimelinePrediction = ReturnType<typeof getTimelinePrediction>;
+export type ExtremesPrediction = Awaited<ReturnType<typeof getExtremesPrediction>>;
+export type TimelinePrediction = Awaited<ReturnType<typeof getTimelinePrediction>>;
 
 export interface StationResult extends Station {
   distance?: number;

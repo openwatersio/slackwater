@@ -2,8 +2,11 @@ import { describe, test, expect } from "vitest";
 import express from "express";
 import request from "supertest";
 import { middleware as openApiValidator } from "express-openapi-validator";
-import { stations as dbStations } from "@slackwater/database";
-import { createApp, createRoutes, openapi } from "../src/index.js";
+import { loadStations } from "@slackwater/database";
+import { createApp, createRoutes, loadOpenapi } from "../src/index.js";
+
+const { accepted: dbStations } = await loadStations();
+const openapi = await loadOpenapi();
 
 // Mount express-openapi-validator here (not in createApp) so every request and
 // response in the suite is validated against the OpenAPI spec — this is what

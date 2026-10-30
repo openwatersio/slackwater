@@ -1,6 +1,6 @@
 import { getWaterLevelAtTime } from "slackwater";
 
-const prediction = getWaterLevelAtTime({
+const prediction = await getWaterLevelAtTime({
   lat: 26.77,
   lon: -80.05,
   time: new Date("2025-12-19T00:30:00-05:00"),
