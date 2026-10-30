@@ -1,5 +1,11 @@
 # @neaps/api
 
+## 1.0.0-beta.4
+
+### Patch Changes
+
+- [#486](https://github.com/openwatersio/slackwater/pull/486) [`9d89885`](https://github.com/openwatersio/slackwater/commit/9d89885c50b568f8be02699af37e5cec80b2e63a) Thanks [@tstotzer](https://github.com/tstotzer)! - Station listings include stations on both sides of the dateline when a bounding box crosses 180°.
+
 ## 1.0.0-beta.3
 
 ### Minor Changes
