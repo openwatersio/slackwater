@@ -1,5 +1,13 @@
 # @neaps/cli
 
+## 1.0.0-beta.5
+
+### Patch Changes
+
+- [#485](https://github.com/openwatersio/slackwater/pull/485) [`47df5af`](https://github.com/openwatersio/slackwater/commit/47df5af9f8b03a3813e72998a887ec4dbece0b29) Thanks [@bkeepers](https://github.com/bkeepers)! - Homebrew now installs the CLI on Homebrew's Node, so it works on Intel Macs and ARM Linux and no longer needs `libatomic` from the system. The shell installer checks that the downloaded binary runs and, if a system library is missing, stops with the command to install it.
+- Updated dependencies [[`9d89885`](https://github.com/openwatersio/slackwater/commit/9d89885c50b568f8be02699af37e5cec80b2e63a)]:
+  - @slackwater/api@1.0.0-beta.4
+
 ## 1.0.0-beta.4
 
 ### Minor Changes
