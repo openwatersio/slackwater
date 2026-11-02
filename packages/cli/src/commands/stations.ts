@@ -1,5 +1,5 @@
 import { Command, Option } from "commander";
-import { search, stations as allStations, near, type Station } from "@slackwater/database";
+import { loadStations, type Station } from "@slackwater/database";
 import getFormat, { type Formats, type StationResult } from "../formatters/index.js";
 import { resolveCoordinates } from "../lib/station.js";
 import { stationLimit } from "../lib/options.js";
@@ -19,6 +19,7 @@ export default new Command("stations")
   )
   .action(async (query: string | undefined, opts) => {
     const limit = stationLimit(opts);
+    const { accepted, near, search } = await loadStations();
     let results: StationResult[];
 
     if (opts.near || opts.ip) {
@@ -42,7 +43,7 @@ export default new Command("stations")
         filter: tideOnly,
       });
     } else {
-      const tideStations = allStations.filter(tideOnly);
+      const tideStations = accepted.filter(tideOnly);
       results = tideStations.slice(0, limit);
     }
 

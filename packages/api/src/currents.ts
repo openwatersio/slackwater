@@ -1,15 +1,13 @@
 import type { Request, Response, RequestHandler } from "express";
 import {
-  stations,
-  search,
-  near,
-  nearest as nearestStation,
+  loadStations,
   type Station,
+  type StationDatabase,
   type Filter,
 } from "@slackwater/database";
-import { findCurrentStation, parseCurrentBin, currentStationUnavailable } from "slackwater";
+import { findCurrentStation, parseCurrentBin, currentStationUnavailableIn } from "slackwater";
 import * as validate from "./validate.js";
-import { currentsOpenapi } from "./openapi.js";
+import { loadCurrentsOpenapi } from "./openapi.js";
 import { createApiRouter, type RouterOptions } from "./router.js";
 import { stationsInBounds } from "./bbox.js";
 
@@ -21,7 +19,7 @@ const MAX_SPAN_DAYS = 366;
 /** Signed speeds are knots along the flood axis: positive flood, negative ebb. */
 const UNITS = "knots";
 
-/** HTTP status for each reason `currentStationUnavailable` gives. */
+/** HTTP status for each reason `currentStationUnavailableIn` gives. */
 const REFUSAL_STATUS = { redistribution: 451, "no-model": 404 } as const;
 
 /**
@@ -37,32 +35,47 @@ class RefusedError extends Error {
   }
 }
 
-type StationFields = Parameters<typeof currentStationUnavailable>[0] & Pick<Station, "id">;
-type Predictor = ReturnType<typeof findCurrentStation>;
+type StationFields = Parameters<typeof currentStationUnavailableIn>[1] & Pick<Station, "id">;
+type Predictor = Awaited<ReturnType<typeof findCurrentStation>>;
 
-const currentStations = stations.filter((station) => station.kind === "current");
-const unprefixedIds = new Set(currentStations.filter((s) => !s.id.includes("/")).map((s) => s.id));
 const isPrimaryBin = (station: Pick<Station, "id">) =>
   parseCurrentBin(station.id).bin === undefined;
 const primaryCurrent: Filter = (station) => station.kind === "current" && isPrimaryBin(station);
 
-/** Every bin of each station, keyed by the primary bin's id, primary first. */
-const binsByStation = new Map<string, { id: string; bin?: number }[]>();
-for (const station of currentStations) {
-  const { base, bin } = parseCurrentBin(station.id);
-  const bins = binsByStation.get(base) ?? [];
-  if (bin === undefined) bins.unshift({ id: station.id });
-  else bins.push({ id: station.id, bin });
-  binsByStation.set(base, bins);
+/** What these routes derive from the database, built on the first request. */
+function createCatalog(db: StationDatabase) {
+  const currentStations = db.accepted.filter((station) => station.kind === "current");
+  const unprefixedIds = new Set(
+    currentStations.filter((s) => !s.id.includes("/")).map((s) => s.id),
+  );
+
+  /** Every bin of each station, keyed by the primary bin's id, primary first. */
+  const binsByStation = new Map<string, { id: string; bin?: number }[]>();
+  for (const station of currentStations) {
+    const { base, bin } = parseCurrentBin(station.id);
+    const bins = binsByStation.get(base) ?? [];
+    if (bin === undefined) bins.unshift({ id: station.id });
+    else bins.push({ id: station.id, bin });
+    binsByStation.set(base, bins);
+  }
+
+  return { db, currentStations, unprefixedIds, binsByStation };
 }
 
-// Every station these routes see comes from the same `stations` list the map is built from.
-function binsOf(station: Pick<Station, "id">) {
+type Catalog = ReturnType<typeof createCatalog>;
+let catalog: Catalog | undefined;
+
+async function loadCatalog() {
+  return (catalog ??= createCatalog(await loadStations()));
+}
+
+// Every station these routes see comes from the same `accepted` list the map is built from.
+function binsOf({ binsByStation }: Catalog, station: Pick<Station, "id">) {
   return binsByStation.get(parseCurrentBin(station.id).base)!;
 }
 
 /** Station fields for listings, plus the flags a client needs to pick and gate a station. */
-function summarize(station: Station) {
+function summarize(catalog: Catalog, station: Station) {
   const { id, name, region, country, continent, latitude, longitude, timezone, type } = station;
   return {
     id,
@@ -74,25 +87,25 @@ function summarize(station: Station) {
     longitude,
     timezone,
     type,
-    ...describe(station),
+    ...describe(catalog, station),
   };
 }
 
-function describe(station: StationFields) {
-  const unavailable = currentStationUnavailable(station);
+function describe(catalog: Catalog, station: StationFields) {
+  const unavailable = currentStationUnavailableIn(catalog.db, station);
   return {
-    bins: binsOf(station),
+    bins: binsOf(catalog, station),
     predictions: unavailable === undefined,
     ...(unavailable && { unavailable: unavailable.message }),
   };
 }
 
-function assertPredictable(station: StationFields) {
-  const unavailable = currentStationUnavailable(station);
+function assertPredictable({ db }: Catalog, station: StationFields) {
+  const unavailable = currentStationUnavailableIn(db, station);
   if (unavailable) throw new RefusedError(REFUSAL_STATUS[unavailable.reason], unavailable.message);
 }
 
-function find(req: Request): Predictor {
+async function find({ unprefixedIds, binsByStation }: Catalog, req: Request): Promise<Predictor> {
   const { source, id } = req.params as { source?: string; id: string };
   const query = source === undefined ? id : `${source}/${id}`;
   const { base, bin } = parseCurrentBin(query);
@@ -101,7 +114,7 @@ function find(req: Request): Predictor {
     throw new RefusedError(404, `Current station not found: ${query}`);
   }
   try {
-    return findCurrentStation(query);
+    return await findCurrentStation(query);
   } catch (error) {
     const bins = binsByStation.get(base);
     if (bin !== undefined && bins) {
@@ -141,14 +154,19 @@ function positionOptions(req: Request) {
  * next one out would answer for a different channel, sometimes hundreds of
  * kilometers away.
  */
-const locatable: Filter = (station) =>
-  primaryCurrent(station) && currentStationUnavailable(station)?.reason !== "no-model";
+const locatable =
+  ({ db }: Catalog): Filter =>
+  (station) =>
+    primaryCurrent(station) && currentStationUnavailableIn(db, station)?.reason !== "no-model";
 
-function nearest(req: Request): { predictor: Predictor; distance: number } {
+async function nearest(catalog: Catalog, req: Request) {
   // No maxDistance, so some current station is always nearest.
-  const [station, distance] = nearestStation({ ...positionOptions(req), filter: locatable })!;
-  assertPredictable(station);
-  return { predictor: findCurrentStation(station.id), distance };
+  const [station, distance] = catalog.db.nearest({
+    ...positionOptions(req),
+    filter: locatable(catalog),
+  })!;
+  assertPredictable(catalog, station);
+  return { predictor: await findCurrentStation(station.id), distance };
 }
 
 function directions(station: StationFields) {
@@ -160,24 +178,24 @@ function directions(station: StationFields) {
   };
 }
 
-function events(predictor: Predictor, span: Span, distance?: number) {
+function events(catalog: Catalog, predictor: Predictor, span: Span, distance?: number) {
   const { station, events } = predictor.getEventsPrediction(span);
   return {
     units: UNITS,
     ...directions(station),
-    station: { ...station, ...describe(station) },
+    station: { ...station, ...describe(catalog, station) },
     ...(distance !== undefined && { distance }),
     // Harmonic stations return every event in each UTC day the span touches.
     events: events.filter(({ time }) => time >= span.start && time <= span.end),
   };
 }
 
-function timeline(predictor: Predictor, span: Span, distance?: number) {
+function timeline(catalog: Catalog, predictor: Predictor, span: Span, distance?: number) {
   const { station, timeline } = predictor.getTimelinePrediction(span);
   return {
     units: UNITS,
     ...directions(station),
-    station: { ...station, ...describe(station) },
+    station: { ...station, ...describe(catalog, station) },
     ...(distance !== undefined && { distance }),
     timeline,
   };
@@ -185,20 +203,22 @@ function timeline(predictor: Predictor, span: Span, distance?: number) {
 
 /** The tidal current routes. */
 export function createCurrentRoutes(options: RouterOptions = {}) {
-  return createApiRouter(currentsOpenapi, options, (router) => {
-    router.get("/events", (req: Request, res: Response) => {
+  return createApiRouter(loadCurrentsOpenapi, options, (router) => {
+    router.get("/events", async (req: Request, res: Response) => {
       const span = spanOptions(req);
-      const { predictor, distance } = nearest(req);
-      res.json(events(predictor, span, distance));
+      const catalog = await loadCatalog();
+      const { predictor, distance } = await nearest(catalog, req);
+      res.json(events(catalog, predictor, span, distance));
     });
 
-    router.get("/timeline", (req: Request, res: Response) => {
+    router.get("/timeline", async (req: Request, res: Response) => {
       const span = spanOptions(req);
-      const { predictor, distance } = nearest(req);
-      res.json(timeline(predictor, span, distance));
+      const catalog = await loadCatalog();
+      const { predictor, distance } = await nearest(catalog, req);
+      res.json(timeline(catalog, predictor, span, distance));
     });
 
-    router.get("/stations", (req: Request, res: Response) => {
+    router.get("/stations", async (req: Request, res: Response) => {
       const query = validate.string(req.query, "query");
       const latitude = validate.number(req.query, "latitude", { min: -90, max: 90 });
       const longitude = validate.number(req.query, "longitude", { min: -180, max: 180 });
@@ -210,46 +230,61 @@ export function createCurrentRoutes(options: RouterOptions = {}) {
       });
       const maxDistance = validate.number(req.query, "maxDistance", { min: 0 });
       const bboxParam = validate.bbox(req.query);
+      const catalog = await loadCatalog();
+      const { db, currentStations } = catalog;
+      const summary = (station: Station) => summarize(catalog, station);
 
       if (query) {
-        return res.json(search(query, { filter: primaryCurrent, maxResults }).map(summarize));
+        res.json(db.search(query, { filter: primaryCurrent, maxResults }).map(summary));
+        return;
       }
 
       if (bboxParam) {
-        return res.json(stationsInBounds(bboxParam, primaryCurrent).map(summarize));
+        res.json(stationsInBounds(db, bboxParam, primaryCurrent).map(summary));
+        return;
       }
 
       if (latitude === undefined || longitude === undefined) {
-        return res.json(currentStations.filter(isPrimaryBin).map(summarize));
+        res.json(currentStations.filter(isPrimaryBin).map(summary));
+        return;
       }
 
       res.json(
-        near({ latitude, longitude, maxResults, maxDistance, filter: primaryCurrent }).map(
-          ([station, distance]) => ({ ...station, distance, ...describe(station) }),
-        ),
+        db
+          .near({ latitude, longitude, maxResults, maxDistance, filter: primaryCurrent })
+          .map(([station, distance]) => ({
+            ...station,
+            distance,
+            ...describe(catalog, station),
+          })),
       );
     });
 
-    const show: RequestHandler = (req, res) => {
-      const station = find(req);
-      res.json({ ...station, ...describe(station) });
+    const show: RequestHandler = async (req, res) => {
+      const catalog = await loadCatalog();
+      const station = await find(catalog, req);
+      res.json({ ...station, ...describe(catalog, station) });
     };
-    const showEvents: RequestHandler = (req, res) => {
+    const showEvents: RequestHandler = async (req, res) => {
       const span = spanOptions(req);
-      const station = find(req);
-      assertPredictable(station);
-      res.json(events(station, span));
+      const catalog = await loadCatalog();
+      const station = await find(catalog, req);
+      assertPredictable(catalog, station);
+      res.json(events(catalog, station, span));
     };
-    const showTimeline: RequestHandler = (req, res) => {
+    const showTimeline: RequestHandler = async (req, res) => {
       const span = spanOptions(req);
-      const station = find(req);
-      assertPredictable(station);
-      res.json(timeline(station, span));
+      const catalog = await loadCatalog();
+      const station = await find(catalog, req);
+      assertPredictable(catalog, station);
+      res.json(timeline(catalog, station, span));
     };
     // Ids without a source prefix (the curated CHS and Boundary Pass records) are a single path segment. Anything else
     // falls through to the source/id routes, which share the two-segment shape.
-    const unprefixedOnly: RequestHandler = (req, _res, next) =>
+    const unprefixedOnly: RequestHandler = async (req, _res, next) => {
+      const { unprefixedIds } = await loadCatalog();
       next(unprefixedIds.has(parseCurrentBin(req.params.id as string).base) ? undefined : "route");
+    };
 
     router.get("/stations/:id", show);
     router.get("/stations/:id/events", unprefixedOnly, showEvents);

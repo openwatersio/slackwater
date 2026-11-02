@@ -1,9 +1,11 @@
 import { describe, test, expect } from "vitest";
-import { stations, stationsById } from "@slackwater/database";
+import { loadStations } from "@slackwater/database";
 import { useStation, useCurrentStation } from "../src/station.js";
 import mockConstituents from "./_mocks/constituents.js";
 import { loadFixture, type FixtureEvent } from "./_mocks/currents-catalog.js";
 import type { Station, StationPredictor, CurrentStation } from "../src/station.js";
+
+const { accepted: stations, byId } = await loadStations();
 
 function findStation(query: string): StationPredictor {
   const found = stations.find((s) => s.id === query || s.source.id === query);
@@ -414,7 +416,7 @@ describe("useCurrentStation", () => {
   const end = new Date("2026-06-02T00:00:00Z");
 
   function dbCurrentStation(id: string): CurrentStation {
-    const found = stationsById.get(id);
+    const found = byId(id);
     if (!found) throw new Error(`Station not found: ${id}`);
     return found as CurrentStation;
   }

@@ -1,12 +1,10 @@
 import {
-  stations,
-  stationsById,
-  near,
-  nearest,
+  loadStations,
   type Filter,
   type NearOptions,
   type NearestOptions,
   type Station as DatabaseStation,
+  type StationDatabase,
 } from "@slackwater/database";
 import {
   useStation,
@@ -25,9 +23,9 @@ import {
 export { slackWindows } from "@slackwater/engine";
 
 // The database carries both tide and current stations; each prediction kind
-// only works with its own.
-const tideStations = stations.filter((station) => station.kind === "tide");
-const currentStations = stations.filter((station) => station.kind === "current");
+// only works with its own. Derived on first use, so importing reads no data.
+let tideStations: DatabaseStation[] | undefined;
+let currentStations: DatabaseStation[] | undefined;
 const kindFilter =
   (kind: "tide" | "current", filter?: Filter): Filter =>
   (station) =>
@@ -39,12 +37,12 @@ const tideFilter = (filter?: Filter) => kindFilter("tide", filter);
  * can be predicted. Secondary bins and unpredictable stations are still found
  * by id.
  */
-const currentFilter = (filter?: Filter) =>
+const currentFilter = (db: StationReferences, filter?: Filter) =>
   kindFilter(
     "current",
     (station) =>
       parseCurrentBin(station.id).bin === undefined &&
-      currentStationUnavailable(station) === undefined &&
+      currentStationUnavailableIn(db, station) === undefined &&
       (filter?.(station) ?? true),
   );
 
@@ -75,12 +73,26 @@ type CurrentStationFields = Pick<DatabaseStation, "name" | "harmonic_constituent
   source: Pick<DatabaseStation["source"], "name">;
 };
 
+/** The database lookup that resolves a subordinate's reference station. */
+type StationReferences = Pick<StationDatabase, "byId">;
+
 /**
  * Why predictions for this current station can't be made, or undefined when
  * they can. CHS terms forbid redistributing its predictions, so its records
  * carry identity only and clients fetch predictions from CHS directly.
  */
-export function currentStationUnavailable(
+export async function currentStationUnavailable(
+  station: CurrentStationFields,
+): Promise<CurrentStationUnavailable | undefined> {
+  return currentStationUnavailableIn(await loadStations(), station);
+}
+
+/**
+ * `currentStationUnavailable` against an already loaded database, for the
+ * synchronous filter callbacks that database lookups take.
+ */
+export function currentStationUnavailableIn(
+  db: StationReferences,
   station: CurrentStationFields,
 ): CurrentStationUnavailable | undefined {
   if (station.source.name === CHS) {
@@ -97,7 +109,7 @@ export function currentStationUnavailable(
       message: `${station.name} has no harmonic constituents or subordinate offsets to predict from`,
     };
   }
-  if (!stationsById.get(referenceId)?.harmonic_constituents.length) {
+  if (!db.byId(referenceId)?.harmonic_constituents.length) {
     return {
       reason: "no-model",
       message: `${station.name} is subordinate to ${referenceId}, which has no harmonic constituents to predict from`,
@@ -111,15 +123,17 @@ export function currentStationUnavailable(
  * reference station a subordinate reduces from. A station that can't be
  * predicted keeps its record, and its prediction methods throw why.
  */
-function useCurrent(station: DatabaseStation, distance?: number): CurrentStationPredictor {
+function useCurrent(
+  db: StationReferences,
+  station: DatabaseStation,
+  distance?: number,
+): CurrentStationPredictor {
   const current = station as CurrentStation;
   const referenceId = current.current?.offsets?.reference;
-  const reference = referenceId
-    ? (stationsById.get(referenceId) as CurrentStation | undefined)
-    : undefined;
+  const reference = referenceId ? (db.byId(referenceId) as CurrentStation | undefined) : undefined;
   const predictor = useCurrentStation(current, { reference, distance });
 
-  const unavailable = currentStationUnavailable(station);
+  const unavailable = currentStationUnavailableIn(db, station);
   if (!unavailable) return predictor;
   const refuse = () => {
     throw new Error(unavailable.message);
@@ -134,7 +148,7 @@ function useCurrent(station: DatabaseStation, distance?: number): CurrentStation
  * ```ts
  * import { getExtremesPrediction } from 'slackwater'
  *
- * const prediction = getExtremesPrediction({
+ * const prediction = await getExtremesPrediction({
  *   latitude: 26.7, // or `lat`
  *   longitude: -80.05, // or `lng` or `lon`
  *   start: new Date('2025-12-17'),
@@ -142,28 +156,29 @@ function useCurrent(station: DatabaseStation, distance?: number): CurrentStation
  *   datum: 'MLLW', // optional, defaults to station's datum
  * })
  */
-export function getExtremesPrediction(options: NearestOptions & StationExtremesOptions) {
-  return nearestStation(options).getExtremesPrediction(options);
+export async function getExtremesPrediction(options: NearestOptions & StationExtremesOptions) {
+  return (await nearestStation(options)).getExtremesPrediction(options);
 }
 
 /**
  * Get timeline prediction using the nearest station to the given position.
  */
-export function getTimelinePrediction(options: NearestOptions & StationTimelineOptions) {
-  return nearestStation(options).getTimelinePrediction(options);
+export async function getTimelinePrediction(options: NearestOptions & StationTimelineOptions) {
+  return (await nearestStation(options)).getTimelinePrediction(options);
 }
 
 /**
  * Get water level at a specific time using the nearest station to the given position.
  */
-export function getWaterLevelAtTime(options: NearestOptions & StationWaterLevelOptions) {
-  return nearestStation(options).getWaterLevelAtTime(options);
+export async function getWaterLevelAtTime(options: NearestOptions & StationWaterLevelOptions) {
+  return (await nearestStation(options)).getWaterLevelAtTime(options);
 }
 
 /**
  * Find the nearest station to the given position.
  */
-export function nearestStation(options: NearestOptions) {
+export async function nearestStation(options: NearestOptions) {
+  const { nearest } = await loadStations();
   const data = nearest({ ...options, filter: tideFilter(options.filter) });
   if (!data) throw new Error(`No stations found with options: ${JSON.stringify(options)}`);
   return useStation(...data);
@@ -173,7 +188,8 @@ export function nearestStation(options: NearestOptions) {
  * Find stations near the given position.
  * @param limit Maximum number of stations to return (default: 10)
  */
-export function stationsNear(options: NearOptions) {
+export async function stationsNear(options: NearOptions) {
+  const { near } = await loadStations();
   return near({ ...options, filter: tideFilter(options.filter) }).map(([station, distance]) =>
     useStation(station, distance),
   );
@@ -182,7 +198,9 @@ export function stationsNear(options: NearOptions) {
 /**
  * Find a specific station by its ID or source ID.
  */
-export function findStation(query: string): StationPredictor {
+export async function findStation(query: string): Promise<StationPredictor> {
+  const { accepted } = await loadStations();
+  tideStations ??= accepted.filter((station) => station.kind === "tide");
   const searches = [(s: Station) => s.id === query, (s: Station) => s.source.id === query];
 
   let found: Station | undefined = undefined;
@@ -204,7 +222,7 @@ export function findStation(query: string): StationPredictor {
  * ```ts
  * import { getCurrentEventsPrediction } from 'slackwater'
  *
- * const prediction = getCurrentEventsPrediction({
+ * const prediction = await getCurrentEventsPrediction({
  *   latitude: 48.4, // or `lat`
  *   longitude: -122.64, // or `lng` or `lon`
  *   start: new Date('2025-12-17'),
@@ -212,28 +230,31 @@ export function findStation(query: string): StationPredictor {
  * })
  * ```
  */
-export function getCurrentEventsPrediction(options: NearestOptions & CurrentStationEventsOptions) {
-  return nearestCurrentStation(options).getEventsPrediction(options);
+export async function getCurrentEventsPrediction(
+  options: NearestOptions & CurrentStationEventsOptions,
+) {
+  return (await nearestCurrentStation(options)).getEventsPrediction(options);
 }
 
 /**
  * Get a signed current speed timeline (knots) using the nearest current
  * station to the given position.
  */
-export function getCurrentTimelinePrediction(
+export async function getCurrentTimelinePrediction(
   options: NearestOptions & CurrentStationTimelineOptions,
 ) {
-  return nearestCurrentStation(options).getTimelinePrediction(options);
+  return (await nearestCurrentStation(options)).getTimelinePrediction(options);
 }
 
 /**
  * Find the nearest current station to the given position that can be
  * predicted, skipping secondary depth bins.
  */
-export function nearestCurrentStation(options: NearestOptions) {
-  const data = nearest({ ...options, filter: currentFilter(options.filter) });
+export async function nearestCurrentStation(options: NearestOptions) {
+  const db = await loadStations();
+  const data = db.nearest({ ...options, filter: currentFilter(db, options.filter) });
   if (!data) throw new Error(`No current stations found with options: ${JSON.stringify(options)}`);
-  return useCurrent(...data);
+  return useCurrent(db, ...data);
 }
 
 /**
@@ -241,10 +262,11 @@ export function nearestCurrentStation(options: NearestOptions) {
  * skipping secondary depth bins.
  * @param limit Maximum number of stations to return (default: 10)
  */
-export function currentStationsNear(options: NearOptions) {
-  return near({ ...options, filter: currentFilter(options.filter) }).map(([station, distance]) =>
-    useCurrent(station, distance),
-  );
+export async function currentStationsNear(options: NearOptions) {
+  const db = await loadStations();
+  return db
+    .near({ ...options, filter: currentFilter(db, options.filter) })
+    .map(([station, distance]) => useCurrent(db, station, distance));
 }
 
 /**
@@ -253,11 +275,13 @@ export function currentStationsNear(options: NearOptions) {
  * found; its prediction methods throw the reason `currentStationUnavailable`
  * gives.
  */
-export function findCurrentStation(query: string): CurrentStationPredictor {
+export async function findCurrentStation(query: string): Promise<CurrentStationPredictor> {
+  const db = await loadStations();
+  currentStations ??= db.accepted.filter((station) => station.kind === "current");
   const found =
     currentStations.find((s) => s.id === query) ??
     currentStations.find((s) => s.source.id === query);
 
   if (!found) throw new Error(`Current station not found: ${query}`);
-  return useCurrent(found);
+  return useCurrent(db, found);
 }

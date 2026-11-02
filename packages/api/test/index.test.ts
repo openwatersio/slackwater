@@ -2,8 +2,11 @@ import { describe, test, expect } from "vitest";
 import express from "express";
 import request from "supertest";
 import { middleware as openApiValidator } from "express-openapi-validator";
-import { stations as dbStations } from "@slackwater/database";
-import { createApp, createRoutes, openapi } from "../src/index.js";
+import { loadStations } from "@slackwater/database";
+import { createApp, createRoutes, loadOpenapi } from "../src/index.js";
+
+const { accepted: dbStations } = await loadStations();
+const openapi = await loadOpenapi();
 
 // Mount express-openapi-validator here (not in createApp) so every request and
 // response in the suite is validated against the OpenAPI spec — this is what
@@ -980,6 +983,19 @@ describe("Runtime validation (without the OpenAPI validator)", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.errors[0].path).toBe("datum");
+  });
+
+  test.each([
+    ["a search", "/stations?query=halifax&maxResults=100"],
+    ["a bounding box", "/stations?bbox=-64,44,-63,45"],
+    ["every station", "/stations"],
+    ["stations near a position", "/stations?latitude=44.67&longitude=-63.57&maxResults=100"],
+  ])("leaves stations with no tide model out of %s", async (_, path) => {
+    const response = await request(app).get(path);
+
+    expect(response.status).toBe(200);
+    expect(response.body.length).toBeGreaterThan(0);
+    expect(response.body.filter((s: { id: string }) => !s.id.includes("/"))).toEqual([]);
   });
 
   test("rejects a repeated query parameter", async () => {

@@ -70,7 +70,7 @@ npm install slackwater
 ```typescript
 import { getExtremesPrediction } from "slackwater";
 
-const prediction = getExtremesPrediction({
+const prediction = await getExtremesPrediction({
   latitude: 26.7, // or `lat`
   longitude: -80.05, // or `lng` or `lon`
   start: new Date("2025-12-17"),
@@ -101,7 +101,7 @@ console.log(prediction);
 ```typescript
 import { getTimelinePrediction } from "slackwater";
 
-const timeline = getTimelinePrediction({
+const timeline = await getTimelinePrediction({
   lat: 26.77,
   lon: -80.05,
   start: new Date("2025-12-19T00:00:00-05:00"),
@@ -134,7 +134,7 @@ console.log(timeline);
 ```typescript
 import { getWaterLevelAtTime } from "slackwater";
 
-const prediction = getWaterLevelAtTime({
+const prediction = await getWaterLevelAtTime({
   lat: 26.77,
   lon: -80.05,
   time: new Date("2025-12-19T00:30:00-05:00"),
@@ -166,7 +166,7 @@ Slackwater uses [@slackwater/database](https://github.com/openwatersio/slackwate
 ```typescript
 import { nearestStation } from "slackwater";
 
-const station = nearestStation({ lat: 26.7, lon: -80.05 });
+const station = await nearestStation({ lat: 26.7, lon: -80.05 });
 console.log(`${station.name} (${station.source.id})`); // Fort Lauderdale, FL (8722588)
 ```
 
@@ -194,7 +194,7 @@ station.getWaterLevelAt({ time: new Date("2025-12-19T00:30:00-00:00") });
 ```typescript
 import { stationsNear } from "slackwater";
 
-stationsNear({ latitude: 45.6, longitude: -122.7 }, 5).forEach((s) => {
+(await stationsNear({ latitude: 45.6, longitude: -122.7 }, 5)).forEach((s) => {
   console.log(`${s.name} (${s.source.id}) - ${(s.distance / 1000).toFixed(2)} km away`);
 });
 // Vancouver (9440083) - 3.49 km away
@@ -210,10 +210,10 @@ stationsNear({ latitude: 45.6, longitude: -122.7 }, 5).forEach((s) => {
 import { findStation } from "slackwater";
 
 // Find station by Slackwater ID
-findStation("noaa/8443970"); // Boston
+await findStation("noaa/8443970"); // Boston
 
 // Find station by source ID (e.g. NOAA)
-findStation("9440083"); // Vancouver
+await findStation("9440083"); // Vancouver
 ```
 
 ### Current predictions
@@ -232,11 +232,11 @@ const options = {
 
 // Slack, max flood, and max ebb events in time order. Flood and ebb events
 // carry the station's direction in degrees true when it publishes one.
-const { station, events } = getCurrentEventsPrediction(options);
+const { station, events } = await getCurrentEventsPrediction(options);
 // { time: Date, speed: -5.2, kind: "maxEbb", direction: 281.5 }
 
 // The signed speed curve, sampled every 10 minutes by default.
-const { timeline } = getCurrentTimelinePrediction(options);
+const { timeline } = await getCurrentTimelinePrediction(options);
 
 // The windows where |speed| stays under a threshold around a reversal.
 const windows = slackWindows(timeline, 0.5);

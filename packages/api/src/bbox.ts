@@ -1,7 +1,11 @@
-import { bbox, type Filter } from "@slackwater/database";
+import type { Filter, StationDatabase } from "@slackwater/database";
 
 /** The database index expects west <= east, so query each side of a crossing separately. */
-export function stationsInBounds(bounds: Parameters<typeof bbox>[0], filter: Filter) {
+export function stationsInBounds(
+  { bbox }: Pick<StationDatabase, "bbox">,
+  bounds: Parameters<StationDatabase["bbox"]>[0],
+  filter: Filter,
+) {
   const [west, south, east, north] = bounds;
   if (west <= east) return bbox(bounds, { filter });
 

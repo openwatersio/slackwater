@@ -3,7 +3,7 @@ import compression from "compression";
 import { createHash } from "node:crypto";
 import { createRoutes } from "./routes.js";
 import { createCurrentRoutes } from "./currents.js";
-import openapi, { currentsOpenapi } from "./openapi.js";
+import { loadOpenapi, loadCurrentsOpenapi } from "./openapi.js";
 import pkg from "../package.json" with { type: "json" };
 import cors from "cors";
 
@@ -81,4 +81,6 @@ export function createApp({
   return app;
 }
 
-export { createRoutes, createCurrentRoutes, openapi, currentsOpenapi };
+export { createRoutes, createCurrentRoutes, loadOpenapi, loadCurrentsOpenapi };
+export type Openapi = Awaited<ReturnType<typeof loadOpenapi>>;
+export type CurrentsOpenapi = Awaited<ReturnType<typeof loadCurrentsOpenapi>>;

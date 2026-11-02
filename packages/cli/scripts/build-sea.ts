@@ -25,14 +25,14 @@ if (!existsSync(distDir)) {
 }
 
 // @slackwater/database's Node build reads dist/generated/slackwater.tcdb from
-// disk relative to import.meta.url, which is empty in a CJS bundle and has no
+// disk relative to import.meta.url when loadStations() is called, which is empty in a CJS bundle and has no
 // file behind it in a single executable. Embed the file as an SEA asset and
 // swap the read for node:sea's getAsset.
 const DATABASE_ASSET = "slackwater.tcdb";
 const databaseEntry = fileURLToPath(import.meta.resolve("@slackwater/database"));
 const databaseFile = resolve(dirname(databaseEntry), "../generated/slackwater.tcdb");
-// Matches `readFileSync(new URL("../generated/slackwater.tcdb", import.meta.url))`
-// in the minified bundle, where readFileSync is an arbitrary local identifier.
+// Matches `readFile(new URL("../generated/slackwater.tcdb", import.meta.url))`
+// in the minified bundle, where readFile is an arbitrary local identifier.
 const databaseRead =
   /[\w$]+\(\s*new URL\(\s*(["'`])\.\.\/generated\/slackwater\.tcdb\1\s*,\s*import\.meta\.url\s*\)\s*\)/g;
 
