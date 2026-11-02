@@ -28,7 +28,6 @@ export function createRoutes(options: RouterOptions = {}) {
         await getExtremesPrediction({
           ...positionOptions(req, { required: true }),
           ...(await predictionOptions(req)),
-          filter: hasTideModel,
         }),
       );
     });
@@ -39,7 +38,6 @@ export function createRoutes(options: RouterOptions = {}) {
       const options = {
         ...positionOptions(req, { required: true }),
         ...(await predictionOptions(req)),
-        filter: hasTideModel,
       };
       try {
         res.json(await getTimelinePrediction(options));
@@ -90,7 +88,6 @@ export function createRoutes(options: RouterOptions = {}) {
           longitude,
           maxResults,
           maxDistance,
-          filter: hasTideModel,
         }),
       );
     });
