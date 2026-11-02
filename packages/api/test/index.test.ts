@@ -985,6 +985,19 @@ describe("Runtime validation (without the OpenAPI validator)", () => {
     expect(response.body.errors[0].path).toBe("datum");
   });
 
+  test.each([
+    ["a search", "/stations?query=halifax&maxResults=100"],
+    ["a bounding box", "/stations?bbox=-64,44,-63,45"],
+    ["every station", "/stations"],
+    ["stations near a position", "/stations?latitude=44.67&longitude=-63.57&maxResults=100"],
+  ])("leaves stations with no tide model out of %s", async (_, path) => {
+    const response = await request(app).get(path);
+
+    expect(response.status).toBe(200);
+    expect(response.body.length).toBeGreaterThan(0);
+    expect(response.body.filter((s: { id: string }) => !s.id.includes("/"))).toEqual([]);
+  });
+
   test("rejects a repeated query parameter", async () => {
     const response = await request(app).get("/stations?query=harbor&query=bay");
 

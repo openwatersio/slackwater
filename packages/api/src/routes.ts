@@ -11,12 +11,14 @@ import * as validate from "./validate.js";
 import { createApiRouter, type RouterOptions } from "./router.js";
 import { stationsInBounds } from "./bbox.js";
 
-// The database also carries current stations, which createCurrentRoutes serves.
-const tideOnly = (station: Station) => station.kind === "tide";
 // CHS tide stations carry identity only, since CHS terms forbid re-serving its
 // predictions; picking one by location would serve a flat zero tide.
 const hasTideModel = (station: Station) =>
   station.harmonic_constituents.length > 0 || station.offsets !== undefined;
+
+// The database also carries current stations, which createCurrentRoutes serves.
+// A listing only offers stations this API can predict and route to.
+const tideOnly = (station: Station) => station.kind === "tide" && hasTideModel(station);
 
 /** The tide routes. */
 export function createRoutes(options: RouterOptions = {}) {
@@ -88,6 +90,7 @@ export function createRoutes(options: RouterOptions = {}) {
           longitude,
           maxResults,
           maxDistance,
+          filter: hasTideModel,
         }),
       );
     });
