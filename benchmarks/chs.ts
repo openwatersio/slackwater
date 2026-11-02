@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import { createWriteStream } from "fs";
 import { join } from "path";
 import { findStation } from "slackwater";
-import { stations as db } from "@slackwater/database";
+import { loadStations } from "@slackwater/database";
 import createFetch from "make-fetch-happen";
 
 const __dirname = new URL(".", import.meta.url).pathname;
@@ -17,6 +17,7 @@ const CHS_API = "https://api-sine.dfo-mpo.gc.ca/api/v1";
 
 // TICON ids for Canadian MEDS stations embed the CHS station code:
 // "sidney_bc-7260-can-meds" -> CHS code "07260".
+const { accepted: db } = await loadStations();
 const stations = db
   .filter((station) => station.source.id.endsWith("-can-meds"))
   .map((station) => station.source.id);
@@ -133,7 +134,7 @@ for (const id of stations) {
           : ("L" as const),
   }));
 
-  const station = findStation(["ticon", id].join("/"));
+  const station = await findStation(["ticon", id].join("/"));
 
   // Get start/end dates to match CHS data
   const start = new Date(chsEvents[0].time - MATCH_WINDOW);

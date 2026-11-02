@@ -6,6 +6,8 @@ import * as validate from "../src/validate.js";
 // endpoint suite mounts the OpenAPI validator in front, so it shadows these on
 // the rejection paths. Test them directly here.
 
+const DATUMS = ["MLLW", "MSL"];
+
 describe("validate.number", () => {
   test("coerces numeric strings", () => {
     expect(validate.number({ latitude: "26.772" }, "latitude")).toBe(26.772);
@@ -62,15 +64,15 @@ describe("validate.date", () => {
 
 describe("validate.datum", () => {
   test("accepts a valid datum", () => {
-    expect(validate.datum({ datum: "MLLW" })).toBe("MLLW");
+    expect(validate.datum({ datum: "MLLW" }, DATUMS)).toBe("MLLW");
   });
 
   test("returns undefined when absent", () => {
-    expect(validate.datum({})).toBeUndefined();
+    expect(validate.datum({}, DATUMS)).toBeUndefined();
   });
 
   test("throws for an unknown datum", () => {
-    expect(() => validate.datum({ datum: "BOGUS" })).toThrow(validate.ValidationError);
+    expect(() => validate.datum({ datum: "BOGUS" }, DATUMS)).toThrow(validate.ValidationError);
   });
 });
 

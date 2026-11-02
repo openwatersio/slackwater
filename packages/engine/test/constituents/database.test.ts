@@ -1,7 +1,9 @@
 import { test, expect } from "vitest";
-import { stations } from "@slackwater/database";
+import { loadStations } from "@slackwater/database";
 import constituents from "../../src/constituents/index.js";
 import type { Constituent } from "../../src/constituents/index.js";
+
+const { accepted: stations } = await loadStations();
 
 const usedConstituents = new Set(
   stations.flatMap((station) => station.harmonic_constituents || []).map(({ name }) => name),

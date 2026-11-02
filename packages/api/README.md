@@ -48,6 +48,8 @@ createApp({ prefix: "/", currentsPrefix: "/currents" }); // /extremes, /stations
 
 ### As routers
 
+`createApp`, `createRoutes`, and `createCurrentRoutes` are synchronous, and the station database loads on the first request. `loadOpenapi()` and `loadCurrentsOpenapi()` resolve to each route group's OpenAPI document, with the `Openapi` and `CurrentsOpenapi` types for it.
+
 `createRoutes()` returns the tide routes and `createCurrentRoutes()` the current routes, each with its own `/` and `/openapi.json`. Mount them wherever you like:
 
 ```typescript

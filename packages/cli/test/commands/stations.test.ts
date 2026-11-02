@@ -1,7 +1,9 @@
 import { describe, test, expect, afterEach } from "vitest";
 import nock from "nock";
-import { stations as dbStations, search, near, type Station } from "@slackwater/database";
+import { loadStations, type Station } from "@slackwater/database";
 import { run } from "../helpers.js";
+
+const { accepted: dbStations, near, search } = await loadStations();
 
 afterEach(() => {
   nock.cleanAll();

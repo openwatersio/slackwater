@@ -24,7 +24,7 @@ import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { stations } from "@slackwater/database";
+import { loadStations } from "@slackwater/database";
 import {
   chsCurrentFit,
   createCurrentPredictor,
@@ -118,7 +118,7 @@ interface Gate {
 }
 const curated: Gate[] = process.env.GATES
   ? JSON.parse(await readFile(process.env.GATES, "utf-8"))
-  : stations.filter(
+  : (await loadStations()).accepted.filter(
       (s) => s.kind === "current" && s.source.name === "Canadian Hydrographic Service",
     );
 const byId = (a: Gate, b: Gate) => a.id.localeCompare(b.id);
