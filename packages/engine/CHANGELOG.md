@@ -1,5 +1,11 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.8
+
+### Minor Changes
+
+- [#466](https://github.com/openwatersio/slackwater/pull/466) [`7f8a8d6`](https://github.com/openwatersio/slackwater/commit/7f8a8d6b7c037f3e0b3f34296e73bf4fdebe6d4c) Thanks [@clarkbw](https://github.com/clarkbw)! - Add `chsCurrentFit.stamp`, which identifies the CHS current gate recipe. It changes whenever the recipe or the fitting and prediction code would move a fixed synthetic gate's predicted velocity by 1e-4 kn or more, a slack or peak by 30 seconds or more, or a peak's speed by 0.001 kn or more, so a fitted model and a validation result can record which recipe they came from. SlackwaterKit and the Kotlin engine export the same value as `ChsCurrentFit.stamp` and `ChsCurrentFit.STAMP`.
+
 ## 1.0.0-beta.7
 
 ### Minor Changes
