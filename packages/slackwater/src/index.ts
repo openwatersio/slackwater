@@ -32,7 +32,18 @@ const kindFilter =
   (kind: "tide" | "current", filter?: Filter): Filter =>
   (station) =>
     station.kind === kind && (filter?.(station) ?? true);
-const tideFilter = (filter?: Filter) => kindFilter("tide", filter);
+
+// CHS tide stations carry identity only, since CHS terms forbid re-serving its
+// predictions; picking one by location would serve a flat zero tide.
+const hasTideModel = (station: DatabaseStation) =>
+  station.harmonic_constituents.length > 0 || station.offsets !== undefined;
+
+/**
+ * Location lookups only pick stations that can be predicted. The rest are still
+ * found by id.
+ */
+const tideFilter = (filter?: Filter) =>
+  kindFilter("tide", (station) => hasTideModel(station) && (filter?.(station) ?? true));
 
 /**
  * Location lookups only pick a station's primary bin, and only stations that
