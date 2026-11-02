@@ -62,8 +62,8 @@ const defaultEnd = new Date("2025-01-18T00:00:00Z");
 
 describe("prediction snapshots", () => {
   STATIONS.forEach(([id, start = defaultStart, end = defaultEnd]) => {
-    it(id, () => {
-      const station = findStation(id);
+    it(id, async () => {
+      const station = await findStation(id);
       const { extremes, datum } = station.getExtremesPrediction({ start, end });
 
       expect({

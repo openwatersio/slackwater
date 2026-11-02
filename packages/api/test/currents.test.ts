@@ -2,14 +2,18 @@ import { describe, test, expect } from "vitest";
 import express from "express";
 import request from "supertest";
 import { middleware as openApiValidator } from "express-openapi-validator";
-import { stations as dbStations } from "@slackwater/database";
+import { loadStations } from "@slackwater/database";
 import {
   createApp,
   createRoutes,
   createCurrentRoutes,
-  openapi,
-  currentsOpenapi,
+  loadOpenapi,
+  loadCurrentsOpenapi,
 } from "../src/index.js";
+
+const { accepted: dbStations } = await loadStations();
+const openapi = await loadOpenapi();
+const currentsOpenapi = await loadCurrentsOpenapi();
 
 // Every request and response is validated against the OpenAPI spec, as in index.test.ts.
 const app = createApp({

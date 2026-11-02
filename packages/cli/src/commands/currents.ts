@@ -1,5 +1,4 @@
 import { Command, Option } from "commander";
-import { search, stations as allStations, near } from "@slackwater/database";
 import getFormat, { type Formats } from "../formatters/index.js";
 import { resolveCoordinates } from "../lib/station.js";
 import { positiveInteger, positiveNumber, stationLimit } from "../lib/options.js";
@@ -9,6 +8,7 @@ import {
   currentTimeline,
   currentSlackWindows,
   describeCurrentStation,
+  loadCatalog,
   primaryCurrent,
   type CurrentStationResult,
   type Span,
@@ -96,6 +96,8 @@ const stations = new Command("stations")
   .addOption(formatOption())
   .action(async (query: string | undefined, opts) => {
     const limit = stationLimit(opts);
+    const catalog = await loadCatalog();
+    const { accepted, near, search } = catalog.db;
     let results: CurrentStationResult[];
 
     if (opts.near || opts.ip) {
@@ -110,13 +112,16 @@ const stations = new Command("stations")
       results = near({ ...coords, maxResults: limit, filter }).map(([station, distance]) => ({
         ...station,
         distance,
-        ...describeCurrentStation(station),
+        ...describeCurrentStation(catalog, station),
       }));
     } else {
       const found = query
         ? search(query, { maxResults: limit, filter: primaryCurrent })
-        : allStations.filter(primaryCurrent).slice(0, limit);
-      results = found.map((station) => ({ ...station, ...describeCurrentStation(station) }));
+        : accepted.filter(primaryCurrent).slice(0, limit);
+      results = found.map((station) => ({
+        ...station,
+        ...describeCurrentStation(catalog, station),
+      }));
     }
 
     if (!results.length) {

@@ -7,7 +7,9 @@ import {
   stationsNear,
 } from "../src/index.js";
 import { describe, test, expect } from "vitest";
-import { stations as dbStations } from "@slackwater/database";
+import { loadStations } from "@slackwater/database";
+
+const { accepted: dbStations } = await loadStations();
 
 describe("getExtremesPrediction", () => {
   const options = {
@@ -18,8 +20,8 @@ describe("getExtremesPrediction", () => {
     datum: "MLLW",
   };
 
-  test("gets extremes from nearest station", () => {
-    const prediction = getExtremesPrediction(options);
+  test("gets extremes from nearest station", async () => {
+    const prediction = await getExtremesPrediction(options);
 
     expect(prediction.station.id).toEqual("noaa/8722588");
     expect(prediction.datum).toBe("MLLW");
@@ -34,8 +36,8 @@ describe("getExtremesPrediction", () => {
     expect(prediction.units).toBe("meters");
   });
 
-  test("with units=feet", () => {
-    const prediction = getExtremesPrediction({ ...options, units: "feet" });
+  test("with units=feet", async () => {
+    const prediction = await getExtremesPrediction({ ...options, units: "feet" });
     expect(prediction.units).toBe("feet");
     expect(prediction.extremes[0].level).toBeCloseTo(0.07, 2);
     expect(prediction.extremes[1].level).toBeCloseTo(2.99, 2);
@@ -43,8 +45,8 @@ describe("getExtremesPrediction", () => {
 });
 
 describe("getTimelinePrediction", () => {
-  test("gets timeline from nearest station", () => {
-    const prediction = getTimelinePrediction({
+  test("gets timeline from nearest station", async () => {
+    const prediction = await getTimelinePrediction({
       lat: 26.772,
       lon: -80.05,
       start: new Date("2025-12-19T00:00:00-05:00"),
@@ -57,8 +59,8 @@ describe("getTimelinePrediction", () => {
     expect(prediction.timeline.length).toBe(7); // Every 10 minutes for 1 hour = 7 points
   });
 
-  test("with units=feet", () => {
-    const prediction = getTimelinePrediction({
+  test("with units=feet", async () => {
+    const prediction = await getTimelinePrediction({
       lat: 26.772,
       lon: -80.05,
       start: new Date("2025-12-19T00:00:00-05:00"),
@@ -71,8 +73,8 @@ describe("getTimelinePrediction", () => {
 });
 
 describe("getWaterLevelAtTime", () => {
-  test("gets water level at specific time from nearest station", () => {
-    const prediction = getWaterLevelAtTime({
+  test("gets water level at specific time from nearest station", async () => {
+    const prediction = await getWaterLevelAtTime({
       lat: 26.772,
       lon: -80.05,
       time: new Date("2025-12-19T00:30:00-05:00"),
@@ -85,8 +87,8 @@ describe("getWaterLevelAtTime", () => {
     expect(typeof prediction.level).toBe("number");
   });
 
-  test("with units=feet", () => {
-    const prediction = getWaterLevelAtTime({
+  test("with units=feet", async () => {
+    const prediction = await getWaterLevelAtTime({
       lat: 26.772,
       lon: -80.05,
       time: new Date("2025-12-19T00:30:00-05:00"),
@@ -97,8 +99,8 @@ describe("getWaterLevelAtTime", () => {
     expect(prediction.level).toBeCloseTo(-1.43, 2);
   });
 
-  test("with unknown units", () => {
-    expect(() =>
+  test("with unknown units", async () => {
+    await expect(
       getWaterLevelAtTime({
         lat: 26.772,
         lon: -80.05,
@@ -106,16 +108,16 @@ describe("getWaterLevelAtTime", () => {
         // @ts-expect-error Testing unknown units
         units: "fathoms",
       }),
-    ).toThrow("Unsupported units: fathoms");
+    ).rejects.toThrow("Unsupported units: fathoms");
   });
 });
 
-describe("for a specific station", () => {
-  const station = nearestStation({ lat: 45.6, lon: -122.7 });
+describe("for a specific station", async () => {
+  const station = await nearestStation({ lat: 45.6, lon: -122.7 });
 
   describe("getExtremesPrediction", () => {
-    test("can return extremes from station", () => {
-      const station = nearestStation({ lat: 26.772, lon: -80.05 });
+    test("can return extremes from station", async () => {
+      const station = await nearestStation({ lat: 26.772, lon: -80.05 });
 
       const start = new Date("2025-12-17T00:00:00-05:00");
       const end = new Date("2025-12-18T05:00:00-05:00");
@@ -136,7 +138,7 @@ describe("for a specific station", () => {
   });
 
   describe("getTimelinePrediction", () => {
-    test("gets timeline", () => {
+    test("gets timeline", async () => {
       const prediction = station.getTimelinePrediction({
         start: new Date("2025-12-19T00:00:00Z"),
         end: new Date("2025-12-19T01:00:00Z"),
@@ -148,7 +150,7 @@ describe("for a specific station", () => {
   });
 
   describe("getWaterLevelAtTime", () => {
-    test("gets water level at specific time", () => {
+    test("gets water level at specific time", async () => {
       const prediction = station.getWaterLevelAtTime({
         time: new Date("2025-12-19T00:30:00Z"),
       });
@@ -165,22 +167,22 @@ describe("nearestStation", () => {
     { lat: 26.772, lng: -80.052 },
     { latitude: 26.772, longitude: -80.052 },
   ].forEach((position) => {
-    test(`finds station with ${Object.keys(position).join("/")}`, () => {
-      const station = nearestStation(position);
+    test(`finds station with ${Object.keys(position).join("/")}`, async () => {
+      const station = await nearestStation(position);
       expect(station.source.id).toBe("8722588");
     });
   });
 
-  test("raises error when no stations found", () => {
-    expect(() => nearestStation({ lat: 0, lon: 0, maxDistance: 1 })).toThrow(
+  test("raises error when no stations found", async () => {
+    await expect(nearestStation({ lat: 0, lon: 0, maxDistance: 1 })).rejects.toThrow(
       'No stations found with options: {"lat":0,"lon":0,"maxDistance":1}',
     );
   });
 });
 
 describe("stationsNear", () => {
-  test("finds nearby stations", () => {
-    const nearby = stationsNear({ lat: 26.772, lon: -80.05, maxResults: 3 });
+  test("finds nearby stations", async () => {
+    const nearby = await stationsNear({ lat: 26.772, lon: -80.05, maxResults: 3 });
     expect(nearby.length).toBe(3);
   });
 });
@@ -191,13 +193,13 @@ describe("excludes current stations", () => {
   const currentIds = new Set(dbStations.filter((s) => s.kind === "current").map((s) => s.id));
   const current = dbStations.find((s) => s.kind === "current")!;
 
-  test("nearestStation at a current station's own position", () => {
-    const station = nearestStation({ lat: current.latitude, lon: current.longitude });
+  test("nearestStation at a current station's own position", async () => {
+    const station = await nearestStation({ lat: current.latitude, lon: current.longitude });
     expect(currentIds.has(station.id)).toBe(false);
   });
 
-  test("stationsNear around a current station", () => {
-    const nearby = stationsNear({
+  test("stationsNear around a current station", async () => {
+    const nearby = await stationsNear({
       lat: current.latitude,
       lon: current.longitude,
       maxResults: 5,
@@ -206,25 +208,25 @@ describe("excludes current stations", () => {
     expect(nearby.some((station) => currentIds.has(station.id))).toBe(false);
   });
 
-  test("findStation refuses a current station's id", () => {
-    expect(() => findStation(current.id)).toThrow(`Station not found: ${current.id}`);
+  test("findStation refuses a current station's id", async () => {
+    await expect(findStation(current.id)).rejects.toThrow(`Station not found: ${current.id}`);
   });
 });
 
 describe("findStation", () => {
-  test("raises error for unknown station", () => {
-    expect(() => findStation("unknown")).toThrow("Station not found: unknown");
+  test("raises error for unknown station", async () => {
+    await expect(findStation("unknown")).rejects.toThrow("Station not found: unknown");
   });
 
-  test("finds station by id", () => {
-    const station = findStation("noaa/8443970");
+  test("finds station by id", async () => {
+    const station = await findStation("noaa/8443970");
     expect(station).toBeDefined();
     expect(station.source.id).toBe("8443970");
     expect(station.getExtremesPrediction).toBeDefined();
   });
 
-  test("finds station by source id", () => {
-    const station = findStation("8443970");
+  test("finds station by source id", async () => {
+    const station = await findStation("8443970");
     expect(station).toBeDefined();
     expect(station.id).toBe("noaa/8443970");
     expect(station.getExtremesPrediction).toBeDefined();

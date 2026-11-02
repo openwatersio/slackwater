@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import { createWriteStream } from "fs";
 import { join } from "path";
 import { findStation } from "slackwater";
-import { stations as db } from "@slackwater/database";
+import { loadStations } from "@slackwater/database";
 import createFetch from "make-fetch-happen";
 
 const __dirname = new URL(".", import.meta.url).pathname;
@@ -13,6 +13,7 @@ const fetch = createFetch.defaults({
   retry: 10,
 });
 
+const { accepted: db } = await loadStations();
 const stations = db
   .filter((station) => station.kind === "tide" && station.source.url.includes("noaa.gov"))
   .map((station) => station.source.id);
@@ -58,7 +59,7 @@ type Extreme = {
 };
 
 for (const id of stations) {
-  const station = findStation(["noaa", id].join("/"));
+  const station = await findStation(["noaa", id].join("/"));
   const datum = station.defaultDatum ?? "MTL";
 
   const noaaEvents: Extreme[] | undefined = (await fetchNOAAdata(id, datum)).predictions?.map(

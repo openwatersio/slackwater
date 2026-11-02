@@ -38,7 +38,7 @@
     "prepack": "npm run build"
   },
   "dependencies": {
-    "@slackwater/database": "^1.0.0-beta.0",
+    "@slackwater/database": "https://pkg.pr.new/@slackwater/database@372",
     "@slackwater/engine": "^1.0.0-beta.6"
   }
 }
