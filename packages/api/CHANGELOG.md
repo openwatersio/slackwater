@@ -1,5 +1,19 @@
 # @neaps/api
 
+## 1.0.0-beta.4
+
+### Major Changes
+
+- [#487](https://github.com/openwatersio/slackwater/pull/487) [`0912bce`](https://github.com/openwatersio/slackwater/commit/0912bcebaa18d328130d58347a17e5e8370fc752) Thanks [@bkeepers](https://github.com/bkeepers)! - Importing `slackwater` or `@slackwater/api` no longer reads the station database, which loads on first use. In `slackwater`, `findStation`, `nearestStation`, `stationsNear`, `findCurrentStation`, `nearestCurrentStation`, `currentStationsNear`, `currentStationUnavailable`, and the `get*Prediction` helpers now return promises, so add `await` to each call. `currentStationUnavailableIn(db, station)` is the synchronous form for filter callbacks, taking a database from `loadStations()`. In `@slackwater/api`, the `openapi` and `currentsOpenapi` exports are now `loadOpenapi()` and `loadCurrentsOpenapi()`, with `Openapi` and `CurrentsOpenapi` types. `createApp`, `createRoutes`, and `createCurrentRoutes` are unchanged. `GET /stations` leaves out tide stations with no model, which it could not route to.
+
+### Patch Changes
+
+- [#488](https://github.com/openwatersio/slackwater/pull/488) [`5b68a75`](https://github.com/openwatersio/slackwater/commit/5b68a759bc88a6dd0e06d95a78a7bc4ebc5f32b5) Thanks [@bkeepers](https://github.com/bkeepers)! - `nearestStation`, `stationsNear`, and the predictions that use them skip tide stations with no model, such as CHS ports, instead of returning a flat zero tide. `findStation` still finds them by id. The `/tides/stations` listing by coordinates no longer includes them.
+
+- [#486](https://github.com/openwatersio/slackwater/pull/486) [`9d89885`](https://github.com/openwatersio/slackwater/commit/9d89885c50b568f8be02699af37e5cec80b2e63a) Thanks [@tstotzer](https://github.com/tstotzer)! - Station listings include stations on both sides of the dateline when a bounding box crosses 180°.
+- Updated dependencies [[`0912bce`](https://github.com/openwatersio/slackwater/commit/0912bcebaa18d328130d58347a17e5e8370fc752), [`5b68a75`](https://github.com/openwatersio/slackwater/commit/5b68a759bc88a6dd0e06d95a78a7bc4ebc5f32b5)]:
+  - slackwater@1.0.0-beta.4
+
 ## 1.0.0-beta.3
 
 ### Minor Changes
