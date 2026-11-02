@@ -8,7 +8,7 @@ import { timelineQuery } from "./hooks/use-timeline.js";
 import { getDefaultUnits } from "./utils/defaults.js";
 import { NEARBY_RESULTS, PAGE_NEARBY_RESULTS, nearbyParams } from "./utils/page.js";
 import { stationWindow } from "./utils/schedule.js";
-import { fortnightWindow } from "./utils/standing.js";
+import { fortnightWindow, outlookWindow } from "./utils/standing.js";
 import { startOfDay } from "./utils/time.js";
 
 export interface PrefetchTideStationOptions {
@@ -21,7 +21,7 @@ export interface PrefetchTideStationOptions {
 /**
  * Prefetch all queries that the `<TideStation>` component will make: the
  * station, its week's window, the fortnight of extremes its
- * Range tile ranks against, and its Nearby lists. Call this on the server,
+ * Range tile ranks against, its outlook week, and its Nearby lists. Call this on the server,
  * then use `dehydrate(queryClient)` to pass the cache to the client via a
  * pre-hydrated QueryClient. Like `prefetchQuery`, it resolves when a request
  * fails and leaves that query in its error state.
@@ -44,6 +44,7 @@ export async function prefetchTideStation(
   // The page's own query builders, so the keys match what it reads.
   const config = { baseUrl, units: units ?? getDefaultUnits(locale) };
   const week = { id, ...stationWindow(startOfDay(now, station.timezone)) };
+  const outlook = { id, ...outlookWindow(startOfDay(now, station.timezone), station.timezone) };
   const fortnight = { id, ...fortnightWindow(now, station.timezone) };
   const nearby = nearbyParams(station.latitude, station.longitude, PAGE_NEARBY_RESULTS, true);
   const predictions =
@@ -53,6 +54,7 @@ export async function prefetchTideStation(
           queryClient.prefetchQuery(timelineQuery(config, week)),
           queryClient.prefetchQuery(extremesQuery(config, week)),
           queryClient.prefetchQuery(extremesQuery(config, fortnight)),
+          queryClient.prefetchQuery(extremesQuery(config, outlook)),
         ];
 
   await Promise.all([...predictions, prefetchNearby(queryClient, baseUrl, nearby)]);

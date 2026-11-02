@@ -1,11 +1,12 @@
+import { StationFilters, type StationFilter } from "./StationFilters.js";
+import { StationList } from "./StationList.js";
 import { useEffect, useId, useRef, useState } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { useCurrentStations } from "../hooks/use-current-station.js";
 import { useStations } from "../hooks/use-stations.js";
-import type { StationSummary } from "../types.js";
 import { SEARCH_LIMIT, rankSearch } from "../utils/card.js";
-import { StationCard, type CardStation } from "./StationCard.js";
+import { type CardStation } from "./StationCard.js";
 import { StationCredits } from "./StationCredits.js";
 
 export interface StationSearchProps {
@@ -14,14 +15,6 @@ export interface StationSearchProps {
   placeholder?: string;
   className?: string;
 }
-
-type Filter = StationSummary["kind"] | undefined;
-
-const CHIPS: { label: string; spoken: string; kind: Filter }[] = [
-  { label: "All", spoken: "Show all", kind: undefined },
-  { label: "Tides", spoken: "Show tides", kind: "tide" },
-  { label: "Currents", spoken: "Show currents", kind: "current" },
-];
 
 const GLASS = "bg-white/8 backdrop-blur-[20px] backdrop-saturate-[1.4]";
 
@@ -36,7 +29,7 @@ export function StationSearch({
 }: StationSearchProps) {
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState("");
-  const [filter, setFilter] = useState<Filter>();
+  const [filter, setFilter] = useState<StationFilter>();
   const resultsId = useId();
   const input = useRef<HTMLInputElement>(null);
 
@@ -127,31 +120,7 @@ export function StationSearch({
         )}
       </div>
 
-      <div className="flex flex-wrap gap-x-1.5 px-1">
-        {CHIPS.map((chip) => {
-          const selected = filter === chip.kind;
-          return (
-            <button
-              key={chip.label}
-              type="button"
-              aria-label={chip.spoken}
-              aria-pressed={selected}
-              // Tapping the active filter returns to All.
-              onClick={() => setFilter(selected ? undefined : chip.kind)}
-              className="flex min-h-11 cursor-pointer items-center border-0 bg-transparent p-0"
-            >
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${GLASS} ${
-                  selected ? "text-(--sw-go)" : "text-(--sw-foam)/60"
-                }`}
-                style={selected ? { backgroundColor: "rgb(136 184 104 / 0.25)" } : undefined}
-              >
-                {chip.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+      <StationFilters value={filter} onChange={setFilter} />
 
       <div id={resultsId} className="flex flex-col gap-3 pt-1.5">
         <p className="sr-only" role="status">
@@ -171,15 +140,7 @@ export function StationSearch({
             </p>
           )
         )}
-        {results.length > 0 && (
-          <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,360px),1fr))] gap-3 p-0">
-            {results.map((station) => (
-              <li key={`${station.kind}:${station.id}`}>
-                <StationCard station={station} onSelect={onSelect} />
-              </li>
-            ))}
-          </ul>
-        )}
+        {results.length > 0 && <StationList stations={results} onSelect={onSelect} />}
         <StationCredits stations={results} />
       </div>
     </div>

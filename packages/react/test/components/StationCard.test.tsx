@@ -96,6 +96,17 @@ describe("StationCard", () => {
     ).toBeDefined();
   });
 
+  test("a wide comfort window does not hide the current's phase or set", async () => {
+    render(<StationCard station={deceptionPass} now={NOW} threshold={10} />, {
+      wrapper: createTestWrapper(),
+    });
+    await curve();
+    expect(
+      screen.getByText(/^\d+\.\d knots, (flooding|ebbing), setting [NESW]{1,3}$/),
+    ).toBeDefined();
+    expect(screen.queryByText("Slack")).toBeNull();
+  });
+
   test("says Slack on a slack", async () => {
     const range = cardRange(NOW).timeline;
     const { events } = await fetchCurrentStationEvents(inject("apiBaseUrl"), {

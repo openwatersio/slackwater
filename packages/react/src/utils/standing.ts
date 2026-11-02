@@ -34,7 +34,11 @@ export function peakRank(value: number, values: number[]): number | undefined {
 
 /** Every rise and fall between adjacent opposite turns, with a run of same-kind turns kept at its true extreme. */
 export function swingHeights(extremes: Extreme[]): number[] {
-  const out: number[] = [];
+  return swingRanges(extremes).map((s) => s.range);
+}
+
+function swingRanges(extremes: Extreme[]): { time: number; range: number }[] {
+  const out: { time: number; range: number }[] = [];
   let prev = extremes[0];
   for (const e of extremes.slice(1)) {
     if (e.high === prev.high) {
@@ -45,9 +49,42 @@ export function swingHeights(extremes: Extreme[]): number[] {
     const [low, high] = prev.high ? [e, prev] : [prev, e];
     prev = e;
     // A subordinate's separate high and low offsets can invert a pair, which is no swing at all.
-    if (high.level > low.level) out.push(high.level - low.level);
+    if (high.level > low.level) out.push({ time: e.time.getTime(), range: high.level - low.level });
   }
   return out;
+}
+
+export function outlookWeek(anchor: number, time: number, timezone: string): number {
+  const day = startOfDay(time, timezone);
+  if (day < anchor) return addDays(day, -4, timezone);
+  return day < addDays(anchor, 5, timezone) ? anchor : day;
+}
+
+/** A full outlook week, with surrounding turns to measure its first and last swings. */
+export function outlookWindow(week: number, timezone: string): { start: string; end: string } {
+  return {
+    start: new Date(addDays(week, -1, timezone)).toISOString(),
+    end: new Date(addDays(week, 8, timezone)).toISOString(),
+  };
+}
+
+export function dailySwingRanges(
+  extremes: Extreme[],
+  start: number,
+  end: number,
+  anchor: number,
+  timezone: string,
+): { day: number; range?: number }[] {
+  const peaks = new Map<number, number>();
+  for (const swing of swingRanges(extremes)) {
+    const day = startOfDay(swing.time, timezone);
+    if (day < start || addDays(day, 1, timezone) > end) continue;
+    peaks.set(day, Math.max(peaks.get(day) ?? 0, swing.range));
+  }
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = addDays(anchor, i, timezone);
+    return { day, range: peaks.get(day) };
+  });
 }
 
 /** The Range tile: the swing from the turn at or behind `time` to the one ahead, ranked among the fortnight's swings. */

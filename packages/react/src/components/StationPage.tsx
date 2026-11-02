@@ -1,3 +1,4 @@
+import { StationFilters, type StationFilter } from "./StationFilters.js";
 import {
   useCallback,
   useEffect,
@@ -275,15 +276,21 @@ export function StationNearby({
   kind: StationSummary["kind"];
   onStationSelect?: (station: CardStation) => void;
 }) {
+  const [filter, setFilter] = useState<StationFilter>();
   return (
     <section className="mt-7 px-4" aria-label="Nearby">
-      <h2 className="m-0 mb-2.5 px-2.5 font-(family-name:--sw-font-mono) text-[11px] font-medium tracking-[1.6px] text-(--sw-go) uppercase">
-        Nearby
-      </h2>
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-3 px-2.5">
+        <h2 className="m-0 font-(family-name:--sw-font-mono) text-[11px] font-medium tracking-[1.6px] text-(--sw-go) uppercase">
+          Nearby
+        </h2>
+        <StationFilters value={filter} onChange={setFilter} />
+      </div>
       <NearbyStations
         stationId={id}
         kind={kind}
         maxResults={PAGE_NEARBY_RESULTS}
+        showMap
+        filter={filter}
         onStationSelect={onStationSelect}
       />
     </section>

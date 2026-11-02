@@ -45,14 +45,21 @@ export interface CurrentPredictionRange {
 export function useCurrentEvents(id: string, range: CurrentPredictionRange | undefined) {
   const { baseUrl } = useSlackwaterConfig();
   return useQuery({
-    queryKey: queryKeys.currentEvents({ id, ...range }),
-    queryFn: () => fetchCurrentStationEvents(baseUrl, { id, ...range }),
+    ...currentEventsQuery(baseUrl, id, range),
     enabled: !!range,
     // Predictions for a fixed window never change, and refetching would rebuild the strip.
     staleTime: Infinity,
     // A moved window keeps showing the old one until the new one loads.
     placeholderData: keepPreviousData,
   });
+}
+
+/** The events shared by map pins and their station cards. */
+export function currentEventsQuery(baseUrl: string, id: string, range?: CurrentPredictionRange) {
+  return {
+    queryKey: queryKeys.currentEvents({ id, ...range }),
+    queryFn: () => fetchCurrentStationEvents(baseUrl, { id, ...range }),
+  };
 }
 
 /** The current timeline query for a station's window, so a map pin and a card share one cache entry. */

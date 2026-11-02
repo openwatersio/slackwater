@@ -7,6 +7,7 @@ import {
   readCurrent,
   runCenter,
   slackRuns,
+  slackAxisTimes,
   slackWindowAround,
   snapTargets,
   speedAt,
@@ -84,6 +85,15 @@ describe("slackWindowAround", () => {
     expect((t0 + 6 * H - w.start.getTime()) / M).toBeCloseTo(half / M, 0);
     expect((w.end.getTime() - t0 - 6 * H) / M).toBeCloseTo(half / M, 0);
   });
+  test.each([-1, 1])(
+    "a signed band crossing across a reversal matches iOS, direction %s",
+    (direction) => {
+      const tl = series([-1, 0.1, 1].map((v) => v * direction));
+      const w = slackWindowAround(tl, t0 + 545_450, 0.15)!;
+      expect((w.start.getTime() - t0) / 1000).toBeCloseTo(463.64, 1);
+      expect((w.end.getTime() - t0) / 1000).toBeCloseTo(633.33, 1);
+    },
+  );
   test("a reversal between two out-of-band samples still has a window where the segment crosses the band", () => {
     const w = slackWindowAround(series([2, 1, -1, -2]), t0 + 15 * M, 0.5)!;
     expect(w.start.getTime()).toBe(t0 + 12.5 * M);
@@ -92,7 +102,7 @@ describe("slackWindowAround", () => {
   test("the reversal can land on the later bracketing sample's side", () => {
     const w = slackWindowAround(series([2, 1, 0.25, -1, -2]), t0 + 22 * M, 0.5)!;
     expect(w.start.getTime()).toBe(t0 + 10 * M + (10 * M * 0.5) / 0.75);
-    expect(w.end.getTime()).toBe(t0 + 20 * M + (10 * M * 0.25) / 0.75);
+    expect(w.end.getTime()).toBe(t0 + 26 * M);
   });
   test("a window widens to hold its slack", () => {
     const w = slackWindowAround(series([2, 1, -3, -4]), t0 + 19 * M, 0.5)!;
@@ -126,6 +136,14 @@ describe("slackRuns", () => {
     expect(runs[0].start.getTime()).toBeLessThan(t0 + 10 * M);
     expect(runs[0].end.getTime()).toBeGreaterThan(t0 + 40 * M);
   });
+  test("overlapping windows keep their full combined tail", () => {
+    const runs = slackRuns(
+      series([2, 1, -3, -4]),
+      [slackAt(t0 + 12 * M), slackAt(t0 + 19 * M)],
+      0.5,
+    );
+    expect(runs).toEqual([{ start: new Date(t0 + 11.25 * M), end: new Date(t0 + 19 * M) }]);
+  });
   test("keeps separate windows apart and skips slacks outside the series", () => {
     const runs = slackRuns(timeline, [...events, slackAt(t0 + 12 * H), slackAt(t0 - H)], 0.5);
     expect(runs).toHaveLength(2);
@@ -156,7 +174,9 @@ describe("dot runs", () => {
     const stops = currentStops(tl, [slack], runs);
     expect(stops).toEqual([{ time: t0 + 15 * M, label: "Slack" }]);
     const off: CurrentEvent = { ...slack, time: new Date(t0 + 14 * M) };
-    expect(snapTargets(stops, [off], runs, t0, t0 + H)).toEqual([t0 + 15 * M]);
+    expect(snapTargets(currentStops(tl, [off], runs), [off], runs, t0, t0 + H)).toEqual([
+      t0 + 14 * M,
+    ]);
   });
 });
 
@@ -169,11 +189,35 @@ describe("readCurrent", () => {
       state: "Slack",
     });
   });
-  test("slack only inside a measured window, however slow outside it", () => {
-    expect(readCurrent(t0 + 6 * H, timeline, events, [], dirs)?.state).not.toBe("Slack");
+  test("slack is tied to a predicted zero, independently of the comfort window", () => {
+    expect(readCurrent(t0 + 6 * H, timeline, events, [], dirs)?.state).toBe("Slack");
     const w = windows[0];
-    expect(readCurrent(w.start.getTime(), timeline, events, windows, dirs)?.state).toBe("Slack");
+    expect(readCurrent(w.start.getTime(), timeline, events, windows, dirs)?.state).toBe("Flooding");
     expect(readCurrent(w.end.getTime(), timeline, events, windows, dirs)?.state).toBe("Ebbing");
+  });
+  test("comfort windows do not hide the phase or set on either side of zero", () => {
+    expect(readCurrent(t0 + 6 * H - 5 * M, timeline, events, windows, dirs)).toMatchObject({
+      state: "Flooding",
+      direction: 45,
+    });
+    expect(readCurrent(t0 + 6 * H + 5 * M, timeline, events, windows, dirs)).toMatchObject({
+      state: "Ebbing",
+      direction: 225,
+    });
+    expect(readCurrent(t0 + 6 * H, timeline, events, [], dirs)?.state).toBe("Slack");
+  });
+  test("a weak maximum inside a comfort window still reads Max flood", () => {
+    const tl = series([0.1, 0.2, 0.1]);
+    const max: CurrentEvent = { time: new Date(t0 + 10 * M), speed: 0.2, kind: "maxFlood" };
+    expect(
+      readCurrent(
+        t0 + 10 * M,
+        tl,
+        [max],
+        [{ start: new Date(t0), end: new Date(t0 + 20 * M) }],
+        dirs,
+      ),
+    ).toMatchObject({ state: "Max flood", direction: 45 });
   });
   test("max within a second of a max event", () => {
     expect(readCurrent(t0 + 3 * H, timeline, events, windows, dirs)).toMatchObject({
@@ -201,43 +245,53 @@ describe("readCurrent", () => {
 });
 
 describe("currentStops", () => {
-  test("run openings and closings, and maxima", () => {
-    const slacks = [0, 6, 12, 18, 24].map((h) => slackAt(t0 + h * H));
-    const stops = currentStops(timeline, [...events, ...slacks], slackRuns(timeline, slacks, 0.5));
+  test("walks the window opening, exact zero, closing and maximum in order", () => {
+    const stops = currentStops(timeline, events, slackRuns(timeline, events, 0.5));
     expect(stops.map((s) => s.label)).toEqual([
-      "Flood",
       "Max flood",
+      "Slack window",
       "Slack",
-      "Ebb",
+      "Slack window closes",
       "Max ebb",
-      "Slack",
-      "Flood",
-      "Slack",
-      "Ebb",
-      "Slack",
+    ]);
+    expect(stops[2].time).toBe(t0 + 6 * H);
+    expect(stops[1].time).toBeLessThan(stops[2].time);
+    expect(stops[3].time).toBeGreaterThan(stops[2].time);
+  });
+  test("a window clamped to the sampled boundary invents no edge stop", () => {
+    const tail = timeline.slice(0, 74);
+    expect(
+      currentStops(tail, [], slackRuns(tail, [slackAt(t0 + 12 * H)], 0.5)).map((s) => s.label),
+    ).toEqual(["Slack window"]);
+    expect(
+      currentStops(timeline, [], slackRuns(timeline, [slackAt(t0)], 0.5)).map((s) => s.label),
+    ).toEqual(["Slack window closes"]);
+  });
+  test("a zero at a window opening is named Slack", () => {
+    const zero = slackAt(t0 + 20 * M);
+    expect(
+      currentStops(timeline, [zero], [{ start: zero.time, end: new Date(t0 + 40 * M) }]),
+    ).toEqual([
+      { time: t0 + 20 * M, label: "Slack" },
+      { time: t0 + 40 * M, label: "Slack window closes" },
     ]);
   });
-  test("a run clamped by either end of the series has no stop there", () => {
-    // Ends 10 minutes after a reversal, inside its window.
-    const tail = timeline.slice(0, 74);
-    const stops = currentStops(tail, [], slackRuns(tail, [slackAt(t0 + 12 * H)], 0.5));
-    expect(stops.map((s) => s.label)).toEqual(["Slack"]);
-    const head = currentStops(timeline, [], slackRuns(timeline, [slackAt(t0)], 0.5));
-    expect(head.map((s) => s.label)).toEqual(["Flood"]);
+  test("a zero at a window closing is named Slack", () => {
+    const zero = slackAt(t0 + 20 * M);
+    const stops = currentStops(timeline, [zero], [{ start: new Date(t0 + M), end: zero.time }]);
+    expect(stops).toEqual([
+      { time: t0 + M, label: "Slack window" },
+      { time: t0 + 20 * M, label: "Slack" },
+    ]);
   });
-  test("a closing within a second of the series end counts as flood", () => {
-    const end = timeline[timeline.length - 1].time.getTime();
-    const run = { start: new Date(end - 30 * M), end: new Date(end - 500) };
-    expect(currentStops(timeline, [], [run]).at(-1)).toEqual({ time: end - 500, label: "Flood" });
-  });
-  test("names a closing from the water just after it, counting zero as flood", () => {
-    const tl = series([-1, -0.2, 0, 0, 1]);
-    const [stop] = currentStops(
-      tl,
-      [],
-      [{ start: new Date(t0 + M), end: new Date(t0 + 20 * M) }],
-    ).filter((s) => s.label !== "Slack");
-    expect(stop.label).toBe("Flood");
+  test("short and disabled windows retain the exact zero and no window stops", () => {
+    const tl = series([2, 1, -1, -2]);
+    const zero = slackAt(t0 + 14 * M);
+    for (const threshold of [0, 0.5]) {
+      expect(currentStops(tl, [zero], slackRuns(tl, [zero], threshold))).toEqual([
+        { time: t0 + 14 * M, label: "Slack" },
+      ]);
+    }
   });
 });
 
@@ -315,4 +369,17 @@ describe("commentary", () => {
     expect(commentary(stops[0].time - 1000, stops)).toBeUndefined();
     expect(commentary(stops[0].time - 1001, stops)?.stop).toBe(stops[0]);
   });
+});
+
+test("Slack axis names ordinary openings, each zero in continuous windows, and bare slacks", () => {
+  const windows = [
+    { start: new Date(t0), end: new Date(t0 + 15 * H) },
+    { start: new Date(t0 + 20 * H), end: new Date(t0 + 22 * H) },
+  ];
+  expect(slackAxisTimes(windows, [t0 + 6 * H, t0 + 12 * H, t0 + 18 * H, t0 + 21 * H])).toEqual([
+    t0 + 6 * H,
+    t0 + 12 * H,
+    t0 + 18 * H,
+    t0 + 20 * H,
+  ]);
 });

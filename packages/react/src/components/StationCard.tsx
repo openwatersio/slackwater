@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useSeen } from "../hooks/use-seen.js";
+import { useMemo, type MouseEvent } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { useCurrentEvents, useCurrentTimeline } from "../hooks/use-current-station.js";
@@ -34,26 +35,6 @@ export interface StationCardProps {
   /** The current instant; defaults to the clock. Pass it to render deterministically. */
   now?: number;
   className?: string;
-}
-
-/** True once the element comes within a screen of the viewport, and from then on. */
-function useSeen() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [seen, setSeen] = useState(false);
-  useEffect(() => {
-    if (seen) return;
-    // Without the observer (jsdom, old browsers) a card can't tell, so it loads now.
-    if (typeof IntersectionObserver === "undefined") return setSeen(true);
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) setSeen(true);
-      },
-      { rootMargin: "100% 0px" },
-    );
-    observer.observe(ref.current!);
-    return () => observer.disconnect();
-  }, [seen]);
-  return [ref, seen] as const;
 }
 
 /**
@@ -210,7 +191,7 @@ function CurrentCardBody({
   const sets = timeline.data.station.current;
   const reading = readCurrentCard(
     timeline.data.timeline,
-    runs,
+    events.data.events,
     { flood: sets?.flood_direction, ebb: sets?.ebb_direction },
     now,
   );

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
   fortnightWindow,
+  outlookWeek,
+  dailySwingRanges,
   maxSpeeds,
   nextMaxTile,
   peakRank,
@@ -201,4 +203,39 @@ describe("nextMaxTile", () => {
     expect(maxSpeeds(events, "maxEbb")).toEqual([6.4]);
     expect(maxSpeeds(events, "maxFlood")).toEqual([4.2]);
   });
+});
+
+test("outlook holds five local days, then advances, and moves back symmetrically across DST", () => {
+  const anchor = Date.parse("2026-10-30T07:00:00Z");
+  expect(outlookWeek(anchor, Date.parse("2026-11-03T20:00:00Z"), tz)).toBe(anchor);
+  expect(outlookWeek(anchor, Date.parse("2026-11-04T20:00:00Z"), tz)).toBe(
+    Date.parse("2026-11-04T08:00:00Z"),
+  );
+  expect(outlookWeek(anchor, Date.parse("2026-10-29T20:00:00Z"), tz)).toBe(
+    Date.parse("2026-10-25T07:00:00Z"),
+  );
+});
+test("outlook ranks complete local days and leaves unloaded days empty", () => {
+  const result = dailySwingRanges(
+    [
+      extreme(1, 0, false),
+      extreme(7, 2, true),
+      extreme(13, 0, false),
+      extreme(19, 3, true),
+      extreme(25, 0, false),
+    ],
+    t0,
+    t0 + 30 * H,
+    t0,
+    "UTC",
+  );
+  expect(result.map((d) => d.range)).toEqual([
+    3,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+  ]);
 });

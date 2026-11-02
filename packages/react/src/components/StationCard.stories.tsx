@@ -57,9 +57,13 @@ export const TideBelowDatum: Story = {
 
 export const Current: Story = { args: { station: deceptionPass, distance: 31.6 } };
 
-/** At a slack, the reading says Slack in green and the set gives way to a dot. */
+/** A predicted zero shows Slack without a set. */
 export const CurrentAtSlack: Story = {
-  args: { station: deceptionPass, now: Date.parse("2026-10-15T19:20:00Z") },
+  args: { station: deceptionPass, now: Date.parse("2026-10-15T21:11:35.957Z") },
+};
+
+export const CurrentInsideComfortWindow: Story = {
+  args: { station: deceptionPass, now: Date.parse("2026-10-15T21:06:35.957Z") },
 };
 
 /** CHS stations can't be served, so the card names the station and says so. */

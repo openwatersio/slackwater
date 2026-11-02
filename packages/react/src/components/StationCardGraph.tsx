@@ -15,7 +15,13 @@ import {
   thinAxisTimes,
   valueAt,
 } from "../utils/card.js";
-import { formatSpeed, speedColor, threadOpacity, type SlackWindow } from "../utils/current.js";
+import {
+  formatSpeed,
+  speedColor,
+  threadOpacity,
+  slackAxisTimes,
+  type SlackWindow,
+} from "../utils/current.js";
 import { formatHeight, heightUnit, rateColor, tideRates } from "../utils/tide.js";
 import { chartTime } from "../utils/time.js";
 import { C, GLYPH, HALO_GAP, SET_ARROW_PATH, toBarPath } from "./Scrubber.js";
@@ -47,7 +53,7 @@ export type CardGraphData =
       kind: "current";
       timeline: CurrentTimelineEntry[];
       events: CurrentEvent[];
-      /** The slack windows, from the shared rule; a windowless slack is a zero-width run. */
+      /** Comfort windows; exact slack instants come from events. */
       runs: SlackWindow[];
     };
 
@@ -194,25 +200,35 @@ function drawGraph({
   const offset = (t: number) => Math.min(1, Math.max(0, x(t) / width));
 
   const runs = tide ? [] : data.runs;
-  // A run narrower than a dot reads as a blot, so it draws as the dot at its center.
-  const isDot = (w: SlackWindow) => (w.end.getTime() - w.start.getTime()) * scale < DOT_RADIUS * 2;
-  const center = (w: SlackWindow) => (w.start.getTime() + w.end.getTime()) / 2;
-  const axisTimes = new Set(
-    thinAxisTimes(
-      tide ? marks.map((m) => m.time) : runs.map((w) => (isDot(w) ? center(w) : w.start.getTime())),
-      x,
-      width,
-    ),
+  const drawnWindows = runs.filter(
+    (w) => (w.end.getTime() - w.start.getTime()) * scale >= DOT_RADIUS * 2,
   );
-  const strokes = runs
-    .filter((w) => !isDot(w))
-    .map((w) => {
-      const a = w.start.getTime();
-      const b = w.end.getTime();
-      const times = [a, ...points.map((p) => p.time).filter((t) => t > a && t < b), b];
-      return { key: a, d: pathOf(times.map(at)) };
-    });
-  const slackDots = runs.filter(isDot).map((w) => ({ time: center(w), ...at(center(w)) }));
+  const zeros = tide
+    ? []
+    : data.events.filter(
+        (e) =>
+          e.kind === "slack" &&
+          e.time.getTime() >= points[0].time &&
+          e.time.getTime() <= points.at(-1)!.time,
+      );
+  const axisMoments = slackAxisTimes(
+    drawnWindows,
+    zeros.map((e) => e.time.getTime()),
+  );
+  const axisTimes = new Set(thinAxisTimes(tide ? marks.map((m) => m.time) : axisMoments, x, width));
+  const stroke = (w: SlackWindow) => {
+    const a = w.start.getTime();
+    const b = w.end.getTime();
+    const times = [a, ...points.map((p) => p.time).filter((t) => t > a && t < b), b];
+    return { key: a, d: pathOf(times.map(at)) };
+  };
+  const strokes = drawnWindows.map(stroke);
+  const cores = zeros.map((e) =>
+    stroke({
+      start: new Date(Math.max(points[0].time, e.time.getTime() - 3 / scale)),
+      end: new Date(Math.min(points.at(-1)!.time, e.time.getTime() + 3 / scale)),
+    }),
+  );
   const nowDot = at(now);
   const turns = tide ? marks : [];
 
@@ -288,9 +304,6 @@ function drawGraph({
               fill="#000"
             />
           ))}
-          {slackDots.map((d) => (
-            <circle key={d.time} cx={d.x} cy={d.y} r={DOT_RADIUS + HALO_GAP} fill="#000" />
-          ))}
           <circle cx={nowDot.x} cy={nowDot.y} r={NOW_RADIUS + HALO_GAP} fill="#000" />
         </mask>
         {tide ? (
@@ -318,8 +331,8 @@ function drawGraph({
             {/* The line leaves room for each run's body and a halo around its round caps. */}
             <mask id={`${id}track`} maskUnits="userSpaceOnUse" fill="none">
               <rect width={width} height={height} fill="#fff" />
-              {strokes.map((s) => (
-                <g key={s.key}>
+              {[...strokes, ...cores].map((s, i) => (
+                <g key={`${i}:${s.key}`}>
                   <path
                     d={s.d}
                     stroke="#000"
@@ -359,10 +372,13 @@ function drawGraph({
           ) : (
             <>
               <g mask={`url(#${id}track)`}>
-                <path d={line} stroke={C.line} strokeWidth={2.5} />
+                <path d={line} stroke={speedColor(0)} strokeWidth={2.5} />
                 <path d={line} stroke={`url(#${id}thread)`} strokeWidth={2} />
               </g>
               {strokes.map((s) => (
+                <path key={s.key} d={s.d} stroke={C.line} strokeWidth={RUN_WIDTH} />
+              ))}
+              {cores.map((s) => (
                 <path key={s.key} d={s.d} stroke={C.go} strokeWidth={RUN_WIDTH} />
               ))}
             </>
@@ -380,7 +396,14 @@ function drawGraph({
           <g key={m.time} opacity={fade(m.time)}>
             {tide && <circle cx={mx} cy={my} r={DOT_RADIUS} fill={tint} />}
             {tide && axisTimes.has(m.time) && (
-              <AxisTime x={mx} height={height} time={m.time} timezone={timezone} locale={locale} />
+              <AxisTime
+                x={mx}
+                height={height}
+                time={m.time}
+                timezone={timezone}
+                locale={locale}
+                ink={tint}
+              />
             )}
             {inside(mx, LABEL_MARGIN) && (
               <>
@@ -422,18 +445,20 @@ function drawGraph({
       })}
 
       {!tide &&
-        runs
-          .map((w) => (isDot(w) ? center(w) : w.start.getTime()))
+        [...new Set(axisMoments)]
           .filter((t) => axisTimes.has(t))
           .map((t) => (
             <g key={t} opacity={fade(t)}>
-              <AxisTime x={x(t)} height={height} time={t} timezone={timezone} locale={locale} />
+              <AxisTime
+                x={x(t)}
+                height={height}
+                time={t}
+                timezone={timezone}
+                locale={locale}
+                ink={C.go}
+              />
             </g>
           ))}
-
-      {slackDots.map((d) => (
-        <circle key={d.time} cx={d.x} cy={d.y} r={DOT_RADIUS} fill={C.go} opacity={fade(d.time)} />
-      ))}
 
       <circle cx={nowDot.x} cy={nowDot.y} r={NOW_RADIUS} fill={C.paper} />
     </>
@@ -446,12 +471,14 @@ function AxisTime({
   time,
   timezone,
   locale,
+  ink = C.foam,
 }: {
   x: number;
   height: number;
   time: number;
   timezone: string;
   locale?: string;
+  ink?: string;
 }) {
   return (
     <text
@@ -459,7 +486,7 @@ function AxisTime({
       y={height - TIME_BASELINE}
       textAnchor="middle"
       dominantBaseline="central"
-      fill={C.foam}
+      fill={ink}
       fontSize={10}
       fontWeight={500}
       style={{ fontVariantNumeric: "tabular-nums" }}

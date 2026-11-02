@@ -28,16 +28,26 @@ import {
   type UseQueryResult,
 } from "@tanstack/react-query";
 
-import { currentTimelineQuery, useCurrentStations } from "../hooks/use-current-station.js";
+import {
+  currentEventsQuery,
+  currentTimelineQuery,
+  useCurrentStations,
+} from "../hooks/use-current-station.js";
 import { extremesQuery } from "../hooks/use-extremes.js";
 import { useStations } from "../hooks/use-stations.js";
 import { timelineQuery } from "../hooks/use-timeline.js";
 import { useThemeColors, type ThemeColors } from "../hooks/use-theme-colors.js";
 import { useSlackwaterConfig } from "../provider.js";
-import type { CurrentTimelineResponse, ExtremesResponse, TimelineResponse } from "../types.js";
+import type {
+  CurrentEventsResponse,
+  CurrentTimelineResponse,
+  ExtremesResponse,
+  TimelineResponse,
+} from "../types.js";
 import { cardRange } from "../utils/card.js";
 import { creditHtml, distinctCredits } from "../utils/credit.js";
 import { DEFAULT_SLACK_THRESHOLD } from "../utils/current.js";
+import { heightUnit } from "../utils/tide.js";
 import { drawPinImage, pinImageId } from "../utils/pin-images.js";
 import {
   LOCATE_ZOOM,
@@ -98,13 +108,17 @@ type ManagedMapProps =
 export interface StationsMapProps extends Omit<ComponentProps<typeof Map>, ManagedMapProps> {
   /** Called when the selected station's card is tapped: the map's way to open a station. */
   onStationSelect?: (station: MapStation) => void;
+  /** Opens a pin directly instead of showing its card, for embedded maps. */
+  onPinSelect?: (station: MapStation) => void;
   /** Called with the visible bounds each time the camera settles. */
   onBoundsChange?: (bounds: { north: number; south: number; east: number; west: number }) => void;
   /** Whether to show the locate button. Defaults to true. */
   showGeolocation?: boolean;
+  /** Full maps put units in the legend; framed maps keep them beside each pin. */
+  showLegend?: boolean;
   /** Station ID to mark as selected without opening its card: the station a page is about. */
   focusStation?: string;
-  /** Boat-speed threshold for slack, in knots. */
+  /** Comfort-window threshold on the selected station card, in knots. */
   threshold?: number;
   /** The current instant; defaults to the clock. Pass it to render deterministically. */
   now?: number;
@@ -261,9 +275,11 @@ function setRef<T>(ref: Ref<T> | undefined, value: T | null) {
 export const StationsMap = forwardRef<MapRef, StationsMapProps>(function StationsMap(
   {
     onStationSelect,
+    onPinSelect,
     onBoundsChange,
     focusStation,
     showGeolocation = true,
+    showLegend = true,
     threshold = DEFAULT_SLACK_THRESHOLD,
     now: fixedNow,
     mapStyle = BASEMAP_STYLE,
@@ -322,7 +338,10 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
               { ...timelineQuery(config, { id: s.id, ...range.timeline }), ...options },
               { ...extremesQuery(config, { id: s.id, ...range.extremes }), ...options },
             ]
-          : [{ ...currentTimelineQuery(config.baseUrl, s.id, range.timeline), ...options }];
+          : [
+              { ...currentTimelineQuery(config.baseUrl, s.id, range.timeline), ...options },
+              { ...currentEventsQuery(config.baseUrl, s.id, range.timeline), ...options },
+            ];
       }),
     [visible, detailed, camera, config, range],
   );
@@ -336,7 +355,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
     const shown: (string | undefined)[] = [];
     const features = visible.map((s): Feature<Point> => {
       const key = stationKey(s);
-      const count = s.kind === "tide" ? 2 : 1;
+      const count = 2;
       const fresh = data.slice(i, (i += count));
       const own = fresh.every((d) => d !== undefined) ? fresh : (held.current.get(key) ?? fresh);
       holding.set(key, own);
@@ -349,7 +368,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
       if (s.kind === "tide") {
         const [timeline, extremes] = own as [TimelineResponse?, ExtremesResponse?];
         state =
-          timeline && extremes
+          timeline && extremes && timeline.units === config.units && extremes.units === config.units
             ? tidePinState(
                 timeline.timeline,
                 extremes.extremes,
@@ -360,18 +379,19 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
               )
             : UNKNOWN_PIN;
       } else {
-        const [timeline] = own as [CurrentTimelineResponse?];
+        const [timeline, events] = own as [CurrentTimelineResponse?, CurrentEventsResponse?];
         const sets = timeline?.station.current;
-        state = timeline
-          ? currentPinState(
-              timeline.timeline,
-              { flood: sets?.flood_direction, ebb: sets?.ebb_direction },
-              threshold,
-              now,
-              detailed,
-              config.locale,
-            )
-          : UNKNOWN_PIN;
+        state =
+          timeline && events
+            ? currentPinState(
+                timeline.timeline,
+                { flood: sets?.flood_direction, ebb: sets?.ebb_direction },
+                events.events,
+                now,
+                detailed,
+                config.locale,
+              )
+            : UNKNOWN_PIN;
       }
       if (s.predictions === false) state = UNAVAILABLE_PIN;
       return {
@@ -384,7 +404,9 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
           shape: state.shape,
           icon: pinImageId(state, pinColor(state, colors)),
           bearing: state.bearing ?? 0,
-          ...(state.reading && { reading: state.reading }),
+          ...(state.reading && {
+            reading: showLegend || !state.unit ? state.reading : `${state.reading} ${state.unit}`,
+          }),
           ...(pinned.includes(key) && { selected: true }),
         },
       };
@@ -392,7 +414,18 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
     held.current = holding;
     const pins: FeatureCollection<Point> = { type: "FeatureCollection", features };
     return { pins, credits: distinctCredits(shown).map(creditHtml) };
-  }, [visible, data, now, detailed, threshold, colors, config.locale, pinned, camera]);
+  }, [
+    visible,
+    data,
+    now,
+    detailed,
+    colors,
+    config.locale,
+    config.units,
+    pinned,
+    camera,
+    showLegend,
+  ]);
 
   const byKey = useMemo(
     () => new globalThis.Map(visible.map((s) => [stationKey(s), s])),
@@ -456,9 +489,10 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
         const station = byKey.get(hit.properties.key as string);
         if (station && d < best) [nearest, best] = [station, d];
       }
-      setSelected(nearest ?? null);
+      if (nearest && onPinSelect) onPinSelect(nearest);
+      else setSelected(nearest ?? null);
     },
-    [byKey],
+    [byKey, onPinSelect],
   );
 
   // Center the picked pin in the map the panel and its note leave uncovered.
@@ -557,16 +591,10 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
         </div>
       )}
 
-      {/* The note stacks above an open card, so it stays in view while readings are on screen. */}
       <div
         ref={panelRef}
         className="pointer-events-none absolute inset-x-3 bottom-3 mx-auto flex max-w-[440px] flex-col items-center gap-2"
       >
-        <span
-          className={`sw-glass rounded-full px-3 py-1.5 text-[11px] text-(--sw-foam) ${selected ? "" : "mb-3"}`}
-        >
-          Not for navigation.
-        </span>
         {selected && (
           <div
             className="pointer-events-auto w-full rounded-(--sw-radius-card) bg-(--sw-canvas)"
@@ -581,6 +609,49 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
             />
             <StationCredits stations={[selected]} className="px-5 pt-1 pb-3" />
           </div>
+        )}
+        {showLegend ? (
+          <div
+            aria-label="Map legend"
+            role="region"
+            className="sw-glass flex min-h-11 max-w-[calc(100%_-_136px)] flex-col items-center justify-center gap-[3px] rounded-[24px] px-4 py-2 text-center text-[11px] text-(--sw-foam)"
+          >
+            <div className="flex flex-wrap justify-center gap-x-3 gap-y-[3px] font-medium">
+              <span
+                className="inline-flex items-center gap-1 whitespace-nowrap"
+                aria-label={`Tides ${config.units === "feet" ? "feet" : "meters"}`}
+              >
+                <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden="true">
+                  <circle cx={6} cy={6} r={3} fill="currentColor" />
+                </svg>
+                Tides {heightUnit(config.units)}
+              </span>
+              <span
+                className="inline-flex items-center gap-1 whitespace-nowrap"
+                aria-label="Currents knots"
+              >
+                <svg
+                  width={12}
+                  height={12}
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6 10V2M2.5 5.5 6 2l3.5 3.5" />
+                </svg>
+                Currents kn
+              </span>
+            </div>
+            <span>Not for navigation.</span>
+          </div>
+        ) : (
+          <span className="sw-glass rounded-full px-3 py-1.5 text-[11px] text-(--sw-foam)">
+            Not for navigation.
+          </span>
         )}
       </div>
 

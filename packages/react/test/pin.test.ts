@@ -58,14 +58,26 @@ describe("gaugeBucket", () => {
 describe("tidePinState", () => {
   test("is a rising gauge with its reading toward a high", () => {
     const state = tidePinState(tideTimeline, tideExtremes, "feet", T0 + 3 * HOUR, true, "en-US");
-    expect(state).toEqual({ shape: "gauge", tone: "rising", bucket: 4, reading: "5.0 ft" });
+    expect(state).toEqual({
+      shape: "gauge",
+      tone: "rising",
+      bucket: 4,
+      reading: "5.0",
+      unit: "ft",
+    });
   });
 
   test("falls toward a low", () => {
     const extremes = [extreme(-6, 1, false), extreme(0, 9, true), extreme(6, 1, false)];
     const timeline = tideTimeline.map((p) => ({ ...p, level: 10 - p.level }));
     const state = tidePinState(timeline, extremes, "meters", T0 + 3 * HOUR, true, "en-US");
-    expect(state).toEqual({ shape: "gauge", tone: "falling", bucket: 4, reading: "5.00 m" });
+    expect(state).toEqual({
+      shape: "gauge",
+      tone: "falling",
+      bucket: 4,
+      reading: "5.00",
+      unit: "m",
+    });
   });
 
   test("is a dot in the trend's color below the reading zoom", () => {
@@ -96,47 +108,57 @@ describe("currentPinState", () => {
   ];
   const sets = { flood: 45, ebb: 225 };
 
-  test("is green at the slack threshold, pointing its set", () => {
-    expect(currentPinState(timeline, sets, 0.5, T0 + HOUR, true, "en-US")).toEqual({
+  test("keeps a slow current on the speed ramp, pointing its set", () => {
+    expect(currentPinState(timeline, sets, [], T0 + HOUR, true, "en-US")).toEqual({
       shape: "arrow",
-      tone: "slack",
+      tone: pinRampColor(0.5),
       bearing: 45,
-      reading: "0.5 kn",
+      reading: "0.5",
+      unit: "kn",
     });
   });
 
+  test("uses predicted Slack timestamps even when the sampled speed is nonzero", () => {
+    const samples = [{ time: new Date(T0), speed: -0.0003783612603618612 }];
+    const events = [{ time: new Date(T0), speed: 0, kind: "slack" as const }];
+    expect(currentPinState(samples, sets, events, T0, true).tone).toBe("slack");
+    expect(currentPinState(samples, sets, [], T0, true).tone).not.toBe("slack");
+    expect(currentPinState(timeline, sets, events, T0 + HOUR, true).tone).toBe(pinRampColor(0.5));
+  });
+
   test("takes the ramp lifted toward white above the threshold", () => {
-    const state = currentPinState(timeline, sets, 0.5, T0 + 2 * HOUR, true);
+    const state = currentPinState(timeline, sets, [], T0 + 2 * HOUR, true);
     // #f5c96b, the ramp at 3 kn, moved 30% of the way to white.
     expect(state.tone).toBe("#f8d997");
     expect(pinRampColor(12)).toBe("#d97570");
   });
 
   test("points the ebb set on an ebb", () => {
-    expect(currentPinState(timeline, sets, 0.3, T0, true, "en-US")).toEqual({
+    expect(currentPinState(timeline, sets, [], T0, true, "en-US")).toEqual({
       shape: "arrow",
       tone: pinRampColor(0.4),
       bearing: 225,
-      reading: "0.4 kn",
+      reading: "0.4",
+      unit: "kn",
     });
   });
 
   test("is a dot in its speed's color, with no reading, below the reading zoom", () => {
-    expect(currentPinState(timeline, sets, 0.3, T0, false)).toEqual({
+    expect(currentPinState(timeline, sets, [], T0, false)).toEqual({
       shape: "dot",
       tone: pinRampColor(0.4),
     });
   });
 
   test("is a dot when the station publishes no set for that direction", () => {
-    const state = currentPinState(timeline, { flood: 45 }, 0.5, T0, true);
+    const state = currentPinState(timeline, { flood: 45 }, [], T0, true);
     expect(state.shape).toBe("dot");
     expect(state.bearing).toBeUndefined();
     expect(state.reading).toBeDefined();
   });
 
   test("is unknown outside its timeline", () => {
-    expect(currentPinState(timeline, sets, 0.5, T0 - HOUR, true).tone).toBe("unknown");
+    expect(currentPinState(timeline, sets, [], T0 - HOUR, true).tone).toBe("unknown");
   });
 });
 

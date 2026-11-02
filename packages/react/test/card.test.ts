@@ -11,7 +11,6 @@ import {
   rankSearch,
   readCurrentCard,
   readTideCard,
-  readsSlack,
   valueAt,
   hangToward,
   thinAxisTimes,
@@ -109,23 +108,6 @@ describe("readTideCard", () => {
   });
 });
 
-describe("readsSlack", () => {
-  const window = { start: at(1), end: at(2) };
-  const bare = { start: at(5), end: at(5) };
-
-  test("holds inside a window up to but not at its closing", () => {
-    expect(readsSlack([window], T0 + HOUR)).toBe(true);
-    expect(readsSlack([window], T0 + 1.5 * HOUR)).toBe(true);
-    expect(readsSlack([window], T0 + 2 * HOUR)).toBe(false);
-    expect(readsSlack([window], T0 + HOUR - 1)).toBe(false);
-  });
-
-  test("holds within a second of a windowless slack", () => {
-    expect(readsSlack([bare], T0 + 5 * HOUR + 999)).toBe(true);
-    expect(readsSlack([bare], T0 + 5 * HOUR - 1000)).toBe(false);
-  });
-});
-
 describe("readCurrentCard", () => {
   const timeline = [
     { time: at(0), speed: 2 },
@@ -142,9 +124,16 @@ describe("readCurrentCard", () => {
     expect(readCurrentCard(timeline, [], directions, T0 + HOUR)?.direction).toBe(270);
   });
 
-  test("reads slack only on a slack mark, whatever the speed", () => {
-    const runs = [{ start: at(0), end: at(0.25) }];
-    expect(readCurrentCard(timeline, runs, directions, T0)?.slack).toBe(true);
+  test("reads Slack only within a second of a predicted zero", () => {
+    const events = [{ time: at(0.5), speed: 0, kind: "slack" as const }];
+    expect(readCurrentCard(timeline, events, directions, T0 + HOUR / 2)?.slack).toBe(true);
+    expect(readCurrentCard(timeline, events, directions, T0 + HOUR / 2 + 999)?.slack).toBe(true);
+    expect(readCurrentCard(timeline, events, directions, T0 + HOUR / 2 - 5 * 60_000)).toMatchObject(
+      { slack: false, direction: 90 },
+    );
+    expect(readCurrentCard(timeline, events, directions, T0 + HOUR / 2 + 5 * 60_000)).toMatchObject(
+      { slack: false, direction: 270 },
+    );
     expect(readCurrentCard(timeline, [], directions, T0 + HOUR / 2)?.slack).toBe(false);
   });
 

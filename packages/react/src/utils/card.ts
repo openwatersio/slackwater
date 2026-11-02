@@ -1,5 +1,11 @@
-import type { CurrentTimelineEntry, Extreme, StationSummary, TimelineEntry } from "../types.js";
-import { speedAt, type Directions, type SlackWindow } from "./current.js";
+import type {
+  CurrentEvent,
+  CurrentTimelineEntry,
+  Extreme,
+  StationSummary,
+  TimelineEntry,
+} from "../types.js";
+import { readCurrent, type Directions } from "./current.js";
 import { levelAt } from "./tide.js";
 
 const HOUR = 3_600_000;
@@ -80,18 +86,6 @@ export function readTideCard(
   return { level, rising: extremes.find((e) => e.time.getTime() > now)?.high ?? true };
 }
 
-/**
- * Slack on the marks the curve draws green: inside a window up to but not at
- * its closing, or within a second of a slack with no window of its own.
- */
-export function readsSlack(runs: SlackWindow[], time: number): boolean {
-  return runs.some((w) => {
-    const start = w.start.getTime();
-    const end = w.end.getTime();
-    return end > start ? start <= time && time < end : Math.abs(time - start) < 1000;
-  });
-}
-
 export interface CurrentCardReading {
   /** Signed knots: positive flood. */
   speed: number;
@@ -102,14 +96,17 @@ export interface CurrentCardReading {
 
 export function readCurrentCard(
   timeline: CurrentTimelineEntry[],
-  runs: SlackWindow[],
+  events: CurrentEvent[],
   directions: Directions,
   now: number,
 ): CurrentCardReading | undefined {
-  const speed = speedAt(timeline, now);
-  if (speed === undefined) return undefined;
-  const direction = speed >= 0 ? directions.flood : directions.ebb;
-  return { speed, slack: readsSlack(runs, now), ...(direction !== undefined && { direction }) };
+  const reading = readCurrent(now, timeline, events, [], directions);
+  if (!reading) return undefined;
+  return {
+    speed: reading.speed,
+    slack: reading.state === "Slack",
+    ...(reading.direction !== undefined && { direction: reading.direction }),
+  };
 }
 
 /** A distance in kilometers as nautical miles: "1.2 nm" under 10, "14 nm" from 10. */

@@ -1,3 +1,4 @@
+import { G } from "../../src/components/Scrubber.js";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { TideScrubber, type TideScrubberProps } from "../../src/components/TideScrubber.js";
@@ -89,20 +90,24 @@ describe("TideScrubber", () => {
     expect(commentaryPill().ariaLabel).toBe("Sunrise in 3 hours, 15 minutes");
   });
 
-  test("a fast tide names its rate, and walks to the run's fastest point, then on", async () => {
+  test("a fast tide walks forward through its peak without returning to a passed peak", async () => {
     vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
-    const { slider } = renderScrubber(fixture({ mid: 0, amp: () => 2 }));
-    await restsOn(slider, NOW);
+    const { slider } = renderScrubber({ ...fixture({ mid: 0, amp: () => 2 }), now: t0 + 23 * H });
+    await restsOn(slider, t0 + 23 * H);
 
-    expect(commentaryPill().textContent).toBe("Rising 0.91 m/hr");
-    expect(commentaryPill().ariaLabel).toBe("Rising 0.91 m/hr");
+    expect(commentaryPill().textContent).toBe("Fastest rise1h 0m");
+    expect(screen.getByText("Rising 0.91 m/hr")).toBeDefined();
+    expect(commentaryPill().ariaLabel).toBe("Fastest rising tide in 1 hour");
     expect(commentaryPill().querySelector("span")!.style.color).not.toBe("");
-    expect(text(slider)).toMatch(/^Rising /);
+    expect(text(slider)).toContain("metres per hour");
 
     fireEvent.click(commentaryPill());
     expect(value(slider)).toBe(t0 + 24 * H);
     await restsOn(slider, t0 + 24 * H);
-    expect(commentaryPill().textContent).toBe("Rising 1.05 m/hr");
+    expect(commentaryPill().textContent).toBe("High3h 0m");
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    await restsOn(slider, t0 + 24 * H + 5 * 60_000);
+    expect(commentaryPill().ariaLabel).toBe("High tide in 2 hours, 55 minutes");
 
     fireEvent.click(commentaryPill());
     expect(value(slider)).toBe(t0 + 27 * H);
@@ -139,6 +144,17 @@ describe("TideScrubber", () => {
 
     expect(container.querySelector("[data-fill='below-datum']")).toBeNull();
     expect(container.querySelector('line[stroke-dasharray="1 3"]')).toBeNull();
+  });
+
+  test("high and low axis times reuse their event colors", () => {
+    const { container } = renderScrubber();
+    const times = [...container.querySelectorAll(`text[y="${G.eventTimeY}"]`)];
+    const high = times.find((t) => /^3:00\sAM$/.test(t.textContent!))!;
+    const low = times.find((t) => /^9:00\sAM$/.test(t.textContent!))!;
+    expect(high.getAttribute("fill")).toContain("sw-graph-high");
+    expect(low.getAttribute("fill")).toContain("sw-graph-low");
+    expect(high.getAttribute("font-size")).toBe("14");
+    expect(low.getAttribute("font-size")).toBe("14");
   });
 
   test("marks every turn clear of the edges with its height and time", () => {

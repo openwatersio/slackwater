@@ -12,7 +12,7 @@ import { createTestWrapper } from "./helpers.js";
 const STATION_ID = "noaa/8443970";
 
 describe("prefetchTideStation", () => {
-  test("populates the station, its week, the fortnight of extremes, and both Nearby lists", async () => {
+  test("populates the station, its week, its outlook, the fortnight of extremes, and both Nearby lists", async () => {
     const queryClient = new QueryClient();
 
     await prefetchTideStation(queryClient, inject("apiBaseUrl"), STATION_ID, {
@@ -20,7 +20,7 @@ describe("prefetchTideStation", () => {
     });
 
     const queries = queryClient.getQueryCache().getAll();
-    expect(queries.length).toBe(6);
+    expect(queries.length).toBe(7);
     for (const query of queries) {
       expect(query.state.status).toBe("success");
     }

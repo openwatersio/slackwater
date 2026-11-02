@@ -1,3 +1,4 @@
+import { G } from "../../src/components/Scrubber.js";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
@@ -206,11 +207,11 @@ describe("CurrentScrubber", () => {
     } while (value(slider) !== last && commentaryPill());
 
     expect([...spoken].sort()).toEqual([
-      "Ebb current",
-      "Flood current",
       "Maximum ebb current",
       "Maximum flood current",
       "Slack current",
+      "Slack window",
+      "Slack window closes",
       "Sunrise",
       "Sunset",
     ]);
@@ -304,11 +305,11 @@ describe("CurrentScrubber", () => {
     await restsOn(slider, NOW);
     const sunrise = days(t0 + 24 * H, t0 + 25 * H, "UTC", 50, 0)[0].sunrise!;
 
-    tap(slider, sunrise + 5 * M, 378);
+    tap(slider, sunrise + 5 * M, G.sunDotY + 20);
     await restsOn(slider, sunrise);
 
     // The tap is handled in the event, so a date that moved the strip would have moved it already.
-    tap(slider, t0 + 36 * H, 364);
+    tap(slider, t0 + 36 * H, G.dayY + 20);
     await restsOn(slider, sunrise);
   });
 
@@ -365,15 +366,87 @@ describe("CurrentScrubber", () => {
     expect(cancel).toHaveBeenCalledWith(7);
   });
 
-  test("draws a slack dot at the edge of the data", () => {
-    const { events } = fixture(t0);
-    const { container } = renderScrubber({
-      events: [...events, { time: new Date(t0 + 96 * H), speed: 0, kind: "slack" }],
+  test("maximum times have their own gray row and move day chrome down only when present", () => {
+    const { container, slider, rerender } = renderScrubber();
+    const peakTimes = [...container.querySelectorAll(`text[y="${G.eventTimeY + 20}"]`)];
+    expect(peakTimes).toHaveLength(16);
+    expect(peakTimes.every((t) => t.getAttribute("fill")?.includes("sw-foam"))).toBe(true);
+    expect(peakTimes.every((t) => t.getAttribute("font-size") === "12")).toBe(true);
+    expect(slider.querySelector("svg")!.getAttribute("height")).toBe("416");
+    for (const rect of container.querySelectorAll(
+      'mask[id$="halo"] > rect, mask[id$="track"] > rect',
+    )) {
+      expect(rect.getAttribute("height")).toBe("416");
+    }
+    expect(
+      [...container.querySelectorAll(`text[y="${G.dayY + 20}"]`)].some(
+        (t) => t.textContent === "Today",
+      ),
+    ).toBe(true);
+    rerender(scrubber({ events: fixture(t0).events.filter((e) => e.kind === "slack") }));
+    expect(container.querySelectorAll(`text[y="${G.eventTimeY + 20}"]`)).toHaveLength(0);
+    expect(slider.querySelector("svg")!.getAttribute("height")).toBe("396");
+  });
+
+  test("a maximum near a Slack time remains visible on its separate row", () => {
+    const events: CurrentEvent[] = [
+      { time: new Date(t0 + 24 * H), speed: 0, kind: "slack" },
+      { time: new Date(t0 + 24 * H + 5 * M), speed: 3, kind: "maxFlood" },
+    ];
+    const { container } = renderScrubber({ events, threshold: 0 });
+    const slack = container.querySelector(`text[y="${G.eventTimeY}"]`)!;
+    const max = container.querySelector(`text[y="${G.eventTimeY + 20}"]`)!;
+    expect(slack.textContent).toMatch(/^12:00\sAM$/);
+    expect(max.textContent).toMatch(/^12:05\sAM$/);
+  });
+
+  test("weak water without a reversal stays yellow, including with windows Off", () => {
+    const { container, rerender } = renderScrubber({
+      ...fixture(t0),
+      timeline: fixture(t0).timeline.map((p) => ({ ...p, speed: 0.2 })),
+      events: [],
     });
-    const dots = [...container.querySelectorAll('circle[r="2.5"]')].map((c) =>
-      Number(c.getAttribute("cx")),
+    const base = () => container.querySelector('path[stroke-width="2.5"]')!;
+    expect(base().getAttribute("stroke")).toBe("#f5c96b");
+    rerender(
+      scrubber({
+        timeline: fixture(t0).timeline.map((p) => ({ ...p, speed: 0.2 })),
+        events: [],
+        threshold: 0,
+      }),
     );
-    expect(Math.max(...dots)).toBeGreaterThan((96 - 1.5) * PX_PER_HOUR);
+    expect(base().getAttribute("stroke")).toBe("#f5c96b");
+  });
+
+  test("a continuous window keeps exact Slack times visible in green", () => {
+    const data = fixture(t0);
+    const { container } = renderScrubber({
+      ...data,
+      timeline: data.timeline.map((p) => ({ ...p, speed: p.speed / 10 })),
+      threshold: 2,
+    });
+    const times = [...container.querySelectorAll(`text[y="${G.eventTimeY}"]`)];
+    expect(times).toHaveLength(15);
+    expect(times.some((t) => /^6:00\sAM$/.test(t.textContent!))).toBe(true);
+    expect(times.every((t) => t.getAttribute("fill")?.includes("sw-go"))).toBe(true);
+    expect(times.at(-1)!.getAttribute("opacity")).toBe("1");
+  });
+
+  test("draws comfort windows blue and exact slacks as short green strokes, even with windows off", () => {
+    const { container, rerender } = renderScrubber();
+    const green = () =>
+      [...container.querySelectorAll('path[stroke-width="3.5"]')].filter((p) =>
+        p.getAttribute("stroke")?.includes("sw-go"),
+      );
+    const blue = () =>
+      [...container.querySelectorAll('path[stroke-width="3.5"]')].filter((p) =>
+        p.getAttribute("stroke")?.includes("sw-graph-line"),
+      );
+    expect(blue().length).toBeGreaterThan(0);
+    expect(green()).toHaveLength(15);
+    rerender(scrubber({ threshold: 0 }));
+    expect(blue()).toHaveLength(0);
+    expect(green()).toHaveLength(15);
   });
 
   test("a scroll no person made rests where it lands, without the magnet", async () => {

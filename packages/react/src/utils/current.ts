@@ -49,7 +49,12 @@ export function slackWindowAround(
   threshold: number,
 ): SlackWindow | undefined {
   const n = timeline.length;
-  if (n === 0 || slack < timeline[0].time.getTime() || slack > timeline[n - 1].time.getTime()) {
+  if (
+    threshold <= 0 ||
+    n === 0 ||
+    slack < timeline[0].time.getTime() ||
+    slack > timeline[n - 1].time.getTime()
+  ) {
     return undefined;
   }
   const at = (i: number) => timeline[i].time.getTime();
@@ -69,9 +74,11 @@ export function slackWindowAround(
     };
   } else return undefined;
   const cross = (a: number, b: number) => {
-    const va = Math.abs(timeline[a].speed);
-    const vb = Math.abs(timeline[b].speed);
-    return at(a) + ((at(b) - at(a)) * (threshold - va)) / (vb - va);
+    const va = timeline[a].speed;
+    const vb = timeline[b].speed;
+    const outside = Math.abs(va) > threshold ? va : vb;
+    const edge = outside > 0 ? threshold : -threshold;
+    return at(a) + ((at(b) - at(a)) * (edge - va)) / (vb - va);
   };
   let lo = k;
   while (lo > 0 && inBand(lo - 1)) lo--;
@@ -83,11 +90,7 @@ export function slackWindowAround(
   };
 }
 
-/**
- * The measured window around every slack, each window once however many
- * slacks share it. A slack with no window is a zero-width run, so it draws,
- * times and stops as a dot like any short run.
- */
+/** Touching or overlapping comfort windows form one run; windowless zeros remain exact instants. */
 export function slackRuns(
   timeline: CurrentTimelineEntry[],
   events: CurrentEvent[],
@@ -102,11 +105,31 @@ export function slackRuns(
         slackWindowAround(timeline, e.time.getTime(), threshold) ?? { start: e.time, end: e.time },
     )
     .sort((a, b) => a.start.getTime() - b.start.getTime());
-  // Windows are whole in-band stretches or single crossings, so two either match or are disjoint.
-  return windows.filter((w, i) => i === 0 || w.start > windows[i - 1].end);
+  const runs: SlackWindow[] = [];
+  for (const window of windows) {
+    const last = runs.at(-1);
+    if (last && window.start <= last.end)
+      last.end = new Date(Math.max(last.end.getTime(), window.end.getTime()));
+    else runs.push(window);
+  }
+  return runs;
 }
 
-/** A run narrower than a five-unit dot draws as a dot, and is one stop, at its center. */
+/** Continuous windows show each zero; ordinary windows show their opening, with bare zeros retained. */
+export function slackAxisTimes(drawnWindows: SlackWindow[], slacks: number[]): number[] {
+  const times = drawnWindows.flatMap((window) => {
+    const zeros = slacks.filter((t) => t >= window.start.getTime() && t <= window.end.getTime());
+    return zeros.length > 1 ? zeros : [window.start.getTime()];
+  });
+  times.push(
+    ...slacks.filter(
+      (t) => !drawnWindows.some((w) => t >= w.start.getTime() && t <= w.end.getTime()),
+    ),
+  );
+  return [...new Set(times)].sort((a, b) => a - b);
+}
+
+/** Windows narrower than a turn dot are omitted; their exact zeros remain. */
 export function isDotRun(run: SlackWindow): boolean {
   return run.end.getTime() - run.start.getTime() < 5 * UNIT_MS;
 }
@@ -140,16 +163,12 @@ export function readCurrent(
   time: number,
   timeline: CurrentTimelineEntry[],
   events: CurrentEvent[],
-  windows: SlackWindow[],
+  _windows: SlackWindow[],
   directions: Directions,
 ): CurrentReading | undefined {
   const speed = speedAt(timeline, time);
   if (speed === undefined) return undefined;
-  // A dot run reads Slack at its center, where the magnet parks under the dot.
-  const inRun = (w: SlackWindow) =>
-    (w.start.getTime() <= time && time < w.end.getTime()) ||
-    (isDotRun(w) && Math.abs(time - runCenter(w)) <= 1000);
-  if (windows.some(inRun)) {
+  if (events.some((e) => e.kind === "slack" && Math.abs(e.time.getTime() - time) <= 1000)) {
     return { state: "Slack", speed };
   }
   const direction = speed >= 0 ? directions.flood : directions.ebb;
@@ -164,12 +183,7 @@ export function readCurrent(
   return direction === undefined ? { state, speed } : { state, speed, direction };
 }
 
-/**
- * The water stops the commentary walks: each run's opening, its closing named
- * for the water that follows, and each maximum. A dot run is one stop at its
- * center. A run clamped to the series has no measured edge there, so none is
- * invented.
- */
+/** Forward water stops: drawn window edges, exact zeros, and maxima. */
 export function currentStops(
   timeline: CurrentTimelineEntry[],
   events: CurrentEvent[],
@@ -179,39 +193,36 @@ export function currentStops(
   const last = timeline[timeline.length - 1]?.time.getTime();
   const stops: Stop[] = [];
   for (const w of runs) {
-    if (isDotRun(w)) {
-      stops.push({ time: runCenter(w), label: "Slack" });
-      continue;
-    }
-    if (w.start.getTime() > first) stops.push({ time: w.start.getTime(), label: "Slack" });
+    if (isDotRun(w)) continue;
+    if (w.start.getTime() > first) stops.push({ time: w.start.getTime(), label: "Slack window" });
     if (w.end.getTime() < last) {
-      const after = speedAt(timeline, w.end.getTime() + 1000) ?? 0;
-      stops.push({ time: w.end.getTime(), label: after >= 0 ? "Flood" : "Ebb" });
+      stops.push({ time: w.end.getTime(), label: "Slack window closes" });
     }
   }
   for (const e of events) {
+    if (e.kind === "slack") {
+      const time = e.time.getTime();
+      const edge = stops.findIndex(
+        (s) => (s.label === "Slack window" || s.label === "Slack window closes") && s.time === time,
+      );
+      if (edge !== -1) stops.splice(edge, 1);
+      stops.push({ time, label: "Slack" });
+    }
     if (e.kind === "maxFlood") stops.push({ time: e.time.getTime(), label: "Max flood" });
     else if (e.kind === "maxEbb") stops.push({ time: e.time.getTime(), label: "Max ebb" });
   }
   return stops.sort((a, b) => a.time - b.time);
 }
 
-/**
- * The magnet's targets: every stop plus each slack instant, inside the drawn
- * data, sorted and unique. A slack inside a dot run snaps to the dot instead.
- */
+/** Exact water stops and zeros inside the drawn data, sorted and unique. */
 export function snapTargets(
   stops: Stop[],
   events: CurrentEvent[],
-  runs: SlackWindow[],
+  _runs: SlackWindow[],
   start: number,
   end: number,
 ): number[] {
-  const dots = runs.filter(isDotRun);
-  const slacks = events
-    .filter((e) => e.kind === "slack")
-    .map((e) => e.time.getTime())
-    .filter((t) => !dots.some((w) => w.start.getTime() <= t && t <= w.end.getTime()));
+  const slacks = events.filter((e) => e.kind === "slack").map((e) => e.time.getTime());
   return targetsWithin([...stops.map((s) => s.time), ...slacks], start, end);
 }
 

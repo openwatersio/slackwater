@@ -53,10 +53,40 @@ describe("CurrentStation", () => {
 
     const nearby = await screen.findByRole("region", { name: "Nearby" }, { timeout: 10000 });
     const items = await within(nearby).findAllByRole("listitem", undefined, { timeout: 10000 });
-    expect(items.length).toBe(6);
+    expect(items.length).toBe(3);
+    const map = within(nearby).getByRole("region", { name: "Nearby stations map" });
+    expect(map.getBoundingClientRect().top).toBeGreaterThan(
+      items.at(-1)!.getBoundingClientRect().bottom,
+    );
     expect(nearby.textContent).not.toContain("Deception Pass (Narrows)");
     fireEvent.click(within(nearby).getByRole("button", { name: /^Deception Pass St\. Park/ }));
     expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/9448614", kind: "tide" });
+  });
+
+  test("Nearby filters the three shared-list cards by tide or current", async () => {
+    const onStationSelect = vi.fn();
+    render(<CurrentStation id="noaa/PUG1701" onStationSelect={onStationSelect} />, {
+      wrapper: createTestWrapper(),
+    });
+    const nearby = await screen.findByRole("region", { name: "Nearby" }, { timeout: 10000 });
+    await within(nearby).findAllByRole("listitem", undefined, { timeout: 10000 });
+    for (const [label, kind] of [
+      ["Show tides", "tide"],
+      ["Show currents", "current"],
+    ]) {
+      const filter = within(nearby).getByRole("button", { name: label });
+      fireEvent.click(filter);
+      await waitFor(() => expect(filter.ariaPressed).toBe("true"));
+      const items = within(nearby).getAllByRole("listitem");
+      expect(items).toHaveLength(3);
+      onStationSelect.mockClear();
+      for (const item of items) fireEvent.click(within(item).getByRole("button"));
+      expect(onStationSelect.mock.calls.map(([station]) => station.kind)).toEqual([
+        kind,
+        kind,
+        kind,
+      ]);
+    }
   });
 
   test("explains a station whose predictions can't be served", async () => {

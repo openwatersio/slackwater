@@ -112,18 +112,35 @@ export function interpolate<T extends { time: Date }>(
 }
 
 export type StopKind =
-  "High" | "Low" | "Slack" | "Flood" | "Ebb" | "Max flood" | "Max ebb" | "Sunrise" | "Sunset";
+  | "High"
+  | "Low"
+  | "Fastest rise"
+  | "Fastest fall"
+  | "Slack"
+  | "Slack window"
+  | "Slack window closes"
+  | "Flood"
+  | "Ebb"
+  | "Max flood"
+  | "Max ebb"
+  | "Sunrise"
+  | "Sunset";
 
 export interface Stop {
   time: number;
   label: StopKind;
+  color?: string;
 }
 
 /** What a screen reader hears for each stop, after the app's VoiceOver labels. */
 const SPOKEN: Record<StopKind, string> = {
   High: "High tide",
   Low: "Low tide",
+  "Fastest rise": "Fastest rising tide",
+  "Fastest fall": "Fastest falling tide",
   Slack: "Slack current",
+  "Slack window": "Slack window",
+  "Slack window closes": "Slack window closes",
   Flood: "Flood current",
   Ebb: "Ebb current",
   "Max flood": "Maximum flood current",

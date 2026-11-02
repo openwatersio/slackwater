@@ -16,7 +16,6 @@ import {
   lerpScale,
   levelAt,
   levelRange,
-  rateAt,
   rateColor,
   readTide,
   spokenTide,
@@ -34,7 +33,6 @@ import {
   Scrubber,
   TideGlyph,
   geometry,
-  nextStopComment,
   prefersReducedMotion,
   type ScrubberProps,
   type StripKit,
@@ -94,7 +92,7 @@ function drawTide(
     g.start,
     g.end,
   );
-  const times = thinLabels(turns.map((e) => ({ time: e.time }))).map((l) => l.time);
+  const times = thinLabels(turns);
   const nowLevel = now >= g.start && now <= g.end ? levelAt(timeline, now) : undefined;
 
   return (
@@ -194,7 +192,24 @@ function drawTide(
         );
       })}
 
-      {eventTimes(times)}
+      {eventTimes(
+        times.filter((e) => e.high).map((e) => e.time),
+        {
+          fill: C.high,
+          fontSize: 14,
+          fontWeight: 400,
+          opacity: 1,
+        },
+      )}
+      {eventTimes(
+        times.filter((e) => !e.high).map((e) => e.time),
+        {
+          fill: C.low,
+          fontSize: 14,
+          fontWeight: 400,
+          opacity: 1,
+        },
+      )}
 
       {nowLevel !== undefined && <circle cx={g.x(now)} cy={y(nowLevel)} r={3.5} fill={C.paper} />}
 
@@ -303,7 +318,7 @@ function TideStrip({
       end,
       y: (t) => y(levelAt(timeline, t) ?? scale.mid),
       dot: { size: 13, glow: 4 },
-      stops: tideStops(extremes),
+      stops: tideStops(extremes, peaks),
       targets: (stops, first, last) =>
         targetsWithin(
           [...stops.map((s) => s.time), ...peaks.map((p) => p.time.getTime())],
@@ -313,6 +328,10 @@ function TideStrip({
       lead: (t) => {
         const reading = readTide(t, timeline, rates, extremes);
         if (!reading) return undefined;
+        const fast =
+          reading.state === "Rising" || reading.state === "Falling"
+            ? fastTideText(reading.rate, units, locale)
+            : undefined;
         return {
           spoken: spokenTide(reading, t, timezone, units, locale),
           content: (
@@ -321,7 +340,15 @@ function TideStrip({
                 className="flex items-center gap-1.5 text-[13px] font-semibold"
                 aria-hidden="true"
               >
-                <span className="font-medium opacity-85">{reading.state}</span>
+                <span
+                  className="font-medium tabular-nums"
+                  style={{
+                    color: fast ? fastTideInk(reading.rate) : undefined,
+                    opacity: fast ? 1 : 0.85,
+                  }}
+                >
+                  {fast ?? reading.state}
+                </span>
                 <span
                   className="flex items-center"
                   style={{ color: fastTideInk(reading.rate) ?? (reading.up ? C.high : C.low) }}
@@ -345,25 +372,6 @@ function TideStrip({
             </>
           ),
         };
-      },
-      comment: (t, stops) => {
-        const plain = nextStopComment(t, stops, locale);
-        const rate = rateAt(rates, t) ?? 0;
-        const fast = fastTideText(rate, units, locale);
-        if (!fast) return plain;
-        // The tap goes to this run's fastest point, then on to the next stop from there.
-        const peak = peaks
-          .filter((p) => p.rate < 0 === rate < 0)
-          .reduce<RatePoint | undefined>(
-            (best, p) =>
-              !best || Math.abs(p.time.getTime() - t) < Math.abs(best.time.getTime() - t)
-                ? p
-                : best,
-            undefined,
-          );
-        const to =
-          peak && Math.abs(peak.time.getTime() - t) > 1000 ? peak.time.getTime() : plain?.to;
-        return { content: fast, spoken: fast, to, color: fastTideInk(rate) };
       },
       draw: (kit) =>
         drawTide(kit, id, lineGradient, timeline, extremes, scale, units, chartDatum, locale),

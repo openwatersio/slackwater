@@ -9,3 +9,5 @@
 `NearbyStations` shows tide and current stations together as station cards, nearest first, with their distance in nautical miles. Its `stationId` takes a `kind` for a current station. `StationSearch` follows the app's search: a "Harbor, bay, or channel" field with a clear button, All / Tides / Currents filters, and matching stations of both kinds as cards in a grid, with "No matches" and a notice when it stops at 60. Recent searches are removed. Both call back with the station's new `kind`.
 
 `TideStation` and `CurrentStation` end with the nearest stations and take `onStationSelect`. `StationSummary` has a `kind` of `"tide"` or `"current"`. `fetchCurrentStations`, `useCurrentStations`, and the `CurrentStationSummary` type are new, and `prefetchNearbyStations` fills both lists. `prefetchTideStation` also fills the page's Nearby lists.
+
+Station pages show three nearby stations using the shared search list layout, followed by a framed map. `NearbyStations` accepts `showMap` and a tide/current `filter`; a failed map download leaves the list and page usable.

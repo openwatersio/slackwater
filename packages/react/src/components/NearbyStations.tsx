@@ -1,10 +1,15 @@
+import { lazy, Suspense } from "react";
+import { useSeen } from "../hooks/use-seen.js";
+import { MapBoundary } from "./MapBoundary.js";
+import { StationList } from "./StationList.js";
+const NearbyMap = lazy(() => import("./NearbyMap.js"));
 import { useCurrentStation, useCurrentStations } from "../hooks/use-current-station.js";
 import { useNearbyStations } from "../hooks/use-nearby-stations.js";
 import { useStation } from "../hooks/use-station.js";
 import type { StationSummary } from "../types.js";
 import { mergeNearby } from "../utils/card.js";
 import { NEARBY_RESULTS, nearbyParams } from "../utils/page.js";
-import { StationCard, type CardStation } from "./StationCard.js";
+import { type CardStation } from "./StationCard.js";
 import { StationCredits } from "./StationCredits.js";
 
 export interface NearbyStationsPositionProps {
@@ -24,6 +29,8 @@ export interface NearbyStationsStationProps {
 
 export type NearbyStationsProps = (NearbyStationsPositionProps | NearbyStationsStationProps) & {
   maxResults?: number;
+  showMap?: boolean;
+  filter?: StationSummary["kind"];
   onStationSelect?: (station: CardStation) => void;
   /** Called when the user hovers over or focuses a station. */
   onHover?: (station: CardStation) => void;
@@ -103,11 +110,14 @@ function NearbyFromPosition({
   onHover,
   onHoverEnd,
   className,
+  showMap = false,
+  filter,
 }: ListProps & {
   latitude: number;
   longitude: number;
   exclude?: { id: string; kind: StationSummary["kind"] };
 }) {
+  const [mapRef, seen] = useSeen("200px");
   const params = nearbyParams(latitude, longitude, maxResults, !!exclude);
   const tides = useNearbyStations(params);
   const currents = useCurrentStations(params);
@@ -116,26 +126,52 @@ function NearbyFromPosition({
   // An API without the current routes still lists its tide stations.
   if (tides.error && currents.error) return <Status error>{tides.error.message}</Status>;
   const stations = mergeNearby<CardStation>(
-    [tides.data ?? [], currents.data ?? []],
+    [
+      filter === "current" ? [] : (tides.data ?? []),
+      filter === "tide" ? [] : (currents.data ?? []),
+    ],
     maxResults,
     exclude,
   );
 
   return (
     <div>
-      <ul className={`m-0 flex list-none flex-col gap-3 p-0 ${className ?? ""}`}>
-        {stations.map((station) => (
-          <li
-            key={`${station.kind}:${station.id}`}
-            onMouseEnter={() => onHover?.(station)}
-            onMouseLeave={() => onHoverEnd?.(station)}
-            onFocus={() => onHover?.(station)}
-            onBlur={() => onHoverEnd?.(station)}
-          >
-            <StationCard station={station} distance={station.distance} onSelect={onStationSelect} />
-          </li>
-        ))}
-      </ul>
+      <StationList
+        stations={stations}
+        onSelect={onStationSelect}
+        onHover={onHover}
+        onHoverEnd={onHoverEnd}
+        className={className}
+      />
+      {showMap && stations.length > 0 && (
+        <div
+          ref={mapRef}
+          role="region"
+          aria-label="Nearby stations map"
+          className="sw-card mt-3 h-[220px] overflow-hidden"
+        >
+          {seen && (
+            <MapBoundary>
+              <Suspense
+                fallback={
+                  <div role="status" className="p-4 text-sm">
+                    Loading map…
+                  </div>
+                }
+              >
+                <NearbyMap
+                  key={stations.map((s) => `${s.kind}:${s.id}`).join(",")}
+                  latitude={latitude}
+                  longitude={longitude}
+                  stations={stations}
+                  focusStation={exclude?.id}
+                  onStationSelect={onStationSelect}
+                />
+              </Suspense>
+            </MapBoundary>
+          )}
+        </div>
+      )}
       <StationCredits stations={stations} className="mt-3" />
     </div>
   );

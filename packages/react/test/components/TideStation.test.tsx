@@ -63,8 +63,8 @@ describe("TideStation", () => {
     const predictions = fetch.mock.calls
       .map(([url]) => new URL(String(url)))
       .filter((u) => /\/(timeline|extremes)$/.test(u.pathname));
-    // The week's timeline and extremes, and the fortnight the Range tile ranks against.
-    expect(predictions.filter((u) => u.pathname.includes(`/${SEATTLE}/`)).length).toBe(3);
+    // The strip, the ranking fortnight, and the Range outlook's complete week.
+    expect(predictions.filter((u) => u.pathname.includes(`/${SEATTLE}/`)).length).toBe(4);
     for (const url of predictions) expect(url.searchParams.has("datum")).toBe(false);
     expect(screen.getByText("MLLW chart datum. NOAA harmonic prediction.")).toBeDefined();
   });
@@ -233,7 +233,11 @@ describe("TideStation", () => {
 
     const nearby = await screen.findByRole("region", { name: "Nearby" }, { timeout: 10000 });
     const items = await within(nearby).findAllByRole("listitem", undefined, { timeout: 10000 });
-    expect(items.length).toBe(6);
+    expect(items.length).toBe(3);
+    const map = within(nearby).getByRole("region", { name: "Nearby stations map" });
+    expect(map.getBoundingClientRect().top).toBeGreaterThan(
+      items.at(-1)!.getBoundingClientRect().bottom,
+    );
     expect(nearby.textContent).not.toContain("Deception Pass St. Park");
     fireEvent.click(within(nearby).getByRole("button", { name: /^Deception Pass \(Narrows\)/ }));
     expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/PUG1701", kind: "current" });
@@ -249,6 +253,23 @@ describe("TideStation", () => {
     expect(screen.queryByText("Station details")).toBeNull();
     const urls = fetch.mock.calls.map(([url]) => String(url));
     expect(urls.filter((u) => /\/(timeline|extremes)\?/.test(u) && u.includes("chs-"))).toEqual([]);
+  });
+
+  test("a station with no timeline rows keeps the page usable", async () => {
+    const original = window.fetch.bind(window);
+    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const response = await original(input, init);
+      if (!String(input).includes(`${SEATTLE}/timeline?`)) return response;
+      const json = await response.json();
+      return Response.json({ ...json, timeline: [] });
+    });
+    render(<TideStation id={SEATTLE} />, { wrapper: createTestWrapper() });
+    expect(
+      await screen.findByText("No tide predictions for this period.", undefined, {
+        timeout: 10000,
+      }),
+    ).toBeDefined();
+    expect(screen.getByRole("region", { name: "Nearby" })).toBeDefined();
   });
 
   test("a new station starts over rather than showing the last one's strip", async () => {

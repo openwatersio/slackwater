@@ -65,6 +65,8 @@ function CurrentTiles(props: {
   events: CurrentEvent[];
   fortnight: CurrentEvent[] | undefined;
   timezone: string;
+  latitude: number;
+  longitude: number;
   locale?: string;
 }) {
   const time = useSelected(props.selection) ?? props.now;
@@ -72,6 +74,9 @@ function CurrentTiles(props: {
     <SummaryTiles
       time={time}
       timezone={props.timezone}
+      latitude={props.latitude}
+      longitude={props.longitude}
+      locale={props.locale}
       primary={nextMaxTile(props.events, time, props.fortnight, props.timezone, props.locale)}
     />
   );
@@ -141,6 +146,8 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
             events={events.data.events}
             fortnight={standing.data?.events}
             timezone={s.timezone}
+            latitude={s.latitude}
+            longitude={s.longitude}
             locale={locale}
           />
           <div className="mt-[26px]">

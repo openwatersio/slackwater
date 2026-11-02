@@ -1,12 +1,13 @@
 import type {
   CurrentTimelineEntry,
+  CurrentEvent,
   Extreme,
   StationSummary,
   TimelineEntry,
   Units,
 } from "../types.js";
 import { pinRampColor } from "./color.js";
-import { speedAt, formatSpeed, type Directions } from "./current.js";
+import { readCurrent, formatSpeed, type Directions } from "./current.js";
 import { formatHeight, heightUnit, levelAt } from "./tide.js";
 
 /** Readings, gauges, and the predictions behind them start here; below it every pin is a dot. */
@@ -37,8 +38,9 @@ export interface PinState {
   bucket?: number;
   /** Degrees true the arrow points: the set the water flows toward. */
   bearing?: number;
-  /** "3.2 ft" or "1.8 kn", from `READING_MIN_ZOOM`. */
+  /** Formatted magnitude, paired with its unit for framed maps. */
   reading?: string;
+  unit?: string;
 }
 
 export const UNKNOWN_PIN: PinState = { shape: "dot", tone: "unknown" };
@@ -96,36 +98,39 @@ export function tidePinState(
   if (level === undefined) return { shape: "dot", tone };
   const prev = extremes.findLast((e) => e.time.getTime() <= now);
   const bucket = prev && gaugeBucket(level, prev.level, next.level);
-  const reading = `${formatHeight(level, units, locale)} ${heightUnit(units)}`;
+  const reading = formatHeight(level, units, locale);
+  const unit = heightUnit(units);
   return bucket === undefined
-    ? { shape: "dot", tone, reading }
-    : { shape: "gauge", tone, bucket, reading };
+    ? { shape: "dot", tone, reading, unit }
+    : { shape: "gauge", tone, bucket, reading, unit };
 }
 
 /**
- * A current pin: from the reading zoom an arrow toward the set, green at or
- * under the slack threshold and otherwise the lifted ramp at its speed. Below
+ * A current pin: from the reading zoom an arrow toward the set, green at a
+ * predicted Slack instant and otherwise the lifted ramp at its speed. Below
  * that zoom, or with no published set for this direction, it is a dot in the
  * same color.
  */
 export function currentPinState(
   timeline: CurrentTimelineEntry[],
   directions: Directions,
-  threshold: number,
+  events: CurrentEvent[],
   now: number,
   detailed: boolean,
   locale?: string,
 ): PinState {
-  const speed = speedAt(timeline, now);
-  if (speed === undefined) return UNKNOWN_PIN;
+  const readingNow = readCurrent(now, timeline, events, [], directions);
+  if (!readingNow) return UNKNOWN_PIN;
+  const { speed } = readingNow;
   const tone: PinTone =
-    Math.abs(speed) <= threshold ? "slack" : (pinRampColor(Math.abs(speed)) as PinTone);
+    readingNow.state === "Slack" ? "slack" : (pinRampColor(Math.abs(speed)) as PinTone);
   if (!detailed) return { shape: "dot", tone };
   const bearing = speed >= 0 ? directions.flood : directions.ebb;
-  const reading = `${formatSpeed(speed, locale)} kn`;
+  const reading = formatSpeed(speed, locale);
+  const unit = "kn";
   return bearing === undefined
-    ? { shape: "dot", tone, reading }
-    : { shape: "arrow", tone, bearing, reading };
+    ? { shape: "dot", tone, reading, unit }
+    : { shape: "arrow", tone, bearing, reading, unit };
 }
 
 /** A station as the map lists it. */

@@ -100,7 +100,10 @@ export interface StripKit {
   /** Day and night shading, clipped beneath `curve` (an SVG path) and fading down the strip. */
   shade: (curve: string) => ReactNode;
   /** The event-time row. */
-  eventTimes: (times: number[]) => ReactNode;
+  eventTimes: (
+    times: number[],
+    style?: { fill: string; fontSize: number; fontWeight: number; opacity?: number; y?: number },
+  ) => ReactNode;
   /** Day names, dates, sun times and sun dots. */
   dayChrome: ReactNode;
 }
@@ -122,6 +125,7 @@ export interface Comment {
 
 /** One kind of strip: its data span, curve, lead, and stops. */
 export interface Track {
+  hasMaxTimes?: boolean;
   label: string;
   start: number;
   end: number;
@@ -176,6 +180,14 @@ export function SunPath({ rising }: { rising: boolean }) {
 }
 
 /** SF Symbols `arrow.forward` / `arrow.backward`. */
+function NowChevron({ forward }: { forward: boolean }) {
+  return (
+    <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden="true">
+      <path {...SYMBOL} d={forward ? "M4 2l4 4-4 4" : "M8 2 4 6l4 4"} />
+    </svg>
+  );
+}
+
 function ArrowPath({ forward }: { forward: boolean }) {
   return <path {...SYMBOL} d={forward ? "M2 6h11M9 2l4 4-4 4" : "M14 6H3M7 2 3 6l4 4"} />;
 }
@@ -189,7 +201,7 @@ export function Arrow({ forward }: { forward: boolean }) {
 }
 
 /** The water going both ways: SF Symbol arrow.right.and.line.vertical.and.arrow.left. */
-export function SlackGlyph() {
+export function SlackGlyph({ closing = false }: { closing?: boolean } = {}) {
   return (
     <svg
       width={16}
@@ -202,7 +214,13 @@ export function SlackGlyph() {
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <path d="M8 1v10M1 6h4.5M3.5 4l2 2-2 2M15 6h-4.5M12.5 4l-2 2 2 2" />
+      <path
+        d={
+          closing
+            ? "M8 1v10M5.5 6H1M3 4 1 6l2 2M10.5 6H15M13 4l2 2-2 2"
+            : "M8 1v10M1 6h4.5M3.5 4l2 2-2 2M15 6h-4.5M12.5 4l-2 2 2 2"
+        }
+      />
     </svg>
   );
 }
@@ -250,10 +268,13 @@ export function UpDownArrow({ up, size = 12 }: { up: boolean; size?: number }) {
 
 /** The symbol a commentary stop carries, after the app's `commentaryEventStop`. */
 export function StopIcon({ kind }: { kind: StopKind }) {
-  if (kind === "Slack") return <SlackGlyph />;
+  if (kind === "Slack" || kind === "Slack window") return <SlackGlyph />;
+  if (kind === "Slack window closes") return <SlackGlyph closing />;
+  if (kind === "Fastest rise" || kind === "Fastest fall")
+    return <TideGlyph state={kind === "Fastest rise" ? "Rising" : "Falling"} />;
   if (kind === "High" || kind === "Low") return <UpDownArrow up={kind === "High"} />;
-  if (kind !== "Sunrise" && kind !== "Sunset")
-    return <Arrow forward={kind === "Flood" || kind === "Max flood"} />;
+  if (kind === "Max flood" || kind === "Max ebb") return null;
+  if (kind !== "Sunrise" && kind !== "Sunset") return <Arrow forward={kind === "Flood"} />;
   return (
     <svg width={16} height={12} viewBox="0 0 16 12" aria-hidden="true">
       <SunPath rising={kind === "Sunrise"} />
@@ -268,13 +289,14 @@ export function nextStopComment(t: number, stops: Stop[], locale?: string): Comm
     c && {
       content: (
         <>
-          {c.stop.label}
+          {c.stop.label === "Slack window closes" ? "Slack window" : c.stop.label}
           <StopIcon kind={c.stop.label} />
           {c.duration}
         </>
       ),
       spoken: c.spoken,
       to: c.stop.time,
+      color: c.stop.color,
     }
   );
 }
@@ -289,6 +311,8 @@ interface StripProps {
 }
 
 const Strip = memo(function Strip({ track, daysList, bands, now, timezone, locale }: StripProps) {
+  const rowOffset = track.hasMaxTimes ? 20 : 0;
+  const height = G.height + rowOffset;
   const id = useId().replace(/\W/g, "");
   const g = useMemo(() => geometry(track.start, track.end), [track.start, track.end]);
   const nowX = Math.min(g.width, Math.max(0, g.x(now)));
@@ -305,10 +329,7 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
         <defs>
           <mask id={`${id}shade`} maskUnits="userSpaceOnUse">
             {/* Under the curve only, so the line is the shade's top edge. */}
-            <path
-              d={`${curve}L${g.width} ${G.height}L0 ${G.height}Z`}
-              fill={`url(#${id}shadeFade)`}
-            />
+            <path d={`${curve}L${g.width} ${height}L0 ${height}Z`} fill={`url(#${id}shadeFade)`} />
           </mask>
         </defs>
         <g mask={`url(#${id}shade)`}>
@@ -317,7 +338,7 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
               key={i}
               x={g.x(b.from - FADE_MS)}
               width={Math.max(0, g.x(b.to + FADE_MS) - g.x(b.from - FADE_MS))}
-              height={G.height}
+              height={height}
               fill={`url(#${id}band${i})`}
               opacity={b.night ? 0.7 : 0.08}
             />
@@ -325,17 +346,17 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
         </g>
       </>
     ),
-    eventTimes: (times) =>
+    eventTimes: (times, style) =>
       times.map((time) => (
         <text
           key={time}
           x={g.x(time)}
-          y={G.eventTimeY}
+          y={style?.y ?? G.eventTimeY}
           textAnchor="middle"
-          fill={C.foam}
-          opacity={0.7 * past(time)}
-          fontSize={12}
-          fontWeight={500}
+          fill={style?.fill ?? C.foam}
+          opacity={(style?.opacity ?? 0.7) * past(time)}
+          fontSize={style?.fontSize ?? 12}
+          fontWeight={style?.fontWeight ?? 500}
           style={{ fontVariantNumeric: "tabular-nums" }}
         >
           {chartTime(time, timezone, locale)}
@@ -349,7 +370,7 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
             <>
               <text
                 x={g.x(mid)}
-                y={G.dayY}
+                y={G.dayY + rowOffset}
                 textAnchor="middle"
                 fill={C.foam}
                 fillOpacity={0.85}
@@ -360,7 +381,7 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
               </text>
               <text
                 x={g.x(mid)}
-                y={G.dateY}
+                y={G.dateY + rowOffset}
                 textAnchor="middle"
                 fill={C.foam}
                 fillOpacity={0.48}
@@ -385,12 +406,12 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
             const left = g.x(t) - width / 2;
             return (
               <g key={kind} color={C.sunrise}>
-                <g transform={`translate(${left} ${G.dayY - 10}) scale(0.8125)`}>
+                <g transform={`translate(${left} ${G.dayY + rowOffset - 10}) scale(0.8125)`}>
                   <SunPath rising={kind === "Sunrise"} />
                 </g>
                 <text
                   x={left + 17}
-                  y={G.dayY}
+                  y={G.dayY + rowOffset}
                   fill={C.sunrise}
                   fontSize={11}
                   fontWeight={500}
@@ -398,7 +419,7 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
                 >
                   {clock}
                 </text>
-                <circle cx={g.x(t)} cy={G.sunDotY} r={3.5} fill={C.sun} />
+                <circle cx={g.x(t)} cy={G.sunDotY + rowOffset} r={3.5} fill={C.sun} />
               </g>
             );
           })}
@@ -408,7 +429,7 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
   };
 
   return (
-    <svg width={g.width} height={G.height} style={{ display: "block" }} aria-hidden="true">
+    <svg width={g.width} height={height} style={{ display: "block" }} aria-hidden="true">
       <defs>
         <linearGradient
           id={`${id}shadeFade`}
@@ -416,7 +437,7 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
           x1="0"
           x2="0"
           y1={G.plotTop}
-          y2={G.height}
+          y2={height}
         >
           <stop offset="0.35" stopColor="#fff" />
           <stop offset="1" stopColor="#fff" stopOpacity={0} />
@@ -434,8 +455,8 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
           );
         })}
         <mask id={`${id}past`} maskUnits="userSpaceOnUse">
-          <rect width={nowX} height={G.height} fill="#fff" fillOpacity={0.35} />
-          <rect x={nowX} width={g.width - nowX} height={G.height} fill="#fff" />
+          <rect width={nowX} height={height} fill="#fff" fillOpacity={0.35} />
+          <rect x={nowX} width={g.width - nowX} height={height} fill="#fff" />
         </mask>
       </defs>
       {track.draw(kit)}
@@ -486,6 +507,7 @@ export function Scrubber({
   onNow,
   onView,
 }: ScrubberProps) {
+  const rowOffset = track.hasMaxTimes ? 20 : 0;
   const [clock, setClock] = useState(() => nowProp ?? Date.now());
   const now = nowProp ?? clock;
   const g = useMemo(() => geometry(track.start, track.end), [track.start, track.end]);
@@ -753,7 +775,7 @@ export function Scrubber({
     const t = g.start + ((el.scrollLeft + e.clientX - rect.left) / PX_PER_HOUR) * HOUR;
     stopMotion();
     pending.current = undefined;
-    if (e.clientY - rect.top < DAY_ROW_Y) {
+    if (e.clientY - rect.top < DAY_ROW_Y + rowOffset) {
       goTo(magnetTarget(targets, t) ?? t, true);
       return;
     }
@@ -804,7 +826,7 @@ export function Scrubber({
     <div
       className={`relative select-none overflow-hidden ${className ?? ""}`}
       style={{
-        height: G.height,
+        height: G.height + rowOffset,
         background: "var(--sw-strip-ground, var(--sw-canvas, #05122a))",
         color: "#fff",
       }}
@@ -907,13 +929,13 @@ export function Scrubber({
             <span className={capsule} style={{ height: PILL_HEIGHT }}>
               {selected > home ? (
                 <>
-                  <Arrow forward={false} />
+                  <NowChevron forward={false} />
                   Now
                 </>
               ) : (
                 <>
                   Now
-                  <Arrow forward />
+                  <NowChevron forward />
                 </>
               )}
             </span>

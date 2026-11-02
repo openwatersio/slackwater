@@ -9,8 +9,8 @@ import {
   formatSpeed,
   isDotRun,
   readCurrent,
-  runCenter,
   slackRuns,
+  slackAxisTimes,
   snapTargets,
   speedAt,
   speedColor,
@@ -91,10 +91,11 @@ function drawCurrent(
   y: (v: number) => number,
   locale?: string,
 ) {
+  const height = G.height + (events.some((e) => e.kind !== "slack") ? 20 : 0);
   const curve = timeline
     .map((p, i) => `${i ? "L" : "M"}${g.x(p.time.getTime()).toFixed(1)} ${y(p.speed).toFixed(1)}`)
     .join("");
-  // A slack run is its own path between the interpolated window edges, so its round caps show.
+  // Window edges use the curve's interpolation so their strokes join it.
   const run = (w: SlackWindow) => {
     const a = w.start.getTime();
     const b = w.end.getTime();
@@ -109,17 +110,25 @@ function drawCurrent(
 
   const strokes = runs.filter((w) => !isDotRun(w));
   // Runs draw to the edges; only marks and labels keep clear of them.
-  const dots = runs
-    .filter(isDotRun)
-    .map((w) => ({ time: runCenter(w), y: y(speedAt(timeline, runCenter(w))!) }));
+  const zeros = events.filter(
+    (e) => e.kind === "slack" && e.time.getTime() >= g.start && e.time.getTime() <= g.end,
+  );
+  const cores = zeros.map((e) => ({
+    start: new Date(Math.max(g.start, e.time.getTime() - 600_000)),
+    end: new Date(Math.min(g.end, e.time.getTime() + 600_000)),
+  }));
   const maxima = awayFromEdges(
     events.filter((e) => e.kind !== "slack").map((e) => ({ ...e, time: e.time.getTime() })),
     g.start,
     g.end,
   );
+  const axisTimes = slackAxisTimes(
+    strokes,
+    zeros.map((e) => e.time.getTime()),
+  );
   const times = thinLabels(
     awayFromEdges(
-      runs.map((w) => ({ time: isDotRun(w) ? runCenter(w) : w.start.getTime() })),
+      axisTimes.sort((a, b) => a - b).map((time) => ({ time })),
       g.start,
       g.end,
     ),
@@ -165,9 +174,9 @@ function drawCurrent(
         {/* The line leaves room for each run: the run's body, plus a halo
             around its round end caps only, so the gap follows the curve. */}
         <mask id={`${id}track`} maskUnits="userSpaceOnUse" fill="none">
-          <rect width={g.width} height={G.height} fill="#fff" />
-          {strokes.map((w) => (
-            <g key={w.start.getTime()}>
+          <rect width={g.width} height={height} fill="#fff" />
+          {[...strokes, ...cores].map((w, i) => (
+            <g key={`${i}:${w.start.getTime()}`}>
               <path
                 d={run(w)}
                 stroke="#000"
@@ -186,10 +195,7 @@ function drawCurrent(
         </mask>
         {/* Dots punch through everything drawn beneath them to the ground. */}
         <mask id={`${id}halo`} maskUnits="userSpaceOnUse">
-          <rect width={g.width} height={G.height} fill="#fff" />
-          {dots.map((d) => (
-            <circle key={d.time} cx={g.x(d.time)} cy={d.y} r={2.5 + HALO_GAP} fill="#000" />
-          ))}
+          <rect width={g.width} height={height} fill="#fff" />
           {nowSpeed !== undefined && (
             <circle cx={g.x(now)} cy={y(nowSpeed)} r={3.5 + HALO_GAP} fill="#000" />
           )}
@@ -213,20 +219,31 @@ function drawCurrent(
 
         <g mask={pastMask} fill="none" strokeLinecap="round" strokeLinejoin="round">
           <g mask={`url(#${id}track)`}>
-            <path d={curve} stroke={C.line} strokeWidth={2.5} />
+            <path d={curve} stroke={speedColor(0)} strokeWidth={2.5} />
             <path d={curve} stroke={`url(#${id}thread)`} strokeWidth={2} />
           </g>
           {strokes.map((w) => (
-            <path key={w.start.getTime()} d={run(w)} stroke={C.go} strokeWidth={SLACK_WIDTH} />
+            <path key={w.start.getTime()} d={run(w)} stroke={C.line} strokeWidth={SLACK_WIDTH} />
           ))}
         </g>
       </g>
 
-      {eventTimes(times)}
+      {eventTimes(times, { fill: C.go, fontSize: 14, fontWeight: 400, opacity: 1 })}
+      {eventTimes(
+        thinLabels(maxima).map((e) => e.time),
+        {
+          fill: C.foam,
+          fontSize: 12,
+          fontWeight: 500,
+          y: G.eventTimeY + 20,
+        },
+      )}
 
-      {dots.map((d) => (
-        <circle key={d.time} cx={g.x(d.time)} cy={d.y} r={2.5} fill={C.go} opacity={past(d.time)} />
-      ))}
+      <g mask={pastMask} fill="none" strokeLinecap="round">
+        {cores.map((w, i) => (
+          <path key={zeros[i].time.getTime()} d={run(w)} stroke={C.go} strokeWidth={SLACK_WIDTH} />
+        ))}
+      </g>
 
       {maxima.map((e) => {
         // Hangs toward the zero line: the set arrow nearest the peak, the speed beyond it.
@@ -311,6 +328,7 @@ function CurrentStrip({
     const read = (t: number) => readCurrent(t, timeline, events, runs, { flood, ebb });
     return {
       label: "Current timeline",
+      hasMaxTimes: events.some((e) => e.kind !== "slack"),
       start: g.start,
       end: g.end,
       y: (t) => y(speedAt(timeline, t) ?? 0),

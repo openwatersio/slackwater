@@ -29,6 +29,7 @@ import {
 } from "./StationPage.js";
 import { SummaryTiles } from "./SummaryTiles.js";
 import { TideScrubber } from "./TideScrubber.js";
+import { RangeOutlook } from "./RangeOutlook.js";
 
 export interface TideStationProps {
   /** "source/id": "noaa/9447130". */
@@ -55,6 +56,10 @@ function TideTiles(props: {
   extremes: Extreme[];
   swings: number[] | undefined;
   timezone: string;
+  latitude: number;
+  longitude: number;
+  id: string;
+  anchor: number;
   units: Units;
   locale?: string;
 }) {
@@ -63,6 +68,18 @@ function TideTiles(props: {
     <SummaryTiles
       time={time}
       timezone={props.timezone}
+      latitude={props.latitude}
+      longitude={props.longitude}
+      locale={props.locale}
+      outlook={
+        <RangeOutlook
+          id={props.id}
+          anchor={props.anchor}
+          time={time}
+          timezone={props.timezone}
+          locale={props.locale}
+        />
+      }
       primary={rangeTile(props.extremes, time, props.swings, props.units, props.locale)}
     />
   );
@@ -148,7 +165,11 @@ function TidePage({ id, onStationSelect, className }: TideStationProps) {
             now={week.now}
             extremes={extremes.data.extremes}
             swings={swings}
+            id={id}
+            anchor={week.anchor}
             timezone={s.timezone}
+            latitude={s.latitude}
+            longitude={s.longitude}
             units={units}
             locale={locale}
           />

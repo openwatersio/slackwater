@@ -192,7 +192,7 @@ describe("readTide", () => {
   test("speaks the state, the height and its unit, then the dated clock", () => {
     const reading = readTide(t0 + 0.5 * H, timeline, rates, extremes)!;
     expect(spokenTide(reading, t0 + 0.5 * H, "UTC", "meters", "en-US")).toMatch(
-      /^Rising 1\.50 metres, Oct 10, 12:30\sAM UTC$/,
+      /^Rising 1\.50 metres, 1\.00 metres per hour, Oct 10, 12:30\sAM UTC$/,
     );
     expect(spokenTide({ ...reading, level: 4 }, t0, "UTC", "feet", "en-US")).toMatch(
       /^Rising 4\.0 feet, /,

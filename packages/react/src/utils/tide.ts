@@ -65,9 +65,16 @@ export function flowPeaks(rates: RatePoint[]): RatePoint[] {
   return peaks;
 }
 
-/** The commentary's water stops: every high and low. */
-export function tideStops(extremes: Extreme[]): Stop[] {
-  return extremes.map((e) => ({ time: e.time.getTime(), label: e.high ? "High" : "Low" }));
+/** Every high, low and fast-rate peak, ordered so the pill walks forward. */
+export function tideStops(extremes: Extreme[], peaks: RatePoint[] = []): Stop[] {
+  return [
+    ...extremes.map((e): Stop => ({ time: e.time.getTime(), label: e.high ? "High" : "Low" })),
+    ...peaks.map((p): Stop => ({
+      time: p.time.getTime(),
+      label: p.rate < 0 ? "Fastest fall" : "Fastest rise",
+      color: fastTideInk(p.rate),
+    })),
+  ].sort((a, b) => a.time - b.time);
 }
 
 /** The plot's vertical mapping: heights centered on `mid`, reaching `span` either side. */
@@ -200,5 +207,12 @@ export function spokenTide(
   locale?: string,
 ): string {
   const value = formatHeight(reading.level, units, locale);
-  return `${reading.state} ${value} ${SPOKEN_UNIT[units]}, ${spokenTime(time, timeZone, locale)}`;
+  const fast =
+    reading.state === "Rising" || reading.state === "Falling"
+      ? fastTideText(reading.rate, units, locale)
+      : undefined;
+  const rate = fast
+    ? `, ${formatHeight(Math.abs(reading.rate) * (units === "feet" ? FEET_PER_METRE : 1), units, locale)} ${SPOKEN_UNIT[units]} per hour`
+    : "";
+  return `${reading.state} ${value} ${SPOKEN_UNIT[units]}${rate}, ${spokenTime(time, timeZone, locale)}`;
 }

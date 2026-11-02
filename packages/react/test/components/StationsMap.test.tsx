@@ -1,5 +1,9 @@
-import { describe, test, expect, vi } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { createQueryClient, useUpdateConfig } from "../../src/provider.js";
+import { cardRange } from "../../src/utils/card.js";
+import { currentTimelineQuery } from "../../src/hooks/use-current-station.js";
+import { holdRequests } from "../helpers.js";
+import { describe, test, expect, vi, inject } from "vitest";
+import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { createRef } from "react";
 import type { MapRef } from "react-map-gl/maplibre";
 import type { GeoJSONSource, Map as MapLibreMap } from "maplibre-gl";
@@ -8,8 +12,8 @@ import { StationsMap } from "../../src/components/StationsMap.js";
 import { createTestWrapper } from "../helpers.js";
 
 /** A small map, so each view asks the shared test API for few stations and leaves it free for other files. */
-function mapWrapper() {
-  const Provider = createTestWrapper();
+function mapWrapper(queryClient?: ReturnType<typeof createQueryClient>) {
+  const Provider = createTestWrapper(queryClient ? { queryClient } : {});
   return function MapWrapper({ children }: { children: React.ReactNode }) {
     return (
       <Provider>
@@ -108,7 +112,9 @@ describe("StationsMap", () => {
         expect(pins.some((p) => String(p.icon).startsWith("sw-pin|gauge|"))).toBe(true);
         expect(pins.some((p) => String(p.icon).startsWith("sw-pin|arrow|"))).toBe(true);
         expect(seattle()?.selected).toBe(true);
-        expect(seattle()?.reading).toMatch(/^-?\d+\.\d (ft|m)$/);
+        expect(seattle()?.reading).toMatch(/^-?\d+\.\d$/);
+        expect(screen.getByLabelText("Map legend").textContent).toContain("Tides ft");
+        expect(screen.getByLabelText("Map legend").textContent).toContain("Currents kn");
         expect(seattle()?.icon).toMatch(/^sw-pin\|gauge\|/);
       },
       { timeout: 15000 },
@@ -128,6 +134,141 @@ describe("StationsMap", () => {
       },
       { timeout: 10000 },
     );
+  });
+
+  test("current pins stay unknown until both timeline and events are loaded", async () => {
+    const ref = createRef<MapRef>();
+    const queryClient = createQueryClient();
+    await queryClient.fetchQuery(
+      currentTimelineQuery(
+        inject("apiBaseUrl"),
+        "noaa/PUG1701",
+        cardRange(Math.floor(NOW / 3_600_000) * 3_600_000).timeline,
+      ),
+    );
+    const events = holdRequests((u) => u.includes("/currents/stations/") && u.includes("/events?"));
+    try {
+      render(
+        <StationsMap
+          ref={ref}
+          mapStyle={style}
+          now={NOW}
+          initialViewState={{ longitude: -122.644, latitude: 48.406, zoom: 11 }}
+          focusStation="noaa/PUG1701"
+        />,
+        { wrapper: mapWrapper(queryClient) },
+      );
+      const map = await loadedMap(ref);
+      const pin = () =>
+        sourcePins(map).find((f) => f.properties!.key === "current:noaa/PUG1701")?.properties;
+      await waitFor(() => expect(pin()).toBeDefined(), { timeout: 10000 });
+      await waitFor(
+        () =>
+          expect(
+            queryClient
+              .getQueryCache()
+              .getAll()
+              .some(
+                (q) =>
+                  q.queryKey[1] === "current-timeline" &&
+                  (q.queryKey[2] as { id?: string })?.id === "noaa/PUG1701" &&
+                  q.state.status === "success",
+              ),
+          ).toBe(true),
+        { timeout: 10000 },
+      );
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(pin()!.icon).toBe("sw-pin|dot|rgb(88, 136, 168)");
+      expect(pin()!.reading).toBeUndefined();
+      events.release();
+      await waitFor(() => expect(pin()!.icon).toMatch(/^sw-pin\|arrow\|/), { timeout: 15000 });
+    } finally {
+      events.release();
+      vi.restoreAllMocks();
+    }
+  });
+
+  test("a real predicted Slack colors its map pin green despite interpolation residuals", async () => {
+    const ref = createRef<MapRef>();
+    render(
+      <StationsMap
+        ref={ref}
+        mapStyle={style}
+        now={Date.parse("2026-11-02T04:20:30.675Z")}
+        initialViewState={{ longitude: -122.644, latitude: 48.406, zoom: 11 }}
+        focusStation="noaa/PUG1701"
+      />,
+      { wrapper: mapWrapper() },
+    );
+    const map = await loadedMap(ref);
+    await waitFor(
+      () => {
+        const pin = sourcePins(map).find((f) => f.properties!.key === "current:noaa/PUG1701");
+        expect(pin?.properties!.icon).toMatch(/sw-pin\|arrow\|rgb\(136, 184, 104\)/);
+      },
+      { timeout: 15000 },
+    );
+  });
+
+  test("the legend follows height units without labeling cached feet as meters", async () => {
+    const ref = createRef<MapRef>();
+    function UnitsToggle() {
+      const update = useUpdateConfig();
+      return <button onClick={() => update({ units: "meters" })}>Use meters</button>;
+    }
+    render(
+      <>
+        <UnitsToggle />
+        <StationsMap
+          ref={ref}
+          mapStyle={style}
+          now={NOW}
+          initialViewState={{ ...SEATTLE, zoom: 10.5 }}
+        />
+      </>,
+      { wrapper: mapWrapper() },
+    );
+    const map = await loadedMap(ref);
+    const seattle = () =>
+      sourcePins(map).find((f) => f.properties!.key === "tide:noaa/9447130")?.properties;
+    await waitFor(() => expect(seattle()?.reading).toMatch(/^-?\d+\.\d$/), { timeout: 15000 });
+    const requests = holdRequests((u) => u.includes("units=meters"));
+    try {
+      fireEvent.click(screen.getByRole("button", { name: "Use meters" }));
+      await waitFor(() =>
+        expect(screen.getByLabelText("Map legend").textContent).toContain("Tides m"),
+      );
+      expect(seattle()?.reading).toBeUndefined();
+    } finally {
+      requests.release();
+    }
+    await waitFor(() => expect(seattle()?.reading).toMatch(/^-?\d+\.\d{2}$/), { timeout: 10000 });
+  });
+
+  test("an embedded map keeps units beside its readings", async () => {
+    const ref = createRef<MapRef>();
+    render(
+      <StationsMap
+        ref={ref}
+        mapStyle={style}
+        now={NOW}
+        showLegend={false}
+        initialViewState={{ ...SEATTLE, zoom: 10.5 }}
+      />,
+      { wrapper: mapWrapper() },
+    );
+    const map = await loadedMap(ref);
+    await waitFor(
+      () =>
+        expect(
+          sourcePins(map).find((f) => f.properties!.key === "tide:noaa/9447130")?.properties!
+            .reading,
+        ).toMatch(/^-?\d+\.\d ft$/),
+      { timeout: 15000 },
+    );
+    expect(screen.queryByLabelText("Map legend")).toBeNull();
   });
 
   test("asks for predictions only for stations in view at the reading zoom", async () => {
@@ -259,6 +400,37 @@ describe("StationsMap", () => {
     });
   });
 
+  test("an embedded map can open a pin directly without covering itself with a card", async () => {
+    const ref = createRef<MapRef>();
+    const onPinSelect = vi.fn();
+    const { container } = render(
+      <StationsMap
+        ref={ref}
+        mapStyle={style}
+        now={NOW}
+        initialViewState={{ ...SEATTLE, zoom: 12 }}
+        onPinSelect={onPinSelect}
+      />,
+      { wrapper: mapWrapper() },
+    );
+    const map = await loadedMap(ref);
+    await waitFor(
+      () =>
+        expect(
+          map
+            .queryRenderedFeatures({ layers: ["sw-pins"] })
+            .some((f) => f.properties.key === "tide:noaa/9447130"),
+        ).toBe(true),
+      { timeout: 15000 },
+    );
+    const point = map.project([SEATTLE.longitude, SEATTLE.latitude]);
+    tap(container.querySelector("canvas")!, point.x, point.y);
+    expect(onPinSelect).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "noaa/9447130", kind: "tide" }),
+    );
+    expect(screen.queryByRole("button", { name: /Seattle/ })).toBeNull();
+  });
+
   test("a tap shows the station's card, the card opens it, and water deselects", async () => {
     const ref = createRef<MapRef>();
     const onStationSelect = vi.fn();
@@ -289,9 +461,9 @@ describe("StationsMap", () => {
     tap(canvas, pin.x - 20, pin.y);
     const card = await screen.findByRole("button", { name: /Seattle/ }, { timeout: 10000 });
     expect(screen.queryByRole("button", { name: "My Location" })).toBeNull();
-    // The note sits above the open card, inside the map.
+    // The legend stays below the card, inside the map.
     const note = screen.getByText("Not for navigation.").getBoundingClientRect();
-    expect(note.bottom).toBeLessThanOrEqual(card.getBoundingClientRect().top);
+    expect(note.top).toBeGreaterThanOrEqual(card.getBoundingClientRect().bottom);
     expect(note.top).toBeGreaterThanOrEqual(canvas.getBoundingClientRect().top);
     await waitFor(
       () =>

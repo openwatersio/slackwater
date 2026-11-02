@@ -12,7 +12,7 @@ Peer dependencies:
 
 ```sh
 npm install react react-dom
-# Optional — needed for <StationsMap>
+# Required for station pages and <StationsMap>
 npm install maplibre-gl react-map-gl
 ```
 
@@ -66,10 +66,10 @@ function App() {
 A tide station's page, after the app's tide detail screen:
 
 - the name and region over a `<TideScrubber>`, with the reading for the selected moment and pills for the next event and the way back to now;
-- two tiles that follow the selected moment. **Range** is the height between the turn behind it and the turn ahead, captioned "low to high" or "high to low". When that swing is in the top tenth of every swing in the fifteen days either side of the day the page opened, the caption says "beyond normal here", or "the fortnight's biggest" when no swing in that window is bigger. **Moon** names the phase and the tide the Moon is driving: spring or neap, perigean or apogean within two days of perigee or apogee, or how much of it is lit;
+- a full-width water tile above paired Moon and Sun cards (all three share a row in panes at least 700 px wide). **Range** is the height between the turn behind it and the turn ahead, captioned "low to high" or "high to low". When that swing is in the top tenth of every swing in the fifteen days either side of the day the page opened, the caption says "beyond normal here", or "the fortnight's biggest" when no swing in that window is bigger. **Moon** names the phase and the tide the Moon is driving: spring or neap, perigean or apogean within two days of perigee or apogee, or how much of it is lit. Sun names the next sunrise or sunset and the selected day's daylight duration. Range includes seven daily swing bars from a complete week of extremes, highlighting the selected day;
 - a schedule card with the week's highs and lows, a day at a time with sunrise, solar noon, and sunset. The row nearest the selection is highlighted, and choosing a row moves the scrubber there. The week bar opens a date picker;
 - where the predictions come from, the station's disclaimers and attribution, and a "Station details" disclosure with its datum, ID, position, time zone, and reference station;
-- the six nearest tide and current stations, as `<NearbyStations>` cards.
+- the three nearest tide and current stations in the same list layout as search, with All, Tides and Currents filters and a 220 px map below. The map frames the page's station and the listed stations; tapping a pin selects it directly.
 
 Heights are above the station's chart datum, which the page names. A station whose `datums` don't include its chart datum, such as `noaa/8519024`, reads about mean sea level, so the page names no datum and marks nothing at 0. The page loads a window from 96 hours before to 180 hours after the start of the week in the station's time zone, and moves it when a date is picked, when Now is chosen, or when the page is shown again two or more days later. Stations whose predictions can't be served, such as the CHS ports, show the reason instead.
 
@@ -85,7 +85,7 @@ Heights are above the station's chart datum, which the page names. A station who
 
 ### `<CurrentStation>`
 
-A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb beside the Moon tile, the week's slacks and maxima with their set, where the predictions come from, the station's details, and the nearest stations. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. The current components need `@slackwater/api` 1.0.0-beta.3 or later, which serves the `/currents` routes. The tide components need 1.0.0-beta.4 or later, which flags the tide stations it can't predict and serves the bare IDs of the CHS records.
+A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb above the Moon and Sun tiles, the week's slacks and maxima with their set, where the predictions come from, the station's details, and the nearest stations. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. The current components need `@slackwater/api` 1.0.0-beta.3 or later, which serves the `/currents` routes. The tide components need 1.0.0-beta.4 or later, which flags the tide stations it can't predict and serves the bare IDs of the CHS records.
 
 ```tsx
 <CurrentStation id="noaa/PUG1701" />
@@ -103,7 +103,7 @@ A nearby station's `kind` (`"tide"` or `"current"`) says which page it belongs o
 
 ### `<TideScrubber>`
 
-A tide timeline that scrolls under a fixed reading line. The lead reads the height and whether the tide is rising, falling, high, or low at the selected moment. The water is shaded amber where it drops below chart datum, unless `chartDatum` is `false`, and the curve turns from blue through yellow to red where the tide moves faster than 0.6 m an hour. Each high and low carries its height and time, and the vertical scale follows the water in view. Drag, scroll, tap, or use the arrow keys (Shift moves between events). Used by `<TideStation>`, and available on its own.
+A tide timeline that scrolls under a fixed reading line. The lead reads the height and whether the tide is rising, falling, high, or low at the selected moment, including the rate when it reaches 0.6 m/hour. The pill names the next high, low, fastest rise/fall, or earlier sunrise/sunset, always moving forward. The water is shaded amber where it drops below chart datum, unless `chartDatum` is `false`, and the curve turns from blue through yellow to red where the tide moves faster than 0.6 m an hour. Each high and low carries its height and time in its event color, and the vertical scale follows the water in view. Drag, scroll, tap, or use the arrow keys (Shift moves between events). Used by `<TideStation>`, and available on its own.
 
 ```tsx
 <TideScrubber
@@ -131,7 +131,7 @@ A tide timeline that scrolls under a fixed reading line. The lead reads the heig
 
 ### `<CurrentScrubber>`
 
-The current timeline: the speed, set, and state at the selected moment, green slack windows sized by a boat-speed threshold, a curve threaded by speed, and the speed and set at each maximum. Used by `<CurrentStation>`, and available on its own.
+The current timeline: the speed, set, and state at the selected moment, blue comfort windows sized by a boat-speed threshold and short green strokes at the exact slack instants, a curve threaded by speed, and the speed and set at each maximum. The lead says Slack only within a second of a predicted zero; the window does not hide Flooding, Ebbing or a maximum. The pill walks through window opening, zero, window closing and maxima, competing with sunrise and sunset. A zero threshold turns windows off while retaining exact slacks. Window edges follow the signed sampled curve. Touching or overlapping windows merge; a continuous window spanning several slacks shows their exact times in green, while an ordinary window shows its opening. Maximum flood and ebb times appear on a separate gray row beneath the green Slack times. Without a window, the curve stays yellow. Used by `<CurrentStation>`, and available on its own.
 
 ```tsx
 <CurrentScrubber
@@ -181,7 +181,7 @@ The tide now, after the app's small home-screen widget: the station's name, the 
 
 ### `<StationCard>`
 
-A station's card, after the app's: its name and region, the reading now (height and rising or falling for a tide; speed, flooding, ebbing, or slack, and the set for a current), and a curve from one and a half swings back to two and a half ahead with each high, low, maximum, and slack window. The card loads its own predictions once it scrolls near the viewport, with a skeleton until then. A station the API can't serve shows only its name and region. The card has no room for its station's credit, so put a `<StationCredits>` under the cards you show.
+A station's card, after the app's: its name and region, the reading now (height and rising or falling for a tide; speed, flooding, ebbing, or slack, and the set for a current), and a curve from one and a half swings back to two and a half ahead with each high, low, maximum, and slack window. The card loads its own predictions once it scrolls near the viewport, with a skeleton until then. A station the API can't serve shows only its name and region. The card has no room for its station's credit, so put a `<StationCredits>` under the cards you show. Current cards say Slack only within a second of a predicted zero, show comfort windows in blue, and mark exact slacks with short green strokes even when the comfort window is off.
 
 ```tsx
 <StationCard station={station} onSelect={(station) => navigate(station)} />
@@ -228,6 +228,8 @@ The tide and current stations nearest a station or a position, as `<StationCard>
 | `kind`                  | `"tide" \| "current"` | `"tide"` | Which routes serve `stationId`                      |
 | `latitude`, `longitude` | `number`              | —        | Measure from a position instead                     |
 | `maxResults`            | `number`              | `5`      | How many stations to show                           |
+| `showMap`               | `boolean`             | `false`  | Show a framed map below the list                    |
+| `filter`                | `"tide" \| "current"` | —        | Restrict the list to one station kind               |
 | `onStationSelect`       | `(station) => void`   | —        | Called with the picked station, including `kind`    |
 | `onHover`, `onHoverEnd` | `(station) => void`   | —        | Called as a station is hovered or focused, and left |
 | `className`             | `string`              | —        | Extra classes for the list                          |
@@ -236,9 +238,9 @@ Without the API's `/currents` routes, the search and nearby lists show tide stat
 
 ### `<StationsMap>`
 
-The app's stations map: every tide and current station in view as a live pin on OpenFreeMap's dark [fiord](https://openfreemap.org) style, north up. A tide is a gauge filled to where the water sits between its last and next turn, teal and pointing up while rising, amber and pointing down while falling. A current is an arrow toward its set, green at slack and otherwise colored by its speed. A station whose state isn't known yet is a steel dot, and one the API can't serve is a hollow ring. Readings ("3.2 ft", "1.8 kn"), gauges, and arrows appear from zoom 9.5 and names from 10.5. Below 9.5 every pin is a dot, in its tide or current color where its predictions are already loaded and steel otherwise. Each 44 px cell keeps one station, a harmonic station before a subordinate.
+The app's stations map: every tide and current station in view as a live pin on OpenFreeMap's dark [fiord](https://openfreemap.org) style, north up. A tide is a gauge filled to where the water sits between its last and next turn, teal and pointing up while rising, amber and pointing down while falling. A current is an arrow toward its set, green at slack and otherwise colored by its speed. A station whose state isn't known yet is a steel dot, and one the API can't serve is a hollow ring. Readings ("3.2", "1.8"), gauges, and arrows appear from zoom 9.5 and names from 10.5. Below 9.5 every pin is a dot, in its tide or current color where its predictions are already loaded and steel otherwise. Each 44 px cell keeps one station, a harmonic station before a subordinate.
 
-A tap picks the nearest pin and shows its `<StationCard>` in a panel along the bottom, under the "Not for navigation." notice and over the station's credit; tapping the card calls `onStationSelect`, and tapping the water closes it. The map's ⓘ credits the basemap and every station in view whose predictions color its pin. The locate button centers the map on the reader at zoom 10.5. Requires `maplibre-gl` and `react-map-gl`.
+A tap picks the nearest pin and shows its `<StationCard>` in a panel along the bottom, above the unit legend, with the station's credit beneath its card; tapping the card calls `onStationSelect`, and tapping the water closes it. The bottom legend pairs a dot with Tides and the provider's height unit, an arrow with Currents and kn, and “Not for navigation.” beneath them. Framed Nearby maps use `showLegend={false}` and keep units beside each reading. The map's ⓘ credits the basemap and every station in view whose predictions color its pin. The locate button centers the map on the reader at zoom 10.5. Requires `maplibre-gl` and `react-map-gl`, also needed for the embedded maps on station pages.
 
 ```tsx
 <StationsMap
@@ -247,20 +249,22 @@ A tap picks the nearest pin and shows its `<StationCard>` in a panel along the b
 />
 ```
 
-| Prop              | Type                | Default           | Description                                                      |
-| ----------------- | ------------------- | ----------------- | ---------------------------------------------------------------- |
-| `onStationSelect` | `(station) => void` | —                 | Called when the selected station's card is tapped                |
-| `onBoundsChange`  | `(bounds) => void`  | —                 | Called with the visible bounds each time the camera settles      |
-| `focusStation`    | `string`            | —                 | A station ID to mark as selected without opening its card        |
-| `showGeolocation` | `boolean`           | `true`            | Show the locate button                                           |
-| `threshold`       | `number`            | `0.5`             | Boat speed in knots at or under which a current is slack         |
-| `now`             | `number`            | the clock         | The current instant in ms; pass it to render deterministically   |
-| `mapStyle`        | style or URL        | OpenFreeMap fiord | The basemap; station text uses the `Noto Sans Regular` fontstack |
-| `className`       | `string`            | —                 | Extra classes for the outer element                              |
+| Prop              | Type                | Default           | Description                                                                |
+| ----------------- | ------------------- | ----------------- | -------------------------------------------------------------------------- |
+| `onStationSelect` | `(station) => void` | —                 | Called when the selected station's card is tapped                          |
+| `onBoundsChange`  | `(bounds) => void`  | —                 | Called with the visible bounds each time the camera settles                |
+| `focusStation`    | `string`            | —                 | A station ID to mark as selected without opening its card                  |
+| `showLegend`      | `boolean`           | `true`            | Unit legend below the selected card; false keeps units beside pin readings |
+| `onPinSelect`     | `(station) => void` | —                 | Opens a picked pin directly, without a card panel                          |
+| `showGeolocation` | `boolean`           | `true`            | Show the locate button                                                     |
+| `threshold`       | `number`            | `0.5`             | Comfort threshold for the selected card's graph                            |
+| `now`             | `number`            | the clock         | The current instant in ms; pass it to render deterministically             |
+| `mapStyle`        | style or URL        | OpenFreeMap fiord | The basemap; station text uses the `Noto Sans Regular` fontstack           |
+| `className`       | `string`            | —                 | Extra classes for the outer element                                        |
 
 Other props pass through to react-map-gl's `<Map>`, and the forwarded ref is its `MapRef`. A custom `mapStyle` must serve the `Noto Sans Regular` fontstack from its `glyphs`, or the station names and readings don't draw.
 
-Station listings load by bounding box once the camera settles, padded by half the view so a small pan needs nothing new. From zoom 9.5, each station in view loads the same predictions its card does (a tide's timeline and extremes, a current's timeline), so the card in the panel opens without another request. Pins update each minute from what is loaded, and a new window loads on the hour.
+Station listings load by bounding box once the camera settles, padded by half the view so a small pan needs nothing new. From zoom 9.5, each station in view loads the same predictions its card does (a tide's timeline and extremes, a current's timeline and events), so the card in the panel opens without another request. Pins update each minute from what is loaded, and a new window loads on the hour.
 
 ### `<StationCredits>`
 
@@ -299,7 +303,7 @@ All hooks must be used within a `<SlackwaterProvider>`.
 - `useCurrentLevel(timeline)` — the water level now, interpolated and updated each minute
 - `useThemeColors()` — the map's colors, resolved from the theme variables
 
-`timelineQuery`, `extremesQuery`, and `currentTimelineQuery` return the query key and function those hooks use, for `useQueries` or a prefetch that should share their cache.
+`timelineQuery`, `extremesQuery`, `currentTimelineQuery`, and `currentEventsQuery` return the query key and function those hooks use, for `useQueries` or a prefetch that should share their cache.
 
 `useTimeline` and `useExtremes` also take a location (`{ latitude, longitude }`) in place of an `id`. They take no `datum`, so every reader of a station shares the API's default, its chart datum; the `fetch*` client functions still pass one through. Their `options` set `enabled`, `staleTime`, and `placeholderData`.
 
