@@ -212,10 +212,28 @@ describe("CurrentStation", () => {
   });
 
   test("lists the week's slacks and maxima, and says where they come from", async () => {
+    const realFetch = window.fetch;
+    const attribution =
+      "Slackwater database (https://github.com/openwatersio/slackwater-database). Source: Page current survey";
+    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const response = await realFetch(input, init);
+      return new URL(String(input)).pathname === "/currents/stations/noaa/PUG1701"
+        ? Response.json({ ...(await response.json()), attribution })
+        : response;
+    });
+
     const { container } = render(<CurrentStation id="noaa/PUG1701" />, {
       wrapper: createTestWrapper(),
     });
     await screen.findByRole("slider", undefined, { timeout: 10000 });
+    const nearby = await screen.findByRole("region", { name: "Nearby" });
+    await within(nearby).findByRole("list", undefined, { timeout: 10000 });
+    const credits = screen
+      .getAllByText(/^Slackwater database/)
+      .filter((p) => !p.closest(".maplibregl-ctrl"));
+    expect(credits.map((p) => p.textContent)).toEqual([attribution]);
+    expect(credits[0].closest("details")!.open).toBe(false);
+    expect(nearby.contains(credits[0])).toBe(true);
 
     const rows = [...container.querySelectorAll("button")].map((b) => b.textContent ?? "");
     expect(rows.some((r) => /—Slack$/.test(r))).toBe(true);

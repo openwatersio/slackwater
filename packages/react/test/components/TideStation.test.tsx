@@ -226,6 +226,16 @@ describe("TideStation", () => {
   });
 
   test("ends with the nearest stations of both kinds, and says which was picked", async () => {
+    const realFetch = window.fetch;
+    const attribution =
+      "Slackwater database (https://github.com/openwatersio/slackwater-database). Source: Page tide survey";
+    vi.spyOn(window, "fetch").mockImplementation(async (input, init) => {
+      const response = await realFetch(input, init);
+      return new URL(String(input)).pathname === "/tides/stations/noaa/9448614"
+        ? Response.json({ ...(await response.json()), attribution })
+        : response;
+    });
+
     const onStationSelect = vi.fn();
     render(<TideStation id="noaa/9448614" onStationSelect={onStationSelect} />, {
       wrapper: createTestWrapper(),
@@ -234,6 +244,12 @@ describe("TideStation", () => {
     const nearby = await screen.findByRole("region", { name: "Nearby" }, { timeout: 10000 });
     const items = await within(nearby).findAllByRole("listitem", undefined, { timeout: 10000 });
     expect(items.length).toBe(3);
+    const credits = screen
+      .getAllByText(/^Slackwater database/)
+      .filter((p) => !p.closest(".maplibregl-ctrl"));
+    expect(credits.map((p) => p.textContent)).toEqual([attribution]);
+    expect(credits[0].closest("details")!.open).toBe(false);
+    expect(nearby.contains(credits[0])).toBe(true);
     const map = within(nearby).getByRole("region", { name: "Nearby stations map" });
     expect(map.getBoundingClientRect().top).toBeGreaterThan(
       items.at(-1)!.getBoundingClientRect().bottom,

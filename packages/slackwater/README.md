@@ -73,4 +73,4 @@ Full documentation lives at [openwaters.io/tides/slackwater](https://openwaters.
 
 ## License
 
-MIT. Station data carries its own license per station; see the [database README](https://github.com/openwatersio/slackwater-database#license). Most stations require credit, so display `station.attribution` wherever you show a station's data. Some stations are not licensed for commercial use; they have `station.license.commercial_use` set to `false`.
+MIT. Station data carries its own license per station; see the [database README](https://github.com/openwatersio/slackwater-database#license). Most stations require credit, so include `station.attribution` wherever you show a station's data. Some stations are not licensed for commercial use; they have `station.license.commercial_use` set to `false`.
