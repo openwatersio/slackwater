@@ -238,7 +238,7 @@ describe("TideStation", () => {
     expect(map.getBoundingClientRect().top).toBeGreaterThan(
       items.at(-1)!.getBoundingClientRect().bottom,
     );
-    expect(nearby.textContent).not.toContain("Deception Pass St. Park");
+    expect(nearby.textContent).not.toContain("Deception Pass State Park");
     fireEvent.click(within(nearby).getByRole("button", { name: /^Deception Pass \(Narrows\)/ }));
     expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/PUG1701", kind: "current" });
   });
@@ -280,7 +280,7 @@ describe("TideStation", () => {
     rerender(<TideStation id={next} />);
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Deception Pass St. Park" }),
+      await screen.findByRole("heading", { level: 1, name: "Deception Pass State Park" }),
     ).toBeDefined();
     expect(screen.queryByRole("slider")).toBeNull();
     timeline.release();

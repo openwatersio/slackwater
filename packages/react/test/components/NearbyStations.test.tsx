@@ -32,7 +32,7 @@ describe("NearbyStations", () => {
     const items = await cards();
     expect(names(items)).toEqual([
       "Deception Pass (Narrows)",
-      "Deception Pass St. Park",
+      "Deception Pass State Park",
       "Cornet Bay",
       "Yokeko Point",
     ]);
@@ -47,20 +47,33 @@ describe("NearbyStations", () => {
 
     const items = await cards();
     expect(items.length).toBe(3);
-    expect(names(items)).not.toContain("Deception Pass St. Park");
+    expect(names(items)).not.toContain("Deception Pass State Park");
     expect(names(items)).toContain("Deception Pass (Narrows)");
   });
 
-  test("names a tide station the API can't predict without asking for its predictions", async () => {
+  test("omits identity-only tide stations without asking for their predictions", async () => {
     const fetch = vi.spyOn(window, "fetch");
     // Campbell River's CHS record sits beside the predictable stations there.
-    render(<NearbyStations latitude={50.042} longitude={-125.247} maxResults={3} />, {
-      wrapper: createTestWrapper(),
-    });
+    const onStationSelect = vi.fn();
+    render(
+      <NearbyStations
+        latitude={50.042}
+        longitude={-125.247}
+        maxResults={3}
+        onStationSelect={onStationSelect}
+      />,
+      {
+        wrapper: createTestWrapper(),
+      },
+    );
 
     const items = await cards();
-    const chs = items.find((li) => li.textContent!.includes("Campbell River"))!;
-    expect(chs.textContent).toContain("Predictions aren't available for this station.");
+    expect(items).toHaveLength(3);
+    for (const item of items) fireEvent.click(within(item).getByRole("button"));
+    expect(onStationSelect.mock.calls).toHaveLength(3);
+    expect(
+      onStationSelect.mock.calls.some(([station]) => station.id === "chs-campbell-river"),
+    ).toBe(false);
     expect(fetch.mock.calls.some(([url]) => String(url).includes("chs-campbell-river"))).toBe(
       false,
     );
@@ -72,7 +85,7 @@ describe("NearbyStations", () => {
     });
 
     const items = await cards();
-    expect(names(items)).toEqual(["Deception Pass St. Park", "Cornet Bay", "Yokeko Point"]);
+    expect(names(items)).toEqual(["Deception Pass State Park", "Cornet Bay", "Yokeko Point"]);
   });
 
   test("leaves out a depth bin's station by its listed id", async () => {
@@ -137,7 +150,7 @@ describe("NearbyStations", () => {
     );
     render(<NearbyStations {...DECEPTION_PASS} maxResults={2} />, { wrapper: createTestWrapper() });
 
-    expect(names(await cards())).toEqual(["Deception Pass St. Park", "Cornet Bay"]);
+    expect(names(await cards())).toEqual(["Deception Pass State Park", "Cornet Bay"]);
   });
 
   test("says why when nothing loads", async () => {

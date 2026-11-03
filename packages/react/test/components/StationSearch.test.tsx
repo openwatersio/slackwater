@@ -40,14 +40,15 @@ describe("StationSearch", () => {
     await user.type(field, "Deception");
 
     expect(await results()).toEqual([
-      "Deception Pass St. Park",
-      "Point Deception",
+      "Deception Pass State Park",
       "Deception Pass (Narrows)",
+      "Point Deception",
+      "Yokeko Point, Deception Pass",
       "Yokeko Point",
       "Cornet Bay",
-      "Yokeko Point",
+      "Skagit Bay Channel, SW of Hope Island",
     ]);
-    expect(screen.getByRole("status").textContent).toBe("6 stations");
+    expect(screen.getByRole("status").textContent).toBe("7 stations");
     expect(screen.queryByText(/nm$/)).toBeNull();
   });
 
@@ -69,17 +70,18 @@ describe("StationSearch", () => {
     await user.click(chip("Show currents"));
     expect(chip("Show currents").getAttribute("aria-pressed")).toBe("true");
     expect(await results()).toEqual([
-      "Point Deception",
       "Deception Pass (Narrows)",
-      "Yokeko Point",
+      "Point Deception",
+      "Yokeko Point, Deception Pass",
+      "Skagit Bay Channel, SW of Hope Island",
     ]);
 
     await user.click(chip("Show tides"));
-    expect(await results()).toEqual(["Deception Pass St. Park", "Yokeko Point", "Cornet Bay"]);
+    expect(await results()).toEqual(["Deception Pass State Park", "Yokeko Point", "Cornet Bay"]);
 
     await user.click(chip("Show tides"));
     expect(chip("Show all").getAttribute("aria-pressed")).toBe("true");
-    expect((await results()).length).toBe(6);
+    expect((await results()).length).toBe(7);
   });
 
   test("says when nothing matches", async () => {
@@ -164,7 +166,7 @@ describe("StationSearch", () => {
     const { field, user } = renderSearch();
     await user.type(field, "Deception");
 
-    expect(await results()).toEqual(["Deception Pass St. Park", "Yokeko Point", "Cornet Bay"]);
+    expect(await results()).toEqual(["Deception Pass State Park", "Yokeko Point", "Cornet Bay"]);
   });
 
   test("credits the sources of the results shown, once, under them", async () => {
@@ -175,7 +177,10 @@ describe("StationSearch", () => {
 
     expect(await results()).toContain("Bergen");
     // Kartverket's credit opens with the database's, which the NOAA results carry alone.
-    expect(credits()).toEqual([expect.stringContaining("Source: Kartverket")]);
+    expect(credits()).toEqual([
+      expect.stringMatching(/Source: .*Kartverket/),
+      expect.stringContaining("Source: Hart-Davis"),
+    ]);
     expect(within(screen.getByRole("list")).queryByText(/^Slackwater database/)).toBeNull();
 
     await user.click(chip("Show currents"));

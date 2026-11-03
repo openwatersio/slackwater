@@ -19,7 +19,7 @@ java {
 dependencies {
     testImplementation(platform("org.junit:junit-bom:5.14.4"))
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
     testImplementation(kotlin("test-junit5"))
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

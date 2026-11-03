@@ -54,6 +54,13 @@ export const chsTideFit = {
  * can publish the fit of its trailing 60 days first, as a provisional answer,
  * when that fit matched every slack and its worst slack error, rounded up to
  * 5 minutes, was measured at or below `provisionalSlackMaxMinutes`.
+ *
+ * `stamp` identifies this recipe. `fixtures/generate/gen-chs-current-golden.mjs`
+ * derives it from the recipe's data and what the recipe predicts for a fixed
+ * synthetic gate, so it changes when a change moves the golden gate's predicted
+ * velocity by 1e-4 kn or more, a slack or peak by 30 seconds or more, or a
+ * peak's speed by 0.001 kn or more. Validation results and fitted models record
+ * the stamp they were measured or fitted on.
  */
 export const chsCurrentFit = {
   speedSeries: "wcsp1",
@@ -62,6 +69,7 @@ export const chsCurrentFit = {
   days: [60, 210],
   sampleMinutes: 15,
   provisionalSlackMaxMinutes: 45,
+  stamp: "8f85912ce223",
 } as const satisfies {
   speedSeries: string;
   directionSeries: string;
@@ -69,6 +77,7 @@ export const chsCurrentFit = {
   days: readonly number[];
   sampleMinutes: number;
   provisionalSlackMaxMinutes: number;
+  stamp: string;
 };
 
 /**

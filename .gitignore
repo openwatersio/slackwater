@@ -12,6 +12,7 @@ junit.xml
 DerivedData
 *.tsbuildinfo
 benchmarks/*.csv
+benchmarks/*.jsonl
 storybook-static
 /kotlin/.gradle/
 /kotlin/.kotlin/

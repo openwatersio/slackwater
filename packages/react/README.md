@@ -85,7 +85,7 @@ Heights are above the station's chart datum, which the page names. A station who
 
 ### `<CurrentStation>`
 
-A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb above the Moon and Sun tiles, the week's slacks and maxima with their set, where the predictions come from, the station's details, and the nearest stations. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. The current components need `@slackwater/api` 1.0.0-beta.3 or later, which serves the `/currents` routes. The tide components need 1.0.0-beta.4 or later, which flags the tide stations it can't predict and serves the bare IDs of the CHS records.
+A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb above the Moon and Sun tiles, the week's slacks and maxima with their set, where the predictions come from, the station's details, and the nearest stations. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. Use the API beta from the same release as these components. It must include attribution and license fields on station listings, tide availability flags, and direct lookups for unprefixed CHS records; the published API 1.0.0-beta.4 does not include those additions.
 
 ```tsx
 <CurrentStation id="noaa/PUG1701" />
@@ -287,6 +287,8 @@ A station's disclaimers as a paragraph, or nothing when it has none.
 
 Each station's data carries a license, in its `license` (`type`, `commercial_use`, `url`, `notes`), and a credit, in its `attribution`. The station pages, the search and nearby lists, the widget, and the map show the credit for you; keep it visible wherever you show a station's predictions some other way. The components don't filter by license: a commercial product must leave out stations marked `commercial_use: false`, the TICON records under CC BY-NC 4.0. `license` and `attribution` come with every listing from an API that includes them.
 
+Commercial hosts must point `baseUrl` at an API that excludes records with `license.commercial_use: false` before returning listings or predictions. These components and the stock API do not apply that exclusion; a commercial deployment needs a filtered API or proxy.
+
 ## Hooks
 
 All hooks must be used within a `<SlackwaterProvider>`.
@@ -309,7 +311,7 @@ All hooks must be used within a `<SlackwaterProvider>`.
 
 ## Server rendering
 
-`prefetchTideStation(queryClient, baseUrl, id, { units?, locale?, now? })` fills a query client with everything `<TideStation>` loads, and `prefetchNearbyStations` does the same for `<NearbyStations>`. Pass `dehydrate(queryClient)` to the client and render inside a `<HydrationBoundary>`; both are re-exported from TanStack Query.
+`prefetchTideStation(queryClient, baseUrl, id, { units?, locale?, now? })` fills the station, prediction windows, and Nearby lists for `<TideStation>`. A subordinate station's reference metadata loads separately. `prefetchNearbyStations` fills the lists for `<NearbyStations>`. Pass `dehydrate(queryClient)` to the client and render inside a `<HydrationBoundary>`; both are re-exported from TanStack Query.
 
 ## Styling
 

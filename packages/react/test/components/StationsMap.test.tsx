@@ -348,9 +348,12 @@ describe("StationsMap", () => {
       };
       const folded = () => controls().map((c) => !c.classList.contains("maplibregl-compact-show"));
 
-      await waitFor(() => expect(control()).toMatch(/Source: Kartverket .+ Licensed CC BY 4\.0/), {
-        timeout: 10000,
-      });
+      await waitFor(
+        () => expect(control()).toMatch(/Source: .*Kartverket .+ Licensed CC BY 4\.0/),
+        {
+          timeout: 10000,
+        },
+      );
 
       // A drag folds the control to its ⓘ, and a change of credits leaves it folded.
       map.fire("drag");
@@ -360,7 +363,7 @@ describe("StationsMap", () => {
       map.jumpTo({ center: map.unproject([500, 150]) });
       await waitFor(() => expect(control()).toBe(""));
       map.jumpTo({ center: [bergen.longitude, bergen.latitude] });
-      await waitFor(() => expect(control()).toMatch(/Source: Kartverket/));
+      await waitFor(() => expect(control()).toMatch(/Source: .*Kartverket/));
       expect(folded()).toEqual([true]);
 
       // Off Seattle only NOAA's stations are predicted, whose credit is the database's alone.
@@ -391,7 +394,7 @@ describe("StationsMap", () => {
       tap(canvas, pin.x - 20, pin.y);
       const card = await screen.findByRole("button", { name: /Bergen/ }, { timeout: 10000 });
       const [credit, ...more] = screen
-        .getAllByText(/^Slackwater database \(.+Source: Kartverket/)
+        .getAllByText(/^Slackwater database \(.+Source: .*Kartverket/)
         .filter((p) => !p.closest(".maplibregl-ctrl"));
       expect(more).toEqual([]);
       expect(credit.getBoundingClientRect().top).toBeGreaterThanOrEqual(

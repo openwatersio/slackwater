@@ -15,5 +15,14 @@
     "noEmit": true,
     "types": ["vite/client"]
   },
-  "exclude": ["fixtures", "swift", "benchmarks/chs-fit.ts", "benchmarks/iwls.test.ts"]
+  "exclude": [
+    "fixtures",
+    "swift",
+    "benchmarks/chs-fit.ts",
+    "benchmarks/iwls.test.ts",
+    "benchmarks/chs-current-grid.test.ts",
+    "benchmarks/chs-current-score.ts",
+    "benchmarks/chs-current-score.test.ts",
+    "benchmarks/chs-current-fit.ts"
+  ]
 }

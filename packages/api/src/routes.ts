@@ -1,40 +1,40 @@
 import type { Request, Response } from "express";
-import { stations, Station, search, bbox as bboxQuery } from "@slackwater/database";
+import { loadStations, type Station, type StationDatabase } from "@slackwater/database";
 import {
   getExtremesPrediction,
   getTimelinePrediction,
   findStation,
   stationsNear,
-  currentStationUnavailable,
+  currentStationUnavailableIn,
 } from "slackwater";
-import openapi from "./openapi.js";
+import { loadOpenapi } from "./openapi.js";
 import * as validate from "./validate.js";
 import { createApiRouter, type RouterOptions } from "./router.js";
+import { stationsInBounds } from "./bbox.js";
 
-// The database also carries current stations, which createCurrentRoutes serves.
-const tideOnly = (station: Station) => station.kind === "tide";
 // CHS tide stations carry identity only, since CHS terms forbid re-serving its
 // predictions; picking one by location would serve a flat zero tide.
 type ModelFields = { harmonic_constituents: unknown[]; offsets?: unknown };
 const hasTideModel = (station: ModelFields) =>
   station.harmonic_constituents.length > 0 || station.offsets !== undefined;
 
+// The database also carries current stations, which createCurrentRoutes serves.
+// A listing only offers stations this API can predict and route to.
+const tideOnly = (station: Station) => station.kind === "tide" && hasTideModel(station);
+
 /** Whether these routes can predict the station, and why not when they can't. */
-function availability(station: Parameters<typeof currentStationUnavailable>[0] & ModelFields) {
+function availability(
+  db: StationDatabase,
+  station: Parameters<typeof currentStationUnavailableIn>[1] & ModelFields,
+) {
   if (hasTideModel(station)) return { predictions: true };
-  // With no model, the current rule gives the same reasons: CHS terms, or nothing to predict from.
-  return { predictions: false, unavailable: currentStationUnavailable(station)!.message };
+  return { predictions: false, unavailable: currentStationUnavailableIn(db, station)!.message };
 }
 
-// The curated CHS records have no source prefix, so a single path segment names them.
-const unprefixedIds = new Set(
-  stations.filter((s) => tideOnly(s) && !s.id.includes("/")).map((s) => s.id),
-);
-
-function show(id: string, res: Response) {
+async function show(id: string, res: Response) {
   try {
-    const station = findStation(id);
-    return res.json({ ...station, ...availability(station) });
+    const station = await findStation(id);
+    return res.json({ ...station, ...availability(await loadStations(), station) });
   } catch (error) {
     return res.status(404).json({ message: (error as Error).message });
   }
@@ -42,35 +42,34 @@ function show(id: string, res: Response) {
 
 /** The tide routes. */
 export function createRoutes(options: RouterOptions = {}) {
-  return createApiRouter(openapi, options, (router) => {
-    router.get("/extremes", (req: Request, res: Response) => {
+  return createApiRouter(loadOpenapi, options, (router) => {
+    router.get("/extremes", async (req: Request, res: Response) => {
       res.json(
-        getExtremesPrediction({
+        await getExtremesPrediction({
           ...positionOptions(req, { required: true }),
-          ...predictionOptions(req),
-          filter: hasTideModel,
+          ...(await predictionOptions(req)),
         }),
       );
     });
 
-    router.get("/timeline", (req: Request, res: Response) => {
+    router.get("/timeline", async (req: Request, res: Response) => {
       // Validate before the try so bad params surface as 400 {message, errors}
       // via the error handler, not the predictor's plain 400.
       const options = {
         ...positionOptions(req, { required: true }),
-        ...predictionOptions(req),
-        filter: hasTideModel,
+        ...(await predictionOptions(req)),
       };
       try {
-        res.json(getTimelinePrediction(options));
+        res.json(await getTimelinePrediction(options));
       } catch (error) {
         res.status(400).json({ message: (error as Error).message });
       }
     });
 
-    router.get("/stations/:id", (req: Request, res: Response) => {
+    router.get("/stations/:id", async (req: Request, res: Response) => {
       const { id } = req.params as { id: string };
-      if (!unprefixedIds.has(id))
+      const db = await loadStations();
+      if (id.includes("/") || !db.accepted.some((s) => s.kind === "tide" && s.id === id))
         return res.status(404).json({ message: `Station not found: ${id}` });
       return show(id, res);
     });
@@ -79,7 +78,7 @@ export function createRoutes(options: RouterOptions = {}) {
       show(`${req.params.source}/${req.params.id}`, res),
     );
 
-    router.get("/stations", (req: Request, res: Response) => {
+    router.get("/stations", async (req: Request, res: Response) => {
       const { latitude, longitude } = positionOptions(req);
       const query = validate.string(req.query, "query");
       const maxResults = validate.number(req.query, "maxResults", {
@@ -90,49 +89,57 @@ export function createRoutes(options: RouterOptions = {}) {
       });
       const maxDistance = validate.number(req.query, "maxDistance", { min: 0 });
       const bboxParam = validate.bbox(req.query);
+      const db = await loadStations();
 
       if (query) {
-        return res.json(search(query, { filter: tideOnly, maxResults }).map(summarize));
+        res.json(
+          db
+            .search(query, { filter: tideOnly, maxResults })
+            .map((station) => summarize(db, station)),
+        );
+        return;
       }
 
       if (bboxParam) {
-        return res.json(bboxQuery(bboxParam, { filter: tideOnly }).map(summarize));
+        res.json(
+          stationsInBounds(db, bboxParam, tideOnly).map((station) => summarize(db, station)),
+        );
+        return;
       }
 
       if (latitude === undefined || longitude === undefined) {
-        return res.json(stations.filter(tideOnly).map(summarize));
+        res.json(db.accepted.filter(tideOnly).map((station) => summarize(db, station)));
+        return;
       }
 
-      res.json(
-        stationsNear({ latitude, longitude, maxResults, maxDistance }).map((station) => ({
-          ...station,
-          ...availability(station),
-        })),
-      );
+      const nearby = await stationsNear({ latitude, longitude, maxResults, maxDistance });
+      res.json(nearby.map((station) => ({ ...station, ...availability(db, station) })));
     });
 
-    router.get("/stations/:source/:id/extremes", (req: Request, res: Response) => {
-      let station: ReturnType<typeof findStation>;
+    router.get("/stations/:source/:id/extremes", async (req: Request, res: Response) => {
+      let station: Awaited<ReturnType<typeof findStation>>;
 
       try {
-        station = findStation(`${req.params.source}/${req.params.id}`);
+        station = await findStation(`${req.params.source}/${req.params.id}`);
       } catch (error) {
-        return res.status(404).json({ message: (error as Error).message });
+        res.status(404).json({ message: (error as Error).message });
+        return;
       }
 
-      res.json(station.getExtremesPrediction(predictionOptions(req)));
+      res.json(station.getExtremesPrediction(await predictionOptions(req)));
     });
 
-    router.get("/stations/:source/:id/timeline", (req: Request, res: Response) => {
-      let station: ReturnType<typeof findStation>;
+    router.get("/stations/:source/:id/timeline", async (req: Request, res: Response) => {
+      let station: Awaited<ReturnType<typeof findStation>>;
 
       try {
-        station = findStation(`${req.params.source}/${req.params.id}`);
+        station = await findStation(`${req.params.source}/${req.params.id}`);
       } catch (error) {
-        return res.status(404).json({ message: (error as Error).message });
+        res.status(404).json({ message: (error as Error).message });
+        return;
       }
 
-      res.json(station.getTimelinePrediction(predictionOptions(req)));
+      res.json(station.getTimelinePrediction(await predictionOptions(req)));
     });
   });
 }
@@ -152,8 +159,9 @@ function positionOptions(req: Request, { required = false } = {}) {
   };
 }
 
-function predictionOptions(req: Request) {
-  const datum = validate.datum(req.query);
+async function predictionOptions(req: Request) {
+  const { datums } = await loadStations();
+  const datum = validate.datum(req.query, datums);
   return {
     start: validate.date(req.query, "start", () => new Date()),
     end: validate.date(req.query, "end", () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
@@ -162,7 +170,7 @@ function predictionOptions(req: Request) {
   };
 }
 
-function summarize(station: Station) {
+function summarize(db: StationDatabase, station: Station) {
   const { id, name, region, country, continent, latitude, longitude, timezone, type } = station;
   return {
     id,
@@ -174,9 +182,8 @@ function summarize(station: Station) {
     longitude,
     timezone,
     type,
-    // A list shows these stations' predictions, so it owes their credit and terms.
     attribution: station.attribution,
     license: station.license,
-    ...availability(station),
+    ...availability(db, station),
   };
 }

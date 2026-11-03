@@ -27,6 +27,15 @@ object ChsCurrentFit {
     const val PROVISIONAL_SLACK_MAX_MINUTES = 45
 
     /**
+     * Identifies this recipe. `fixtures/generate/gen-chs-current-golden.mjs` derives it from
+     * the recipe's data and what the recipe predicts for a fixed synthetic gate, so it changes
+     * when a change moves the golden gate's predicted velocity by 1e-4 kn or more, a slack or
+     * peak by 30 seconds or more, or a peak's speed by 0.001 kn or more. Store it with every
+     * fitted model.
+     */
+    const val STAMP = "8f85912ce223"
+
+    /**
      * Signed velocity along the gate's flood axis: speed · cos(direction −
      * [floodDirection]), positive on the flood. The projection is linear, so
      * fitting it is equivalent to fitting both velocity components and

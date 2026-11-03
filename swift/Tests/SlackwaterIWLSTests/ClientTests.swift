@@ -126,19 +126,42 @@ private actor Server {
     #expect(urls.first?.path == "/api/v1/stations/id/metadata")
 }
 
-@Test func aCancelledWaiterGivesUpItsSlot() async throws {
-    let pacer = IwlsPacer(interval: 0.5)
-    let began = ContinuousClock.now
+// The instant is shared with the pacer task and guarded by its lock.
+private final class PacerTime: @unchecked Sendable {
+    private let lock = NSLock()
+    private var instant = ContinuousClock.now
+    var now: ContinuousClock.Instant { lock.withLock { instant } }
+    func advance(by duration: Duration) { lock.withLock { instant += duration } }
+}
+
+@Test(.timeLimit(.minutes(1))) func aCancelledWaiterGivesUpItsSlot() async throws {
+    let time = PacerTime()
+    let began = time.now
+    let (sleeps, requests) = AsyncStream<(ContinuousClock.Instant, AsyncStream<Void>.Continuation)>.makeStream()
+    defer { requests.finish() }
+    let pacer = IwlsPacer(interval: 0.5, now: { time.now }, sleep: { deadline in
+        let (wake, resume) = AsyncStream<Void>.makeStream()
+        defer { resume.finish() }
+        requests.yield((deadline, resume))
+        for await _ in wake {}
+        try Task.checkCancellation()
+    })
+    var iterator = sleeps.makeAsyncIterator()
     try await pacer.wait()
     let cancelled = Task { try await pacer.wait() }
-    try await Task.sleep(for: .milliseconds(50))
+    defer { cancelled.cancel() }
+    let (cancelledDeadline, _) = try #require(await iterator.next())
+    #expect(cancelledDeadline - began == .milliseconds(500))
+    time.advance(by: .milliseconds(200))
     cancelled.cancel()
-    _ = await cancelled.result
-    try await pacer.wait()
-    // A held slot would put this start at 1,000 ms; the bound leaves slack for loaded CI runners.
-    let elapsed = ContinuousClock.now - began
-    #expect(elapsed >= .milliseconds(499))
-    #expect(elapsed < .milliseconds(950), "\(elapsed)")
+    await #expect(throws: CancellationError.self) { try await cancelled.value }
+    let following = Task { try await pacer.wait() }
+    defer { following.cancel() }
+    let (followingDeadline, resume) = try #require(await iterator.next())
+    #expect(followingDeadline - began == .milliseconds(500))
+    time.advance(by: .milliseconds(300))
+    resume.finish()
+    try await following.value
 }
 
 @Test func aQueuedWaiterCancelsWithoutWaitingItsTurn() async throws {

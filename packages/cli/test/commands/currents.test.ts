@@ -1,6 +1,6 @@
 import { describe, test, expect, afterEach } from "vitest";
 import nock from "nock";
-import { search, near, type Station } from "@slackwater/database";
+import { loadStations, type Station } from "@slackwater/database";
 import { run } from "../helpers.js";
 
 afterEach(() => {
@@ -559,6 +559,7 @@ describe("slackwater currents stations", () => {
   });
 
   test("ranks every text match by distance with --near", async () => {
+    const { near, search } = await loadStations();
     const isPass = (s: Station) => s.kind === "current" && !s.id.includes("@");
     const matches = new Set(
       search("pass", { filter: isPass, maxResults: Infinity }).map((s) => s.id),

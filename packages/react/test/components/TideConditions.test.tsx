@@ -210,7 +210,7 @@ describe("TideConditions", () => {
 
     expect(await screen.findByText("Bergen", undefined, { timeout: 10000 })).toBeDefined();
     expect(screen.getByText(/^Slackwater database \(/).textContent).toMatch(
-      /Source: Kartverket .+ Licensed CC BY 4\.0/,
+      /Source: .*Kartverket .+ Licensed CC BY 4\.0/,
     );
   });
 

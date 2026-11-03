@@ -28,7 +28,7 @@ const STATIONS: [string, Date?, Date?][] = [
   // The Battery, NYC — US East Coast
   ["noaa/8518750"],
   // Sydney — Southern hemisphere
-  ["ticon/sydney_fort_denison-60370-aus-bom"],
+  ["ticon/fort_denison-333-aus-uhslc_fd"],
   // Hong Kong — China Sea
   ["ticon/hong_kong-329-hkg-uhslc_fd"],
   // Buenos Aires — South America
@@ -51,8 +51,8 @@ const STATIONS: [string, Date?, Date?][] = [
     new Date("2025-03-02T00:00:00Z"),
     new Date("2025-03-04T00:00:00Z"),
   ],
-  // CRMS5858, Louisiana — US Gulf Coast
-  ["ticon/crms5858-crms5858-usa-crms"],
+  // CRMS0038, Louisiana — US Gulf Coast
+  ["ticon/crms0038-crms0038-usa-crms"],
   // Bournemouth, UK — double high water ((M4+MS4)/M2 = 0.75, Doodson criterion met)
   ["ticon/bournemouth-bou-gbr-bodc"],
 ];
@@ -62,8 +62,8 @@ const defaultEnd = new Date("2025-01-18T00:00:00Z");
 
 describe("prediction snapshots", () => {
   STATIONS.forEach(([id, start = defaultStart, end = defaultEnd]) => {
-    it(id, () => {
-      const station = findStation(id);
+    it(id, async () => {
+      const station = await findStation(id);
       const { extremes, datum } = station.getExtremesPrediction({ start, end });
 
       expect({

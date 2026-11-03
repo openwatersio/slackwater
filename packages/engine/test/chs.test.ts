@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import currentRecipe from "../../../fixtures/chs-current-fit.json";
+import golden from "../../../fixtures/chs-current-golden.json";
 import recipe from "../../../fixtures/chs-tide-fit.json";
 import parityInput from "../../../fixtures/harmonic-fit.json";
 import { chsCurrentFit, chsTideFit, constituents, projectChsCurrent } from "../src/index.js";
@@ -32,6 +33,11 @@ describe("chsCurrentFit", () => {
 
   test("fits the tide basis", () => {
     expect(currentRecipe.basis).toEqual(recipe.basis);
+  });
+
+  test("carries the golden fixture's stamp", () => {
+    expect(chsCurrentFit.stamp).toMatch(/^[0-9a-f]{12}$/);
+    expect(chsCurrentFit.stamp).toBe(golden.stamp);
   });
 });
 

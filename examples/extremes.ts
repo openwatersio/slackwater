@@ -1,6 +1,6 @@
 import { getExtremesPrediction } from "slackwater";
 
-const prediction = getExtremesPrediction({
+const prediction = await getExtremesPrediction({
   latitude: 26.7, // or `lat`
   longitude: -80.05, // or `lng` or `lon`
   start: new Date("2025-12-17"),

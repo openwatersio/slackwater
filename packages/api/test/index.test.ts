@@ -2,8 +2,11 @@ import { describe, test, expect } from "vitest";
 import express from "express";
 import request from "supertest";
 import { middleware as openApiValidator } from "express-openapi-validator";
-import { stations as dbStations } from "@slackwater/database";
-import { createApp, createRoutes, openapi } from "../src/index.js";
+import { loadStations } from "@slackwater/database";
+import { createApp, createRoutes, loadOpenapi } from "../src/index.js";
+
+const { accepted: dbStations } = await loadStations();
+const openapi = await loadOpenapi();
 
 // Mount express-openapi-validator here (not in createApp) so every request and
 // response in the suite is validated against the OpenAPI spec — this is what
@@ -148,7 +151,6 @@ describe("tide stations without a model", () => {
   });
 
   type Listed = { id: string; predictions: boolean; unavailable?: string };
-  const flagged = (body: Listed[]) => body.find((s) => s.id === chs.id)!;
   const unavailable = expect.stringContaining("Canadian Hydrographic Service");
 
   test.each([
@@ -161,11 +163,11 @@ describe("tide stations without a model", () => {
     ],
     ["proximity", { latitude: chs.latitude, longitude: chs.longitude }],
     ["full list", {}],
-  ])("are flagged in %s listings", async (_mode, query) => {
+  ])("are excluded from %s listings", async (_mode, query) => {
     const response = await request(app).get("/stations").query(query);
 
     expect(response.status).toBe(200);
-    expect(flagged(response.body)).toMatchObject({ predictions: false, unavailable });
+    expect((response.body as Listed[]).some((s) => s.id === chs.id)).toBe(false);
     const other = (response.body as Listed[]).find((s) => s.id.includes("/"))!;
     expect(other.predictions).toBe(true);
     expect(other).not.toHaveProperty("unavailable");
@@ -439,6 +441,32 @@ describe("GET /stations", () => {
       expect(station.latitude).toBeLessThanOrEqual(27.0);
     }
   });
+
+  test.each([
+    [170, -90, -170, 90],
+    [170, 50, -170, 70],
+  ])(
+    "returns the complete tide station set across the dateline for %j,%j,%j,%j",
+    async (west, south, east, north) => {
+      const expected = dbStations.filter(
+        (s) =>
+          s.kind === "tide" &&
+          (s.harmonic_constituents.length > 0 || s.offsets !== undefined) &&
+          (s.longitude >= west || s.longitude <= east) &&
+          s.latitude >= south &&
+          s.latitude <= north,
+      );
+      expect(expected.length).toBeGreaterThan(0);
+      const response = await request(app)
+        .get("/stations")
+        .query({ bbox: [west, south, east, north].join(",") });
+
+      expect(response.status).toBe(200);
+      expect(response.body.map((s: { id: string }) => s.id).sort()).toEqual(
+        expected.map((s) => s.id).sort(),
+      );
+    },
+  );
 
   describe("excludes current stations", () => {
     // The database also carries current stations, which the tide predictor
@@ -1043,6 +1071,19 @@ describe("Runtime validation (without the OpenAPI validator)", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.errors[0].path).toBe("datum");
+  });
+
+  test.each([
+    ["a search", "/stations?query=halifax&maxResults=100"],
+    ["a bounding box", "/stations?bbox=-64,44,-63,45"],
+    ["every station", "/stations"],
+    ["stations near a position", "/stations?latitude=44.67&longitude=-63.57&maxResults=100"],
+  ])("leaves stations with no tide model out of %s", async (_, path) => {
+    const response = await request(app).get(path);
+
+    expect(response.status).toBe(200);
+    expect(response.body.length).toBeGreaterThan(0);
+    expect(response.body.filter((s: { id: string }) => !s.id.includes("/"))).toEqual([]);
   });
 
   test("rejects a repeated query parameter", async () => {

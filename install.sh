@@ -104,6 +104,19 @@ fi
 # Extract
 tar xzf "${TMPDIR}/${ARCHIVE}" -C "$TMPDIR"
 
+# Run the binary before installing it, so a missing system library fails here
+# with instructions instead of on first use
+if ! "${TMPDIR}/slackwater" --version >/dev/null 2>"${TMPDIR}/run.log"; then
+  echo "Error: the downloaded slackwater binary does not run on this system:" >&2
+  sed 's/^/  /' "${TMPDIR}/run.log" >&2
+  if [ "$os" = "linux" ] && grep -q "shared libraries" "${TMPDIR}/run.log"; then
+    echo "The Linux binary needs libstdc++ and libatomic. On Debian or Ubuntu:" >&2
+    echo "  sudo apt-get install libstdc++6 libatomic1" >&2
+    echo "Or install with npm, which runs on your existing Node: npm install -g @slackwater/cli" >&2
+  fi
+  exit 1
+fi
+
 # Install
 if [ -w "$INSTALL_DIR" ]; then
   SUDO=""

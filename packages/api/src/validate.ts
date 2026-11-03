@@ -1,8 +1,3 @@
-import openapi from "./openapi.js";
-
-// Valid datums, sourced from the OpenAPI spec so there's a single source of truth.
-const DATUMS = new Set((openapi.components.parameters.datum.schema.enum ?? []) as string[]);
-
 type Query = Record<string, unknown>;
 
 /**
@@ -65,11 +60,11 @@ export function date(query: Query, name: string, fallback: () => Date): Date {
   return value;
 }
 
-export function datum(query: Query): string | undefined {
+export function datum(query: Query, datums: readonly string[]): string | undefined {
   const raw = query.datum;
   if (raw === undefined || raw === "") return undefined;
   const value = String(raw);
-  if (!DATUMS.has(value)) fail("datum", `datum must be one of: ${[...DATUMS].join(", ")}`);
+  if (!datums.includes(value)) fail("datum", `datum must be one of: ${datums.join(", ")}`);
   return value;
 }
 

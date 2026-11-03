@@ -38,7 +38,11 @@ describe("CurrentStation", () => {
     rerender(<CurrentStation id="noaa/PUG1515" />);
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "West Point" }, { timeout: 10000 }),
+      await screen.findByRole(
+        "heading",
+        { level: 1, name: "West Point, West of" },
+        { timeout: 10000 },
+      ),
     ).toBeDefined();
     expect(screen.queryByRole("slider")).toBeNull();
     timeline.release();
@@ -59,7 +63,7 @@ describe("CurrentStation", () => {
       items.at(-1)!.getBoundingClientRect().bottom,
     );
     expect(nearby.textContent).not.toContain("Deception Pass (Narrows)");
-    fireEvent.click(within(nearby).getByRole("button", { name: /^Deception Pass St\. Park/ }));
+    fireEvent.click(within(nearby).getByRole("button", { name: /^Deception Pass State Park/ }));
     expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/9448614", kind: "tide" });
   });
 

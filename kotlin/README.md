@@ -29,6 +29,43 @@ dependencies {
 
 See [smoke](smoke) for a complete separate consumer. Prediction needs no station database, JSON parser, Android framework or bundled asset.
 
+## Use through JitPack
+
+The engine is also served as a Maven artifact through [JitPack](https://jitpack.io), so projects can depend on it without a composite build. Add the JitPack repository and depend on a commit of this repository, using its first 10 hex digits as the version:
+
+```kotlin
+// Gradle (Kotlin DSL)
+repositories { maven("https://jitpack.io") }
+dependencies { implementation("com.github.openwatersio:slackwater:<commit>") }
+```
+
+```scala
+// sbt
+resolvers += "jitpack" at "https://jitpack.io"
+libraryDependencies += "com.github.openwatersio" % "slackwater" % "<commit>"
+```
+
+The POM declares `kotlin-stdlib`, so consumers get it transitively. The artifact holds only the engine, not the IWLS module. From Java, pass the station offset explicitly because the Kotlin default is not visible there:
+
+```java
+Station station = new Station(Arrays.asList(new HarmonicConstituent("M2", 1.71, 133.7)), 0.0);
+List<TideExtreme> highLow = station.extremes(from, from.plusSeconds(86400));
+```
+
+JitPack builds a commit the first time anyone requests it, which takes about a minute; the log is at `https://jitpack.io/com/github/openwatersio/slackwater/<commit>/build.log`. Built commits stay cached. The build is driven by two files at the repository root, so the Gradle build in `kotlin/` needs no publishing setup of its own:
+
+- [`jitpack.yml`](../jitpack.yml) selects JDK 17 and runs `./gradlew :publishToMavenLocal` in `kotlin/` with configuration on demand, so IWLS is not configured and tests and coverage do not run.
+- [`jitpack.gradle`](../jitpack.gradle) is a Gradle init script that applies `maven-publish` to the engine project and publishes its jar, sources jar and POM. On JitPack it sets the coordinates from JitPack's `GROUP`, `ARTIFACT` and `VERSION` variables, which gives `com.github.openwatersio:slackwater:<commit>`.
+
+To check a change before pushing, run the same build locally and inspect the published POM:
+
+```sh
+cd kotlin
+JITPACK=true GROUP=com.github.openwatersio ARTIFACT=slackwater VERSION=local \
+  ./gradlew --configure-on-demand -I ../jitpack.gradle :publishToMavenLocal
+cat ~/.m2/repository/com/github/openwatersio/slackwater/local/slackwater-local.pom
+```
+
 ## Predict
 
 ```kotlin
@@ -55,7 +92,7 @@ The constants here illustrate the API, not a real station. Tide amplitudes, `off
 
 All numeric inputs must be finite. Steps must be positive, representable at the requested epoch and at least one nanosecond. Timeline and event searches exceeding the indexed work/result range are rejected. Invalid inputs throw `IllegalArgumentException`. Reversed windows return empty lists. Equal timeline bounds produce the samples from outward snapping; event roots on an exact bracket boundary, and current slacks at a node-correction refresh, are not guaranteed. Steps default to 600 seconds; the start is floored and the end ceiled to the step on the UTC epoch grid. No default time zone enters prediction. Station constructors copy caller collections, and requests have independent calculation state.
 
-Unknown names and zero amplitudes contribute nothing. Astronomy returns null for an unknown name. IHO node corrections are supported. `ChsTideFit` and `ChsCurrentFit` carry the CHS tide and current fit recipes shared with TypeScript and Swift, and `ChsCurrentFit.project` makes a current gate's `HarmonicSample` series. Schureman, fitting, station lookup, datum resolution, ranking, derived slack and publication tooling are outside this port; CHS stations are resolved by the separate [IWLS module](#iwls-fetching).
+Unknown names and zero amplitudes contribute nothing. Astronomy returns null for an unknown name. IHO node corrections are supported. `ChsTideFit` and `ChsCurrentFit` carry the CHS tide and current fit recipes shared with TypeScript and Swift, `ChsCurrentFit.STAMP` identifies the current recipe, and `ChsCurrentFit.project` makes a current gate's `HarmonicSample` series. The stamp is checked against `fixtures/chs-current-golden.json` and changes when a change moves the golden gate's predicted velocity by 1e-4 kn or more, a slack or peak by 30 seconds or more, or a peak's speed by 0.001 kn or more. Schureman, fitting, station lookup, datum resolution, ranking, derived slack and publication tooling are outside this port; CHS stations are resolved by the separate [IWLS module](#iwls-fetching).
 
 ## IWLS fetching
 

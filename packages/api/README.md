@@ -48,6 +48,8 @@ createApp({ prefix: "/", currentsPrefix: "/currents" }); // /extremes, /stations
 
 ### As routers
 
+`createApp`, `createRoutes`, and `createCurrentRoutes` are synchronous, and the station database loads on the first request. `loadOpenapi()` and `loadCurrentsOpenapi()` resolve to each route group's OpenAPI document, with the `Openapi` and `CurrentsOpenapi` types for it.
+
 `createRoutes()` returns the tide routes and `createCurrentRoutes()` the current routes, each with its own `/` and `/openapi.json`. Mount them wherever you like:
 
 ```typescript
@@ -103,6 +105,7 @@ Search stations or find them near a location.
 - `longitude` (optional): Longitude for proximity search
 - `maxResults` (optional): Maximum number of stations to return (1-100, defaults to 10)
 - `maxDistance` (optional): Maximum search radius for proximity search
+- `bbox` (optional): Bounding box in `west,south,east,north` order, with longitudes in -180..180 and latitudes in -90..90. When west is greater than east, the box crosses the dateline and includes stations on both sides of 180°. South must be less than or equal to north.
 
 **Examples:**
 
@@ -115,9 +118,12 @@ curl "http://localhost:3000/tides/stations?latitude=26.772&longitude=-80.05&maxR
 
 # Find stations within a specific distance
 curl "http://localhost:3000/tides/stations?latitude=26.772&longitude=-80.05&maxDistance=100"
+
+# Find stations on both sides of the dateline
+curl "http://localhost:3000/tides/stations?bbox=170,50,-170,70"
 ```
 
-Every mode includes stations whose predictions can't be served, such as the Canadian Hydrographic Service ports, whose terms don't allow their predictions to be redistributed. Every tide station also carries:
+Every listing mode excludes tide stations without a prediction model. Identity-only Canadian Hydrographic Service ports remain available through direct station lookups, with the reason their predictions cannot be served. Tide station records and listings also carry:
 
 - `predictions`: whether this API can serve predictions for the station
 - `unavailable`: why not, when `predictions` is `false`

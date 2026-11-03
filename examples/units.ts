@@ -10,8 +10,8 @@ const options = {
   end,
 };
 
-const inMeters = getExtremesPrediction(options);
-const inFeet = getExtremesPrediction({ ...options, units: "feet" });
+const inMeters = await getExtremesPrediction(options);
+const inFeet = await getExtremesPrediction({ ...options, units: "feet" });
 
 console.table(
   inMeters.extremes.map((extreme, i) => ({

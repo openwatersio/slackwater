@@ -10,20 +10,34 @@ import FoundationNetworking
 /// waiter cancelled before its turn takes no slot.
 public actor IwlsPacer {
     private let interval: Duration
+    private let now: @Sendable () -> ContinuousClock.Instant
+    private let sleep: @Sendable (ContinuousClock.Instant) async throws -> Void
     // Monotonic, so a wall-clock step back cannot stall every client in the process.
     private var last: ContinuousClock.Instant?
     private var admitting = false
     private var queue: [(id: UInt64, turn: CheckedContinuation<Void, any Error>)] = []
     private var nextID: UInt64 = 0
 
-    public init(interval: TimeInterval = 2.5) { self.interval = .seconds(interval) }
+    public init(interval: TimeInterval = 2.5) {
+        self.init(interval: interval, now: { .now }, sleep: {
+            try await Task.sleep(until: $0, clock: .continuous)
+        })
+    }
+
+    init(interval: TimeInterval,
+         now: @escaping @Sendable () -> ContinuousClock.Instant,
+         sleep: @escaping @Sendable (ContinuousClock.Instant) async throws -> Void) {
+        self.interval = .seconds(interval)
+        self.now = now
+        self.sleep = sleep
+    }
 
     public func wait() async throws {
         try Task.checkCancellation()
         if admitting { try await takeTurn() } else { admitting = true }
         defer { passTurn() }
-        if let last { try await Task.sleep(until: last + interval, clock: .continuous) }
-        last = .now
+        if let last { try await sleep(last + interval) }
+        last = now()
     }
 
     private func takeTurn() async throws {

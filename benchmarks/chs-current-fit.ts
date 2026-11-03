@@ -1,432 +1,560 @@
-// Fits the curated CHS current gates with `chsCurrentFit` from CHS's own
-// `wcsp1`/`wcdp1` predictions, at every window the recipe allows, and scores
-// held-out weeks against CHS's published `wcp1-events`, using the bar in
-// docs/validation/chs-currents.md. The fit ends at the start of the current
-// UTC month, so each monthly run measures a different season.
+// Fits the curated CHS current gates with `chsCurrentFit` exactly as the apps
+// fit them, and scores each fit's held-out weeks against CHS's published
+// `wcp1-events`. The fit inputs follow the IWLS fetching contract
+// (docs/iwls-fetch.md): the window ends at the gate's local midnight on a
+// grid point's date (chs-current-grid.ts) and spans the app's chunk plan. The
+// run writes rows, not verdicts; the results repository pools a year of
+// them (docs/validation/chs-currents.md).
+//
+// GRID=-13..-1 or GRID=-2,-1 picks grid points, FIT_END=YYYY-MM-DD the one
+// ending that day, and neither the newest on or before today.
+// WINDOWS=60,210,365 adds the report-only 365-day window. GATES=path.json
+// scores [{ id, latitude, longitude }] in place of the curated gates in
+// @slackwater/database. NO_FLOORS=1 skips the share and p50 assertions but
+// still checks for reversed axes, requires every group short of the horizon,
+// report-only windows included, to have scored rows, and requires the run to
+// have one. ROWS_ONLY=1 records rows without judging them, for the results
+// repository: it skips the reversed-axis, per-group and run-level scored
+// checks as well as the floors, and keeps the check that no two gates resolve
+// to the same IWLS station. Any non-empty value turns FAST or NO_FLOORS on, 0
+// included; ROWS_ONLY takes only 1. FAST=1 scores three gates at +28 d.
+// OUT=dir writes the outputs somewhere other than benchmarks/.
 import { expect } from "vitest";
-import { mkdir, readFile, writeFile } from "fs/promises";
-import { createWriteStream } from "fs";
-import { join } from "path";
-import { stations } from "@slackwater/database";
+import { createHash } from "node:crypto";
+import { createWriteStream } from "node:fs";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { loadStations } from "@slackwater/database";
 import {
   chsCurrentFit,
   createCurrentPredictor,
   fit,
   projectChsCurrent,
-  type CurrentEventKind,
-  type HarmonicSample,
+  type HarmonicFit,
 } from "@slackwater/engine";
+import {
+  BASE,
+  IwlsError,
+  canCache,
+  chunkPlan,
+  createClient,
+  localMidnight,
+  pathComponent,
+  resolve,
+  type Chunk,
+  type IwlsStation,
+  type Sample,
+} from "./iwls.ts";
+import {
+  CONTEXT_MIN,
+  OFFSET_DAYS,
+  WEEK_DAYS,
+  fitEndDate,
+  requestSpans,
+  selectGrid,
+  withinHorizon,
+} from "./chs-current-grid.ts";
+import {
+  SCORER_VERSION,
+  hasSlackOrExtremum,
+  parseEvents,
+  rounded,
+  scoreWeek,
+  summarize,
+  type GateFailure,
+  type GateRecord,
+  type ResultRow,
+  type RowStatus,
+  type ScoreEvent,
+  type WeekScore,
+} from "./chs-current-score.ts";
 
 const __dirname = new URL(".", import.meta.url).pathname;
-const IWLS = "https://api-iwls.dfo-mpo.gc.ca/api/v1";
 const DAY = 86_400_000;
-const STEP = chsCurrentFit.sampleMinutes * 60_000;
+// Each held-out week's events and predictions span its pairing context.
+const CONTEXT = CONTEXT_MIN * 60_000;
+const iwls = createClient();
 
 const FAST = !!process.env.FAST;
-// A fitted model never expires on device, so one held-out week understates
-// how far it drifts.
-const HOLDOUT_DAYS = FAST ? [28] : [28, 90, 180, 270];
-const GATE_LIMIT = FAST ? 3 : Infinity;
-
-// The bar, set before scoring. Slack is the quantity a skipper acts on, since
-// a gate is transited at slack, so it carries the tightest numbers.
-const SLACK_MEDIAN_MAX_MIN = 15;
-const SLACK_WORST_MAX_MIN = 30;
-const EXTREMA_MEDIAN_MAX_MIN = 20;
-const SPEED_MEDIAN_MAX_KN = 0.5;
-// Observed extrema weaker than this are left out of timing and speed scoring:
-// the peak of a 0.3 kn drift is noise.
-const SIGNIFICANT_KN = 0.75;
-// Same-kind events farther apart than this are different cycles.
-const MATCH_WINDOW_MIN = 180;
-// A model with the wrong sign at this share of CHS's extrema has its flood
-// axis reversed.
-const REVERSED_SHARE = 0.6;
-// Gates are matched to IWLS stations by position, never by name.
-const RESOLVE_KM = 3;
-// Curated gates with no current station of their own: Malibu Rapids' slack
-// derives from a tide port. Every other gate counts toward the share floors
-// below, scored or not.
+// ROWS_ONLY turns off the only check that sees a reversed axis, so 0 or false
+// must not turn it on.
+if (![undefined, "", "1"].includes(process.env.ROWS_ONLY)) {
+  throw new Error(`ROWS_ONLY takes 1 or nothing, not ${JSON.stringify(process.env.ROWS_ONLY)}`);
+}
+const ROWS_ONLY = process.env.ROWS_ONLY === "1";
+const NO_FLOORS = ROWS_ONLY || !!process.env.NO_FLOORS;
+const OUT = process.env.OUT ?? __dirname;
+const OFFSETS: readonly number[] = FAST ? [28] : OFFSET_DAYS;
+const WINDOWS = (process.env.WINDOWS ?? chsCurrentFit.days.join(",")).split(",").map(Number);
+if (WINDOWS.some((d) => !Number.isInteger(d) || d <= 0)) {
+  throw new Error(`WINDOWS needs whole days: ${process.env.WINDOWS}`);
+}
+const longest = Math.max(...WINDOWS);
+// A past week whose CHS predictions should never change. A different hash
+// from one run to the next means CHS revised its predictions under the history.
+const CANARY: Chunk = {
+  start: Date.parse("2026-01-01T00:00:00Z"),
+  end: Date.parse("2026-01-08T00:00:00Z"),
+};
+// Malibu Rapids' slack derives from a tide port; it has no current station.
 const NOT_FITTED = new Set(["chs-malibu-rapids"]);
+const NOT_FITTED_REASON = "not fitted: its slack derives from a tide port";
+
+/** A gate's own data problem: recorded as its reason or failure, and the run goes on. */
+class GateDataError extends Error {}
+// Transient failures end the run, so a results run never commits a grid point
+// that silently lacks a gate.
+const isPermanent = (error: unknown) =>
+  error instanceof GateDataError || (error instanceof IwlsError && error.kind === "permanent");
 
 await mkdir(".test-cache", { recursive: true });
+await mkdir(OUT, { recursive: true });
 
-// FIT_END=YYYY-MM-DD reproduces a recorded run; the fit ends at 00:00 UTC
-// that day.
-const now = new Date();
-const fitEnd = process.env.FIT_END
-  ? Date.parse(`${process.env.FIT_END}T00:00:00Z`)
-  : Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
-if (Number.isNaN(fitEnd)) throw new Error(`FIT_END is not a date: ${process.env.FIT_END}`);
-const longest = Math.max(...chsCurrentFit.days);
-const stamp = new Date(fitEnd).toISOString().slice(0, 10);
-
-interface IwlsStation {
+const grid = selectGrid(process.env, new Date().toISOString().slice(0, 10));
+interface Gate {
   id: string;
-  code: string;
-  officialName: string;
   latitude: number;
   longitude: number;
-  timeSeries: { code: string }[];
 }
-
-const all: IwlsStation[] = await fetchIwls("stations", "stations");
-const currentStations = all.filter((s) =>
-  s.timeSeries.some((t) => t.code === chsCurrentFit.speedSeries),
-);
-const gates = stations
-  .filter((s) => s.kind === "current" && s.source.name === "Canadian Hydrographic Service")
-  .sort((a, b) => a.id.localeCompare(b.id))
-  .slice(0, GATE_LIMIT);
+const curated: Gate[] = process.env.GATES
+  ? JSON.parse(await readFile(process.env.GATES, "utf-8"))
+  : (await loadStations()).accepted.filter(
+      (s) => s.kind === "current" && s.source.name === "Canadian Hydrographic Service",
+    );
+const byId = (a: Gate, b: Gate) => a.id.localeCompare(b.id);
+const gates = curated
+  .filter((g) => !NOT_FITTED.has(g.id))
+  .sort(byId)
+  .slice(0, FAST ? 3 : Infinity);
 
 console.log(
-  `Fitting ${gates.length} CHS current gates at ${chsCurrentFit.days.join(" and ")} d ending ${stamp}, ` +
-    `held out at +${HOLDOUT_DAYS.join(", +")} d`,
+  `Fitting ${gates.length} CHS current gates at ${WINDOWS.join(" and ")} d, grid points ${grid.join(", ")} ` +
+    `(fits ending ${grid.map(fitEndDate).join(", ")}), held out at +${OFFSETS.join(", +")} d, stamp ${chsCurrentFit.stamp}`,
 );
 
-interface Stat {
-  gate: string;
-  iwls: string;
-  fit_days: number;
-  holdout_days: number;
-  fit_rms_kn: number;
-  slack_median_min: number;
-  slack_worst_min: number;
-  slack_matched: number;
-  slacks: number;
-  extrema_median_min: number;
-  extrema_scored: number;
-  speed_median_kn: number;
-  wrong_sign: number;
-  extrema: number;
-  reversed: boolean;
-  pass: boolean;
+const servesSpeed = (s: IwlsStation) =>
+  s.timeSeries.some((t) => t.code === chsCurrentFit.speedSeries);
+// A list with no current station would give every gate the same reason, so it
+// is never cached and it ends the run instead.
+const list = await cached(
+  "stations",
+  () => iwls.stationList(),
+  (l) => l.some(servesSpeed),
+);
+if (!list.some(servesSpeed)) {
+  throw new Error(`the IWLS station list has no station serving ${chsCurrentFit.speedSeries}`);
 }
-
-const stats: Stat[] = [];
-const skipped: string[] = [];
+const rows: ResultRow[] = [];
+const records: GateRecord[] = curated
+  .filter((g) => NOT_FITTED.has(g.id))
+  .sort(byId)
+  .map((g) => ({ gate: g.id, reason: NOT_FITTED_REASON }));
 
 for (const gate of gates) {
-  const station = nearest(gate.latitude, gate.longitude);
-  if (!station) {
-    skipped.push(`${gate.id} (no ${chsCurrentFit.speedSeries} within ${RESOLVE_KM} km)`);
-    continue;
-  }
-  const meta: { floodDirection?: number; ebbDirection?: number } = await fetchIwls(
-    `stations/${station.id}/metadata`,
-    `${station.code}-metadata`,
-  );
-  if (meta.floodDirection == null || meta.ebbDirection == null) {
-    skipped.push(`${gate.id} (no flood axis)`);
-    continue;
-  }
-  const { floodDirection, ebbDirection } = meta;
-
-  const from = fitEnd - longest * DAY;
-  const speeds = await series(station, chsCurrentFit.speedSeries, from, fitEnd);
-  const directions = await series(station, chsCurrentFit.directionSeries, from, fitEnd);
-  const projected = projectChsCurrent(speeds, directions, floodDirection);
-
-  for (const days of chsCurrentFit.days) {
-    // Every shorter window is the trailing slice of the longest one, as the
-    // apps fetch it.
-    const samples = projected.filter((s) => s.time.getTime() >= fitEnd - days * DAY);
-    if (samples.length < 1 + 2 * chsCurrentFit.basis.length) {
-      skipped.push(`${gate.id}@${days}d`);
-      continue;
+  const record: GateRecord = { gate: gate.id };
+  try {
+    const station = resolve(
+      gate.id,
+      gate.latitude,
+      gate.longitude,
+      chsCurrentFit.speedSeries,
+      list,
+    );
+    record.iwls = station.code;
+    const meta = await cached(
+      `${station.id}-metadata`,
+      () => iwls.metadata(station.id),
+      (m) =>
+        m.timeZoneCode !== undefined &&
+        m.floodDirection !== undefined &&
+        m.ebbDirection !== undefined,
+    );
+    if (!meta.timeZoneCode) throw new GateDataError("no time zone in IWLS metadata");
+    if (meta.floodDirection === undefined || meta.ebbDirection === undefined) {
+      throw new GateDataError("no flood axis in IWLS metadata");
     }
-    const result = fit(samples, chsCurrentFit.basis);
-    const predictor = createCurrentPredictor(result.constituents, {
-      floodDirection,
-      ebbDirection,
-      meanFlow: result.offset,
-    });
-
-    for (const holdout of HOLDOUT_DAYS) {
-      const start = fitEnd + holdout * DAY;
-      const end = start + 7 * DAY;
-      const observed = await events(station, start, end);
-      if (observed.length === 0) {
-        skipped.push(`${gate.id}@${days}d+${holdout}`);
-        continue;
-      }
-      const predicted = predictor.getEventsPrediction({
-        start: new Date(start - DAY / 2),
-        end: new Date(end + DAY / 2),
-      });
-
-      const slackErrors: number[] = [];
-      const extremaErrors: number[] = [];
-      const speedErrors: number[] = [];
-      let slacks = 0;
-      let extrema = 0;
-      let wrongSign = 0;
-      for (const obs of observed) {
-        if (obs.kind === "slack") {
-          slacks++;
-          const dt = Math.min(
-            ...predicted.filter((p) => p.kind === "slack").map((p) => minutes(p.time, obs.time)),
-          );
-          if (dt <= MATCH_WINDOW_MIN) slackErrors.push(dt);
-          continue;
-        }
-        extrema++;
-        // The sign of the modelled velocity at CHS's own extremum is the test
-        // for a reversed axis; a matched event's sign would only say which
-        // event matched.
-        const [{ speed }] = predictor.getTimelinePrediction({
-          start: obs.time,
-          end: new Date(obs.time.getTime() + 60_000),
-          timeFidelity: 60,
-        });
-        if ((obs.kind === "maxFlood" && speed < 0) || (obs.kind === "maxEbb" && speed > 0))
-          wrongSign++;
-        if (Math.abs(obs.speed) < SIGNIFICANT_KN) continue;
-        let best: { dt: number; speed: number } | undefined;
-        for (const p of predicted) {
-          if (p.kind !== obs.kind) continue;
-          const dt = minutes(p.time, obs.time);
-          if (!best || dt < best.dt) best = { dt, speed: p.speed };
-        }
-        if (best && best.dt <= MATCH_WINDOW_MIN) {
-          extremaErrors.push(best.dt);
-          speedErrors.push(Math.abs(best.speed - obs.speed));
-        }
-      }
-
-      const slackMedian = median(slackErrors);
-      const slackWorst = slackErrors.length ? Math.max(...slackErrors) : NaN;
-      const extremaMedian = median(extremaErrors);
-      const speedMedian = median(speedErrors);
-      const reversed = extrema > 0 && wrongSign / extrema >= REVERSED_SHARE;
-      stats.push({
-        gate: gate.id,
-        iwls: station.code,
-        fit_days: days,
-        holdout_days: holdout,
-        fit_rms_kn: result.rms,
-        slack_median_min: slackMedian,
-        slack_worst_min: slackWorst,
-        slack_matched: slackErrors.length,
-        slacks,
-        extrema_median_min: extremaMedian,
-        extrema_scored: extremaErrors.length,
-        speed_median_kn: speedMedian,
-        wrong_sign: wrongSign,
-        extrema,
-        reversed,
-        // An empty set of errors leaves NaN, which fails every comparison.
-        pass:
-          slackErrors.length === slacks &&
-          !reversed &&
-          slackMedian <= SLACK_MEDIAN_MAX_MIN &&
-          slackWorst <= SLACK_WORST_MAX_MIN &&
-          extremaMedian <= EXTREMA_MEDIAN_MAX_MIN &&
-          speedMedian <= SPEED_MEDIAN_MAX_KN,
-      });
+    const axis = {
+      flood: meta.floodDirection,
+      ebb: meta.ebbDirection,
+      timeZone: meta.timeZoneCode,
+    };
+    Object.assign(record, { flood: axis.flood, ebb: axis.ebb, time_zone: axis.timeZone });
+    const horizon = await eventHorizon(station);
+    record.horizon = iso(horizon);
+    try {
+      record.canary = await canary(station);
+    } catch (error) {
+      // The canary is a diagnostic, so a permanent refusal leaves it out and
+      // the gate's rows still land. A transient failure still ends the run.
+      if (!(error instanceof IwlsError && error.kind === "permanent")) throw error;
+      console.log(`${gate.id}: canary left out: ${error.message}`);
     }
+    // Every grid point and window has rows or a failure of its own, so one
+    // that IWLS cannot serve or that will not fit costs only its own rows.
+    const failures: GateFailure[] = [];
+    for (const i of grid) {
+      try {
+        rows.push(...(await scoreGridPoint(gate, station, axis, i, horizon, failures)));
+      } catch (error) {
+        if (!isPermanent(error)) throw error;
+        failures.push({ grid: i, reason: (error as Error).message });
+      }
+    }
+    if (failures.length) record.failures = failures;
+  } catch (error) {
+    if (!isPermanent(error)) throw error;
+    record.reason = (error as Error).message;
   }
+  records.push(record);
   process.stdout.write(".");
 }
+console.log();
 
-console.log(`\nSkipped: ${skipped.length ? skipped.join(", ") : "none"}`);
+await writeLines(join(OUT, "chs-current-fit.jsonl"), rows);
+await writeLines(join(OUT, "chs-current-gates.jsonl"), records);
+writeSummary(join(OUT, "chs-current-fit.csv"), rows);
 
-const columns = Object.keys(stats[0] ?? {}) as (keyof Stat)[];
-const csv = createWriteStream(join(__dirname, "chs-current-fit.csv"));
-csv.write(columns.join(",") + "\n");
-for (const s of stats) {
-  csv.write(
-    columns
-      .map((c) => {
-        const v = s[c];
-        if (typeof v !== "number") return JSON.stringify(v);
-        return Number.isInteger(v) ? String(v) : v.toFixed(2);
-      })
-      .join(",") + "\n",
-  );
+for (const r of records) {
+  if (r.reason) console.log(`${r.gate}: ${r.reason}`);
+  for (const f of r.failures ?? []) console.log(`${r.gate}: grid ${f.grid}: ${f.reason}`);
 }
-csv.end();
+const codes = records.filter((r) => r.iwls && !r.reason).map((r) => r.iwls);
+expect(
+  records
+    .filter((r) => r.iwls && !r.reason && codes.indexOf(r.iwls) !== codes.lastIndexOf(r.iwls))
+    .map((r) => r.gate),
+  "gates resolved to the same IWLS station",
+).toEqual([]);
 
-// What each gate's first held-out week supports: the shortest window that
-// passes, and for a longer one, the provisional slack bound its 60-day fit
-// earns, rounded up to 5 minutes. A 60-day fit that missed a slack has no
-// bound. One week of one run is a reading, not a curated value.
-const [shortest] = chsCurrentFit.days;
-const first = HOLDOUT_DAYS[0];
-const dispositions = Object.fromEntries(
-  gates.flatMap((gate) => {
-    const rows = stats.filter((s) => s.gate === gate.id && s.holdout_days === first);
-    if (rows.length === 0) return [];
-    const passing = chsCurrentFit.days.find((d) => rows.find((s) => s.fit_days === d)?.pass);
-    if (passing === undefined) return [[gate.id, "fails"]];
-    if (passing === shortest) return [[gate.id, `${passing} d`]];
-    const short = rows.find((s) => s.fit_days === shortest);
-    const worst = short && short.slack_matched === short.slacks ? short.slack_worst_min : NaN;
-    const bound = Math.ceil(worst / 5) * 5;
-    const provisional =
-      Number.isFinite(bound) && bound <= chsCurrentFit.provisionalSlackMaxMinutes
-        ? `provisional ±${bound} min`
-        : "no provisional";
-    return [[gate.id, `${passing} d, ${provisional}`]];
-  }),
-);
-console.log(`At +${first} d, this run alone:`, dispositions);
-
-const resolved = new Map(stats.map((s) => [s.gate, s.iwls]));
-const codes = [...resolved.values()];
-const shared = [...resolved]
-  .filter(([, code]) => codes.indexOf(code) !== codes.lastIndexOf(code))
-  .map(([gate]) => gate);
-expect(shared, "gates resolved to the same IWLS station").toEqual([]);
-
-// Shares are of every gate that should be scored, so a gate IWLS stops
-// serving counts against the floor rather than leaving it to the gates that
-// remain.
-const expected = gates.filter((gate) => !NOT_FITTED.has(gate.id)).length;
-
-for (const holdout of HOLDOUT_DAYS) {
-  for (const days of chsCurrentFit.days) {
-    const rows = stats.filter((s) => s.holdout_days === holdout && s.fit_days === days);
-    const passing = rows.filter((s) => s.pass).length;
-    const slack = rows
-      .map((s) => s.slack_median_min)
-      .filter(Number.isFinite)
-      .sort((a, b) => a - b);
-    const p50 = ntile(slack, 0.5);
-    console.log(`${days} d fit, +${holdout} d:`, {
-      count: rows.length,
-      expected,
-      passing,
-      p50SlackMedianMin: p50,
-    });
-
-    expect(rows.length, `${days} d +${holdout} d gates scored`).toBeGreaterThan(0);
-    expect(
-      rows.filter((s) => s.reversed).map((s) => s.gate),
-      `${days} d +${holdout} d reversed axes`,
-    ).toEqual([]);
-    // Baseline expectations from the run with the fit ending 2026-10-01 in
-    // docs/validation/chs-currents.md, below its worst held-out week (3 of 23
-    // at 60 d, 10 of 23 at 210 d) by at least one gate. Verdicts near the bar
-    // move with the season; move these toward it as the recipe improves.
-    const baseline = days === shortest ? { share: 0.05, p50: 20 } : { share: 0.3, p50: 15 };
-    expect(passing / expected, `${days} d +${holdout} d share passing`).toBeGreaterThanOrEqual(
-      baseline.share,
-    );
-    expect(p50, `${days} d +${holdout} d slack median p50`).toBeLessThan(baseline.p50);
+// The floors hold the recipe's own windows, never a report-only one.
+const recipeDays: readonly number[] = chsCurrentFit.days;
+for (const i of grid) {
+  for (const days of WINDOWS) {
+    for (const offset of OFFSETS) {
+      const group = rows.filter(
+        (r) => r.grid === i && r.fit_days === days && r.offset_days === offset,
+      );
+      const scored = group
+        .filter((r) => r.status === "scored")
+        .map((r) => summarize(r as WeekScore));
+      const passing = scored.filter((s) => s.pass).length;
+      const slack = scored
+        .map((s) => s.slack_median_min)
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+      const p50 = slack[Math.floor(slack.length * 0.5)] ?? NaN;
+      console.log(`grid ${i} (${fitEndDate(i)}), ${days} d fit, +${offset} d:`, {
+        scored: scored.length,
+        noEvents: group.filter((r) => r.status === "no_events").length,
+        beyondHorizon: group.filter((r) => r.status === "beyond_horizon").length,
+        passing,
+        p50SlackMedianMin: p50,
+      });
+      // Short of ROWS_ONLY, an empty group is a failure, not a skip, even under
+      // NO_FLOORS and for a report-only window: every gate recording a reason
+      // or failure would otherwise pass vacuously.
+      const allBeyond = group.length > 0 && group.every((r) => r.status === "beyond_horizon");
+      if (allBeyond) continue;
+      // In ROWS_ONLY a shard's groups can be empty when its gates all have a
+      // reason or a failure, as a one-gate backfill can, and a reversed axis is
+      // one gate's disqualifier. The results repository checks across every
+      // shard that each grid point, recipe window and held-out week short of
+      // the horizon scored a gate.
+      if (ROWS_ONLY) continue;
+      expect(scored.length, `grid ${i} ${days} d +${offset} d gates scored`).toBeGreaterThan(0);
+      if (!recipeDays.includes(days)) continue;
+      // A reversed axis keeps its slack times, so its rows score as usual and
+      // only this check sees it. It depends on no calibration, so NO_FLOORS
+      // keeps it.
+      expect(
+        scored.filter((s) => s.reversed).length,
+        `grid ${i} ${days} d +${offset} d reversed axes`,
+      ).toBe(0);
+      if (NO_FLOORS) continue;
+      // Floors set under scorer version 1 from the run with the fit ending
+      // 2026-10-01 in docs/validation/chs-currents.md, at least one gate below
+      // its worst held-out week; #437 tracks recalibrating them. The share
+      // counts a gate with no row here, for a reason or a failure, as a miss.
+      const baseline =
+        days === chsCurrentFit.days[0] ? { share: 0.05, p50: 20 } : { share: 0.3, p50: 15 };
+      expect(
+        passing / gates.length,
+        `grid ${i} ${days} d +${offset} d share passing`,
+      ).toBeGreaterThanOrEqual(baseline.share);
+      expect(p50, `grid ${i} ${days} d +${offset} d slack median p50`).toBeLessThan(baseline.p50);
+    }
   }
 }
-
-interface Event {
-  time: Date;
-  kind: CurrentEventKind;
-  /** Signed knots, positive on the flood. */
-  speed: number;
+// Every group above is skipped when every week lies beyond the horizon, as
+// when every gate's current-year probe came back empty, so the run as a whole
+// must still have scored something. In ROWS_ONLY the results repository
+// checks that across every shard, since a one-gate shard's gate can have a
+// reason in place of rows.
+const counted = (status: RowStatus) => rows.filter((r) => r.status === status).length;
+if (!ROWS_ONLY) {
+  expect(
+    counted("scored"),
+    `rows scored (${counted("beyond_horizon")} beyond the horizon, ${counted("no_events")} with no slack or extremum)`,
+  ).toBeGreaterThan(0);
 }
 
-function nearest(latitude: number, longitude: number) {
-  let best: { station: IwlsStation; km: number } | undefined;
-  for (const station of currentStations) {
-    const distance = km(latitude, longitude, station.latitude, station.longitude);
-    if (!best || distance < best.km) best = { station, km: distance };
-  }
-  return best && best.km <= RESOLVE_KM ? best.station : undefined;
-}
-
-async function events(station: IwlsStation, from: number, to: number) {
-  const query = new URLSearchParams({
-    "time-series-code": "wcp1-events",
-    from: iso(from),
-    to: iso(to),
-  });
-  const rows: { eventDate: string; qualifier: string; value: number }[] = await fetchIwls(
-    `stations/${station.id}/data?${query}`,
-    `${station.code}-wcp1-events-${iso(from).slice(0, 10)}`,
-  );
-  return rows.flatMap((row): Event[] => {
-    const time = new Date(row.eventDate);
-    if (row.qualifier === "SLACK") return [{ time, kind: "slack", speed: 0 }];
-    if (row.qualifier === "EXTREMA_FLOOD") return [{ time, kind: "maxFlood", speed: row.value }];
-    if (row.qualifier === "EXTREMA_EBB") return [{ time, kind: "maxEbb", speed: -row.value }];
-    return [];
-  });
-}
-
-async function series(station: IwlsStation, code: string, from: number, to: number) {
-  const out: HarmonicSample[] = [];
-  for (let t = from; t < to; t += 7 * DAY) {
-    const query = new URLSearchParams({
-      "time-series-code": code,
-      from: iso(t),
-      to: iso(Math.min(t + 7 * DAY, to)),
-      resolution: "FIFTEEN_MINUTES",
+async function scoreGridPoint(
+  gate: Gate,
+  station: IwlsStation,
+  axis: { flood: number; ebb: number; timeZone: string },
+  i: number,
+  horizon: number,
+  failures: GateFailure[],
+): Promise<ResultRow[]> {
+  const date = fitEndDate(i);
+  // Midday UTC is the same calendar day in every Canadian zone.
+  const fitEnd = localMidnight(new Date(`${date}T12:00:00Z`), axis.timeZone).getTime();
+  // Every chunk of the longest window's plan, newest first, each kept apart so
+  // a shorter window can take exactly its own plan's chunks.
+  const fetched: { speeds: Sample[]; directions: Sample[] }[] = [];
+  for (const chunk of chunkPlan(longest, new Date(fitEnd))) {
+    fetched.push({
+      speeds: await series(chsCurrentFit.speedSeries, station, chunk),
+      directions: await series(chsCurrentFit.directionSeries, station, chunk),
     });
-    const rows: { eventDate: string; value: number }[] = await fetchIwls(
-      `stations/${station.id}/data?${query}`,
-      `${station.code}-${code}-${iso(t).slice(0, 10)}`,
+  }
+  const harmonic = (s: Sample[]) =>
+    [...s].sort((a, b) => a.t - b.t).map((x) => ({ time: new Date(x.t), value: x.v }));
+
+  const out: ResultRow[] = [];
+  for (const days of WINDOWS) {
+    // A window fits exactly its own plan's chunks, as the app does, boundary
+    // duplicates kept. Both plans share the epoch grid and the end, so the
+    // window's chunks are the newest ones of the longest plan, already fetched.
+    const plan = chunkPlan(days, new Date(fitEnd));
+    const own = fetched.slice(0, plan.length);
+    const start = plan.at(-1)!.start;
+    const samples = projectChsCurrent(
+      harmonic(own.flatMap((c) => c.speeds)),
+      harmonic(own.flatMap((c) => c.directions)),
+      axis.flood,
     );
-    for (const row of rows) {
-      const time = new Date(row.eventDate);
-      if (typeof row.value !== "number" || time.getTime() % STEP !== 0) continue;
-      if (out.at(-1)?.time.getTime() === time.getTime()) continue;
-      out.push({ time, value: row.value });
+    // A window too short or degenerate to fit, such as a rank-deficient one,
+    // is the gate's own data problem, and the grid point's other windows
+    // still score.
+    if (samples.length < 1 + 2 * chsCurrentFit.basis.length) {
+      failures.push({
+        grid: i,
+        fit_days: days,
+        reason: `IWLS served ${samples.length} samples for the ${days}-day fit ending ${date}`,
+      });
+      continue;
+    }
+    let result: HarmonicFit;
+    try {
+      result = fit(samples, chsCurrentFit.basis);
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      failures.push({
+        grid: i,
+        fit_days: days,
+        reason: `the ${days}-day fit ending ${date} failed: ${error.message}`,
+      });
+      continue;
+    }
+    const predictor = createCurrentPredictor(result.constituents, {
+      floodDirection: axis.flood,
+      ebbDirection: axis.ebb,
+      meanFlow: result.offset,
+    });
+    for (const offset of OFFSETS) {
+      const weekStart = fitEnd + offset * DAY;
+      const weekEnd = weekStart + WEEK_DAYS * DAY;
+      const base: ResultRow = {
+        gate: gate.id,
+        iwls: station.code,
+        flood: axis.flood,
+        stamp: chsCurrentFit.stamp,
+        scorer: SCORER_VERSION,
+        grid: i,
+        fit_end: iso(fitEnd),
+        fit_days: days,
+        fit_start: iso(start),
+        fit_samples: samples.length,
+        fit_rms_kn: Math.round(result.rms * 1000) / 1000,
+        offset_days: offset,
+        week_start: iso(weekStart),
+        status: "scored",
+      };
+      if (!withinHorizon(fitEnd, horizon, [offset])) {
+        out.push({ ...base, status: "beyond_horizon" });
+        continue;
+      }
+      const observed = await events(station, weekStart - CONTEXT, weekEnd + CONTEXT);
+      if (!hasSlackOrExtremum(observed.filter((e) => e.time >= weekStart && e.time < weekEnd))) {
+        out.push({ ...base, status: "no_events" });
+        continue;
+      }
+      const predicted: ScoreEvent[] = predictor
+        .getEventsPrediction({
+          start: new Date(weekStart - CONTEXT),
+          end: new Date(weekEnd + CONTEXT),
+        })
+        .map((e) => ({ time: e.time.getTime(), kind: e.kind, speed: e.speed }));
+      const score = scoreWeek({
+        start: weekStart,
+        end: weekEnd,
+        observed,
+        predicted,
+        velocityAt: (t) =>
+          predictor.getTimelinePrediction({
+            start: new Date(t),
+            end: new Date(t + 60_000),
+            timeFidelity: 60,
+          })[0].speed,
+      });
+      out.push({ ...base, ...rounded(score) });
     }
   }
   return out;
 }
 
-async function fetchIwls(path: string, cacheKey: string) {
-  const filePath = `./.test-cache/chs-current-fit-${cacheKey}.json`;
+// CHS publishes events a calendar year at a time. The horizon is the end of
+// the last year whose final week has events, probing forward from this one.
+// Never cached: a cached answer would hide next year's publication.
+async function eventHorizon(station: IwlsStation): Promise<number> {
+  const thisYear = new Date().getUTCFullYear();
+  let horizon = Date.UTC(thisYear, 0, 1);
+  for (let year = thisYear; year < thisYear + 5; year++) {
+    const end = Date.UTC(year + 1, 0, 1);
+    let published: ScoreEvent[];
+    try {
+      published = parseEvents(await iwls.get(eventsURL(station, end - WEEK_DAYS * DAY, end)));
+    } catch (error) {
+      // A permanent refusal of a later year means CHS has not published it,
+      // not that the gate is broken.
+      if (year > thisYear && error instanceof IwlsError && error.kind === "permanent") break;
+      throw error;
+    }
+    // Any event counts: a weak-and-variable event alone still means CHS published the year.
+    if (published.length === 0) break;
+    horizon = end;
+  }
+  return horizon;
+}
+
+// Never cached, so a revision shows on the next run.
+async function canary(station: IwlsStation): Promise<string> {
+  const samples = await iwls.series(
+    chsCurrentFit.speedSeries,
+    station.id,
+    CANARY,
+    undefined,
+    chsCurrentFit.sampleMinutes,
+  );
+  return createHash("sha256").update(JSON.stringify(samples)).digest("hex").slice(0, 12);
+}
+
+function eventsURL(station: IwlsStation, from: number, to: number): URL {
+  const url = new URL(`${BASE}/stations/${pathComponent(station.id)}/data`);
+  url.search = new URLSearchParams({
+    "time-series-code": "wcp1-events",
+    from: iso(from),
+    to: iso(to),
+  }).toString();
+  return url;
+}
+
+// wcp1-events is a scoring input, not a fit series, so it skips the
+// contract's grid filter but keeps its pacing, retries and seven-day request
+// limit. An event on the instant two requests share comes back from both.
+function events(station: IwlsStation, from: number, to: number): Promise<ScoreEvent[]> {
+  return cached(
+    // The cache holds parsed events, so a scorer that parses differently must refetch them.
+    `${station.id}-wcp1-events-scorer${SCORER_VERSION}-${from / 1000}-${to / 1000}`,
+    async () => {
+      const all: ScoreEvent[] = [];
+      for (const [a, b] of requestSpans(from, to)) {
+        for (const e of parseEvents(await iwls.get(eventsURL(station, a, b)))) {
+          if (!all.some((x) => x.time === e.time && x.kind === e.kind)) all.push(e);
+        }
+      }
+      return all;
+    },
+    (e) => e.length > 0,
+  );
+}
+
+function series(code: string, station: IwlsStation, chunk: Chunk): Promise<Sample[]> {
+  return cached(
+    `${station.id}-${code}-${chunk.start / 1000}-${chunk.end / 1000}-step${chsCurrentFit.sampleMinutes}m`,
+    () => iwls.series(code, station.id, chunk, undefined, chsCurrentFit.sampleMinutes),
+    (samples) => canCache(chunk, samples, chsCurrentFit.sampleMinutes),
+  );
+}
+
+// The run's own cache, keyed with both chunk ends. A value `keep` refuses, such
+// as an empty response or a series short of a full week with both endpoints,
+// is fetched again next run. Reuse checks `keep` again, so an entry an older
+// rule kept is fetched again too.
+async function cached<T>(
+  key: string,
+  load: () => Promise<T>,
+  keep: (value: T) => boolean = () => true,
+) {
+  const filePath = `./.test-cache/chs-current-fit-${key}.json`;
+  let stored: T | undefined;
   try {
-    return await readFile(filePath, "utf-8").then((data) => JSON.parse(data));
+    stored = JSON.parse(await readFile(filePath, "utf-8")) as T;
   } catch {
-    const res = await fetchWithBackoff(`${IWLS}/${path}`);
-    const data = await res.json();
-    await writeFile(filePath, JSON.stringify(data));
-    return data;
+    // Not cached yet, or unreadable: fetch it.
   }
+  if (stored !== undefined && keep(stored)) return stored;
+  const value = await load();
+  if (keep(value)) await writeFile(filePath, JSON.stringify(value));
+  return value;
 }
 
-// IWLS rate-limits long runs partway through; back off and carry on rather
-// than lose the run. Requests are spaced like the apps space theirs.
-async function fetchWithBackoff(url: string) {
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const res = await fetch(url);
-    await sleep(1000);
-    if (res.ok) return res;
-    if (res.status !== 429 && res.status < 500) throw new Error(`IWLS ${res.status} for ${url}`);
-    await sleep(5000 * 2 ** attempt);
-  }
-  throw new Error(`IWLS still failing after 6 attempts for ${url}`);
+async function writeLines(path: string, items: object[]) {
+  await writeFile(path, items.map((item) => JSON.stringify(item) + "\n").join(""));
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function writeSummary(path: string, items: ResultRow[]) {
+  const columns = [
+    "gate",
+    "grid",
+    "fit_end",
+    "fit_days",
+    "offset_days",
+    "status",
+    "slacks",
+    "missed",
+    "invented",
+    "slack_median_min",
+    "slack_worst_min",
+    "extrema",
+    "extrema_scored",
+    "extremum_median_min",
+    "speed_median_kn",
+    "wrong_sign",
+    "pass",
+  ];
+  const csv = createWriteStream(path);
+  csv.write(columns.join(",") + "\n");
+  for (const r of items) {
+    const line: Record<string, unknown> = {
+      ...r,
+      ...(r.status === "scored" ? summarize(r as WeekScore) : {}),
+    };
+    csv.write(
+      columns
+        .map((c) => {
+          const v = line[c];
+          if (v === undefined) return "";
+          if (typeof v !== "number") return JSON.stringify(v);
+          return Number.isInteger(v) ? String(v) : v.toFixed(2);
+        })
+        .join(",") + "\n",
+    );
+  }
+  csv.end();
 }
 
 function iso(ms: number) {
   return new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
-}
-
-function minutes(a: Date, b: Date) {
-  return Math.abs(a.getTime() - b.getTime()) / 60_000;
-}
-
-function km(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const d = Math.PI / 180;
-  const a =
-    Math.sin(((lat2 - lat1) * d) / 2) ** 2 +
-    Math.cos(lat1 * d) * Math.cos(lat2 * d) * Math.sin(((lon2 - lon1) * d) / 2) ** 2;
-  return 12742 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function median(data: number[]) {
-  if (data.length === 0) return NaN;
-  const s = [...data].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
-}
-
-function ntile(data: number[], percent: number) {
-  return data[Math.floor(data.length * percent)] ?? NaN;
 }

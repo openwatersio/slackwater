@@ -44,9 +44,22 @@ jobs:
       - name: Run benchmarks
         run: npm run benchmarks
 
+      # Branch pushes run the quick CHS current benchmark as a regression check.
+      # Runs on main skip it: openwatersio/chs-current-validation runs the full
+      # benchmark monthly and publishes the results. Every run sets NO_FLOORS,
+      # because the share and p50 floors were set under scorer version 1 (#437);
+      # the reversed-axis check still runs.
+      - name: Run CHS current fit benchmark
+        if: ${{ !cancelled() && env.FAST != '' }}
+        env:
+          NO_FLOORS: "1"
+        run: npm run chs-current-fit
+
       - name: Upload benchmark results
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: benchmarks
-          path: benchmarks/*.csv
+          path: |
+            benchmarks/*.csv
+            benchmarks/*.jsonl

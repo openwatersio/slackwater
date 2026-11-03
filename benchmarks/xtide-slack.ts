@@ -134,11 +134,14 @@ async function chsEvents(
       ),
     ),
   );
-  return data.map((e: { eventDate: string; qualifier: string; value: number }) => ({
-    time: Date.parse(e.eventDate),
-    qualifier: e.qualifier,
-    value: e.value,
-  }));
+  // A weak-and-variable row is not a peak, and may have no value for weakerNeighbour to read.
+  return data
+    .filter((e: { qualifier: string }) => e.qualifier !== "WEAK_AND_VARIABLE")
+    .map((e: { eventDate: string; qualifier: string; value: number }) => ({
+      time: Date.parse(e.eventDate),
+      qualifier: e.qualifier,
+      value: e.value,
+    }));
 }
 
 async function noaaEvents(id: string, month: string, from: Date, to: Date): Promise<AgencyEvent[]> {
