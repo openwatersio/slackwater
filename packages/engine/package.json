@@ -1,6 +1,6 @@
 {
   "name": "@slackwater/engine",
-  "version": "1.0.0-beta.8",
+  "version": "1.0.0-beta.9",
   "description": "Harmonic engine for tide and current predictions",
   "keywords": [
     "slackwater",
