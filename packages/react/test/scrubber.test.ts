@@ -6,9 +6,11 @@ import {
   adjacentTarget,
   awayFromEdges,
   dayRowHit,
+  interpolate,
   magnetTarget,
   reachable,
   rides,
+  targetsWithin,
   thinLabels,
 } from "../src/utils/scrubber.js";
 
@@ -79,4 +81,24 @@ test("dayRowHit: nearest anchor, a date winning a tie", () => {
   expect(dayRowHit([H], [3 * H], 1.5 * H)).toEqual({ time: H, sun: true });
   expect(dayRowHit([H], [3 * H], 2 * H)).toEqual({ time: 3 * H, sun: false });
   expect(dayRowHit([], [], H)).toBeUndefined();
+});
+
+describe("interpolate", () => {
+  const t0 = Date.UTC(2026, 9, 10);
+  const points = [0, 2, 2, 6].map((v, i) => ({ time: new Date(t0 + Math.min(i, 2) * H), v }));
+
+  test("linear between samples and undefined outside them", () => {
+    expect(interpolate(points, t0 + 0.25 * H, (p) => p.v)).toBe(0.5);
+    expect(interpolate(points, t0 - 1, (p) => p.v)).toBeUndefined();
+    expect(interpolate(points, t0 + 3 * H, (p) => p.v)).toBeUndefined();
+    expect(interpolate([], t0, (p: { time: Date }) => p.time.getTime())).toBeUndefined();
+  });
+
+  test("takes the first of two samples sharing an instant", () => {
+    expect(interpolate(points, t0 + 2 * H, (p) => p.v)).toBe(2);
+  });
+});
+
+test("targetsWithin keeps sorted, unique times inside the window", () => {
+  expect(targetsWithin([5, 1, 3, 3, 9, 0], 1, 5)).toEqual([1, 3, 5]);
 });

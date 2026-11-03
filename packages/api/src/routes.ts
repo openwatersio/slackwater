@@ -1,10 +1,11 @@
 import type { Request, Response } from "express";
-import { loadStations, type Station } from "@slackwater/database";
+import { loadStations, type Station, type StationDatabase } from "@slackwater/database";
 import {
   getExtremesPrediction,
   getTimelinePrediction,
   findStation,
   stationsNear,
+  currentStationUnavailableIn,
 } from "slackwater";
 import { loadOpenapi } from "./openapi.js";
 import * as validate from "./validate.js";
@@ -13,12 +14,31 @@ import { stationsInBounds } from "./bbox.js";
 
 // CHS tide stations carry identity only, since CHS terms forbid re-serving its
 // predictions; picking one by location would serve a flat zero tide.
-const hasTideModel = (station: Station) =>
+type ModelFields = { harmonic_constituents: unknown[]; offsets?: unknown };
+const hasTideModel = (station: ModelFields) =>
   station.harmonic_constituents.length > 0 || station.offsets !== undefined;
 
 // The database also carries current stations, which createCurrentRoutes serves.
 // A listing only offers stations this API can predict and route to.
 const tideOnly = (station: Station) => station.kind === "tide" && hasTideModel(station);
+
+/** Whether these routes can predict the station, and why not when they can't. */
+function availability(
+  db: StationDatabase,
+  station: Parameters<typeof currentStationUnavailableIn>[1] & ModelFields,
+) {
+  if (hasTideModel(station)) return { predictions: true };
+  return { predictions: false, unavailable: currentStationUnavailableIn(db, station)!.message };
+}
+
+async function show(id: string, res: Response) {
+  try {
+    const station = await findStation(id);
+    return res.json({ ...station, ...availability(await loadStations(), station) });
+  } catch (error) {
+    return res.status(404).json({ message: (error as Error).message });
+  }
+}
 
 /** The tide routes. */
 export function createRoutes(options: RouterOptions = {}) {
@@ -46,13 +66,17 @@ export function createRoutes(options: RouterOptions = {}) {
       }
     });
 
-    router.get("/stations/:source/:id", async (req: Request, res: Response) => {
-      try {
-        res.json(await findStation(`${req.params.source}/${req.params.id}`));
-      } catch (error) {
-        res.status(404).json({ message: (error as Error).message });
-      }
+    router.get("/stations/:id", async (req: Request, res: Response) => {
+      const { id } = req.params as { id: string };
+      const db = await loadStations();
+      if (id.includes("/") || !db.accepted.some((s) => s.kind === "tide" && s.id === id))
+        return res.status(404).json({ message: `Station not found: ${id}` });
+      return show(id, res);
     });
+
+    router.get("/stations/:source/:id", (req: Request, res: Response) =>
+      show(`${req.params.source}/${req.params.id}`, res),
+    );
 
     router.get("/stations", async (req: Request, res: Response) => {
       const { latitude, longitude } = positionOptions(req);
@@ -68,28 +92,28 @@ export function createRoutes(options: RouterOptions = {}) {
       const db = await loadStations();
 
       if (query) {
-        res.json(db.search(query, { filter: tideOnly, maxResults }).map(stripStationDetails));
+        res.json(
+          db
+            .search(query, { filter: tideOnly, maxResults })
+            .map((station) => summarize(db, station)),
+        );
         return;
       }
 
       if (bboxParam) {
-        res.json(stationsInBounds(db, bboxParam, tideOnly).map(stripStationDetails));
+        res.json(
+          stationsInBounds(db, bboxParam, tideOnly).map((station) => summarize(db, station)),
+        );
         return;
       }
 
       if (latitude === undefined || longitude === undefined) {
-        res.json(db.accepted.filter(tideOnly).map(stripStationDetails));
+        res.json(db.accepted.filter(tideOnly).map((station) => summarize(db, station)));
         return;
       }
 
-      res.json(
-        await stationsNear({
-          latitude,
-          longitude,
-          maxResults,
-          maxDistance,
-        }),
-      );
+      const nearby = await stationsNear({ latitude, longitude, maxResults, maxDistance });
+      res.json(nearby.map((station) => ({ ...station, ...availability(db, station) })));
     });
 
     router.get("/stations/:source/:id/extremes", async (req: Request, res: Response) => {
@@ -146,7 +170,20 @@ async function predictionOptions(req: Request) {
   };
 }
 
-function stripStationDetails(station: Station) {
+function summarize(db: StationDatabase, station: Station) {
   const { id, name, region, country, continent, latitude, longitude, timezone, type } = station;
-  return { id, name, region, country, continent, latitude, longitude, timezone, type };
+  return {
+    id,
+    name,
+    region,
+    country,
+    continent,
+    latitude,
+    longitude,
+    timezone,
+    type,
+    attribution: station.attribution,
+    license: station.license,
+    ...availability(db, station),
+  };
 }

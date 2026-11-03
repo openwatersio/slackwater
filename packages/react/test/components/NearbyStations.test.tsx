@@ -1,53 +1,201 @@
-import { describe, test, expect } from "vitest";
-import { render, within, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { NearbyStations } from "../../src/components/NearbyStations.js";
 import { createTestWrapper } from "../helpers.js";
 
+const DECEPTION_PASS = { latitude: 48.4062, longitude: -122.6431 };
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+async function cards() {
+  const list = await screen.findByRole("list", undefined, { timeout: 10000 });
+  return within(list).getAllByRole("listitem");
+}
+
+const credits = () => screen.queryAllByText(/^Slackwater database \(/);
+const names = (items: HTMLElement[]) =>
+  items.map((li) => li.querySelector(".truncate")!.textContent);
+const distances = (items: HTMLElement[]) =>
+  items.map((li) => Number(/([\d.]+) nm/.exec(li.textContent!)![1]));
+
 describe("NearbyStations", () => {
-  test("shows loading state initially", () => {
-    const { container } = render(<NearbyStations stationId="noaa/8443970" />, {
-      wrapper: createTestWrapper(),
-    });
-    const view = within(container);
-
-    expect(view.getByText(/Loading/)).toBeDefined();
+  test("is busy while it finds the stations", () => {
+    render(<NearbyStations {...DECEPTION_PASS} />, { wrapper: createTestWrapper() });
+    expect(screen.getByRole("status").textContent).toBe("Loading nearby stations");
   });
 
-  test("renders station list as buttons", async () => {
-    const { container } = render(<NearbyStations stationId="noaa/8443970" />, {
-      wrapper: createTestWrapper(),
-    });
-    const view = within(container);
+  test("lists tide and current stations together, nearest first, with their distance", async () => {
+    render(<NearbyStations {...DECEPTION_PASS} maxResults={4} />, { wrapper: createTestWrapper() });
 
-    await waitFor(
-      () => {
-        expect(view.queryByText(/Loading/)).toBeNull();
-      },
-      { timeout: 10000 },
-    );
-
-    const buttons = view.getAllByRole("button");
-    expect(buttons.length).toBeGreaterThan(0);
-
-    // Each button should contain station name text
-    for (const button of buttons) {
-      expect(button.textContent!.length).toBeGreaterThan(0);
-    }
+    const items = await cards();
+    expect(names(items)).toEqual([
+      "Deception Pass (Narrows)",
+      "Deception Pass State Park",
+      "Cornet Bay",
+      "Yokeko Point",
+    ]);
+    const nm = distances(items);
+    expect([...nm].sort((a, b) => a - b)).toEqual(nm);
   });
 
-  test("applies className", async () => {
-    const { container } = render(<NearbyStations stationId="noaa/8443970" className="my-list" />, {
+  test("leaves out the tide station it is measured from", async () => {
+    render(<NearbyStations stationId="noaa/9448614" maxResults={3} />, {
       wrapper: createTestWrapper(),
     });
-    const view = within(container);
 
-    await waitFor(
-      () => {
-        expect(view.queryByText(/Loading/)).toBeNull();
+    const items = await cards();
+    expect(items.length).toBe(3);
+    expect(names(items)).not.toContain("Deception Pass State Park");
+    expect(names(items)).toContain("Deception Pass (Narrows)");
+  });
+
+  test("omits identity-only tide stations without asking for their predictions", async () => {
+    const fetch = vi.spyOn(window, "fetch");
+    // Campbell River's CHS record sits beside the predictable stations there.
+    const onStationSelect = vi.fn();
+    render(
+      <NearbyStations
+        latitude={50.042}
+        longitude={-125.247}
+        maxResults={3}
+        onStationSelect={onStationSelect}
+      />,
+      {
+        wrapper: createTestWrapper(),
       },
-      { timeout: 10000 },
     );
 
-    expect(container.querySelector(".my-list")).toBeDefined();
+    const items = await cards();
+    expect(items).toHaveLength(3);
+    for (const item of items) fireEvent.click(within(item).getByRole("button"));
+    expect(onStationSelect.mock.calls).toHaveLength(3);
+    expect(
+      onStationSelect.mock.calls.some(([station]) => station.id === "chs-campbell-river"),
+    ).toBe(false);
+    expect(fetch.mock.calls.some(([url]) => String(url).includes("chs-campbell-river"))).toBe(
+      false,
+    );
+  });
+
+  test("leaves out the current station it is measured from", async () => {
+    render(<NearbyStations stationId="noaa/PUG1701" kind="current" maxResults={3} />, {
+      wrapper: createTestWrapper(),
+    });
+
+    const items = await cards();
+    expect(names(items)).toEqual(["Deception Pass State Park", "Cornet Bay", "Yokeko Point"]);
+  });
+
+  test("leaves out a depth bin's station by its listed id", async () => {
+    render(<NearbyStations stationId="noaa/EPT0003@11" kind="current" maxResults={4} />, {
+      wrapper: createTestWrapper(),
+    });
+
+    const items = await cards();
+    expect(items.length).toBe(4);
+    expect(names(items)).not.toContain("Estes Head");
+  });
+
+  test("calls back with the picked station and its kind, and on hover and focus", async () => {
+    const onStationSelect = vi.fn();
+    const onHover = vi.fn();
+    const onHoverEnd = vi.fn();
+    render(
+      <NearbyStations
+        {...DECEPTION_PASS}
+        maxResults={2}
+        onStationSelect={onStationSelect}
+        onHover={onHover}
+        onHoverEnd={onHoverEnd}
+      />,
+      { wrapper: createTestWrapper() },
+    );
+
+    const [first, second] = await cards();
+    // The pointer can already be over a card when the list appears.
+    fireEvent.mouseEnter(first);
+    fireEvent.click(within(first).getByRole("button"));
+    expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/PUG1701", kind: "current" });
+
+    onHover.mockClear();
+    fireEvent.mouseEnter(second);
+    expect(onHover).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "noaa/9448614", kind: "tide" }),
+    );
+    onHoverEnd.mockClear();
+    fireEvent.mouseLeave(second);
+    expect(onHoverEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "noaa/9448614", kind: "tide" }),
+    );
+    onHover.mockClear();
+    fireEvent.focus(within(first).getByRole("button"));
+    expect(onHover).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "noaa/PUG1701", kind: "current" }),
+    );
+    onHoverEnd.mockClear();
+    fireEvent.blur(within(first).getByRole("button"));
+    expect(onHoverEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "noaa/PUG1701", kind: "current" }),
+    );
+  });
+
+  test("still lists tide stations from an API without the current routes", async () => {
+    const real = window.fetch.bind(window);
+    vi.spyOn(window, "fetch").mockImplementation((input, init) =>
+      String(input).includes("/currents/")
+        ? Promise.resolve(new Response(JSON.stringify({ message: "Not found" }), { status: 404 }))
+        : real(input, init),
+    );
+    render(<NearbyStations {...DECEPTION_PASS} maxResults={2} />, { wrapper: createTestWrapper() });
+
+    expect(names(await cards())).toEqual(["Deception Pass State Park", "Cornet Bay"]);
+  });
+
+  test("says why when nothing loads", async () => {
+    render(<NearbyStations stationId="noaa/0000000" />, { wrapper: createTestWrapper() });
+    expect(await screen.findByText(/not found/i, undefined, { timeout: 10000 })).toBeDefined();
+  });
+
+  test("says why when neither list loads", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ message: "Down for maintenance" }), { status: 503 }),
+    );
+    render(<NearbyStations {...DECEPTION_PASS} />, { wrapper: createTestWrapper() });
+    expect(await screen.findByText("Down for maintenance")).toBeDefined();
+  });
+
+  test("credits each source of the listed stations once, under the cards", async () => {
+    // Off the Dutch coast, TICON stations under CC BY 4.0 and under CC BY-NC 4.0 sit side by side.
+    render(<NearbyStations latitude={55.4} longitude={3.81} maxResults={4} />, {
+      wrapper: createTestWrapper(),
+    });
+
+    const list = await screen.findByRole("list", undefined, { timeout: 10000 });
+    const shown = credits();
+    expect(shown.map((p) => /Licensed (CC BY(?:-NC)? 4\.0)/.exec(p.textContent!)?.[1])).toEqual([
+      "CC BY-NC 4.0",
+      "CC BY 4.0",
+    ]);
+    expect(shown.every((p) => !list.contains(p))).toBe(true);
+  });
+
+  test("credits NOAA stations with the database's credit alone", async () => {
+    render(<NearbyStations {...DECEPTION_PASS} maxResults={3} />, { wrapper: createTestWrapper() });
+
+    await cards();
+    expect(credits().map((p) => p.textContent)).toEqual([
+      "Slackwater database (https://github.com/openwatersio/slackwater-database)",
+    ]);
+  });
+
+  test("applies className to the list", async () => {
+    render(<NearbyStations {...DECEPTION_PASS} className="my-list" />, {
+      wrapper: createTestWrapper(),
+    });
+    expect((await screen.findByRole("list", undefined, { timeout: 10000 })).className).toContain(
+      "my-list",
+    );
   });
 });

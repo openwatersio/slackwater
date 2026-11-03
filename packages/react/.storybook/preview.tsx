@@ -1,5 +1,4 @@
 import type { Preview } from "@storybook/react";
-import { withThemeByDataAttribute } from "@storybook/addon-themes";
 import { SlackwaterProvider } from "../src/provider.js";
 import "./storybook.css";
 
@@ -16,14 +15,6 @@ const preview: Preview = {
         <Story />
       </SlackwaterProvider>
     ),
-    withThemeByDataAttribute({
-      themes: {
-        light: "light",
-        dark: "dark",
-      },
-      defaultTheme: "light",
-      attributeName: "data-theme",
-    }),
   ],
   parameters: {
     controls: {

@@ -1,3 +1,4 @@
+import { G } from "../../src/components/Scrubber.js";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
@@ -82,6 +83,15 @@ function scrollTo(slider: HTMLElement, time: number) {
   slider.scrollLeft = ((time - t0) / H) * PX_PER_HOUR - slider.clientWidth / 2;
 }
 
+/** A finger down on the strip, then moved by `dx`, `dy`. */
+function swipe(slider: HTMLElement, dx: number, dy: number) {
+  const at = (clientX: number, clientY: number) => [
+    new Touch({ identifier: 1, target: slider, clientX, clientY }),
+  ];
+  fireEvent.touchStart(slider, { touches: at(100, 100) });
+  fireEvent.touchMove(slider, { touches: at(100 + dx, 100 + dy) });
+}
+
 /** A tap at `time` on the strip, `y` px below its top. */
 function tap(slider: HTMLElement, time: number, y = 100) {
   const rect = slider.getBoundingClientRect();
@@ -94,6 +104,10 @@ function tap(slider: HTMLElement, time: number, y = 100) {
 
 const key = (slider: HTMLElement, key: string, shiftKey = false) =>
   fireEvent.keyDown(slider, { key, shiftKey });
+
+/** Moves land directly, so a busy page can't stall a smooth scroll past the rest delay. */
+const reduceMotion = () =>
+  vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
 
 /** Four hours of a steady 0.2 kn. */
 const tinyTimeline = Array.from({ length: 25 }, (_, i) => ({
@@ -113,17 +127,6 @@ afterEach(() => {
 });
 
 describe("CurrentScrubber", () => {
-  test("frames later than the rest delay don't cut the opening short", async () => {
-    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) =>
-      setTimeout(() => frame(performance.now()), 600),
-    );
-    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
-    // The opening starts on the slack at 24 h, inside the magnet's reach.
-    const { slider } = renderScrubber({ now: t0 + 26 * H });
-
-    await restsOn(slider, t0 + 26 * H);
-  });
-
   test("glides open onto now and reads the current there", async () => {
     const { slider } = renderScrubber();
 
@@ -135,8 +138,19 @@ describe("CurrentScrubber", () => {
     expect(nowPill()).toBeNull();
   });
 
+  test("frames later than the rest delay don't cut the opening short", async () => {
+    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) =>
+      setTimeout(() => frame(performance.now()), 600),
+    );
+    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
+    // The opening starts on the slack at 24 h, inside the magnet's reach.
+    const { slider } = renderScrubber({ now: t0 + 26 * H });
+
+    await restsOn(slider, t0 + 26 * H);
+  });
+
   test("opens directly on now under Reduce Motion, and moves directly", async () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
+    reduceMotion();
     const { slider } = renderScrubber();
 
     expect(value(slider)).toBe(NOW);
@@ -155,6 +169,7 @@ describe("CurrentScrubber", () => {
   });
 
   test("steps five minutes with the arrow keys and between stops with Shift", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
 
@@ -192,11 +207,11 @@ describe("CurrentScrubber", () => {
     } while (value(slider) !== last && commentaryPill());
 
     expect([...spoken].sort()).toEqual([
-      "Ebb current",
-      "Flood current",
       "Maximum ebb current",
       "Maximum flood current",
       "Slack current",
+      "Slack window",
+      "Slack window closes",
       "Sunrise",
       "Sunset",
     ]);
@@ -212,12 +227,15 @@ describe("CurrentScrubber", () => {
 
     // Narrower, the max flood at 87 h comes into reach.
     getByTestId("frame").style.width = "300px";
-    await waitFor(() =>
-      expect(commentaryPill()?.ariaLabel).toBe("Maximum flood current in 2 hours"),
+    // Resize observations wait for a frame, and frames run late while other files keep the browser busy.
+    await waitFor(
+      () => expect(commentaryPill()?.ariaLabel).toBe("Maximum flood current in 2 hours"),
+      { timeout: 4000 },
     );
   });
 
   test("a Now pill appears only where it can move the strip", async () => {
+    reduceMotion();
     // At 1500 px the earliest centerable time is 41 h 40 m, after now.
     const home = t0 + (1500 / 2 / PX_PER_HOUR) * H;
     const { slider } = renderScrubber({}, 1500);
@@ -262,6 +280,7 @@ describe("CurrentScrubber", () => {
   );
 
   test("a tap on the plot centers the nearest stop, or the tapped time", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
 
@@ -281,19 +300,21 @@ describe("CurrentScrubber", () => {
   });
 
   test("a tap on the day row centers a sun event but not a date", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
     const sunrise = days(t0 + 24 * H, t0 + 25 * H, "UTC", 50, 0)[0].sunrise!;
 
-    tap(slider, sunrise + 5 * M, 378);
+    tap(slider, sunrise + 5 * M, G.sunDotY + 20);
     await restsOn(slider, sunrise);
 
-    tap(slider, t0 + 36 * H, 364);
-    await new Promise((r) => setTimeout(r, 600));
-    expect(value(slider)).toBe(sunrise);
+    // The tap is handled in the event, so a date that moved the strip would have moved it already.
+    tap(slider, t0 + 36 * H, G.dayY + 20);
+    await restsOn(slider, sunrise);
   });
 
   test("a scroll comes to rest on a stop within the magnet's reach", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
 
@@ -301,7 +322,7 @@ describe("CurrentScrubber", () => {
     await restsOn(slider, t0 + 27 * H);
 
     // Out of reach of any stop, it rests where it was left.
-    fireEvent.touchMove(slider);
+    swipe(slider, -30, 0);
     scrollTo(slider, t0 + 26 * H);
     await restsOn(slider, t0 + 26 * H);
 
@@ -322,15 +343,110 @@ describe("CurrentScrubber", () => {
     expect(value(slider)).toBeLessThan(NOW - H);
   });
 
-  test("draws a slack dot at the edge of the data", () => {
-    const { events } = fixture(t0);
-    const { container } = renderScrubber({
-      events: [...events, { time: new Date(t0 + 96 * H), speed: 0, kind: "slack" }],
+  test("a sideways swipe stops the opening glide, and a vertical one doesn't", async () => {
+    const first = renderScrubber();
+    swipe(first.slider, 2, 30);
+    await restsOn(first.slider, NOW);
+    first.unmount();
+
+    const { slider } = renderScrubber();
+    swipe(slider, 30, 2);
+    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
+    expect(value(slider)).toBeLessThan(NOW - H);
+  });
+
+  test("unmounting mid-opening cancels its next frame", () => {
+    const cancel = vi.fn();
+    vi.stubGlobal("requestAnimationFrame", () => 7);
+    vi.stubGlobal("cancelAnimationFrame", cancel);
+    const { unmount } = renderScrubber();
+
+    unmount();
+
+    expect(cancel).toHaveBeenCalledWith(7);
+  });
+
+  test("maximum times have their own gray row and move day chrome down only when present", () => {
+    const { container, slider, rerender } = renderScrubber();
+    const peakTimes = [...container.querySelectorAll(`text[y="${G.eventTimeY + 20}"]`)];
+    expect(peakTimes).toHaveLength(16);
+    expect(peakTimes.every((t) => t.getAttribute("fill")?.includes("sw-foam"))).toBe(true);
+    expect(peakTimes.every((t) => t.getAttribute("font-size") === "12")).toBe(true);
+    expect(slider.querySelector("svg")!.getAttribute("height")).toBe("416");
+    for (const rect of container.querySelectorAll(
+      'mask[id$="halo"] > rect, mask[id$="track"] > rect',
+    )) {
+      expect(rect.getAttribute("height")).toBe("416");
+    }
+    expect(
+      [...container.querySelectorAll(`text[y="${G.dayY + 20}"]`)].some(
+        (t) => t.textContent === "Today",
+      ),
+    ).toBe(true);
+    rerender(scrubber({ events: fixture(t0).events.filter((e) => e.kind === "slack") }));
+    expect(container.querySelectorAll(`text[y="${G.eventTimeY + 20}"]`)).toHaveLength(0);
+    expect(slider.querySelector("svg")!.getAttribute("height")).toBe("396");
+  });
+
+  test("a maximum near a Slack time remains visible on its separate row", () => {
+    const events: CurrentEvent[] = [
+      { time: new Date(t0 + 24 * H), speed: 0, kind: "slack" },
+      { time: new Date(t0 + 24 * H + 5 * M), speed: 3, kind: "maxFlood" },
+    ];
+    const { container } = renderScrubber({ events, threshold: 0 });
+    const slack = container.querySelector(`text[y="${G.eventTimeY}"]`)!;
+    const max = container.querySelector(`text[y="${G.eventTimeY + 20}"]`)!;
+    expect(slack.textContent).toMatch(/^12:00\sAM$/);
+    expect(max.textContent).toMatch(/^12:05\sAM$/);
+  });
+
+  test("weak water without a reversal stays yellow, including with windows Off", () => {
+    const { container, rerender } = renderScrubber({
+      ...fixture(t0),
+      timeline: fixture(t0).timeline.map((p) => ({ ...p, speed: 0.2 })),
+      events: [],
     });
-    const dots = [...container.querySelectorAll('circle[r="2.5"]')].map((c) =>
-      Number(c.getAttribute("cx")),
+    const base = () => container.querySelector('path[stroke-width="2.5"]')!;
+    expect(base().getAttribute("stroke")).toBe("#f5c96b");
+    rerender(
+      scrubber({
+        timeline: fixture(t0).timeline.map((p) => ({ ...p, speed: 0.2 })),
+        events: [],
+        threshold: 0,
+      }),
     );
-    expect(Math.max(...dots)).toBeGreaterThan((96 - 1.5) * PX_PER_HOUR);
+    expect(base().getAttribute("stroke")).toBe("#f5c96b");
+  });
+
+  test("a continuous window keeps exact Slack times visible in green", () => {
+    const data = fixture(t0);
+    const { container } = renderScrubber({
+      ...data,
+      timeline: data.timeline.map((p) => ({ ...p, speed: p.speed / 10 })),
+      threshold: 2,
+    });
+    const times = [...container.querySelectorAll(`text[y="${G.eventTimeY}"]`)];
+    expect(times).toHaveLength(15);
+    expect(times.some((t) => /^6:00\sAM$/.test(t.textContent!))).toBe(true);
+    expect(times.every((t) => t.getAttribute("fill")?.includes("sw-go"))).toBe(true);
+    expect(times.at(-1)!.getAttribute("opacity")).toBe("1");
+  });
+
+  test("draws comfort windows blue and exact slacks as short green strokes, even with windows off", () => {
+    const { container, rerender } = renderScrubber();
+    const green = () =>
+      [...container.querySelectorAll('path[stroke-width="3.5"]')].filter((p) =>
+        p.getAttribute("stroke")?.includes("sw-go"),
+      );
+    const blue = () =>
+      [...container.querySelectorAll('path[stroke-width="3.5"]')].filter((p) =>
+        p.getAttribute("stroke")?.includes("sw-graph-line"),
+      );
+    expect(blue().length).toBeGreaterThan(0);
+    expect(green()).toHaveLength(15);
+    rerender(scrubber({ threshold: 0 }));
+    expect(blue()).toHaveLength(0);
+    expect(green()).toHaveLength(15);
   });
 
   test("a scroll no person made rests where it lands, without the magnet", async () => {
@@ -346,11 +462,14 @@ describe("CurrentScrubber", () => {
     await restsOn(slider, NOW);
 
     fireEvent.click(commentaryPill());
+    // Only the glide being cut rides; the magnet's move after it lands directly.
+    reduceMotion();
     slider.scrollLeft = ((30 * H + 5 * M) / H) * PX_PER_HOUR - WIDTH / 2;
     await restsOn(slider, t0 + 30 * H);
   });
 
   test("a mouse drag pans the strip once it moves past a jitter", async () => {
+    reduceMotion();
     const { slider } = renderScrubber();
     await restsOn(slider, NOW);
     const mouse = (x: number) => ({ clientX: x, clientY: 100, pointerType: "mouse", pointerId: 1 });
@@ -382,11 +501,15 @@ describe("CurrentScrubber", () => {
     await restsOn(slider, NOW);
 
     getByTestId("frame").style.width = `${WIDTH + 120}px`;
-    await waitFor(() => expect(slider.scrollLeft).toBe(25 * PX_PER_HOUR - (WIDTH + 120) / 2));
+    // Resize observations wait for a frame, and frames run late while other files keep the browser busy.
+    await waitFor(() => expect(slider.scrollLeft).toBe(25 * PX_PER_HOUR - (WIDTH + 120) / 2), {
+      timeout: 4000,
+    });
     await restsOn(slider, NOW);
   });
 
   test("follows the clock back to now on returning to the page", async () => {
+    reduceMotion();
     const start = Math.floor(Date.now() / H) * H - 48 * H;
     const { slider } = renderScrubber({ ...fixture(start), now: undefined });
     await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
@@ -458,7 +581,8 @@ describe("CurrentScrubber", () => {
       </div>,
     );
 
-    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0));
+    // Under full motion the opening runs its full length before the rest delay starts.
+    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
     expect(value(screen.getByRole("slider"))).toBe(t0 + H);
   });
 });

@@ -7,6 +7,7 @@ import {
   fetchStationExtremes,
   fetchStationTimeline,
   fetchCurrentStation,
+  fetchCurrentStations,
   fetchCurrentStationEvents,
   fetchCurrentStationTimeline,
 } from "../src/client.js";
@@ -68,8 +69,54 @@ describe("fetchStation", () => {
     expect(fetch).toHaveBeenCalledWith("https://api.example.com/tides/stations/noaa/8722588");
   });
 
-  test("throws on invalid id format", () => {
-    expect(() => fetchStation(BASE_URL, "invalid")).toThrow('Invalid station ID: "invalid"');
+  test("asks for a bare id at the single-segment route", async () => {
+    mockFetch({ id: "chs-campbell-river", predictions: false });
+
+    await fetchStation(BASE_URL, "chs-campbell-river");
+
+    expect(fetch).toHaveBeenCalledWith("https://api.example.com/tides/stations/chs-campbell-river");
+  });
+
+  test("marks the station as a tide station", async () => {
+    mockFetch({ id: "noaa/8722588" });
+
+    expect((await fetchStation(BASE_URL, "noaa/8722588")).kind).toBe("tide");
+  });
+
+  test("a prediction for an id without a source is refused before any request", async () => {
+    mockFetch({});
+
+    await expect(fetchStationExtremes(BASE_URL, { id: "invalid" })).rejects.toThrow(
+      'Invalid station ID: "invalid"',
+    );
+    await expect(fetchStationTimeline(BASE_URL, { id: "invalid" })).rejects.toThrow(
+      'Invalid station ID: "invalid"',
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test.each(["noaa/1/2", "noaa/", "/1", "", "noaa/..", "."])(
+    "refuses %j before any request",
+    async (id) => {
+      mockFetch({});
+
+      await expect(fetchStation(BASE_URL, id)).rejects.toThrow(`Invalid station ID: "${id}"`);
+      await expect(fetchStationTimeline(BASE_URL, { id })).rejects.toThrow("Invalid station ID");
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  test("encodes each segment, so an id can't name another path or a query", async () => {
+    mockFetch({ timeline: [] });
+
+    await fetchStation(BASE_URL, "x?y");
+    await fetchStationTimeline(BASE_URL, { id: "noaa/a#b" });
+
+    const urls = (fetch as ReturnType<typeof vi.fn>).mock.calls.map(([url]) => url);
+    expect(urls).toEqual([
+      "https://api.example.com/tides/stations/x%3Fy",
+      "https://api.example.com/tides/stations/noaa/a%23b/timeline",
+    ]);
   });
 
   test("throws on HTTP error with message from body", async () => {
@@ -122,6 +169,14 @@ describe("fetchStations", () => {
     await fetchStations(BASE_URL, {});
 
     expect(fetch).toHaveBeenCalledWith("https://api.example.com/tides/stations");
+  });
+
+  test("marks each station as a tide station", async () => {
+    mockFetch([{ id: "noaa/8722588" }]);
+
+    expect(await fetchStations(BASE_URL, { query: "palm" })).toEqual([
+      { id: "noaa/8722588", kind: "tide" },
+    ]);
   });
 });
 
@@ -188,6 +243,17 @@ describe("fetchStationTimeline", () => {
 });
 
 describe("current stations", () => {
+  test("fetchCurrentStations lists current stations, each marked as one", async () => {
+    mockFetch([{ id: "noaa/PUG1701", predictions: true }]);
+
+    const res = await fetchCurrentStations(BASE_URL, { latitude: 48.4, longitude: -122.6 });
+
+    const url = new URL((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string);
+    expect(url.pathname).toBe("/currents/stations");
+    expect(url.searchParams.get("latitude")).toBe("48.4");
+    expect(res).toEqual([{ id: "noaa/PUG1701", predictions: true, kind: "current" }]);
+  });
+
   test("fetchCurrentStation keeps a bin or bare curated id in the path", async () => {
     mockFetch({ id: "noaa/EPT0003" });
 
@@ -214,6 +280,37 @@ describe("current stations", () => {
     expect(url.searchParams.get("start")).toBe("2026-10-10T00:00:00Z");
     expect(url.searchParams.has("id")).toBe(false);
     expect(res.events[0].time).toEqual(new Date("2026-10-10T03:00:00Z"));
+  });
+
+  test.each(["noaa/EPT0003/11", "noaa/", ".."])(
+    "the current fetchers refuse %j before any request",
+    async (id) => {
+      mockFetch({});
+
+      await expect(fetchCurrentStation(BASE_URL, id)).rejects.toThrow("Invalid station ID");
+      await expect(fetchCurrentStationEvents(BASE_URL, { id })).rejects.toThrow(
+        "Invalid station ID",
+      );
+      await expect(fetchCurrentStationTimeline(BASE_URL, { id })).rejects.toThrow(
+        "Invalid station ID",
+      );
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
+
+  test("the current fetchers encode each segment and serve a bare id's predictions", async () => {
+    mockFetch({ events: [], timeline: [] });
+
+    await fetchCurrentStation(BASE_URL, "noaa/a#b");
+    await fetchCurrentStationEvents(BASE_URL, { id: "chs-active-pass" });
+    await fetchCurrentStationTimeline(BASE_URL, { id: "x?y" });
+
+    const urls = (fetch as ReturnType<typeof vi.fn>).mock.calls.map(([url]) => url);
+    expect(urls).toEqual([
+      "https://api.example.com/currents/stations/noaa/a%23b",
+      "https://api.example.com/currents/stations/chs-active-pass/events",
+      "https://api.example.com/currents/stations/x%3Fy/timeline",
+    ]);
   });
 
   test("fetchCurrentStationTimeline parses timeline times", async () => {

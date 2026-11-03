@@ -1,6 +1,7 @@
 import type { CurrentEvent, CurrentTimelineEntry } from "../types.js";
-import { type Day, spokenTime } from "./time.js";
-import { UNIT_MS } from "./scrubber.js";
+import { spokenTime } from "./time.js";
+import { KNOT_ANCHORS, rampColor } from "./color.js";
+import { UNIT_MS, interpolate, targetsWithin, type Stop } from "./scrubber.js";
 
 /** A run of time around slack when the current stays within the boat-speed threshold. */
 export interface SlackWindow {
@@ -14,29 +15,12 @@ export const EMPTY_MESSAGE = "No current predictions for this period.";
 /** The app's default boat-speed threshold for slack windows, in knots. */
 export const DEFAULT_SLACK_THRESHOLD = 0.5;
 
-/** Absolute speed anchors (knots) for the ramp stops, shared with the app. */
-const RAMP_ANCHORS = [0.5, 3, 8, 12];
-const RAMP_STOPS: [number, number, number][] = [
-  [0xf5, 0xc9, 0x6b],
-  [0xf5, 0xc9, 0x6b],
-  [0xe8, 0x76, 0x3c],
-  [0xc9, 0x3a, 0x32],
-];
-
-const hex = (c: number[]) =>
-  "#" + c.map((v) => Math.round(v).toString(16).padStart(2, "0")).join("");
-
 /**
  * The speed ramp color for an absolute speed in knots. The ramp is the same
  * at every station, never enters green, and clamps at both ends.
  */
 export function speedColor(knots: number): string {
-  const s = Math.abs(knots);
-  const i = RAMP_ANCHORS.findIndex((a) => s < a);
-  if (i === 0) return hex(RAMP_STOPS[0]);
-  if (i === -1) return hex(RAMP_STOPS[RAMP_STOPS.length - 1]);
-  const f = (s - RAMP_ANCHORS[i - 1]) / (RAMP_ANCHORS[i] - RAMP_ANCHORS[i - 1]);
-  return hex(RAMP_STOPS[i - 1].map((c, k) => c + (RAMP_STOPS[i][k] - c) * f));
+  return rampColor(knots, KNOT_ANCHORS);
 }
 
 /** The speed thread's opacity: invisible below 0.5 kn, opaque from 3 kn. */
@@ -65,7 +49,12 @@ export function slackWindowAround(
   threshold: number,
 ): SlackWindow | undefined {
   const n = timeline.length;
-  if (n === 0 || slack < timeline[0].time.getTime() || slack > timeline[n - 1].time.getTime()) {
+  if (
+    threshold <= 0 ||
+    n === 0 ||
+    slack < timeline[0].time.getTime() ||
+    slack > timeline[n - 1].time.getTime()
+  ) {
     return undefined;
   }
   const at = (i: number) => timeline[i].time.getTime();
@@ -85,9 +74,11 @@ export function slackWindowAround(
     };
   } else return undefined;
   const cross = (a: number, b: number) => {
-    const va = Math.abs(timeline[a].speed);
-    const vb = Math.abs(timeline[b].speed);
-    return at(a) + ((at(b) - at(a)) * (threshold - va)) / (vb - va);
+    const va = timeline[a].speed;
+    const vb = timeline[b].speed;
+    const outside = Math.abs(va) > threshold ? va : vb;
+    const edge = outside > 0 ? threshold : -threshold;
+    return at(a) + ((at(b) - at(a)) * (edge - va)) / (vb - va);
   };
   let lo = k;
   while (lo > 0 && inBand(lo - 1)) lo--;
@@ -99,11 +90,7 @@ export function slackWindowAround(
   };
 }
 
-/**
- * The measured window around every slack, each window once however many
- * slacks share it. A slack with no window is a zero-width run, so it draws,
- * times and stops as a dot like any short run.
- */
+/** Touching or overlapping comfort windows form one run; windowless zeros remain exact instants. */
 export function slackRuns(
   timeline: CurrentTimelineEntry[],
   events: CurrentEvent[],
@@ -118,11 +105,31 @@ export function slackRuns(
         slackWindowAround(timeline, e.time.getTime(), threshold) ?? { start: e.time, end: e.time },
     )
     .sort((a, b) => a.start.getTime() - b.start.getTime());
-  // Windows are whole in-band stretches or single crossings, so two either match or are disjoint.
-  return windows.filter((w, i) => i === 0 || w.start > windows[i - 1].end);
+  const runs: SlackWindow[] = [];
+  for (const window of windows) {
+    const last = runs.at(-1);
+    if (last && window.start <= last.end)
+      last.end = new Date(Math.max(last.end.getTime(), window.end.getTime()));
+    else runs.push(window);
+  }
+  return runs;
 }
 
-/** A run narrower than a five-unit dot draws as a dot, and is one stop, at its center. */
+/** Continuous windows show each zero; ordinary windows show their opening, with bare zeros retained. */
+export function slackAxisTimes(drawnWindows: SlackWindow[], slacks: number[]): number[] {
+  const times = drawnWindows.flatMap((window) => {
+    const zeros = slacks.filter((t) => t >= window.start.getTime() && t <= window.end.getTime());
+    return zeros.length > 1 ? zeros : [window.start.getTime()];
+  });
+  times.push(
+    ...slacks.filter(
+      (t) => !drawnWindows.some((w) => t >= w.start.getTime() && t <= w.end.getTime()),
+    ),
+  );
+  return [...new Set(times)].sort((a, b) => a - b);
+}
+
+/** Windows narrower than a turn dot are omitted; their exact zeros remain. */
 export function isDotRun(run: SlackWindow): boolean {
   return run.end.getTime() - run.start.getTime() < 5 * UNIT_MS;
 }
@@ -134,20 +141,7 @@ export function runCenter(run: SlackWindow): number {
 
 /** Signed speed at `time`, linearly interpolated; undefined outside the timeline. */
 export function speedAt(timeline: CurrentTimelineEntry[], time: number): number | undefined {
-  let lo = 0;
-  let hi = timeline.length - 1;
-  if (hi < 0 || time < timeline[0].time.getTime() || time > timeline[hi].time.getTime()) {
-    return undefined;
-  }
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (timeline[mid].time.getTime() <= time) lo = mid;
-    else hi = mid;
-  }
-  const a = timeline[lo];
-  const b = timeline[hi];
-  const span = b.time.getTime() - a.time.getTime();
-  return span === 0 ? a.speed : a.speed + ((b.speed - a.speed) * (time - a.time.getTime())) / span;
+  return interpolate(timeline, time, (p) => p.speed);
 }
 
 export type CurrentState = "Slack" | "Max flood" | "Max ebb" | "Flooding" | "Ebbing";
@@ -169,16 +163,12 @@ export function readCurrent(
   time: number,
   timeline: CurrentTimelineEntry[],
   events: CurrentEvent[],
-  windows: SlackWindow[],
+  _windows: SlackWindow[],
   directions: Directions,
 ): CurrentReading | undefined {
   const speed = speedAt(timeline, time);
   if (speed === undefined) return undefined;
-  // A dot run reads Slack at its center, where the magnet parks under the dot.
-  const inRun = (w: SlackWindow) =>
-    (w.start.getTime() <= time && time < w.end.getTime()) ||
-    (isDotRun(w) && Math.abs(time - runCenter(w)) <= 1000);
-  if (windows.some(inRun)) {
+  if (events.some((e) => e.kind === "slack" && Math.abs(e.time.getTime() - time) <= 1000)) {
     return { state: "Slack", speed };
   }
   const direction = speed >= 0 ? directions.flood : directions.ebb;
@@ -193,30 +183,7 @@ export function readCurrent(
   return direction === undefined ? { state, speed } : { state, speed, direction };
 }
 
-export type StopKind = "Slack" | "Flood" | "Ebb" | "Max flood" | "Max ebb" | "Sunrise" | "Sunset";
-
-export interface Stop {
-  time: number;
-  label: StopKind;
-}
-
-/** What a screen reader hears for each stop, after the app's VoiceOver labels. */
-const SPOKEN: Record<StopKind, string> = {
-  Slack: "Slack current",
-  Flood: "Flood current",
-  Ebb: "Ebb current",
-  "Max flood": "Maximum flood current",
-  "Max ebb": "Maximum ebb current",
-  Sunrise: "Sunrise",
-  Sunset: "Sunset",
-};
-
-/**
- * The water stops the commentary walks: each run's opening, its closing named
- * for the water that follows, and each maximum. A dot run is one stop at its
- * center. A run clamped to the series has no measured edge there, so none is
- * invented.
- */
+/** Forward water stops: drawn window edges, exact zeros, and maxima. */
 export function currentStops(
   timeline: CurrentTimelineEntry[],
   events: CurrentEvent[],
@@ -226,52 +193,37 @@ export function currentStops(
   const last = timeline[timeline.length - 1]?.time.getTime();
   const stops: Stop[] = [];
   for (const w of runs) {
-    if (isDotRun(w)) {
-      stops.push({ time: runCenter(w), label: "Slack" });
-      continue;
-    }
-    if (w.start.getTime() > first) stops.push({ time: w.start.getTime(), label: "Slack" });
+    if (isDotRun(w)) continue;
+    if (w.start.getTime() > first) stops.push({ time: w.start.getTime(), label: "Slack window" });
     if (w.end.getTime() < last) {
-      const after = speedAt(timeline, w.end.getTime() + 1000) ?? 0;
-      stops.push({ time: w.end.getTime(), label: after >= 0 ? "Flood" : "Ebb" });
+      stops.push({ time: w.end.getTime(), label: "Slack window closes" });
     }
   }
   for (const e of events) {
+    if (e.kind === "slack") {
+      const time = e.time.getTime();
+      const edge = stops.findIndex(
+        (s) => (s.label === "Slack window" || s.label === "Slack window closes") && s.time === time,
+      );
+      if (edge !== -1) stops.splice(edge, 1);
+      stops.push({ time, label: "Slack" });
+    }
     if (e.kind === "maxFlood") stops.push({ time: e.time.getTime(), label: "Max flood" });
     else if (e.kind === "maxEbb") stops.push({ time: e.time.getTime(), label: "Max ebb" });
   }
   return stops.sort((a, b) => a.time - b.time);
 }
 
-/** Water and sun stops inside the drawn data, in time order; a sun event sharing an instant comes first. */
-export function scrubberStops(water: Stop[], days: Day[], start: number, end: number): Stop[] {
-  const sun = days.flatMap((d): Stop[] => [
-    ...(d.sunrise === undefined ? [] : [{ time: d.sunrise, label: "Sunrise" as const }]),
-    ...(d.sunset === undefined ? [] : [{ time: d.sunset, label: "Sunset" as const }]),
-  ]);
-  return [...sun, ...water]
-    .filter((s) => s.time >= start && s.time <= end)
-    .sort((a, b) => a.time - b.time);
-}
-
-/**
- * The magnet's targets: every stop plus each slack instant, inside the drawn
- * data, sorted and unique. A slack inside a dot run snaps to the dot instead.
- */
+/** Exact water stops and zeros inside the drawn data, sorted and unique. */
 export function snapTargets(
   stops: Stop[],
   events: CurrentEvent[],
-  runs: SlackWindow[],
+  _runs: SlackWindow[],
   start: number,
   end: number,
 ): number[] {
-  const dots = runs.filter(isDotRun);
-  const slacks = events
-    .filter((e) => e.kind === "slack")
-    .map((e) => e.time.getTime())
-    .filter((t) => !dots.some((w) => w.start.getTime() <= t && t <= w.end.getTime()));
-  const times = [...stops.map((s) => s.time), ...slacks].filter((t) => t >= start && t <= end);
-  return [...new Set(times)].sort((a, b) => a - b);
+  const slacks = events.filter((e) => e.kind === "slack").map((e) => e.time.getTime());
+  return targetsWithin([...stops.map((s) => s.time), ...slacks], start, end);
 }
 
 /** Absolute speed to one decimal in the locale's digits, never "-0.0". */
@@ -299,46 +251,4 @@ export function spokenReading(
     ...set,
     spokenTime(time, timeZone, locale),
   ].join(", ");
-}
-
-/** "28m" or "3h 28m", floored to whole minutes. */
-export function formatCountdown(ms: number): string {
-  const minutes = Math.floor(ms / 60_000);
-  const h = Math.floor(minutes / 60);
-  return h > 0 ? `${h}h ${minutes % 60}m` : `${minutes}m`;
-}
-
-/** A countdown in words, for screen readers: "3 hours, 28 minutes". */
-export function spokenDuration(ms: number, locale?: string): string {
-  const minutes = Math.floor(ms / 60_000);
-  const unit = (n: number, unit: string) =>
-    new Intl.NumberFormat(locale, { style: "unit", unit, unitDisplay: "long" }).format(n);
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 0) return unit(m, "minute");
-  return m === 0
-    ? unit(h, "hour")
-    : new Intl.ListFormat(locale, { style: "short", type: "unit" }).format([
-        unit(h, "hour"),
-        unit(m, "minute"),
-      ]);
-}
-
-export interface Commentary {
-  stop: Stop;
-  /** Compact countdown: "28m", "3h 28m". */
-  duration: string;
-  /** The whole relationship for screen readers: "Maximum flood current in 28 minutes". */
-  spoken: string;
-}
-
-/** The commentary pill: the first stop more than a second after `time`. */
-export function commentary(time: number, stops: Stop[], locale?: string): Commentary | undefined {
-  const stop = stops.find((s) => s.time > time + 1000);
-  if (!stop) return undefined;
-  return {
-    stop,
-    duration: formatCountdown(stop.time - time),
-    spoken: `${SPOKEN[stop.label]} in ${spokenDuration(stop.time - time, locale)}`,
-  };
 }

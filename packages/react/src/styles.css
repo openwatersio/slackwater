@@ -1,52 +1,65 @@
-/* Slackwater React Component Library — Theme Variables
+/* Slackwater React components: the app's dark theme.
  *
- * References Tailwind v4 CSS variables with hex fallbacks
- * for consumers not using Tailwind. Override any --slackwater-*
- * variable to customize the theme.
+ * Each color matches its name in the iOS app's Palette.swift (enum SN), which
+ * brand/colors.css also follows. Override any --sw-* variable to retheme the
+ * components. Every component is designed for this dark palette only. The
+ * speed and tide-rate ramp is fixed in code, the same as the app's.
  */
 
 :root {
-  color-scheme: light dark;
-  --slackwater-primary: light-dark(var(--color-sky-600, #0284c7), var(--color-sky-400, #38bdf8));
-  --slackwater-secondary: light-dark(
-    var(--color-violet-600, #7c3aed),
-    var(--color-violet-400, #a78bfa)
-  );
-  --slackwater-high: light-dark(var(--color-teal-600, #0d9488), var(--color-teal-400, #2dd4bf));
-  --slackwater-low: light-dark(var(--color-amber-600, #d97706), var(--color-amber-400, #fbbf24));
-  --slackwater-danger: light-dark(var(--color-red-500, #ef4444), var(--color-red-400, #f87171));
-  --slackwater-bg: light-dark(var(--color-white, #ffffff), var(--color-slate-900, #0f172a));
-  --slackwater-bg-subtle: light-dark(
-    var(--color-slate-50, #f8fafc),
-    var(--color-slate-800, #1e293b)
-  );
-  --slackwater-text: light-dark(var(--color-slate-900, #0f172a), var(--color-slate-100, #f1f5f9));
-  --slackwater-text-muted: light-dark(
-    var(--color-slate-500, #64748b),
-    var(--color-slate-400, #94a3b8)
-  );
-  --slackwater-border: light-dark(var(--color-slate-200, #e2e8f0), var(--color-slate-700, #334155));
-  --slackwater-night: light-dark(
-    color-mix(in srgb, var(--color-slate-100, #eef2f6) 50%, transparent),
-    color-mix(in srgb, var(--color-slate-950, #020617) 50%, transparent)
-  );
-}
+  color-scheme: dark;
 
-/* Colors for the current and scrubber components, which are dark-first. Each
- * matches its name in brand/colors.json except --sw-daylight, the scrubber's
- * daytime band, and --sw-graph-line, Tailwind's sky 400 as the tide graph uses it. Override any --sw-* variable to retheme them. */
-:root {
+  /* Grounds */
   --sw-canvas: #05122a;
+  --sw-canvas-glow: #0a2140;
+  --sw-navy-deep: #00183c;
   --sw-night: #00101f;
-  --sw-daylight: #a8cae0;
+
+  /* Ink. Secondary text is foam at an opacity. */
   --sw-paper: #fcfcfc;
   --sw-foam: #e4f0e4;
+
+  /* State. Green means slack and nothing else. */
+  --sw-go: #88b868;
   --sw-flood: #4a9fd8;
   --sw-ebb: #e8a33d;
-  --sw-go: #88b868;
+  --sw-steel: #5888a8;
+  --sw-attention: #ef6f4a;
+
+  /* Graphs. Tide high and rising are teal, low and falling amber. */
+  --sw-graph-line: #38bdf8;
+  --sw-graph-high: #2dd4bf;
+  --sw-graph-low: #fbbf24;
+  --sw-daylight: #a8cae0;
+
+  /* Sun and Moon */
   --sw-sun: #f0c860;
   --sw-sunrise: #f0d890;
-  --sw-graph-line: #38bdf8;
+  --sw-moon-limb: rgb(0 18 44 / 0.92);
+
+  /* Cards */
+  --sw-card-fill: rgb(255 255 255 / 0.05);
+  --sw-card-stroke: rgb(136 184 104 / 0.16);
+  --sw-radius-card: 24px;
+  --sw-shadow-card: 0 10px 24px rgb(0 20 50 / 0.24);
+
+  /* Map */
+  --sw-map-ink: #152256;
+  --sw-map-label: #ffffff;
+
+  /* Type */
+  --sw-font-sans: system-ui, -apple-system, sans-serif;
+  --sw-font-rounded: ui-rounded, system-ui, -apple-system, sans-serif;
+  --sw-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --sw-background: radial-gradient(500px at 50% 0, var(--sw-canvas-glow), var(--sw-canvas));
+}
+
+/* A card on the canvas: 5% white with a faint leaf edge. */
+.sw-card {
+  background: var(--sw-card-fill);
+  border: 0.5px solid var(--sw-card-stroke);
+  border-radius: var(--sw-radius-card);
 }
 
 /* Hide scrollbar while keeping scroll functional */
@@ -58,35 +71,25 @@
   display: none;
 }
 
-/* Custom select — appearance-none strips native chrome */
-.slackwater-select {
-  appearance: none;
-  padding: 0.375rem 1.75rem 0.375rem 0.75rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  font-weight: 500;
-  border-radius: 0.375rem;
-  border: 1px solid var(--slackwater-border);
-  background-color: var(--slackwater-bg);
-  color: var(--slackwater-text);
-  outline: none;
-  cursor: pointer;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23666'%3E%3Cpath fill-rule='evenodd' d='M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z' clip-rule='evenodd'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 4px center;
-  background-size: 16px 16px;
-}
-.slackwater-select:focus {
-  border-color: var(--slackwater-primary);
+/* The app's glass over the map: the map's overlays float on it. */
+.sw-glass {
+  background: rgb(255 255 255 / 0.08);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  box-shadow: 0 6px 20px rgb(0 20 50 / 0.4);
 }
 
-/* Map marker — used by MapLibre GL, not styleable via Tailwind */
-.slackwater-map-marker {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--slackwater-primary);
-  border: 2px solid #ffffff;
-  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
-  cursor: pointer;
+/* MapLibre's attribution as a white ⓘ on the dark map. */
+.sw-map .maplibregl-ctrl-attrib.maplibregl-compact {
+  background: rgb(255 255 255 / 0.08);
+  color: var(--sw-foam);
+}
+.sw-map .maplibregl-ctrl-attrib.maplibregl-compact-show {
+  background: var(--sw-canvas);
+}
+.sw-map .maplibregl-ctrl-attrib a {
+  color: var(--sw-foam);
+}
+.sw-map .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
 }

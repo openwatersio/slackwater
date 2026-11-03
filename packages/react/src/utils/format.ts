@@ -37,8 +37,3 @@ export function formatDistance(meters: number, units: Units): string {
   const km = meters / 1000;
   return km >= 10 ? `${Math.round(km)} km` : `${km.toFixed(1)} km`;
 }
-
-/** Get a date key (YYYY-MM-DD) in the station's timezone. */
-export function getDateKey(time: Date, timezone: string): string {
-  return time.toLocaleDateString("en-CA", { timeZone: timezone });
-}

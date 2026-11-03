@@ -1,11 +1,5 @@
 import { describe, test, expect } from "vitest";
-import {
-  formatLevel,
-  formatTime,
-  formatDate,
-  formatDistance,
-  getDateKey,
-} from "../src/utils/format.js";
+import { formatLevel, formatTime, formatDate, formatDistance } from "../src/utils/format.js";
 
 describe("formatLevel", () => {
   test("meters with 2 decimal places", () => {
@@ -59,13 +53,5 @@ describe("formatDistance", () => {
 
   test("long distance in miles", () => {
     expect(formatDistance(5000, "feet")).toBe("3.1 mi");
-  });
-});
-
-describe("getDateKey", () => {
-  test("returns YYYY-MM-DD in timezone", () => {
-    // 2025-12-17T02:00:00Z is still Dec 16 in New York (UTC-5)
-    expect(getDateKey(new Date("2025-12-17T02:00:00Z"), "America/New_York")).toBe("2025-12-16");
-    expect(getDateKey(new Date("2025-12-17T02:00:00Z"), "UTC")).toBe("2025-12-17");
   });
 });

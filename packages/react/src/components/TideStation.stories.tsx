@@ -1,141 +1,36 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { SlackwaterProvider } from "../provider.js";
 import { TideStation } from "./TideStation.js";
 
 const meta: Meta<typeof TideStation> = {
-  title: "Components/TideStation",
+  title: "Stations/TideStation",
   component: TideStation,
-  decorators: [
-    (Story) => (
-      <div style={{ maxWidth: 600 }}>
-        <Story />
-      </div>
-    ),
-  ],
+  parameters: { layout: "fullscreen" },
 };
 
 export default meta;
 type Story = StoryObj<typeof TideStation>;
 
-export const Default: Story = {
-  args: {
-    id: "noaa/8443970",
-  },
-};
+/** Seattle: spring lows dip below chart datum, where the fill turns amber. */
+export const Seattle: Story = { args: { id: "noaa/9447130" } };
 
-/** Narrow dashboard widget: fixed height forces the tabbed layout */
-export const WidgetSize: Story = {
-  args: {
-    id: "noaa/8443970",
-  },
-  decorators: [
-    (Story) => (
-      <div style={{ width: 250, height: 400 }}>
-        <Story />
-      </div>
-    ),
-  ],
-};
+/** Boston: lows that stay above datum, so no amber below-datum fill. */
+export const Boston: Story = { args: { id: "noaa/8443970" } };
 
-/** KIP-style dashboard thumbnail: both dimensions fixed and small */
-export const Thumbnail: Story = {
-  args: {
-    id: "noaa/8443970",
-  },
-  decorators: [
-    (Story) => (
-      <div style={{ width: 250, height: 200 }}>
-        <Story />
-      </div>
-    ),
-  ],
-};
+/** Eastport: a big tide whose fastest water climbs the rate ramp toward red. */
+export const Eastport: Story = { args: { id: "noaa/8410140" } };
 
-export const SmallPanel: Story = {
-  args: {
-    id: "noaa/8443970",
-  },
-  decorators: [
-    (Story) => (
-      <div style={{ width: 400, height: 320 }}>
-        <Story />
-      </div>
-    ),
-  ],
-};
-
-/** Wide but short — height alone should trigger the tabbed layout */
-export const WideShort: Story = {
-  args: {
-    id: "noaa/8443970",
-  },
-  decorators: [
-    (Story) => (
-      <div style={{ width: 700, height: 300 }}>
-        <Story />
-      </div>
-    ),
-  ],
-};
+/** Ilwaco: a subordinate station, predicted from its reference with NOAA's offsets. */
+export const Subordinate: Story = { args: { id: "noaa/9440597" } };
 
 export const MobileWidth: Story = {
-  args: {
-    id: "noaa/8443970",
-    showTable: true,
-  },
+  args: { id: "noaa/9447130" },
   decorators: [
     (Story) => (
-      <div style={{ maxWidth: 360 }}>
+      <div style={{ maxWidth: 390 }}>
         <Story />
       </div>
     ),
   ],
 };
 
-export const DesktopSideBySide: Story = {
-  args: {
-    id: "noaa/8443970",
-    showGraph: true,
-    showTable: true,
-  },
-  decorators: [
-    (Story) => (
-      <div style={{ maxWidth: 900 }}>
-        <Story />
-      </div>
-    ),
-  ],
-};
-
-export const FrenchLocale: Story = {
-  args: {
-    id: "noaa/8443970",
-    showTable: true,
-  },
-  decorators: [
-    (Story) => (
-      <SlackwaterProvider baseUrl="http://localhost:6007" locale="fr-FR">
-        <Story />
-      </SlackwaterProvider>
-    ),
-  ],
-};
-
-export const Loading: Story = {
-  args: {
-    id: "noaa/8443970",
-  },
-  decorators: [
-    (Story) => (
-      <SlackwaterProvider baseUrl="http://localhost:1">
-        <Story />
-      </SlackwaterProvider>
-    ),
-  ],
-};
-
-export const Error: Story = {
-  args: {
-    id: "nonexistent/station",
-  },
-};
+export const NotFound: Story = { args: { id: "noaa/0000000" } };

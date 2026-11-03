@@ -87,6 +87,9 @@ function summarize(catalog: Catalog, station: Station) {
     longitude,
     timezone,
     type,
+    // A list shows these stations' predictions, so it owes their credit and terms.
+    attribution: station.attribution,
+    license: station.license,
     ...describe(catalog, station),
   };
 }

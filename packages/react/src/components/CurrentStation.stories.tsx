@@ -2,10 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { CurrentStation } from "./CurrentStation.js";
 
 const meta: Meta<typeof CurrentStation> = {
-  title: "Currents/CurrentStation",
+  title: "Stations/CurrentStation",
   component: CurrentStation,
   parameters: { layout: "fullscreen" },
-  argTypes: { threshold: { control: { type: "range", min: 0.1, max: 10, step: 0.1 } } },
+  argTypes: { threshold: { control: { type: "range", min: 0, max: 10, step: 0.1 } } },
 };
 export default meta;
 
