@@ -295,10 +295,26 @@ describe("the client", () => {
   });
 
   test("paces retry attempts as well as first attempts", async () => {
-    const server = fakeServer([503, 200], { pacer: new Pacer(50) });
-    const began = performance.now();
-    await server.client.stationList();
-    expect(performance.now() - began).toBeGreaterThanOrEqual(49);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    try {
+      const server = fakeServer([503, 200], { pacer: new Pacer(50) });
+      const pending = server.client.stationList();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(server.urls).toHaveLength(1);
+
+      clock.mockReturnValue(49);
+      await vi.advanceTimersByTimeAsync(49);
+      expect(server.urls).toHaveLength(1);
+
+      clock.mockReturnValue(50);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(server.urls).toHaveLength(2);
+      expect(await pending).toEqual([]);
+    } finally {
+      clock.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   test("admits waiters one at a time even after the event loop stalls", async () => {
@@ -344,18 +360,39 @@ describe("the client", () => {
   });
 
   test("a cancelled waiter gives up its slot", async () => {
-    const p = new Pacer(300);
-    const began = performance.now();
-    await p.wait();
-    const controller = new AbortController();
-    const cancelled = p.wait(controller.signal);
-    controller.abort();
-    await expect(cancelled).rejects.toThrow();
-    await p.wait();
-    const elapsed = performance.now() - began;
-    expect(elapsed).toBeGreaterThanOrEqual(299);
-    // A held slot would put the third start at 600 ms; the gap absorbs a busy CI runner.
-    expect(elapsed).toBeLessThan(550);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    try {
+      const p = new Pacer(300);
+      await p.wait();
+      const controller = new AbortController();
+      const cancelled = p.wait(controller.signal);
+      let rejected = false;
+      cancelled.catch(() => {
+        rejected = true;
+      });
+      controller.abort();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(rejected).toBe(true);
+      await expect(cancelled).rejects.toThrow();
+      let admitted = false;
+      const waiting = p.wait().then(() => {
+        admitted = true;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+
+      clock.mockReturnValue(299);
+      await vi.advanceTimersByTimeAsync(299);
+      expect(admitted).toBe(false);
+
+      clock.mockReturnValue(300);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(admitted).toBe(true);
+      await waiting;
+    } finally {
+      clock.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   test("cancellation interrupts a backoff and sends nothing more", async () => {
