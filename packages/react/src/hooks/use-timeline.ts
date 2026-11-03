@@ -1,19 +1,16 @@
 import { useQuery, type UseQueryOptions } from "@tanstack/react-query";
-import { useSlackwaterConfig, type SlackwaterConfig } from "../provider.js";
+import { useSlackwaterConfig } from "../provider.js";
 import {
-  fetchTimeline,
-  fetchStationTimeline,
-  type LocationParams,
-  type StationPredictionParams,
-  type PredictionParams,
-} from "../client.js";
+  resolveDataSource,
+  type SlackwaterDataSource,
+  type TidePredictionParams,
+} from "../data-source.js";
+import type { Units } from "../types.js";
 import { queryKeys } from "../query-keys.js";
 import type { TimelineResponse } from "../types.js";
 
 /** No `datum`: every reader takes the API's default, the station's chart datum, so their queries match. */
-export type UseTimelineParams =
-  | ({ id: string } & Omit<PredictionParams, "datum">)
-  | (Omit<LocationParams, "datum"> & { id?: undefined });
+export type UseTimelineParams = TidePredictionParams;
 
 /** Query options a caller may set: when to fetch, and what to show while a new window loads. */
 export type PredictionQueryOptions<T> = Pick<
@@ -23,16 +20,18 @@ export type PredictionQueryOptions<T> = Pick<
 
 /** The timeline query for these params, so a map pin and a card share one cache entry. */
 export function timelineQuery(
-  { baseUrl, units }: Pick<SlackwaterConfig, "baseUrl" | "units">,
+  {
+    baseUrl,
+    dataSource,
+    units,
+  }: { baseUrl?: string; dataSource?: SlackwaterDataSource; units: Units },
   params: UseTimelineParams,
 ) {
+  const source = resolveDataSource(dataSource ?? baseUrl);
   const merged = { ...params, units: params.units ?? units };
   return {
-    queryKey: queryKeys.timeline(merged),
-    queryFn: (): Promise<TimelineResponse> =>
-      merged.id
-        ? fetchStationTimeline(baseUrl, merged as StationPredictionParams)
-        : fetchTimeline(baseUrl, merged as LocationParams),
+    queryKey: queryKeys.timeline(merged, source.cacheKey),
+    queryFn: (): Promise<TimelineResponse> => source.getTimeline(merged),
   };
 }
 

@@ -43,7 +43,7 @@ function App() {
 
 ## Provider
 
-`<SlackwaterProvider>` configures the API and the reader's preferences for every component inside it. There is no datum setting: as in the app, tide heights are above the station's chart datum wherever it has one.
+`<SlackwaterProvider>` configures the data source and the reader's preferences for every component inside it. There is no datum setting: as in the app, tide heights are above the station's chart datum wherever it has one.
 
 ```tsx
 <SlackwaterProvider baseUrl="https://api.example.com" units="feet">
@@ -51,13 +51,39 @@ function App() {
 </SlackwaterProvider>
 ```
 
-| Prop          | Type                 | Default                            | Description                                                     |
-| ------------- | -------------------- | ---------------------------------- | --------------------------------------------------------------- |
-| `baseUrl`     | `string`             | —                                  | API server URL; may include a path prefix                       |
-| `units`       | `"meters" \| "feet"` | feet for `en-US`, otherwise meters | Height units                                                    |
-| `timezone`    | `string`             | the station's time zone            | Time zone for `<TideConditions>`                                |
-| `locale`      | `string`             | `navigator.language`               | BCP 47 locale for clocks, dates, and numbers                    |
-| `queryClient` | `QueryClient`        | created for you                    | A TanStack Query client, for example one hydrated on the server |
+| Prop          | Type                   | Default                            | Description                                                     |
+| ------------- | ---------------------- | ---------------------------------- | --------------------------------------------------------------- |
+| `baseUrl`     | `string`               | —                                  | API server URL; required unless `dataSource` is supplied        |
+| `dataSource`  | `SlackwaterDataSource` | —                                  | Local or remote source; takes precedence over `baseUrl`         |
+| `units`       | `"meters" \| "feet"`   | feet for `en-US`, otherwise meters | Height units                                                    |
+| `timezone`    | `string`               | the station's time zone            | Time zone for `<TideConditions>`                                |
+| `locale`      | `string`               | `navigator.language`               | BCP 47 locale for clocks, dates, and numbers                    |
+| `queryClient` | `QueryClient`          | created for you                    | A TanStack Query client, for example one hydrated on the server |
+
+## Local and precomputed data
+
+Pass a `SlackwaterDataSource` to use your own station catalogue and predictions. The React package does not bundle a prediction engine or database. Your adapter implements all eight methods: tide station lookup, listing, timeline and extremes, plus current station lookup, listing, events and timeline. The exported interface uses the same request and response types as the HTTP client.
+
+```tsx
+import { SlackwaterProvider, TideStation, type SlackwaterDataSource } from "@slackwater/react";
+import { localDataSource } from "./local-data-source.js";
+
+const source: SlackwaterDataSource = localDataSource;
+
+function App() {
+  return (
+    <SlackwaterProvider dataSource={source} units="meters">
+      <TideStation id="noaa/9447130" />
+    </SlackwaterProvider>
+  );
+}
+```
+
+Keep the source object stable across renders. Its nonempty `cacheKey` identifies the dataset, revision, and access policy, for example `local:catalog-v3:public`. Equivalent sources on the server and client must use the same key; change it when their data or permissions differ. Keys are visible in query caches, so keep credentials out of them. Queries from different sources are isolated even when they share a `QueryClient`. Changing the key remounts the provider's children to clear selections and pending placeholders from the preceding source.
+
+Return `Date` objects in prediction responses, heights in the requested units, and current speeds in knots. Preserve current IDs with their `@bin` suffix. Listing methods must honor the search, bounding-box, distance, and result-limit parameters they receive. Sources own errors, station availability, licensing, and any network or engine work. Set `predictions: false` and `unavailable` on unavailable station metadata and listing records so pages, cards, and map pins can avoid requesting predictions and explain their absence.
+
+`createApiDataSource(baseUrl, { cacheKey? })` creates the HTTP adapter used by the `baseUrl` prop. Its default cache identity is a SHA-256 digest of the normalized URL, stable across server and browser without putting the URL text into the cache. If server prefetch uses an internal address and the browser uses a public address for the same dataset and access policy, construct an adapter on each side with the same explicit key, for example `createApiDataSource(apiUrl, { cacheKey: "public-catalog:v3" })`, and pass it to prefetch and the provider. Explicit keys and URL digests appear in dehydrated caches. A digest is an identifier, not encryption; use an explicit nonsecret key for private URLs. Different datasets or permissions must keep different keys. The URL-derived default does not detect catalog revisions or cookie/session policy changes; use explicit keys that change with those values. `useSlackwaterConfig().dataSource` is always present; its `baseUrl` is optional when a source is injected.
 
 ## Components
 
@@ -287,7 +313,7 @@ A station's disclaimers as a paragraph, or nothing when it has none.
 
 Each station's data carries a license, in its `license` (`type`, `commercial_use`, `url`, `notes`), and a credit, in its `attribution`. The station pages, the search and nearby lists, the widget, and the map show the credit for you; keep it visible wherever you show a station's predictions some other way. The components don't filter by license: a commercial product must leave out stations marked `commercial_use: false`, the TICON records under CC BY-NC 4.0. `license` and `attribution` come with every listing from an API that includes them.
 
-Commercial hosts must point `baseUrl` at an API that excludes records with `license.commercial_use: false` before returning listings or predictions. These components and the stock API do not apply that exclusion; a commercial deployment needs a filtered API or proxy.
+Commercial hosts must use a source that excludes records with `license.commercial_use: false` from both listings and direct prediction requests. The stock API and components do not apply that exclusion; an HTTP deployment needs a filtered API or proxy. An injected source owns the same checks. Hosts must keep CHS fetching in the browser where required by its access terms and refuse CHS prediction requests on their server-side source. The React interface does not enforce redistribution or commercial-use policy; the host must enforce both.
 
 ## Hooks
 
@@ -305,13 +331,17 @@ All hooks must be used within a `<SlackwaterProvider>`.
 - `useCurrentLevel(timeline)` — the water level now, interpolated and updated each minute
 - `useThemeColors()` — the map's colors, resolved from the theme variables
 
-`timelineQuery`, `extremesQuery`, `currentTimelineQuery`, and `currentEventsQuery` return the query key and function those hooks use, for `useQueries` or a prefetch that should share their cache.
+`timelineQuery`, `extremesQuery`, `currentTimelineQuery`, and `currentEventsQuery` return the query key and function those hooks use, for `useQueries` or a prefetch that should share their cache. Tide builders accept a config with `baseUrl` or `dataSource` and `units`; current builders accept a URL or source as their first argument.
+
+Every hook scopes its query key by the source's `cacheKey`. When seeding caches manually, pass that key as the last argument to `queryKeys.station`, `queryKeys.timeline`, or the corresponding key builder. Calling these without a source still returns an unscoped prefix suitable for invalidation across sources, but does not address a hook's cached result.
 
 `useTimeline` and `useExtremes` also take a location (`{ latitude, longitude }`) in place of an `id`. They take no `datum`, so every reader of a station shares the API's default, its chart datum; the `fetch*` client functions still pass one through. Their `options` set `enabled`, `staleTime`, and `placeholderData`.
 
 ## Server rendering
 
-`prefetchTideStation(queryClient, baseUrl, id, { units?, locale?, now? })` fills the station, prediction windows, and Nearby lists for `<TideStation>`. A subordinate station's reference metadata loads separately. `prefetchNearbyStations` fills the lists for `<NearbyStations>`. Pass `dehydrate(queryClient)` to the client and render inside a `<HydrationBoundary>`; both are re-exported from TanStack Query.
+`prefetchTideStation(queryClient, baseUrlOrSource, id, { units?, locale?, now? })` fills the station, prediction windows, and Nearby lists for `<TideStation>`. A subordinate station's reference metadata loads separately. `prefetchNearbyStations` fills the lists for `<NearbyStations>`. Pass `dehydrate(queryClient)` to the client and render inside a `<HydrationBoundary>`; both are re-exported from TanStack Query. Both prefetch helpers accept a URL or a `SlackwaterDataSource`; render with an equivalent source and matching units on the client.
+
+The hydrated cache contains data, not the source's methods. Reconstruct the source on the client with the same `cacheKey`. If your framework serializes the cache, use a serializer that preserves `Date` values or revive them before hydration. Plain JSON turns dates into strings and is insufficient for these responses.
 
 ## Styling
 

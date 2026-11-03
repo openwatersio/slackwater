@@ -52,6 +52,7 @@
     }
   },
   "dependencies": {
+    "@noble/hashes": "^1.8.0",
     "@tanstack/react-query": "^5.105.0",
     "astronomy-engine": "^2.1.19"
   },

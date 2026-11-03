@@ -1,3 +1,4 @@
+import { createApiDataSource } from "../src/data-source.js";
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { SlackwaterProvider, useSlackwaterConfig, useUpdateConfig } from "../src/provider.js";
@@ -21,6 +22,9 @@ describe("SlackwaterProvider", () => {
 
     expect(result.current).toEqual({
       baseUrl: "https://api.example.com",
+      dataSource: expect.objectContaining({
+        cacheKey: createApiDataSource("https://api.example.com").cacheKey,
+      }),
       units: "feet",
       locale: "en-US",
     });

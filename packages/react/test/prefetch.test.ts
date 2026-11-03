@@ -6,6 +6,7 @@ import { prefetchTideStation, prefetchNearbyStations } from "../src/prefetch.js"
 import { NearbyStations } from "../src/components/NearbyStations.js";
 import { TideStation } from "../src/components/TideStation.js";
 import { createQueryClient } from "../src/provider.js";
+import { createApiDataSource } from "../src/data-source.js";
 import { queryKeys } from "../src/query-keys.js";
 import { createTestWrapper } from "./helpers.js";
 
@@ -57,9 +58,14 @@ describe("prefetchTideStation", () => {
       prefetchTideStation(queryClient, inject("apiBaseUrl"), "noaa/does-not-exist"),
     ).resolves.toBeUndefined();
 
-    expect(queryClient.getQueryState(queryKeys.station("noaa/does-not-exist"))?.status).toBe(
-      "error",
-    );
+    expect(
+      queryClient.getQueryState(
+        queryKeys.station(
+          "noaa/does-not-exist",
+          createApiDataSource(inject("apiBaseUrl")).cacheKey,
+        ),
+      )?.status,
+    ).toBe("error");
   });
 
   test("skips predictions for a station the API can't serve", async () => {

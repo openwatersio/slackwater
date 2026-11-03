@@ -339,8 +339,8 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
               { ...extremesQuery(config, { id: s.id, ...range.extremes }), ...options },
             ]
           : [
-              { ...currentTimelineQuery(config.baseUrl, s.id, range.timeline), ...options },
-              { ...currentEventsQuery(config.baseUrl, s.id, range.timeline), ...options },
+              { ...currentTimelineQuery(config.dataSource, s.id, range.timeline), ...options },
+              { ...currentEventsQuery(config.dataSource, s.id, range.timeline), ...options },
             ];
       }),
     [visible, detailed, camera, config, range],

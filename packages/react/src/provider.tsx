@@ -9,13 +9,15 @@ import {
 } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
+import { resolveDataSource, type SlackwaterDataSource } from "./data-source.js";
 import type { Units } from "./types.js";
 import { getDefaultUnits } from "./utils/defaults.js";
 
 const defaultLocale = typeof navigator !== "undefined" ? navigator.language : "en-US";
 
 export interface SlackwaterConfig {
-  baseUrl: string;
+  baseUrl?: string;
+  dataSource: SlackwaterDataSource;
   units: Units;
   timezone?: string;
   locale: string;
@@ -79,8 +81,7 @@ function getDefaultQueryClient(): QueryClient {
   return defaultQueryClient;
 }
 
-export interface SlackwaterProviderProps {
-  baseUrl: string;
+interface ProviderOptions {
   units?: Units;
   timezone?: string;
   locale?: string;
@@ -88,8 +89,15 @@ export interface SlackwaterProviderProps {
   children: ReactNode;
 }
 
+export type SlackwaterProviderProps = ProviderOptions &
+  (
+    | { baseUrl: string; dataSource?: SlackwaterDataSource }
+    | { baseUrl?: string; dataSource: SlackwaterDataSource }
+  );
+
 export function SlackwaterProvider({
   baseUrl,
+  dataSource,
   locale: initialLocale = defaultLocale,
   units: initialUnits = getDefaultUnits(initialLocale),
   timezone: initialTimezone,
@@ -107,14 +115,17 @@ export function SlackwaterProvider({
     }
   }, []);
 
+  const source = useMemo(() => resolveDataSource(dataSource ?? baseUrl), [dataSource, baseUrl]);
+
   const config = useMemo<SlackwaterConfig>(
     () => ({
-      baseUrl,
+      baseUrl: dataSource ? undefined : baseUrl,
+      dataSource: source,
       units: overrides.units ?? initialUnits,
       timezone: overrides.timezone ?? initialTimezone,
       locale: overrides.locale ?? initialLocale,
     }),
-    [baseUrl, initialUnits, initialTimezone, initialLocale, overrides],
+    [baseUrl, dataSource, source, initialUnits, initialTimezone, initialLocale, overrides],
   );
 
   const updateConfig = useCallback<SlackwaterConfigUpdater>((patch) => {
@@ -132,7 +143,7 @@ export function SlackwaterProvider({
 
   return (
     <SlackwaterContext.Provider value={contextValue}>
-      <QueryClientProvider client={queryClient ?? getDefaultQueryClient()}>
+      <QueryClientProvider key={source.cacheKey} client={queryClient ?? getDefaultQueryClient()}>
         {children}
       </QueryClientProvider>
     </SlackwaterContext.Provider>
