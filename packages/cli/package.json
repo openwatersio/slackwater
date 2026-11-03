@@ -1,6 +1,6 @@
 {
   "name": "@slackwater/cli",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.0-beta.6",
   "description": "Command line interface for tide and current predictions",
   "keywords": [
     "slackwater",
@@ -42,12 +42,12 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@slackwater/api": "^1.0.0-beta.4",
+    "@slackwater/api": "^1.0.0-beta.5",
     "@slackwater/database": "^1.0.0-beta.20261102",
     "chalk": "^6.0.1",
     "cli-table3": "^0.6.5",
     "commander": "^15.0.0",
-    "slackwater": "^1.0.0-beta.4"
+    "slackwater": "^1.0.0-beta.5"
   },
   "devDependencies": {
     "@types/node": "^26.0.1",

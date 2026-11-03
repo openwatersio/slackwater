@@ -1,5 +1,20 @@
 # @neaps/api
 
+## 1.0.0-beta.5
+
+### Minor Changes
+
+- [#406](https://github.com/openwatersio/slackwater/pull/406) [`0817d20`](https://github.com/openwatersio/slackwater/commit/0817d208516b191ff3a48c5c92d4b52e898a45c2) Thanks [@bkeepers](https://github.com/bkeepers)! - Tide and current station listings include each station's `attribution` and `license` in every mode (search, bounding box, proximity, and the full list), so a list can show the credit its stations owe without fetching each one. `license.commercial_use` is `false` for the TICON stations under CC BY-NC 4.0.
+
+- [#406](https://github.com/openwatersio/slackwater/pull/406) [`7ec45ff`](https://github.com/openwatersio/slackwater/commit/7ec45ffb23cf50d1bff288f8e849578cff10eeff) Thanks [@bkeepers](https://github.com/bkeepers)! - Tide station listings and lookups say whether the API can predict each station, with `predictions` and, when it can't, an `unavailable` reason, as the current routes do. Tide listings exclude stations without a prediction model. Direct lookups of Canadian Hydrographic Service ports carry `predictions: false`, and `/tides/stations/:id` serves their unprefixed records, such as `chs-campbell-river`.
+
+- [#502](https://github.com/openwatersio/slackwater/pull/502) [`e53b05f`](https://github.com/openwatersio/slackwater/commit/e53b05f92ada8348c9ada05887e7d3f7fbb90acb) Thanks [@clarkbw](https://github.com/clarkbw)! - Include magnitude and direction in current timelines. Supply minor-axis constituents, mean flow, and azimuth to predict rotary currents; stations with one axis use absolute speed and their published flood or ebb direction. Flood, ebb, and slack events continue to use signed major-axis speed.
+
+### Patch Changes
+
+- Updated dependencies [[`e53b05f`](https://github.com/openwatersio/slackwater/commit/e53b05f92ada8348c9ada05887e7d3f7fbb90acb)]:
+  - slackwater@1.0.0-beta.5
+
 ## 1.0.0-beta.4
 
 ### Major Changes

@@ -1,5 +1,16 @@
 # neaps
 
+## 1.0.0-beta.5
+
+### Minor Changes
+
+- [#502](https://github.com/openwatersio/slackwater/pull/502) [`e53b05f`](https://github.com/openwatersio/slackwater/commit/e53b05f92ada8348c9ada05887e7d3f7fbb90acb) Thanks [@clarkbw](https://github.com/clarkbw)! - Include magnitude and direction in current timelines. Supply minor-axis constituents, mean flow, and azimuth to predict rotary currents; stations with one axis use absolute speed and their published flood or ebb direction. Flood, ebb, and slack events continue to use signed major-axis speed.
+
+### Patch Changes
+
+- Updated dependencies [[`e53b05f`](https://github.com/openwatersio/slackwater/commit/e53b05f92ada8348c9ada05887e7d3f7fbb90acb)]:
+  - @slackwater/engine@1.0.0-beta.9
+
 ## 1.0.0-beta.4
 
 ### Major Changes
