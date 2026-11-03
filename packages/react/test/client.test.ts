@@ -314,12 +314,16 @@ describe("current stations", () => {
   });
 
   test("fetchCurrentStationTimeline parses timeline times", async () => {
-    mockFetch({ timeline: [{ time: "2026-10-10T00:00:00Z", speed: -1 }] });
+    mockFetch({
+      timeline: [{ time: "2026-10-10T00:00:00Z", speed: -1, magnitude: 1.25, direction: 215 }],
+    });
 
     const res = await fetchCurrentStationTimeline(BASE_URL, { id: "noaa/PUG1701" });
 
     const url = new URL((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string);
     expect(url.pathname).toBe("/currents/stations/noaa/PUG1701/timeline");
     expect(res.timeline[0].time).toEqual(new Date("2026-10-10T00:00:00Z"));
+    expect(res.timeline[0].magnitude).toBe(1.25);
+    expect(res.timeline[0].direction).toBe(215);
   });
 });

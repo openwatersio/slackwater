@@ -11,14 +11,17 @@ export type CurrentEventKind = "slack" | "maxFlood" | "maxEbb";
 
 /**
  * One sample of signed major-axis velocity in knots: positive is flood,
- * negative is ebb. Named for the major axis so magnitude and direction of the
- * full current vector can be added later without renaming.
+ * negative is ebb. Magnitude and direction describe the full current vector.
  */
 export interface CurrentPoint {
   time: Date;
   /** Hours since the first timeline sample. */
   hour: number;
   speed: number;
+  /** Knots; supplied by predictors, optional for caller-synthesized series. */
+  magnitude?: number;
+  /** Degrees true in [0, 360); absent at zero magnitude or when unknown. */
+  direction?: number;
 }
 
 export interface CurrentEvent {
@@ -40,6 +43,12 @@ export interface CurrentPredictionOptions {
   ebbDirection?: number;
   /** Mean flow in knots, added as a Z0 term (NOAA major mean speed). */
   meanFlow?: number;
+  /** Minor-axis amplitudes in knots and Greenwich phases in degrees. */
+  minorConstituents?: HarmonicConstituent[];
+  /** Minor-axis mean flow in knots, positive 90 degrees clockwise from azimuth. */
+  minorMeanFlow?: number;
+  /** Major-axis azimuth in degrees true. Defaults to floodDirection. */
+  azimuth?: number;
   /** Nodal correction fundamentals. Defaults to 'iho'. */
   nodeCorrections?: "iho" | "schureman";
 }
@@ -80,6 +89,24 @@ const byTime = (a: CurrentEvent, b: CurrentEvent) => a.time.getTime() - b.time.g
 const withDirection = (direction: number | undefined) =>
   direction === undefined ? {} : { direction };
 
+const wrapDirection = (value: number) => ((value % 360) + 360) % 360;
+
+function axialVector(speed: number, floodDirection?: number, ebbDirection?: number) {
+  const direction = speed > 0 ? floodDirection : speed < 0 ? ebbDirection : undefined;
+  return {
+    magnitude: Math.abs(speed),
+    ...withDirection(direction === undefined ? undefined : wrapDirection(direction)),
+  };
+}
+
+function prepareConstituents(inputs: HarmonicConstituent[], mean: number) {
+  const constituents = inputs
+    .filter((c) => defaultConstituentModels[c.name] !== undefined)
+    .map((c) => ({ ...c, phase: d2r * c.phase }));
+  if (mean !== 0) constituents.push({ name: "Z0", amplitude: mean, phase: 0 });
+  return constituents;
+}
+
 function checkTimeSpan({ start, end }: TimeSpan): void {
   if (start.getTime() >= end.getTime()) {
     throw new Error("Start time must be before end time");
@@ -94,13 +121,20 @@ function checkTimeSpan({ start, end }: TimeSpan): void {
  */
 export function createCurrentPredictor(
   inputs: HarmonicConstituent[],
-  { floodDirection, ebbDirection, meanFlow = 0, nodeCorrections }: CurrentPredictionOptions,
+  {
+    floodDirection,
+    ebbDirection,
+    meanFlow = 0,
+    nodeCorrections,
+    minorConstituents,
+    minorMeanFlow = 0,
+    azimuth = floodDirection,
+  }: CurrentPredictionOptions,
 ): CurrentPredictor {
   const fundamentals = resolveFundamentals(nodeCorrections);
-  const constituents = inputs
-    .filter((c) => defaultConstituentModels[c.name] !== undefined)
-    .map((c) => ({ ...c, phase: d2r * c.phase }));
-  if (meanFlow !== 0) constituents.push({ name: "Z0", amplitude: meanFlow, phase: 0 });
+  const constituents = prepareConstituents(inputs, meanFlow);
+  const minor = prepareConstituents(minorConstituents ?? [], minorMeanFlow);
+  const hasMinor = minor.some((c) => c.amplitude !== 0);
 
   /** Root-search setup over [from, to], snapped outward to the provider grid. */
   function windowParams(from: Date, to: Date) {
@@ -165,10 +199,29 @@ export function createCurrentPredictor(
         start: timeline.items[0],
         endHour: timeline.hours[timeline.hours.length - 1],
       })();
+      const getMinorParams = hasMinor
+        ? createParamsFactory({
+            constituents: minor,
+            constituentModels: defaultConstituentModels,
+            fundamentals,
+            start: timeline.items[0],
+            endHour: timeline.hours[timeline.hours.length - 1],
+          })()
+        : undefined;
 
       return timeline.items.map((time, i) => {
         const hour = timeline.hours[i];
-        return { time, hour, speed: evalH(hour, getParams(hour)) };
+        const speed = evalH(hour, getParams(hour));
+        if (!getMinorParams)
+          return { time, hour, speed, ...axialVector(speed, floodDirection, ebbDirection) };
+        const v = evalH(hour, getMinorParams(hour));
+        const magnitude = Math.hypot(speed, v);
+        // NOAA's positive minor axis is clockwise from the major axis (https://tidesandcurrents.noaa.gov/publications/techrpt21.pdf, p. 37).
+        const direction =
+          magnitude === 0 || azimuth === undefined
+            ? undefined
+            : wrapDirection(azimuth + Math.atan2(v, speed) / d2r);
+        return { time, hour, speed, magnitude, ...withDirection(direction) };
       });
     },
 
@@ -349,6 +402,7 @@ export function createSubordinateCurrentPredictor(
         time,
         hour: timeline.hours[i],
         speed: values[i],
+        ...axialVector(values[i], offsets.floodDirection, offsets.ebbDirection),
       }));
     },
   };

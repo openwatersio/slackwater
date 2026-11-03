@@ -791,7 +791,7 @@ function createSpecs(datums: string[]) {
         get: {
           summary: "Get current speed timeline for a location",
           description:
-            "Returns signed current speed every 10 minutes for the nearest current station, skipping stations with no model and refused with 451 when that station's source forbids redistributing its predictions. end must be within 366 days of start.",
+            "Returns signed major-axis speed, magnitude, and direction when known every 10 minutes for the nearest current station, skipping stations with no model and refused with 451 when that station's source forbids redistributing its predictions. end must be within 366 days of start.",
           parameters: [
             { $ref: "#/components/parameters/latitude" },
             { $ref: "#/components/parameters/longitude" },
@@ -1156,6 +1156,19 @@ function createSpecs(datums: string[]) {
             speed: {
               type: "number",
               description: "Signed knots along the flood axis: positive flood, negative ebb",
+            },
+            magnitude: {
+              type: "number",
+              minimum: 0,
+              description: "Current magnitude in knots; absolute speed without minor-axis data",
+            },
+            direction: {
+              type: "number",
+              minimum: 0,
+              maximum: 360,
+              exclusiveMaximum: true,
+              description:
+                "Vector bearing in degrees true when minor-axis data is available; otherwise the published flood or ebb bearing. Absent at zero magnitude or when unknown.",
             },
           },
           required: ["time", "speed"],

@@ -166,6 +166,14 @@ describe("GET /currents/timeline", () => {
     const speeds = response.body.timeline.map((p: { speed: number }) => p.speed);
     expect(Math.min(...speeds)).toBeLessThan(0);
     expect(Math.max(...speeds)).toBeGreaterThan(0);
+    for (const point of response.body.timeline) {
+      expect(point.magnitude).toBe(Math.abs(point.speed));
+      if (point.speed === 0) expect(point).not.toHaveProperty("direction");
+      else
+        expect(point.direction).toBe(
+          point.speed > 0 ? response.body.floodDirection : response.body.ebbDirection,
+        );
+    }
   });
 });
 

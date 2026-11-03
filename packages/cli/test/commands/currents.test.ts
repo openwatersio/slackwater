@@ -285,6 +285,8 @@ describe("slackwater currents timeline", () => {
       time: "2026-06-01T00:00:00.000Z",
       hour: 0,
       speed: expect.any(Number),
+      magnitude: expect.any(Number),
+      direction: expect.any(Number),
     });
     expect(data.timeline.some((p: { speed: number }) => p.speed < 0)).toBe(true);
   });

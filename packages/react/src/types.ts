@@ -145,6 +145,10 @@ export interface CurrentTimelineEntry {
   time: Date;
   /** Signed knots: positive flood, negative ebb. */
   speed: number;
+  /** Knots; absent from older API servers. */
+  magnitude?: number;
+  /** Vector bearing, or the published phase bearing without minor data; degrees true in [0, 360). Absent at zero magnitude or when unknown. */
+  direction?: number;
 }
 
 export interface CurrentEventsResponse {

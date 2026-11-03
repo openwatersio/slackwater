@@ -13,7 +13,7 @@ import { stationsInBounds } from "./bbox.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-// A year of 10-minute samples is about 4 MB of JSON; longer spans can exhaust memory.
+// A year of 10-minute samples is about 8 MB of JSON; longer spans can exhaust memory.
 const MAX_SPAN_DAYS = 366;
 
 /** Signed speeds are knots along the flood axis: positive flood, negative ebb. */

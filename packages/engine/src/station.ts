@@ -197,6 +197,12 @@ export type CurrentStationData = {
   ebb_direction?: number;
   /** Knots; the constant term added to the harmonic sum. */
   mean_flow?: number;
+  /** Minor-axis harmonics in knots with Greenwich phases in degrees. */
+  minor_constituents?: HarmonicConstituent[];
+  /** Minor-axis constant flow in knots. */
+  minor_mean_flow?: number;
+  /** Major-axis azimuth in degrees true; defaults to flood_direction. */
+  azimuth?: number;
   /** Subordinate currents only. Times in minutes, ratios dimensionless. */
   offsets?: {
     reference: string;
@@ -270,6 +276,9 @@ export function useCurrentStation(
       floodDirection: s.current?.flood_direction,
       ebbDirection: s.current?.ebb_direction,
       meanFlow: s.current?.mean_flow ?? 0,
+      minorConstituents: s.current?.minor_constituents ?? undefined,
+      minorMeanFlow: s.current?.minor_mean_flow ?? 0,
+      azimuth: s.current?.azimuth ?? undefined,
       nodeCorrections,
     });
   }

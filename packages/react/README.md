@@ -170,18 +170,18 @@ The current timeline: the speed, set, and state at the selected moment, blue com
 />
 ```
 
-| Prop         | Type                     | Default         | Description                                                            |
-| ------------ | ------------------------ | --------------- | ---------------------------------------------------------------------- |
-| `timeline`   | `CurrentTimelineEntry[]` | —               | Signed speeds in knots, flood positive; fewer than two shows a message |
-| `events`     | `CurrentEvent[]`         | —               | Slack, max flood, and max ebb events                                   |
-| `timezone`   | `string`                 | —               | Station IANA time zone for clocks, dates, and days                     |
-| `latitude`   | `number`                 | —               | Station latitude, for sunrise and sunset                               |
-| `longitude`  | `number`                 | —               | Station longitude, for sunrise and sunset                              |
-| `directions` | `{ flood?, ebb? }`       | `{}`            | Flood and ebb set in degrees true                                      |
-| `threshold`  | `number`                 | `0.5`           | Boat speed in knots that sizes the slack windows                       |
-| `locale`     | `string`                 | reader's locale | BCP 47 locale for clocks and dates                                     |
-| `now`        | `number`                 | the clock       | The current instant in ms; pass it to render deterministically         |
-| `className`  | `string`                 | —               | Extra classes for the outer element                                    |
+| Prop         | Type                     | Default         | Description                                                                                                                |
+| ------------ | ------------------------ | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `timeline`   | `CurrentTimelineEntry[]` | —               | Signed major-axis speeds in knots, with magnitude and direction when known, flood positive; fewer than two shows a message |
+| `events`     | `CurrentEvent[]`         | —               | Slack, max flood, and max ebb events                                                                                       |
+| `timezone`   | `string`                 | —               | Station IANA time zone for clocks, dates, and days                                                                         |
+| `latitude`   | `number`                 | —               | Station latitude, for sunrise and sunset                                                                                   |
+| `longitude`  | `number`                 | —               | Station longitude, for sunrise and sunset                                                                                  |
+| `directions` | `{ flood?, ebb? }`       | `{}`            | Flood and ebb set in degrees true                                                                                          |
+| `threshold`  | `number`                 | `0.5`           | Boat speed in knots that sizes the slack windows                                                                           |
+| `locale`     | `string`                 | reader's locale | BCP 47 locale for clocks and dates                                                                                         |
+| `now`        | `number`                 | the clock       | The current instant in ms; pass it to render deterministically                                                             |
+| `className`  | `string`                 | —               | Extra classes for the outer element                                                                                        |
 
 Both scrubbers also take `onSelect(time)`, called as the selected moment changes, `moveTo`, an object whose `time` the strip moves to each time a new object is passed, and `onNow(now)`, called when the reader returns to now.
 

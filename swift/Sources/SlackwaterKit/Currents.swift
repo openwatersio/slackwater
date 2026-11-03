@@ -58,9 +58,24 @@ func findSlacks(fromHour: Double, toHour: Double, provider: ParamProvider) -> [R
 
 public struct CurrentPoint: Sendable {
     public let time: Date; public let speed: Double
+    public let magnitude: Double
+    /// Degrees true in [0, 360), or nil at zero magnitude or when unknown.
+    public let direction: Double?
     // Public init so a consumer can synthesize a series (a derived gate's
     // schematic curve has no harmonic station to predict from).
-    public init(time: Date, speed: Double) { self.time = time; self.speed = speed }
+    public init(time: Date, speed: Double, magnitude: Double? = nil, direction: Double? = nil) {
+        self.time = time; self.speed = speed
+        self.magnitude = magnitude ?? abs(speed); self.direction = direction
+    }
+}
+
+private func currentBearing(_ value: Double) -> Double {
+    (value.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
+}
+
+private func axialDirection(_ speed: Double, flood: Double?, ebb: Double?) -> Double? {
+    guard speed.isFinite, speed != 0, let bearing = speed > 0 ? flood : ebb, bearing.isFinite else { return nil }
+    return currentBearing(bearing)
 }
 public enum CurrentEventKind: Sendable { case slack, maxFlood, maxEbb }
 public struct CurrentEvent: Sendable {
@@ -74,25 +89,41 @@ public struct CurrentEvent: Sendable {
 /// is signed major-axis velocity (knots) — positive = flood, negative = ebb.
 public struct CurrentStation: Sendable {
     let constituents: [StationConstituent]
+    let minorConstituents: [StationConstituent]?
     let catalog: Catalog
-    public let floodDirection: Double
-    public let ebbDirection: Double
+    let azimuth: Double?
+    private let floodBearing: Double?
+    private let ebbBearing: Double?
+    /// Numeric phase properties retain the zero placeholder; timeline directions preserve missing bearings.
+    public var floodDirection: Double { floodBearing ?? 0 }
+    public var ebbDirection: Double { ebbBearing ?? 0 }
 
-    /// - floodDirection: NOAA `azi` (major-axis azimuth, deg true).
-    /// - ebbDirection: azi + 180 (mod 360).
+    /// - floodDirection: Published flood bearing in degrees true, or nil when unknown.
+    /// - ebbDirection: Published ebb bearing in degrees true, or nil when unknown.
+    /// - minorConstituents: Minor-axis amplitudes in knots and Greenwich phases in degrees.
+    /// - minorMeanFlow: Constant cross-axis flow in knots.
+    /// - azimuth: Major-axis azimuth, degrees true; defaults to floodDirection.
     /// - offset: NOAA `majorMeanSpeed` (mean flow, knots) as the Z₀ term.
     public init(constituents inputs: [HarmonicConstituent],
-                floodDirection: Double, ebbDirection: Double, offset: Double = 0) {
+                floodDirection: Double? = nil, ebbDirection: Double? = nil, offset: Double = 0,
+                minorConstituents: [HarmonicConstituent]? = nil, minorMeanFlow: Double = 0,
+                azimuth: Double? = nil) {
         let d2r = Double.pi / 180
         let cat = Catalog.shared
         self.catalog = cat
-        self.floodDirection = floodDirection
-        self.ebbDirection = ebbDirection
-        var cs = inputs
-            .filter { cat.entry($0.name) != nil }
-            .map { StationConstituent(name: $0.name, amplitude: $0.amplitude, phase: d2r * $0.phase) }
-        if offset != 0 { cs.append(StationConstituent(name: "Z0", amplitude: offset, phase: 0)) }
-        self.constituents = cs
+        self.floodBearing = floodDirection
+        self.ebbBearing = ebbDirection
+        self.azimuth = azimuth ?? floodDirection
+        func prepare(_ inputs: [HarmonicConstituent], mean: Double) -> [StationConstituent] {
+            var cs = inputs
+                .filter { cat.entry($0.name) != nil }
+                .map { StationConstituent(name: $0.name, amplitude: $0.amplitude, phase: d2r * $0.phase) }
+            if mean != 0 { cs.append(StationConstituent(name: "Z0", amplitude: mean, phase: 0)) }
+            return cs
+        }
+        self.constituents = prepare(inputs, mean: offset)
+        let minor = prepare(minorConstituents ?? [], mean: minorMeanFlow)
+        self.minorConstituents = minor.contains { $0.amplitude != 0 } ? minor : nil
     }
 
     private func provider(from: Date, to: Date, step: Double = 600) -> (ParamProvider, Double) {
@@ -112,8 +143,22 @@ public struct CurrentStation: Sendable {
         let base = astro(first)
         let p = ParamProvider(constituents: constituents, baseAstro: base, catalog: catalog,
                               startMs: timeline.startMs, endHour: timeline.endHour)
+        let minor = minorConstituents.map {
+            ParamProvider(constituents: $0, baseAstro: base, catalog: catalog,
+                startMs: timeline.startMs, endHour: timeline.endHour)
+        }
         return zip(timeline.items, timeline.hours).map { item, hour in
-            CurrentPoint(time: item, speed: evalH(hour, p(hour)))
+            let speed = evalH(hour, p(hour))
+            guard let minor else {
+                return CurrentPoint(time: item, speed: speed, direction: axialDirection(speed, flood: floodBearing, ebb: ebbBearing))
+            }
+            let v = evalH(hour, minor(hour))
+            let magnitude = hypot(speed, v)
+            // NOAA's positive minor axis is clockwise from the major axis (https://tidesandcurrents.noaa.gov/publications/techrpt21.pdf, p. 37).
+            let direction = azimuth.flatMap { azi in
+                magnitude == 0 || !azi.isFinite ? nil : currentBearing(azi + atan2(v, speed) * 180 / .pi)
+            }
+            return CurrentPoint(time: item, speed: speed, magnitude: magnitude, direction: direction)
         }
     }
 
@@ -186,14 +231,17 @@ public struct SubordinateStation: Sendable {
     public let ebbTimeOffset: TimeInterval             // NOAA mecTimeAdjMin
     public let floodSpeedRatio: Double                 // NOAA mfcAmpAdj
     public let ebbSpeedRatio: Double                   // NOAA mecAmpAdj
-    public let floodDirection: Double
-    public let ebbDirection: Double
+    private let floodBearing: Double?
+    private let ebbBearing: Double?
+    /// Numeric phase properties retain the zero placeholder; timeline directions preserve missing bearings.
+    public var floodDirection: Double { floodBearing ?? 0 }
+    public var ebbDirection: Double { ebbBearing ?? 0 }
 
     public init(reference: CurrentStation,
                 slackBeforeFloodOffset: TimeInterval, slackBeforeEbbOffset: TimeInterval,
                 floodTimeOffset: TimeInterval, ebbTimeOffset: TimeInterval,
                 floodSpeedRatio: Double, ebbSpeedRatio: Double,
-                floodDirection: Double, ebbDirection: Double) {
+                floodDirection: Double? = nil, ebbDirection: Double? = nil) {
         self.reference = reference
         self.slackBeforeFloodOffset = slackBeforeFloodOffset
         self.slackBeforeEbbOffset = slackBeforeEbbOffset
@@ -201,8 +249,8 @@ public struct SubordinateStation: Sendable {
         self.ebbTimeOffset = ebbTimeOffset
         self.floodSpeedRatio = floodSpeedRatio
         self.ebbSpeedRatio = ebbSpeedRatio
-        self.floodDirection = floodDirection
-        self.ebbDirection = ebbDirection
+        self.floodBearing = floodDirection
+        self.ebbBearing = ebbDirection
     }
 
     public func events(from: Date, to: Date) -> [CurrentEvent] {
@@ -249,6 +297,7 @@ public struct SubordinateStation: Sendable {
         let ev = events(from: from.addingTimeInterval(-pad), to: to.addingTimeInterval(pad))
         return halfCosineCurve(through: ev.map { ($0.time, $0.speed) },
                                on: makeTimeline(from: from, to: to, step: step).items)
-            .map { CurrentPoint(time: $0.time, speed: $0.value) }
+            .map { CurrentPoint(time: $0.time, speed: $0.value,
+                direction: axialDirection($0.value, flood: floodBearing, ebb: ebbBearing)) }
     }
 }

@@ -12,6 +12,10 @@ data class TidePoint(val time: Instant, val heightMetres: Double)
 data class TideRatePoint(val time: Instant, val rateMetresPerHour: Double)
 enum class ExtremeKind { HIGH, LOW }
 data class TideExtreme(val time: Instant, val heightMetres: Double, val kind: ExtremeKind)
-data class CurrentPoint(val time: Instant, val speedKnots: Double)
+data class CurrentPoint @JvmOverloads constructor(val time: Instant, val speedKnots: Double,
+    val magnitudeKnots: Double = kotlin.math.abs(speedKnots), val directionDegrees: Double? = null) {
+    // Java callers retain the two-field copy signature; vector fields are independent of signed speed.
+    fun copy(time: Instant, speedKnots: Double): CurrentPoint = copy(time, speedKnots, magnitudeKnots, directionDegrees)
+}
 enum class CurrentEventKind { SLACK, MAX_FLOOD, MAX_EBB }
 data class CurrentEvent(val time: Instant, val speedKnots: Double, val kind: CurrentEventKind, val directionDegrees: Double? = null)

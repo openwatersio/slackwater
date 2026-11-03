@@ -63,6 +63,7 @@ class SubordinateCurrentStation(
         val knots = curveKnots(timeline.items.first(), timeline.items.last(), 8 * 3600.0, reference.phaseSearchLimitSeconds) { from, to ->
             events(from, to).map { it.time to it.speedKnots }
         }
-        return halfCosineCurve(knots, timeline.items).map { CurrentPoint(it.time, it.value) }
+        return halfCosineCurve(knots, timeline.items).map { CurrentPoint(it.time, it.value,
+            directionDegrees = axialDirection(it.value, floodDirectionDegrees, ebbDirectionDegrees)) }
     }
 }
