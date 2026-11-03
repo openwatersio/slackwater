@@ -101,17 +101,31 @@ describe("NearbyStations", () => {
     );
 
     const [first, second] = await cards();
+    // The pointer can already be over a card when the list appears.
+    fireEvent.mouseEnter(first);
     fireEvent.click(within(first).getByRole("button"));
     expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/PUG1701", kind: "current" });
 
+    onHover.mockClear();
     fireEvent.mouseEnter(second);
-    expect(onHover.mock.calls[0][0]).toMatchObject({ id: "noaa/9448614", kind: "tide" });
+    expect(onHover).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "noaa/9448614", kind: "tide" }),
+    );
+    onHoverEnd.mockClear();
     fireEvent.mouseLeave(second);
-    expect(onHoverEnd.mock.calls[0][0]).toMatchObject({ id: "noaa/9448614" });
+    expect(onHoverEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "noaa/9448614", kind: "tide" }),
+    );
+    onHover.mockClear();
     fireEvent.focus(within(first).getByRole("button"));
-    expect(onHover.mock.calls[1][0]).toMatchObject({ id: "noaa/PUG1701" });
+    expect(onHover).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "noaa/PUG1701", kind: "current" }),
+    );
+    onHoverEnd.mockClear();
     fireEvent.blur(within(first).getByRole("button"));
-    expect(onHoverEnd).toHaveBeenCalledTimes(2);
+    expect(onHoverEnd).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ id: "noaa/PUG1701", kind: "current" }),
+    );
   });
 
   test("still lists tide stations from an API without the current routes", async () => {
