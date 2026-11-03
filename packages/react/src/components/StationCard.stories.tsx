@@ -57,7 +57,7 @@ export const TideBelowDatum: Story = {
 
 export const Current: Story = { args: { station: deceptionPass, distance: 31.6 } };
 
-/** A predicted zero shows Slack without a set. */
+/** A predicted major-axis zero shows Axis slack without a bearing. */
 export const CurrentAtSlack: Story = {
   args: { station: deceptionPass, now: Date.parse("2026-10-15T21:11:35.957Z") },
 };

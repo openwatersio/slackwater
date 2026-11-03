@@ -206,6 +206,8 @@ import { stationsNear } from "slackwater";
 
 #### Find station by ID
 
+An ID marked redundant follows its accepted replacement when that record has a tide model. A commercially usable record never automatically resolves to a noncommercial replacement; direct lookups of noncommercial records remain available.
+
 ```typescript
 import { findStation } from "slackwater";
 
@@ -243,7 +245,7 @@ const windows = slackWindows(timeline, 0.5);
 // [{ start: Date, end: Date }, ...]
 ```
 
-Timeline points include nonnegative `magnitude` in knots and optional `direction` in degrees true. Bundled stations use absolute signed speed and their published phase bearing; the [engine](packages/engine/README.md#current-prediction) accepts minor-axis constants for two-dimensional predictions.
+Timeline points include nonnegative `magnitude` in knots and optional `direction` in degrees true. NOAA reference stations with both axes use the bundled minor-axis constants for rotating magnitude and direction. Stations without usable minor data and subordinate stations use absolute signed speed and their published phase bearings; see [current prediction](packages/engine/README.md#current-prediction).
 
 Current stations can also be found with `nearestCurrentStation`, `currentStationsNear`, and `findCurrentStation`, mirroring the tide station functions. Subordinate current stations (time offsets and speed ratios against a reference station) are resolved automatically.
 

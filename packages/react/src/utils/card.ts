@@ -87,10 +87,10 @@ export function readTideCard(
 }
 
 export interface CurrentCardReading {
-  /** Signed knots: positive flood. */
+  /** Signed major-axis knots: positive flood. */
   speed: number;
   slack: boolean;
-  /** The set the water flows toward, by the sign of the speed; absent when the station has none. */
+  /** The published flood or ebb bearing; absent when the station has none. */
   direction?: number;
 }
 

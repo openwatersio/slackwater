@@ -31,6 +31,14 @@ const events: CurrentEvent[] = [
   { time: new Date(t0 + 9 * H), speed: -3, kind: "maxEbb", direction: 225 },
 ];
 
+test("describes a nonreciprocal ebb heading as a published phase bearing", () => {
+  const reading = readCurrent(t0 + 8 * H, timeline, events, [], { flood: 45, ebb: 200 })!;
+  expect(reading.direction).toBe(200);
+  expect(spokenReading(reading, t0 + 8 * H, "UTC", "en-US")).toContain(
+    "published phase bearing SSW",
+  );
+});
+
 describe("speedColor", () => {
   test("clamps below the first anchor and above the last", () => {
     expect(speedColor(0)).toBe("#f5c96b");
@@ -334,7 +342,9 @@ test("spokenReading: state, speed, set when known, then dated clock and zone", (
       "America/Los_Angeles",
       "en-US",
     ),
-  ).toMatch(/^Flooding, 2\.3 knots, setting NE, Oct 14, 4:22\sPM PDT$/);
+  ).toMatch(
+    /^Flooding, 2\.3 knots along the major axis, published phase bearing NE, Oct 14, 4:22\sPM PDT$/,
+  );
   expect(
     spokenReading(
       { state: "Slack", speed: -0.1, direction: 225 },
@@ -342,7 +352,7 @@ test("spokenReading: state, speed, set when known, then dated clock and zone", (
       "America/Los_Angeles",
       "en-US",
     ),
-  ).toMatch(/^Slack, 0\.1 knots, Oct 14/);
+  ).toMatch(/^Axis slack, 0\.1 knots along the major axis, Oct 14/);
 });
 
 test("formatCountdown floors to minutes", () => {
@@ -356,14 +366,16 @@ describe("commentary", () => {
     expect(commentary(t0, stops, "en-US")).toEqual({
       stop: stops[0],
       duration: "1h 28m",
-      spoken: "Maximum flood current in 1 hour, 28 minutes",
+      spoken: "Maximum flood along the major axis in 1 hour, 28 minutes",
     });
   });
   test("speaks whole hours and minutes alone", () => {
     expect(commentary(t0 + 28 * 60_000, stops, "en-US")?.spoken).toBe(
-      "Maximum flood current in 1 hour",
+      "Maximum flood along the major axis in 1 hour",
     );
-    expect(commentary(t0 + H, stops, "en-US")?.spoken).toBe("Maximum flood current in 28 minutes");
+    expect(commentary(t0 + H, stops, "en-US")?.spoken).toBe(
+      "Maximum flood along the major axis in 28 minutes",
+    );
   });
   test("one cutoff: the first stop more than a second after the selection", () => {
     expect(commentary(stops[0].time - 1000, stops)).toBeUndefined();

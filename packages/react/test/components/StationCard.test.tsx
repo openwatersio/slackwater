@@ -92,7 +92,9 @@ describe("StationCard", () => {
 
     await curve();
     expect(
-      screen.getByText(/^\d+\.\d knots, (flooding|ebbing), setting [NESW]{1,3}$/),
+      screen.getByText(
+        /^\d+\.\d knots along the major axis, (flooding|ebbing), published phase bearing [NESW]{1,3}$/,
+      ),
     ).toBeDefined();
   });
 
@@ -102,9 +104,11 @@ describe("StationCard", () => {
     });
     await curve();
     expect(
-      screen.getByText(/^\d+\.\d knots, (flooding|ebbing), setting [NESW]{1,3}$/),
+      screen.getByText(
+        /^\d+\.\d knots along the major axis, (flooding|ebbing), published phase bearing [NESW]{1,3}$/,
+      ),
     ).toBeDefined();
-    expect(screen.queryByText("Slack")).toBeNull();
+    expect(screen.queryByText("Axis slack")).toBeNull();
   });
 
   test("says Slack on a slack", async () => {
@@ -117,8 +121,8 @@ describe("StationCard", () => {
     render(<StationCard station={deceptionPass} now={slack} />, { wrapper: createTestWrapper() });
 
     await curve();
-    expect(screen.getByText(/^\d+\.\d knots, slack$/)).toBeDefined();
-    expect(screen.getByText("Slack")).toBeDefined();
+    expect(screen.getByText(/^\d+\.\d knots along the major axis, axis slack$/)).toBeDefined();
+    expect(screen.getByText("Axis slack")).toBeDefined();
   });
 
   test("shows a nearby list's distance in nautical miles", () => {

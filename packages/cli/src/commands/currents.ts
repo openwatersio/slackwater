@@ -73,10 +73,10 @@ const timeline = predictionCommand("timeline", "Get a current speed timeline for
 
 const slack = predictionCommand(
   "slack",
-  "Get slack water windows: the times the current runs below a speed around each turn",
+  "Get windows around reversals when major-axis speed stays below a threshold",
   72,
 )
-  .option("-t, --threshold <knots>", "speed in knots the current must stay below", "0.5")
+  .option("-t, --threshold <knots>", "absolute major-axis speed limit in knots", "0.5")
   .action(async (opts) => {
     const span = parseSpan(opts, 72);
     const threshold = positiveNumber(opts.threshold, "threshold");

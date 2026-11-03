@@ -54,7 +54,7 @@ function Pill({ entry }: { entry: ScheduleEntry }) {
       return (
         <span className={`${PILL} bg-(--sw-go)`}>
           <SlackGlyph />
-          Slack
+          Axis slack
         </span>
       );
     default:
@@ -63,7 +63,7 @@ function Pill({ entry }: { entry: ScheduleEntry }) {
           {entry.direction !== undefined && (
             <>
               <SetArrow direction={entry.direction} size={10} />
-              {compass16(entry.direction)}
+              Phase {compass16(entry.direction)}
             </>
           )}
           <span className="opacity-90">{entry.pill === "flood" ? "Flood" : "Ebb"}</span>

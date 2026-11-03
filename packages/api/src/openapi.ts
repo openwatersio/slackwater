@@ -132,7 +132,8 @@ function createSpecs(datums: string[]) {
       "/stations/{source}/{id}": {
         get: {
           summary: "Get station by ID",
-          description: "Find a station by its ID",
+          description:
+            "Find a tide station by source and ID. Redundant IDs resolve to accepted replacement models that preserve commercial-use permission; the response carries the replacement's canonical ID, license and attribution.",
           parameters: [
             { $ref: "#/components/parameters/stationSource" },
             { $ref: "#/components/parameters/stationId" },
@@ -214,6 +215,8 @@ function createSpecs(datums: string[]) {
       "/stations/{source}/{id}/extremes": {
         get: {
           summary: "Get extremes prediction for a specific station",
+          description:
+            "Return extremes for the resolved station. A redundant ID may resolve to an accepted replacement; the response station ID and datum describe that record and its height reference.",
           parameters: [
             { $ref: "#/components/parameters/stationSource" },
             { $ref: "#/components/parameters/stationId" },
@@ -259,6 +262,8 @@ function createSpecs(datums: string[]) {
       "/stations/{source}/{id}/timeline": {
         get: {
           summary: "Get timeline prediction for a specific station",
+          description:
+            "Return samples for the resolved station. A redundant ID may resolve to an accepted replacement; the response station ID and datum describe that record and its height reference.",
           parameters: [
             { $ref: "#/components/parameters/stationSource" },
             { $ref: "#/components/parameters/stationId" },
@@ -1110,6 +1115,23 @@ function createSpecs(datums: string[]) {
                     flood_direction: { type: "number", description: "Degrees true" },
                     ebb_direction: { type: "number", description: "Degrees true" },
                     mean_flow: { type: "number", description: "Knots" },
+                    minor_constituents: {
+                      type: "array",
+                      description: "Minor-axis amplitudes in knots and phases in degrees",
+                      items: {
+                        type: "object",
+                        properties: {
+                          name: { type: "string" },
+                          amplitude: { type: "number" },
+                          phase: { type: "number" },
+                        },
+                      },
+                    },
+                    minor_mean_flow: {
+                      type: "number",
+                      description: "Minor-axis mean flow in knots",
+                    },
+                    azimuth: { type: "number", description: "Major-axis azimuth in degrees true" },
                     offsets: {
                       type: "object",
                       description:

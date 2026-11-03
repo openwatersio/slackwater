@@ -34,7 +34,7 @@
     "ml-matrix": "^6.15.1"
   },
   "devDependencies": {
-    "@slackwater/database": "^1.0.0-beta.20261102"
+    "@slackwater/database": "^1.0.1-beta.20261103"
   },
   "scripts": {
     "build": "tsdown",

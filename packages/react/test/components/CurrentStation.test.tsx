@@ -218,23 +218,25 @@ describe("CurrentStation", () => {
     await screen.findByRole("slider", undefined, { timeout: 10000 });
 
     const rows = [...container.querySelectorAll("button")].map((b) => b.textContent ?? "");
-    expect(rows.some((r) => /—Slack$/.test(r))).toBe(true);
+    expect(rows.some((r) => /—Axis slack$/.test(r))).toBe(true);
     const nextMax = [...container.querySelectorAll(".sw-card")].find((t) =>
       t.textContent!.startsWith("Next max"),
     )!;
     expect(nextMax.textContent).toMatch(
-      /^Next max\d+\.\d\u00a0kn((Flood|Ebb) at|(Hardest|Strong) (flood|ebb) ·) \d{1,2}:\d\d [AP]M$/,
+      /^Next max\d+\.\d\u00a0kn axis((Flood|Ebb) at|(Hardest|Strong) (flood|ebb) ·) \d{1,2}:\d\d [AP]M$/,
     );
-    expect(rows.some((r) => /\d kn(ESE|E)Flood$/.test(r))).toBe(true);
-    expect(rows.some((r) => /\d kn(WNW|W)Ebb$/.test(r))).toBe(true);
+    expect(rows.some((r) => /\d kn axisPhase (ESE|E)Flood$/.test(r))).toBe(true);
+    expect(rows.some((r) => /\d kn axisPhase (WNW|W)Ebb$/.test(r))).toBe(true);
     expect(
-      screen.getByText("NOAA harmonic current prediction. Flood sets 102°T. Speeds use knots."),
+      screen.getByText(
+        "NOAA harmonic current prediction. Flood bearing 102°T. Speeds and windows use the major axis. Bearings are published flood/ebb headings. Crossing flow can remain.",
+      ),
     ).toBeDefined();
 
     fireEvent.click(screen.getByText("Station details"));
     expect(screen.getByText("102°T")).toBeDefined();
     expect(screen.getByText("282°T")).toBeDefined();
-    expect(screen.getByText("0.6 kn toward ebb")).toBeDefined();
+    expect(screen.getByText("0.6 kn axis toward ebb")).toBeDefined();
     expect(screen.getByText(/^48\.\d{3}°N, 122\.\d{3}°W$/)).toBeDefined();
   });
 
@@ -244,14 +246,14 @@ describe("CurrentStation", () => {
 
     expect(
       await screen.findByText(
-        /^NOAA subordinate station: .+'s slacks and maxima, corrected by published offsets\. Flood sets 210°T\.$/,
+        /^NOAA subordinate station: .+'s slacks and maxima, corrected by published offsets\. Flood bearing 210°T\. Speeds and windows use the major axis\. Bearings are published flood\/ebb headings\. Crossing flow can remain\.$/,
         undefined,
         { timeout: 10000 },
       ),
     ).toBeDefined();
     fireEvent.click(screen.getByText("Station details"));
     expect(screen.getByText(/, \d+ km away$/)).toBeDefined();
-    expect(screen.queryByText("Mean flow")).toBeNull();
+    expect(screen.queryByText("Major-axis mean flow")).toBeNull();
   });
 
   test("a station from another source credits it, and slack-free water says none measured", async () => {
@@ -280,7 +282,11 @@ describe("CurrentStation", () => {
     });
     render(<CurrentStation id="test/STILL" />, { wrapper: createTestWrapper() });
 
-    expect(await screen.findByText("Harmonic constants from Test Survey.")).toBeDefined();
+    expect(
+      await screen.findByText(
+        "Harmonic constants from Test Survey. Speeds and windows use the major axis. Bearings are published flood/ebb headings. Crossing flow can remain.",
+      ),
+    ).toBeDefined();
     fireEvent.click(screen.getByText("Station details"));
     expect(screen.getByText("None measured")).toBeDefined();
     expect(screen.getByText("10.000°S, 20.000°E")).toBeDefined();

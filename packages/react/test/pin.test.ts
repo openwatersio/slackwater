@@ -114,7 +114,7 @@ describe("currentPinState", () => {
       tone: pinRampColor(0.5),
       bearing: 45,
       reading: "0.5",
-      unit: "kn",
+      unit: "kn axis",
     });
   });
 
@@ -139,7 +139,7 @@ describe("currentPinState", () => {
       tone: pinRampColor(0.4),
       bearing: 225,
       reading: "0.4",
-      unit: "kn",
+      unit: "kn axis",
     });
   });
 

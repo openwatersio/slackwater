@@ -10,6 +10,8 @@ import {
   slackWindows,
 } from "../src/index.js";
 import { loadStations } from "@slackwater/database";
+import { createCurrentPredictor } from "@slackwater/engine";
+import noaa from "../../../fixtures/currents-vector-noaa.json";
 
 const { byId } = await loadStations();
 
@@ -135,6 +137,62 @@ describe("currentStationsNear", () => {
 });
 
 describe("findCurrentStation", () => {
+  test("predicts NOAA vector magnitude and direction from the bundled station", async () => {
+    const station = await findCurrentStation("noaa/PUG1741");
+    expect(station.current?.minor_constituents?.length).toBeGreaterThan(0);
+    const options = {
+      start: new Date(noaa.start),
+      end: new Date(noaa.end),
+      timeFidelity: noaa.timeFidelity,
+    };
+    const { timeline } = station.getTimelinePrediction(options);
+    expect(timeline).toHaveLength(noaa.timeline.length);
+    for (const [i, expected] of noaa.timeline.entries()) {
+      const point = timeline[i];
+      expect(point.time).toEqual(new Date(expected.time));
+      expect(Math.abs(point.magnitude! - expected.magnitude)).toBeLessThan(0.15);
+      if (expected.magnitude >= 0.75) {
+        const difference = Math.abs(point.direction! - expected.direction) % 360;
+        expect(Math.min(difference, 360 - difference)).toBeLessThan(5);
+      }
+    }
+  });
+
+  test("retains major-axis speeds and events with the bundled minor axis", async () => {
+    const station = await findCurrentStation("noaa/PUG1741");
+    const scalar = createCurrentPredictor(station.harmonic_constituents, {
+      meanFlow: station.current?.mean_flow,
+      floodDirection: station.current?.flood_direction,
+      ebbDirection: station.current?.ebb_direction,
+    });
+    expect(station.getTimelinePrediction(span).timeline.map((p) => p.speed)).toEqual(
+      scalar.getTimelinePrediction(span).map((p) => p.speed),
+    );
+    expect(station.getEventsPrediction(span).events).toEqual(scalar.getEventsPrediction(span));
+  });
+
+  test.each([
+    { id: "noaa/ACT1616", reference: undefined },
+    { id: "noaa/PCT0236", reference: "noaa/SFB1201" },
+  ])(
+    "keeps scalar fallback for $id, including a subordinate with a vector reference",
+    async ({ id, reference }) => {
+      const station = await findCurrentStation(id);
+      expect(station.current?.offsets?.reference).toBe(reference);
+      if (reference)
+        expect(byId(reference)?.current?.minor_constituents?.length).toBeGreaterThan(0);
+      expect(station.current?.minor_constituents).toBeUndefined();
+      for (const point of station.getTimelinePrediction(span).timeline) {
+        expect(point.magnitude).toBe(Math.abs(point.speed));
+        if (point.speed !== 0) {
+          expect(point.direction).toBe(
+            point.speed > 0 ? station.current?.flood_direction : station.current?.ebb_direction,
+          );
+        }
+      }
+    },
+  );
+
   test("finds a current station by id or source id", async () => {
     expect((await findCurrentStation("noaa/PUG1701")).name).toBe("Deception Pass (Narrows)");
     expect((await findCurrentStation("PUG1701")).id).toBe("noaa/PUG1701");

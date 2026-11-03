@@ -242,6 +242,26 @@ describe("excludes current stations", () => {
 });
 
 describe("findStation", () => {
+  test.each(["ticon/abashiri-347-jpn-uhslc_fd", "abashiri-347-jpn-uhslc_fd"])(
+    "resolves superseded tide-station ID %s to its accepted gauge",
+    async (id) => {
+      const station = await findStation(id);
+      expect(station.id).toBe("jma/AS");
+      expect(station.harmonic_constituents.length).toBeGreaterThan(0);
+    },
+  );
+
+  test("still refuses rejected tide models without an accepted replacement", async () => {
+    const db = await loadStations();
+    const accepted = new Set(db.accepted.map((station) => station.id));
+    const rejected = db.all.find(
+      (station) =>
+        station.kind === "tide" && !accepted.has(station.id) && !station.quality?.redundant,
+    );
+    expect(rejected).toBeDefined();
+    await expect(findStation(rejected!.id)).rejects.toThrow("Station not found");
+  });
+
   test("raises error for unknown station", async () => {
     await expect(findStation("unknown")).rejects.toThrow("Station not found: unknown");
   });

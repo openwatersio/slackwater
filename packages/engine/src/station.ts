@@ -26,6 +26,7 @@ export type Station = {
   region?: string;
   timezone: string;
   disclaimers?: string;
+  attribution?: string;
   latitude: number;
   longitude: number;
 

@@ -4,7 +4,7 @@ import type { Formatter, StationResult } from "./index.js";
 import type { CurrentEventsResult, CurrentStationResult } from "../lib/currents.js";
 
 const EVENT_LABELS = {
-  slack: chalk.green("Slack"),
+  slack: chalk.green("Axis slack"),
   maxFlood: chalk.blue("Max flood"),
   maxEbb: chalk.yellow("Max ebb"),
 };
@@ -39,6 +39,7 @@ export default function text(): Formatter {
       }
 
       console.log(table.toString());
+      printCredits([station]);
     },
 
     timeline(prediction) {
@@ -67,6 +68,7 @@ export default function text(): Formatter {
       }
 
       console.log(table.toString());
+      printCredits([station]);
     },
 
     listStations(stations: StationResult[]) {
@@ -90,6 +92,7 @@ export default function text(): Formatter {
       console.log(table.toString());
       console.log();
       console.log(chalk.dim(`${stations.length} station${stations.length === 1 ? "" : "s"} found`));
+      printCredits(stations);
     },
 
     currentEvents(prediction) {
@@ -99,6 +102,7 @@ export default function text(): Formatter {
 
       if (!events.length) {
         console.log(chalk.dim("No slack or max current in this period"));
+        printCredits([station]);
         return;
       }
 
@@ -125,6 +129,7 @@ export default function text(): Formatter {
       }
 
       console.log(table.toString());
+      printCredits([station]);
     },
 
     currentTimeline(prediction) {
@@ -144,7 +149,7 @@ export default function text(): Formatter {
           date !== lastDate ? date : "",
           formatTime(point.time, tz),
           Math.abs(point.speed) < 0.05
-            ? chalk.green("Slack")
+            ? chalk.green("Axis slack")
             : point.speed < 0
               ? chalk.yellow("Ebb")
               : chalk.blue("Flood"),
@@ -154,15 +159,17 @@ export default function text(): Formatter {
       }
 
       console.log(table.toString());
+      printCredits([station]);
     },
 
     currentSlackWindows(prediction) {
       const { station, threshold, windows } = prediction;
       const tz = station.timezone;
-      currentHeader(prediction, `below ${threshold} kn`);
+      currentHeader(prediction, `major-axis speed below ${threshold} kn`);
 
       if (!windows.length) {
-        console.log(chalk.dim(`No slack windows below ${threshold} kn in this period`));
+        console.log(chalk.dim(`No major-axis slack windows below ${threshold} kn in this period`));
+        printCredits([station]);
         return;
       }
 
@@ -196,6 +203,7 @@ export default function text(): Formatter {
           ),
         );
       }
+      printCredits([station]);
     },
 
     listCurrentStations(stations: CurrentStationResult[]) {
@@ -227,8 +235,23 @@ export default function text(): Formatter {
           ),
         );
       }
+      printCredits(stations);
     },
   };
+}
+
+function printCredits(stations: ReadonlyArray<{ attribution?: string }>) {
+  const notices = [
+    ...new Set(
+      stations.map((station) => station.attribution).filter((notice): notice is string => !!notice),
+    ),
+  ];
+  const distinct = notices.filter(
+    (notice) => !notices.some((other) => other !== notice && other.includes(notice)),
+  );
+  if (!distinct.length) return;
+  console.log();
+  for (const notice of distinct) console.log(chalk.dim(notice));
 }
 
 /** Station name, then id, units, flood and ebb directions, and distance when known. */
@@ -240,7 +263,7 @@ function currentHeader(prediction: Omit<CurrentEventsResult, "events">, extra?: 
     floodDirection !== undefined && `flood ${formatDirection(floodDirection)}`,
     ebbDirection !== undefined && `ebb ${formatDirection(ebbDirection)}`,
     distance !== undefined && `${distance.toFixed(1)} km away`,
-    extra,
+    extra ?? "major-axis speed",
   ].filter(Boolean);
 
   console.log(chalk.bold(station.name));

@@ -134,6 +134,8 @@ Every listing mode excludes tide stations without a prediction model. Identity-o
 
 Get a tide station by ID, with the same `predictions` and `unavailable`. The curated CHS records have no source prefix and are a single path segment: `/tides/stations/chs-campbell-river`.
 
+These prefixed station and prediction routes resolve a redundant tide ID to its accepted replacement when it has a prediction model and preserves commercial-use permission. Station, timeline and extremes responses carry the replacement's canonical `id`, source, license and attribution. Its chart datum and default height reference apply; use the response's `datum` and station metadata when storing predictions. Direct lookups of noncommercial records remain available.
+
 ### GET /tides/stations/:source/:id/extremes
 
 Get extremes prediction for a specific station. The station ID is two path segments, with its slash left unencoded: `/tides/stations/noaa/8722588/extremes`. The bare IDs of the curated CHS records name stations whose predictions can't be served, so the prediction routes don't take them.

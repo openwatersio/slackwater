@@ -181,12 +181,12 @@ export function TideReading({
 }
 
 export function spokenCurrentCard(reading: CurrentCardReading, locale?: string): string {
-  const speed = `${formatSpeed(reading.speed, locale)} knots`;
-  if (reading.slack) return `${speed}, slack`;
+  const speed = `${formatSpeed(reading.speed, locale)} knots along the major axis`;
+  if (reading.slack) return `${speed}, axis slack`;
   const word = reading.speed >= 0 ? "flooding" : "ebbing";
   return reading.direction === undefined
     ? `${speed}, ${word}`
-    : `${speed}, ${word}, setting ${compass16(reading.direction)}`;
+    : `${speed}, ${word}, published phase bearing ${compass16(reading.direction)}`;
 }
 
 /** The current's reading: speed, then the state and the set, which the arrow's color names. */
@@ -206,14 +206,14 @@ export function CurrentReading({
         <span className="text-xl leading-[25px] font-bold tabular-nums">
           {formatSpeed(speed, locale)}
         </span>
-        <span className="text-[17px]"> kn</span>
+        <span className="text-[17px]"> kn axis</span>
       </span>
       <span className="flex items-center gap-1 text-[11px]" aria-hidden="true">
         <span
           style={slack ? { color: C.go } : undefined}
           className={slack ? "" : "text-(--sw-foam)/60"}
         >
-          {slack ? "Slack" : speed >= 0 ? "Flooding" : "Ebbing"}
+          {slack ? "Axis slack" : speed >= 0 ? "Flooding" : "Ebbing"}
         </span>
         {Math.abs(speed) < 0.05 ? (
           // Under 0.05 kn the set gives way to a mark of the same footprint, so the row never resizes.
@@ -221,7 +221,7 @@ export function CurrentReading({
         ) : (
           direction !== undefined && (
             <span className="flex items-center gap-1" style={{ color: tint }}>
-              {compass16(direction)}
+              Phase {compass16(direction)}
               <svg width={11} height={11} viewBox="-6 -6 12 12">
                 <path
                   d={SET_ARROW_PATH}

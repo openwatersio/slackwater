@@ -3,6 +3,7 @@ import express from "express";
 import request from "supertest";
 import { middleware as openApiValidator } from "express-openapi-validator";
 import { loadStations } from "@slackwater/database";
+import { findCurrentStation } from "slackwater";
 import {
   createApp,
   createRoutes,
@@ -166,13 +167,22 @@ describe("GET /currents/timeline", () => {
     const speeds = response.body.timeline.map((p: { speed: number }) => p.speed);
     expect(Math.min(...speeds)).toBeLessThan(0);
     expect(Math.max(...speeds)).toBeGreaterThan(0);
+    const station = await findCurrentStation(response.body.station.id);
+    const expected = station.getTimelinePrediction({
+      start: new Date(span.start),
+      end: new Date(span.end),
+    }).timeline;
+    expect(response.body.timeline).toEqual(
+      expected.map((point) => ({ ...point, time: point.time.toISOString() })),
+    );
+    expect(expected.some((point) => point.magnitude! > Math.abs(point.speed))).toBe(true);
     for (const point of response.body.timeline) {
-      expect(point.magnitude).toBe(Math.abs(point.speed));
-      if (point.speed === 0) expect(point).not.toHaveProperty("direction");
-      else
-        expect(point.direction).toBe(
-          point.speed > 0 ? response.body.floodDirection : response.body.ebbDirection,
-        );
+      expect(point.magnitude).toBeGreaterThanOrEqual(Math.abs(point.speed) - 1e-10);
+      if (point.magnitude === 0) expect(point).not.toHaveProperty("direction");
+      else {
+        expect(point.direction).toBeGreaterThanOrEqual(0);
+        expect(point.direction).toBeLessThan(360);
+      }
     }
   });
 });
@@ -608,6 +618,18 @@ describe("mounting", () => {
   describe("createCurrentRoutes", () => {
     const parent = express();
     parent.use("/api/currents", createCurrentRoutes());
+
+    test("documents the current fields returned for a NOAA vector station", async () => {
+      const station = await request(parent).get("/api/currents/stations/noaa/PUG1741");
+      const spec = await request(parent).get("/api/currents/openapi.json");
+      expect(station.status).toBe(200);
+      const current = spec.body.components.schemas.CurrentStation.allOf.find(
+        (part: { properties?: { current?: unknown } }) => part.properties?.current,
+      ).properties.current.properties;
+      expect(Object.keys(current)).toEqual(
+        expect.arrayContaining(Object.keys(station.body.current)),
+      );
+    });
 
     test("serves currents under the mount path", async () => {
       const response = await request(parent).get("/api/currents/stations/noaa/PUG1701");

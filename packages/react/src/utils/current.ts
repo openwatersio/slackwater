@@ -3,7 +3,7 @@ import { spokenTime } from "./time.js";
 import { KNOT_ANCHORS, rampColor } from "./color.js";
 import { UNIT_MS, interpolate, targetsWithin, type Stop } from "./scrubber.js";
 
-/** A run of time around slack when the current stays within the boat-speed threshold. */
+/** A run around a major-axis zero where the along-axis speed stays within the threshold. */
 export interface SlackWindow {
   start: Date;
   end: Date;
@@ -12,7 +12,7 @@ export interface SlackWindow {
 /** What shows in place of a strip with fewer than two samples. */
 export const EMPTY_MESSAGE = "No current predictions for this period.";
 
-/** The app's default boat-speed threshold for slack windows, in knots. */
+/** The default major-axis speed threshold for axis windows, in knots. */
 export const DEFAULT_SLACK_THRESHOLD = 0.5;
 
 /**
@@ -244,10 +244,10 @@ export function spokenReading(
   const set =
     reading.direction === undefined || reading.state === "Slack"
       ? []
-      : [`setting ${compass16(reading.direction)}`];
+      : [`published phase bearing ${compass16(reading.direction)}`];
   return [
-    reading.state,
-    `${formatSpeed(reading.speed, locale)} knots`,
+    reading.state === "Slack" ? "Axis slack" : reading.state,
+    `${formatSpeed(reading.speed, locale)} knots along the major axis`,
     ...set,
     spokenTime(time, timeZone, locale),
   ].join(", ");

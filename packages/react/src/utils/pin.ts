@@ -36,9 +36,9 @@ export interface PinState {
   tone: PinTone;
   /** The gauge's fill, 0 to `GAUGE_BUCKETS`. */
   bucket?: number;
-  /** Degrees true the arrow points: the set the water flows toward. */
+  /** The published flood or ebb bearing in degrees true. */
   bearing?: number;
-  /** Formatted magnitude, paired with its unit for framed maps. */
+  /** Formatted height or major-axis speed, paired with its unit for framed maps. */
   reading?: string;
   unit?: string;
 }
@@ -106,8 +106,8 @@ export function tidePinState(
 }
 
 /**
- * A current pin: from the reading zoom an arrow toward the set, green at a
- * predicted Slack instant and otherwise the lifted ramp at its speed. Below
+ * A current pin: from the reading zoom an arrow along the published phase bearing, green at a
+ * predicted major-axis zero and otherwise the lifted ramp at its speed. Below
  * that zoom, or with no published set for this direction, it is a dot in the
  * same color.
  */
@@ -127,7 +127,7 @@ export function currentPinState(
   if (!detailed) return { shape: "dot", tone };
   const bearing = speed >= 0 ? directions.flood : directions.ebb;
   const reading = formatSpeed(speed, locale);
-  const unit = "kn";
+  const unit = "kn axis";
   return bearing === undefined
     ? { shape: "dot", tone, reading, unit }
     : { shape: "arrow", tone, bearing, reading, unit };

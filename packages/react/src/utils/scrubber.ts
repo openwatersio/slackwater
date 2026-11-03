@@ -138,13 +138,13 @@ const SPOKEN: Record<StopKind, string> = {
   Low: "Low tide",
   "Fastest rise": "Fastest rising tide",
   "Fastest fall": "Fastest falling tide",
-  Slack: "Slack current",
-  "Slack window": "Slack window",
-  "Slack window closes": "Slack window closes",
-  Flood: "Flood current",
-  Ebb: "Ebb current",
-  "Max flood": "Maximum flood current",
-  "Max ebb": "Maximum ebb current",
+  Slack: "Major-axis slack",
+  "Slack window": "Major-axis window",
+  "Slack window closes": "Major-axis window closes",
+  Flood: "Flood along the major axis",
+  Ebb: "Ebb along the major axis",
+  "Max flood": "Maximum flood along the major axis",
+  "Max ebb": "Maximum ebb along the major axis",
   Sunrise: "Sunrise",
   Sunset: "Sunset",
 };
@@ -187,7 +187,7 @@ export interface Commentary {
   stop: Stop;
   /** Compact countdown: "28m", "3h 28m". */
   duration: string;
-  /** The whole relationship for screen readers: "Maximum flood current in 28 minutes". */
+  /** The whole relationship for screen readers: "Maximum flood along the major axis in 28 minutes". */
   spoken: string;
 }
 

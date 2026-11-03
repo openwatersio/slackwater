@@ -30,7 +30,7 @@ export interface StationCardProps {
    * modified or middle click opens the link as usual.
    */
   onSelect?: (station: CardStation) => void;
-  /** Boat-speed threshold for a current's slack windows, in knots. */
+  /** Major-axis speed threshold for a current's axis windows, in knots. */
   threshold?: number;
   /** The current instant; defaults to the clock. Pass it to render deterministically. */
   now?: number;

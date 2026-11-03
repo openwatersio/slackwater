@@ -289,7 +289,11 @@ export function nextStopComment(t: number, stops: Stop[], locale?: string): Comm
     c && {
       content: (
         <>
-          {c.stop.label === "Slack window closes" ? "Slack window" : c.stop.label}
+          {c.stop.label === "Slack"
+            ? "Axis slack"
+            : c.stop.label === "Slack window" || c.stop.label === "Slack window closes"
+              ? "Axis window"
+              : c.stop.label}
           <StopIcon kind={c.stop.label} />
           {c.duration}
         </>

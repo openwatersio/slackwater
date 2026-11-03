@@ -111,7 +111,9 @@ Heights are above the station's chart datum, which the page names. A station who
 
 ### `<CurrentStation>`
 
-A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb above the Moon and Sun tiles, the week's slacks and maxima with their set, where the predictions come from, the station's details, and the nearest stations. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. Use the API beta from the same release as these components. It must include attribution and license fields on station listings, tide availability flags, and direct lookups for unprefixed CHS records; the published API 1.0.0-beta.4 does not include those additions.
+Current speeds and windows describe flow along the major axis. Bearings are the published flood/ebb headings and need not be reciprocal. Axis slack is a zero of that component; crossing flow can remain. The window threshold does not limit total vector magnitude.
+
+A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb above the Moon and Sun tiles, the week's axis zeros and maxima with their phase bearings, where the predictions come from, the station's details, and the nearest stations. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. Use the API beta from the same release as these components. It must include attribution and license fields on station listings, tide availability flags, and direct lookups for unprefixed CHS records; the published API 1.0.0-beta.4 does not include those additions.
 
 ```tsx
 <CurrentStation id="noaa/PUG1701" />
@@ -121,7 +123,7 @@ A tidal current station's page, with the same layout as `<TideStation>`: a `<Cur
 | Prop              | Type                | Default | Description                                                        |
 | ----------------- | ------------------- | ------- | ------------------------------------------------------------------ |
 | `id`              | `string`            | —       | Station ID, optionally with a depth bin (e.g. `"noaa/EPT0003@11"`) |
-| `threshold`       | `number`            | `0.5`   | Boat speed in knots that sizes the slack windows                   |
+| `threshold`       | `number`            | `0.5`   | Major-axis speed in knots that sizes the axis windows              |
 | `onStationSelect` | `(station) => void` | —       | Called with a nearby station when it is picked                     |
 | `className`       | `string`            | —       | Extra classes for the outer element                                |
 
@@ -157,7 +159,7 @@ A tide timeline that scrolls under a fixed reading line. The lead reads the heig
 
 ### `<CurrentScrubber>`
 
-The current timeline: the speed, set, and state at the selected moment, blue comfort windows sized by a boat-speed threshold and short green strokes at the exact slack instants, a curve threaded by speed, and the speed and set at each maximum. The lead says Slack only within a second of a predicted zero; the window does not hide Flooding, Ebbing or a maximum. The pill walks through window opening, zero, window closing and maxima, competing with sunrise and sunset. A zero threshold turns windows off while retaining exact slacks. Window edges follow the signed sampled curve. Touching or overlapping windows merge; a continuous window spanning several slacks shows their exact times in green, while an ordinary window shows its opening. Maximum flood and ebb times appear on a separate gray row beneath the green Slack times. Without a window, the curve stays yellow. Used by `<CurrentStation>`, and available on its own.
+The current timeline: major-axis speed, the published phase bearing and state at the selected moment, blue axis windows sized by an along-axis speed threshold and short green strokes at the exact slack instants, a curve threaded by speed, and the speed and set at each maximum. The lead says Axis slack only within a second of a predicted major-axis zero; the window does not hide Flooding, Ebbing or a maximum. The pill walks through window opening, zero, window closing and maxima, competing with sunrise and sunset. A zero threshold turns windows off while retaining exact slacks. Window edges follow the signed sampled curve. Touching or overlapping windows merge; a continuous window spanning several slacks shows their exact times in green, while an ordinary window shows its opening. Maximum flood and ebb times appear on a separate gray row beneath the green axis-zero times. Without a window, the curve stays yellow. Used by `<CurrentStation>`, and available on its own.
 
 ```tsx
 <CurrentScrubber
@@ -178,7 +180,7 @@ The current timeline: the speed, set, and state at the selected moment, blue com
 | `latitude`   | `number`                 | —               | Station latitude, for sunrise and sunset                                                                                   |
 | `longitude`  | `number`                 | —               | Station longitude, for sunrise and sunset                                                                                  |
 | `directions` | `{ flood?, ebb? }`       | `{}`            | Flood and ebb set in degrees true                                                                                          |
-| `threshold`  | `number`                 | `0.5`           | Boat speed in knots that sizes the slack windows                                                                           |
+| `threshold`  | `number`                 | `0.5`           | Major-axis speed in knots that sizes the axis windows                                                                      |
 | `locale`     | `string`                 | reader's locale | BCP 47 locale for clocks and dates                                                                                         |
 | `now`        | `number`                 | the clock       | The current instant in ms; pass it to render deterministically                                                             |
 | `className`  | `string`                 | —               | Extra classes for the outer element                                                                                        |
@@ -207,7 +209,7 @@ The tide now, after the app's small home-screen widget: the station's name, the 
 
 ### `<StationCard>`
 
-A station's card, after the app's: its name and region, the reading now (height and rising or falling for a tide; speed, flooding, ebbing, or slack, and the set for a current), and a curve from one and a half swings back to two and a half ahead with each high, low, maximum, and slack window. The card loads its own predictions once it scrolls near the viewport, with a skeleton until then. A station the API can't serve shows only its name and region. The card has no room for its station's credit, so put a `<StationCredits>` under the cards you show. Current cards say Slack only within a second of a predicted zero, show comfort windows in blue, and mark exact slacks with short green strokes even when the comfort window is off.
+A station's card, after the app's: its name and region, the reading now (height and rising or falling for a tide; major-axis speed, phase, and axis bearing for a current), and a curve from one and a half swings back to two and a half ahead with each high, low, maximum, and slack window. The card loads its own predictions once it scrolls near the viewport, with a skeleton until then. A station the API can't serve shows only its name and region. The card has no room for its station's credit, so put a `<StationCredits>` under the cards you show. Current cards say Axis slack only within a second of a predicted major-axis zero, show axis windows in blue, and mark exact axis zeros with short green strokes even when the window is off.
 
 ```tsx
 <StationCard station={station} onSelect={(station) => navigate(station)} />
@@ -220,7 +222,7 @@ A station's card, after the app's: its name and region, the reading now (height 
 | `distance`  | `number`            | —         | Kilometers away, shown in nautical miles                                                                                                                                               |
 | `href`      | `string`            | —         | Makes the card a link                                                                                                                                                                  |
 | `onSelect`  | `(station) => void` | —         | Called when the card is activated; makes it a button without `href`. With `href`, a plain click calls it in place of following the link, and a modified or middle click opens the link |
-| `threshold` | `number`            | `0.5`     | Boat speed in knots that sizes a current's slack windows                                                                                                                               |
+| `threshold` | `number`            | `0.5`     | Major-axis speed in knots that sizes a current's axis windows                                                                                                                          |
 | `now`       | `number`            | the clock | The current instant in ms; pass it to render deterministically                                                                                                                         |
 | `className` | `string`            | —         | Extra classes for the card                                                                                                                                                             |
 

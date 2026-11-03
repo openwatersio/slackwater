@@ -49,7 +49,7 @@ export interface CurrentScrubberProps extends Pick<ScrubberProps, "onSelect" | "
   latitude: number;
   longitude: number;
   directions?: Directions;
-  /** Boat-speed threshold for slack windows, in knots. */
+  /** Major-axis speed threshold for axis windows, in knots. */
   threshold?: number;
   /** BCP 47 locale for clocks and dates; defaults to the reader's. */
   locale?: string;
@@ -347,7 +347,9 @@ function CurrentStrip({
                 className="flex items-center gap-1.5 text-[13px] font-semibold"
                 aria-hidden="true"
               >
-                <span className="font-medium opacity-85">{reading.state}</span>
+                <span className="font-medium opacity-85">
+                  {slack ? "Axis slack" : reading.state}
+                </span>
                 <span
                   className="flex items-center gap-1"
                   style={{ color: slack ? C.go : reading.speed >= 0 ? C.flood : C.ebb }}
@@ -357,7 +359,7 @@ function CurrentStrip({
                   ) : reading.direction !== undefined ? (
                     <>
                       <SetArrow direction={reading.direction} size={13} />
-                      {compass16(reading.direction)}
+                      Phase {compass16(reading.direction)}
                     </>
                   ) : null}
                 </span>
@@ -370,7 +372,7 @@ function CurrentStrip({
                 <span className="text-[44px] leading-none font-medium">
                   {formatSpeed(reading.speed, locale)}
                 </span>
-                <span className="text-[22px] font-light">kn</span>
+                <span className="text-[22px] font-light">kn axis</span>
               </div>
               <div className="text-xs tabular-nums whitespace-pre" aria-hidden="true">
                 {leadTime(t, timezone, locale)}

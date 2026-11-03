@@ -34,7 +34,7 @@ import { SummaryTiles } from "./SummaryTiles.js";
 export interface CurrentStationProps {
   /** "source/id", optionally with a depth bin: "noaa/PUG1701", "noaa/EPT0003@11". */
   id: string;
-  /** Boat-speed threshold for slack windows, in knots. */
+  /** Major-axis speed threshold for axis windows, in knots. */
   threshold?: number;
   /** Called when a nearby station is picked; its `kind` says which page it belongs on. */
   onStationSelect?: (station: CardStation) => void;
@@ -46,16 +46,18 @@ const degrees = (d: number) => `${Math.round(d)}°T`;
 /** Where the speeds come from, after the app's current footer. */
 function provenance(station: CurrentStationInfo, reference: string | undefined) {
   const flood = station.current?.flood_direction;
-  const sets = flood === undefined ? "" : ` Flood sets ${degrees(flood)}.`;
+  const sets = flood === undefined ? "" : ` Flood bearing ${degrees(flood)}.`;
+  const axis =
+    " Speeds and windows use the major axis. Bearings are published flood/ebb headings. Crossing flow can remain.";
   if (station.type === "subordinate") {
     const whose = reference ? `${reference}'s ` : "";
-    return `NOAA subordinate station: ${whose}slacks and maxima, corrected by published offsets.${sets}`;
+    return `NOAA subordinate station: ${whose}slacks and maxima, corrected by published offsets.${sets}${axis}`;
   }
   if (station.id?.startsWith("noaa/")) {
-    return `NOAA harmonic current prediction.${sets} Speeds use knots.`;
+    return `NOAA harmonic current prediction.${sets}${axis}`;
   }
   const source = station.source?.name;
-  return source ? `Harmonic constants from ${source}.${sets}` : sets.trim() || undefined;
+  return source ? `Harmonic constants from ${source}.${sets}${axis}` : `${sets}${axis}`.trim();
 }
 
 /** The tiles at the scrubber's moment: the maximum the water is heading for, and the Moon. */
@@ -108,7 +110,7 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
       events.data?.events.map((e): ScheduleEntry => {
         const time = e.time.getTime();
         if (e.kind === "slack") return { time, pill: "slack" };
-        const value = `${formatSpeed(e.speed, locale)} kn`;
+        const value = `${formatSpeed(e.speed, locale)} kn axis`;
         return e.kind === "maxFlood"
           ? { time, pill: "flood", value, direction: flood }
           : { time, pill: "ebb", value, direction: ebb };
@@ -187,11 +189,11 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
               {s.type !== "subordinate" && meanFlow !== undefined && (
                 <>
                   <DetailRow
-                    label="Mean flow"
+                    label="Major-axis mean flow"
                     value={
                       Math.abs(meanFlow) < 0.05
                         ? "None measured"
-                        : `${formatSpeed(meanFlow, locale)} kn toward ${meanFlow > 0 ? "flood" : "ebb"}`
+                        : `${formatSpeed(meanFlow, locale)} kn axis toward ${meanFlow > 0 ? "flood" : "ebb"}`
                     }
                   />
                   <DetailNote>
