@@ -177,7 +177,7 @@ const predictor = createCurrentPredictor(constituents, {
   meanFlow: -0.377, // knots, added as a constant term
 });
 
-// Signed speed samples: { time, hour, speed }
+// Samples: { time, hour, speed, magnitude, direction? }
 predictor.getTimelinePrediction({ start, end, timeFidelity: 600 });
 
 // Slack, max flood, and max ebb events in time order:
@@ -186,6 +186,19 @@ predictor.getEventsPrediction({ start, end });
 ```
 
 Max flood and ebb are velocity extrema classified by the sign of velocity (NOAA's convention), and slack is the value-zero of the velocity curve. Both directions are optional: leave one out when the station doesn't publish it, and events for that phase carry no `direction`. Events are extracted per UTC day with an 8-hour search margin, so an event list never depends on the requested window.
+
+For two-dimensional predictions, pass `minorConstituents` (NOAA `minorAmplitude` and `minorPhaseGMT`), `minorMeanFlow` (NOAA `minorMeanSpeed`, default 0), and `azimuth` (NOAA `azi`, default `floodDirection`). Both axes use the selected nodal corrections. `speed` remains the signed major-axis component; `magnitude` is `hypot(u, v)` in knots and `direction` is the vector bearing in degrees true, normalized to `[0, 360)`. The positive minor axis is [90 degrees clockwise from the major axis](https://tidesandcurrents.noaa.gov/publications/techrpt21.pdf). A nonzero minor mean flow also enables vector prediction without minor harmonics.
+
+Empty minor arrays, unknown constituent names, and zero minor amplitudes without mean cross-flow use the one-axis fallback. Without minor-axis data, every timeline point has `magnitude: abs(speed)` and the published flood or ebb direction for its sign. Subordinates use their own phase directions. A zero vector has no direction; a vector whose azimuth is unknown also has no direction. In a rotary current, a major-axis slack can have nonzero magnitude and a direction. Events and `slackWindows` always use the major axis. The `CurrentPoint` type permits caller-synthesized points without `magnitude`; engine timelines always supply it.
+
+```ts
+const rotary = createCurrentPredictor(constituents, {
+  minorConstituents,
+  minorMeanFlow: -0.15,
+  azimuth: 350,
+});
+const vectors = rotary.getTimelinePrediction({ start, end });
+```
 
 Subordinate current stations have no constituents of their own; their events are a reference station's events shifted and scaled by NOAA Current-Tables offsets. Time adjustments are seconds here (NOAA publishes minutes — multiply by 60), and a slack takes the offset of the phase it precedes:
 
@@ -207,6 +220,8 @@ const subordinate = createSubordinateCurrentPredictor(reference, {
 A subordinate's timeline is a half-cosine drawn through its event knots — a drawing of the table, not a prediction of the water between its rows. `reduceCurrentEvents(refEvents, offsets)` exposes the reduction for callers that already hold the reference's events, and `currentSpeedAt(events, time)` samples the same half-cosine at one instant.
 
 `useCurrentStation(station, { reference })` wraps a `@slackwater/database` current station (`kind: "current"`), predicting harmonically when the station has its own constituents and reducing the given reference station otherwise — the database's offset minutes are converted internally.
+
+Caller-supplied station records can include `current.minor_constituents`, `current.minor_mean_flow`, and `current.azimuth`. Bundled station data contains only the major axis, so bundled predictions use the one-axis fallback.
 
 `slackWindows(timeline, threshold)` returns the runs of time where |speed| stays below `threshold` knots around a reversal, with interpolated band crossings. A lull that never reverses is weak water, not slack, and does not count; a window still open at the frame edge is kept and ends at the edge.
 

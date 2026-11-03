@@ -72,10 +72,24 @@ let slacks = dp.slacks(from: start, to: end)   // slack water (velocity value-ze
 let maxima = dp.maxima(from: start, to: end)   // max flood / max ebb, labeled by velocity sign
 ```
 
+`CurrentPoint.speed` is signed major-axis velocity. Every point also has `magnitude` in knots and optional `direction` in degrees true, normalized to `[0, 360)`. For vector predictions, supply `minorConstituents`, `minorMeanFlow` (default 0), and `azimuth` (default `floodDirection`) to `CurrentStation`. Minor amplitudes are knots and phases are NOAA `minorPhaseGMT` degrees; positive minor flow is 90 degrees clockwise from the major axis. A nonzero minor mean flow enables vector prediction even without minor harmonics.
+
+```swift
+let rotary = CurrentStation(constituents: major, floodDirection: 20, ebbDirection: 205,
+    minorConstituents: minor, minorMeanFlow: -0.15, azimuth: 350)
+let vectors = rotary.speeds(from: start, to: end)
+```
+
+`CurrentStation` and `SubordinateStation` accept optional flood and ebb bearings. Pass `nil` for unknown bearings instead of substituting zero. Their existing `floodDirection` and `ebbDirection` properties remain `Double` with a zero placeholder when missing; use the optional timeline `direction` to display a bearing. Empty or ineffective minor constituents without mean cross-flow use the one-axis fallback. Without minor-axis data, magnitude is `abs(speed)` and direction is the published flood or ebb bearing. A zero vector has no direction. A major-axis slack can have nonzero vector magnitude; all event calculations use the major axis. `CurrentPoint(time:speed:)` defaults to absolute speed and no direction for caller-synthesized series.
+
 Subordinate stations (`SubordinateStation`) warp a reference station's events by NOAA's
 two-slack / speed-ratio offsets. `speeds(from:to:step:)` draws a half-cosine through those
 events, on the same timeline as a harmonic station's — NOAA publishes no curve for a
 subordinate, so it is a drawing of the table, not a prediction between its rows.
+
+Subordinate timeline points use absolute speed for magnitude and the subordinate's own flood or ebb direction.
+
+Before adopting timeline directions, callers that used `metadata.floodDirection ?? 0` or `metadata.ebbDirection ?? 0` must pass the optional metadata values directly to the station initializer. Zero is a valid north bearing, so the engine cannot identify a substituted zero as missing data.
 
 ### Harmonic fitting
 

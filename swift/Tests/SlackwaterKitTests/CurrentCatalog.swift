@@ -58,7 +58,7 @@ struct CurrentCatalog: Sendable {
             constituents: (r.constituents ?? []).map {
                 HarmonicConstituent(name: $0.name, amplitude: $0.amplitude, phase: $0.phase)
             },
-            floodDirection: r.floodDirection ?? 0, ebbDirection: r.ebbDirection ?? 0,
+            floodDirection: r.floodDirection, ebbDirection: r.ebbDirection,
             offset: r.offset ?? 0)
     }
 
@@ -71,6 +71,6 @@ struct CurrentCatalog: Sendable {
             slackBeforeFloodOffset: r.slackBeforeFloodOffset ?? 0, slackBeforeEbbOffset: r.slackBeforeEbbOffset ?? 0,
             floodTimeOffset: r.floodTimeOffset ?? 0, ebbTimeOffset: r.ebbTimeOffset ?? 0,
             floodSpeedRatio: r.floodSpeedRatio ?? 1, ebbSpeedRatio: r.ebbSpeedRatio ?? 1,
-            floodDirection: r.floodDirection ?? 0, ebbDirection: r.ebbDirection ?? 0))
+            floodDirection: r.floodDirection, ebbDirection: r.ebbDirection))
     }
 }

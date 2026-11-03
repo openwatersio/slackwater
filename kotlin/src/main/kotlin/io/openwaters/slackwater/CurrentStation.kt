@@ -8,20 +8,43 @@ internal fun direction(value: Double?): Double? {
     return value?.let(::wrap)
 }
 
+internal fun axialDirection(speed: Double, flood: Double?, ebb: Double?): Double? =
+    if (speed > 0) flood else if (speed < 0) ebb else null
+
 /** Signed major-axis velocity in knots: positive flood, negative ebb. Directions are true degrees. */
-class CurrentStation(
+class CurrentStation @JvmOverloads constructor(
     constituents: List<HarmonicConstituent>,
     floodDirectionDegrees: Double? = null,
     ebbDirectionDegrees: Double? = null,
-    val offsetKnots: Double = 0.0
+    val offsetKnots: Double = 0.0,
+    minorConstituents: List<HarmonicConstituent>? = null,
+    minorOffsetKnots: Double = 0.0,
+    azimuthDegrees: Double? = null
 ) {
     private val harmonic = Station(constituents, offsetKnots)
+    private val minor = if (minorOffsetKnots != 0.0 || minorConstituents.orEmpty().any { it.amplitude != 0.0 && Catalog.speed(it.name) != null })
+        Station(minorConstituents.orEmpty(), minorOffsetKnots) else null
     val floodDirectionDegrees = direction(floodDirectionDegrees)
     val ebbDirectionDegrees = direction(ebbDirectionDegrees)
+    private val azimuth = direction(azimuthDegrees) ?: this.floodDirectionDegrees
     internal val phaseSearchLimitSeconds = harmonic.phaseSearchLimitSeconds
 
-    fun speeds(from: Instant, to: Instant, stepSeconds: Double = 600.0): List<CurrentPoint> =
-        harmonic.heights(from, to, stepSeconds).map { CurrentPoint(it.time, it.heightMetres) }
+    fun speeds(from: Instant, to: Instant, stepSeconds: Double = 600.0): List<CurrentPoint> {
+        val major = harmonic.heights(from, to, stepSeconds)
+        val cross = minor?.heights(from, to, stepSeconds)
+        return major.mapIndexed { index, point ->
+            val speed = point.heightMetres
+            if (cross == null) CurrentPoint(point.time, speed,
+                directionDegrees = axialDirection(speed, floodDirectionDegrees, ebbDirectionDegrees))
+            else {
+                val v = cross[index].heightMetres
+                val magnitude = hypot(speed, v)
+                // NOAA's positive minor axis is clockwise from the major axis (https://tidesandcurrents.noaa.gov/publications/techrpt21.pdf, p. 37).
+                val bearing = if (magnitude == 0.0 || azimuth == null) null else wrap(azimuth + atan2(v, speed) / D2R)
+                CurrentPoint(point.time, speed, magnitude, bearing)
+            }
+        }
+    }
     fun slacks(from: Instant, to: Instant) = events(from, to).filter { it.kind == CurrentEventKind.SLACK }
     fun maxima(from: Instant, to: Instant) = events(from, to).filter { it.kind != CurrentEventKind.SLACK }
 

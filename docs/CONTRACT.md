@@ -46,7 +46,7 @@ Subordinate current time adjustments are seconds in all low-level engines (`Subo
 
 API names and return shapes do not need to match across languages. Units, signs, event kinds, and numerical results do.
 
-Kotlin time offsets and steps are seconds. Kotlin current events crop covering UTC-day results to the requested bounds; TypeScript returns the whole covering days. The harmonic current parity fixture includes events beyond its nominal end, so Kotlin compares the fixture's full event span. Kotlin harmonic tide extrema retain Swift's outward 600-second search grid. Kotlin uses TypeScript's Illinois derivative root refinement for curve parity; Swift's bisection can shift times by a fraction of a second within the shared tolerance. Kotlin current directions are optional and present only at maxima with a published direction.
+Kotlin time offsets and steps are seconds. Kotlin current events crop covering UTC-day results to the requested bounds; TypeScript returns the whole covering days. The harmonic current parity fixture includes events beyond its nominal end, so Kotlin compares the fixture's full event span. Kotlin harmonic tide extrema retain Swift's outward 600-second search grid. Kotlin uses TypeScript's Illinois derivative root refinement for curve parity; Swift's bisection can shift times by a fraction of a second within the shared tolerance. Kotlin current event directions are optional and present only at maxima with a published direction. Timeline points in all three engines include magnitude and optional direction; signed major-axis speed drives events and slack windows.
 
 Kotlin subordinate tide and current curves expand their event context until corrected knots bracket both timeline boundaries. Expansion is bounded by the longest active constituent period. At each context a tide curve uses the reference's raw turning points when its filtered extremes don't bracket the timeline, as Swift does at its fixed 15-hour pad; an unresolved curve from an oscillating reference fails explicitly. Non-oscillating empty event tables retain their zero curves. Kotlin subordinate slack reduction extends its following-phase context for short queries when needed, up to the longest active constituent period, and fails explicitly if the required phase remains unavailable.
 
@@ -58,7 +58,7 @@ Kotlin subordinate tide and current curves expand their event context until corr
 - High water is a local maximum and low water is a local minimum. Flood and ebb current events are classified from the sign of velocity, not from alternating labels.
 - Fixed subordinate corrections add to height; ratio corrections multiply height. Unequal high and low time corrections may reorder events, so results are returned in time order.
 - A subordinate current uses the offset for the phase following each slack: slack-before-flood or slack-before-ebb.
-- Some current stations publish no flood or ebb direction. TypeScript takes directions as optional and leaves `direction` off events for a phase without one, because 0 would read as due north. Swift current events carry no direction, and the Swift `CurrentStation` and `SubordinateStation` initializers require one, so a Swift caller without a published direction passes a placeholder and must not display it.
+- Some current stations publish no flood or ebb direction. TypeScript takes directions as optional and leaves `direction` off events for a phase without one, because 0 would read as due north. Swift current events carry no direction. The Swift `CurrentStation` and `SubordinateStation` direction parameters are optional; callers pass nil for an unpublished bearing. Their numeric phase properties retain a zero placeholder for source compatibility, while timeline calculations preserve the missing value. Timeline points omit direction when the vector is zero or the bearing is unknown.
 - Current validation applies strict event tolerances only at navigationally significant speeds of at least 0.75 kn. Weak, nearly flat extrema have unstable event times and are reported without gating the suite.
 
 ## Cross-port parity
@@ -72,6 +72,7 @@ These gates compare Swift and Kotlin results with fixtures generated from the Ty
 | Constituents     | `V0`, compound `f`, and `u`     | `< 1e-6`                                    |
 | Tide timeline    | Timestamp and height            | `< 0.5 s`; maximum height error `< 1e-6 m`  |
 | Current timeline | Timestamp and signed speed      | `< 0.5 s`; maximum speed error `< 1e-6 kn`  |
+| Current vector   | Magnitude and direction         | `< 1e-6 kn`; `< 1e-5°` circular difference  |
 | Current events   | Count, kind, time, and speed    | Count and kind exact; `< 60 s`; `< 0.02 kn` |
 | Tide extremes    | Count, kind, time, and height   | Count and kind exact; `< 60 s`; `< 0.02 m`  |
 
@@ -86,6 +87,8 @@ These gates compare the Swift and Kotlin implementations with checked-in NOAA CO
 | Harmonic currents              | PUG1741                                         | `< 20 min`; `< 0.30 kn` | `9.7 min`; `0.055 kn`  |
 | Significant home-pass currents | Six Salish Sea stations, events `>= 0.75 kn`    | `< 20 min`; `< 0.35 kn` | `15.3 min`; `0.278 kn` |
 | Subordinate currents           | PCT0236 and nine-station batch                  | `< 30 min`; `< 0.40 kn` | `7.7 min`; `0.101 kn`  |
+
+TypeScript also checks `fixtures/currents-vector-noaa.json` against NOAA CO-OPS `vel_type=speed_dir` output for PUG1741 bin 27 over 48 hourly samples. The gate is `< 0.15 kn` magnitude error and `< 5°` circular direction error when NOAA magnitude is at least 0.75 kn. The fixture records both NOAA source URLs; it is independent of Slackwater-generated parity values.
 
 ## What a ranking window can claim
 
@@ -118,4 +121,4 @@ A consumer that gates a range claim on the annual constituent will hide it at ev
 | Extreme ranking against a station's history         | —          | yes   | —      |
 | Slack derived from a tide reference's lag           | —          | yes   | —      |
 
-Asymmetric features remain outside the parity gates. They enter the shared contract when participating ports implement them and a common fixture can exercise them. `fixtures/currents-parity.json` is generated from the TypeScript engine and carries the current timeline and event vectors for Swift and Kotlin parity gates; all three ports already share the NOAA golden current fixtures and their physical-accuracy tolerances above.
+Asymmetric features remain outside the parity gates. They enter the shared contract when participating ports implement them and a common fixture can exercise them. `fixtures/currents-parity.json` is generated from the TypeScript engine and carries the signed current timeline and events for Swift and Kotlin parity gates. `fixtures/currents-vector.json` carries three-day magnitude and direction parity values with synthetic minor-axis constants; all three ports already share the NOAA golden current fixtures and their physical-accuracy tolerances above.

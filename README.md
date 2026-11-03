@@ -235,13 +235,15 @@ const options = {
 const { station, events } = await getCurrentEventsPrediction(options);
 // { time: Date, speed: -5.2, kind: "maxEbb", direction: 281.5 }
 
-// The signed speed curve, sampled every 10 minutes by default.
+// Signed speed, magnitude, and direction when known, sampled every 10 minutes.
 const { timeline } = await getCurrentTimelinePrediction(options);
 
 // The windows where |speed| stays under a threshold around a reversal.
 const windows = slackWindows(timeline, 0.5);
 // [{ start: Date, end: Date }, ...]
 ```
+
+Timeline points include nonnegative `magnitude` in knots and optional `direction` in degrees true. Bundled stations use absolute signed speed and their published phase bearing; the [engine](packages/engine/README.md#current-prediction) accepts minor-axis constants for two-dimensional predictions.
 
 Current stations can also be found with `nearestCurrentStation`, `currentStationsNear`, and `findCurrentStation`, mirroring the tide station functions. Subordinate current stations (time offsets and speed ratios against a reference station) are resolved automatically.
 

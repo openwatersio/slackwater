@@ -78,3 +78,27 @@ writeJSON(join(FIX, "currents-parity.json"), {
     events: events(reduced),
   },
 });
+
+const vectorInputs = {
+  constituents: harmonic.constituents,
+  minorConstituents: [
+    { name: "M2", amplitude: 0.7, phase: 90 },
+    { name: "K1", amplitude: 0.2, phase: 210 },
+  ],
+  meanFlow: 0.3,
+  minorMeanFlow: -0.15,
+  floodDirection: 20,
+  ebbDirection: 205,
+  azimuth: 350,
+};
+const vectorSpan = { start, end: new Date("2026-06-04T00:00:00Z"), timeFidelity: 10800 };
+writeJSON(join(FIX, "currents-vector.json"), {
+  note: "Synthetic minor-axis constants with PUG1741 major harmonics; TS parity over three days, not NOAA vector predictions. Positive minor flow is 90 degrees clockwise from azimuth.",
+  start: iso(vectorSpan.start),
+  end: iso(vectorSpan.end),
+  timeFidelity: vectorSpan.timeFidelity,
+  ...vectorInputs,
+  timeline: createCurrentPredictor(vectorInputs.constituents, vectorInputs)
+    .getTimelinePrediction(vectorSpan)
+    .map(({ time, speed, magnitude, direction }) => ({ time: iso(time), speed, magnitude, direction })),
+});

@@ -36,6 +36,8 @@ Every function that reads the station database returns a promise, and the databa
 
 ### Currents
 
+`getCurrentTimelinePrediction` returns signed major-axis `speed`, nonnegative `magnitude` in knots, and optional `direction` in degrees true. Bundled stations carry only the major axis, so magnitude is absolute speed and direction is the published flood or ebb bearing; zero vectors and unpublished bearings have no direction. For caller-supplied minor-axis constants, use the [engine's vector predictor](../engine/README.md#current-prediction). Flood, ebb, and slack events use the major axis.
+
 Current predictions are signed speeds in knots along the station's flood axis: positive is flood, negative is ebb, zero is slack.
 
 ```typescript

@@ -88,7 +88,17 @@ val maxima = current.maxima(from, to)
 val astronomy: ConstituentAstronomy? = constituentAstronomy("M2", from)
 ```
 
-The constants here illustrate the API, not a real station. Tide amplitudes, `offsetMetres` and heights are metres; rates are metres per hour. Current amplitudes, `offsetKnots` and speeds are signed knots, positive flood and negative ebb. Phases are GMT degrees. Directions are degrees true, normalized to `[0, 360)`; null means unpublished, and slacks have no direction.
+The constants here illustrate the API, not a real station. Tide amplitudes, `offsetMetres` and heights are metres; rates are metres per hour. Current amplitudes, `offsetKnots` and speeds are signed knots, positive flood and negative ebb. Phases are GMT degrees. Directions are degrees true, normalized to `[0, 360)`; null means unknown. Slack events have no direction.
+
+`CurrentPoint` contains signed `speedKnots`, nonnegative `magnitudeKnots`, and optional `directionDegrees`. To predict the full current vector, pass `minorConstituents`, `minorOffsetKnots` (NOAA `minorMeanSpeed`, default 0), and `azimuthDegrees` (NOAA `azi`, default flood direction). Minor amplitudes are knots and phases are NOAA `minorPhaseGMT` degrees. Positive minor flow is 90 degrees clockwise from the major axis. A nonzero minor mean flow also enables vector prediction without minor harmonics.
+
+```kotlin
+val rotary = CurrentStation(major, floodDirectionDegrees = 20.0, ebbDirectionDegrees = 205.0,
+    minorConstituents = minor, minorOffsetKnots = -0.15, azimuthDegrees = 350.0)
+val vectors = rotary.speeds(from, to)
+```
+
+Empty or ineffective minor constituents without mean cross-flow use the one-axis fallback. Without minor data, magnitude is absolute signed speed and direction is the published flood or ebb bearing. Subordinates use their own phase bearings. Zero vectors and vectors without a known azimuth have no direction. Major-axis slack can have nonzero vector magnitude; event detection uses only the major axis. Existing `CurrentPoint(time, speedKnots)` calls default to absolute speed and no direction. A point stores independent fields: `copy` preserves magnitude and direction unless they are supplied explicitly. When changing signed speed, supply the corresponding magnitude and direction too. Consumers compiled against a previous Kotlin artifact must be rebuilt when upgrading; the compatibility checks cover source consumers.
 
 All numeric inputs must be finite. Steps must be positive, representable at the requested epoch and at least one nanosecond. Timeline and event searches exceeding the indexed work/result range are rejected. Invalid inputs throw `IllegalArgumentException`. Reversed windows return empty lists. Equal timeline bounds produce the samples from outward snapping; event roots on an exact bracket boundary, and current slacks at a node-correction refresh, are not guaranteed. Steps default to 600 seconds; the start is floored and the end ceiled to the step on the UTC epoch grid. No default time zone enters prediction. Station constructors copy caller collections, and requests have independent calculation state.
 
