@@ -153,6 +153,7 @@ A tide timeline that scrolls under a fixed reading line. The lead reads the heig
 | `chartDatum` | `boolean`         | `true`          | `false` when the heights aren't above a chart datum (a response without `datum`), so 0 is unmarked |
 | `locale`     | `string`          | reader's locale | BCP 47 locale for clocks and dates                                                                 |
 | `now`        | `number`          | the clock       | The current instant in ms; pass it to render deterministically                                     |
+| `bounded`    | `boolean`         | `false`         | Pad both ends so every supplied sample can reach the fixed reading line                            |
 | `className`  | `string`          | —               | Extra classes for the outer element                                                                |
 
 ### `<CurrentScrubber>`
@@ -181,7 +182,12 @@ The current timeline: the speed, set, and state at the selected moment, blue com
 | `threshold`  | `number`                 | `0.5`           | Boat speed in knots that sizes the slack windows                                                                           |
 | `locale`     | `string`                 | reader's locale | BCP 47 locale for clocks and dates                                                                                         |
 | `now`        | `number`                 | the clock       | The current instant in ms; pass it to render deterministically                                                             |
+| `bounded`    | `boolean`                | `false`         | Pad both ends so every supplied sample can reach the fixed reading line                                                    |
 | `className`  | `string`                 | —               | Extra classes for the outer element                                                                                        |
+
+Set `bounded` on either scrubber for a finite window supplied by your application, such as one CHS day fetched directly in its browser. The scrubber does not fetch CHS predictions. Empty space on either side lets every supplied sample reach the fixed center line at the same 18 pixels per hour, including on a pane wider than the data. Selections clamp to the first and last samples; no curve is extrapolated. The default remains the continuous multi-day strip. A bounded scrubber displays only its supplied data and does not request or rank a fortnight of predictions. When the clock is outside the supplied span, Now means the nearest available endpoint; changing days or loading another window belongs to the host.
+
+When no following high or low is supplied, the scrubber, station card, and widget derive their trend from the samples. A flat series defaults to rising.
 
 Both scrubbers also take `onSelect(time)`, called as the selected moment changes, `moveTo`, an object whose `time` the strip moves to each time a new object is passed, and `onNow(now)`, called when the reader returns to now.
 

@@ -152,7 +152,7 @@ export interface TideReading {
 /**
  * The lead reading at `time`: High or Low within a second of a turn, where
  * the turn's own height reads; otherwise rising toward a high or falling
- * toward a low, and rising when no later turn is loaded.
+ * toward a low, using the sampled rate when no later turn is loaded.
  */
 export function readTide(
   time: number,
@@ -166,7 +166,7 @@ export function readTide(
   const rate = rateAt(rates, time)!;
   const turn = extremes.find((e) => Math.abs(e.time.getTime() - time) <= 1000);
   if (turn) return { state: turn.high ? "High" : "Low", level: turn.level, up: turn.high, rate };
-  const up = extremes.find((e) => e.time.getTime() > time)?.high ?? true;
+  const up = extremes.find((e) => e.time.getTime() > time)?.high ?? rate >= 0;
   return { state: up ? "Rising" : "Falling", level, up, rate };
 }
 

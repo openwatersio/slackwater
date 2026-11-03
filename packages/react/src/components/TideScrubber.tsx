@@ -44,7 +44,10 @@ const HOUR = 3_600_000;
 const PLOT_DEPTH = G.plotBottom - G.plotTop;
 const GLIDE_MS = 300;
 
-export interface TideScrubberProps extends Pick<ScrubberProps, "onSelect" | "moveTo" | "onNow"> {
+export interface TideScrubberProps extends Pick<
+  ScrubberProps,
+  "onSelect" | "moveTo" | "onNow" | "bounded"
+> {
   timeline: TimelineEntry[];
   extremes: Extreme[];
   timezone: string;
@@ -70,7 +73,7 @@ function openingScale(timeline: TimelineEntry[], now: number): TideScale {
 }
 
 function drawTide(
-  { g, now, past, pastMask, shade, eventTimes, dayChrome }: StripKit,
+  { g, bounded, now, past, pastMask, shade, eventTimes, dayChrome }: StripKit,
   id: string,
   lineGradient: ReactNode,
   timeline: TimelineEntry[],
@@ -91,6 +94,7 @@ function drawTide(
     extremes.map((e) => ({ ...e, time: e.time.getTime() })),
     g.start,
     g.end,
+    bounded,
   );
   const times = thinLabels(turns);
   const nowLevel = now >= g.start && now <= g.end ? levelAt(timeline, now) : undefined;
@@ -242,6 +246,7 @@ function TideStrip({
   locale,
   now,
   className,
+  bounded,
   onSelect,
   moveTo,
   onNow,
@@ -393,6 +398,7 @@ function TideStrip({
   return (
     <Scrubber
       track={track}
+      bounded={bounded}
       timezone={timezone}
       latitude={latitude}
       longitude={longitude}

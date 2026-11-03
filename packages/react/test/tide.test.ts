@@ -157,6 +157,13 @@ describe("rate colors", () => {
 });
 
 describe("readTide", () => {
+  test("flat samples retain the default direction without inventing a high or low", () => {
+    const flat = series([1, 1, 1]);
+    expect(readTide(t0 + H, flat, tideRates(flat, "meters"), [])).toMatchObject({
+      state: "Rising",
+      rate: 0,
+    });
+  });
   const timeline = series([1, 2, 3, 2, 1, 0, 1]);
   const rates = tideRates(timeline, "meters");
   const extremes = [extreme(2, 3.04, true), extreme(5, -0.02, false)];
@@ -184,7 +191,19 @@ describe("readTide", () => {
     });
   });
 
-  test("rising when no later turn is loaded, and nothing outside the timeline", () => {
+  test.each([{ turns: [] }, { turns: [extreme(0, 1, true)] }])(
+    "uses the sampled fall when the following turn is absent: $turns",
+    ({ turns }) => {
+      const falling = series([1, 0.8, 0.6]);
+      const reading = readTide(t0 + H, falling, tideRates(falling, "meters"), turns)!;
+      expect(reading.state).toBe("Falling");
+      expect(reading.up).toBe(false);
+      expect(reading.level).toBe(0.8);
+      expect(reading.rate).toBeCloseTo(-0.2);
+    },
+  );
+
+  test("follows the sampled rise without a later turn and reads nothing outside the timeline", () => {
     expect(readTide(t0 + 5.5 * H, timeline, rates, extremes)?.state).toBe("Rising");
     expect(readTide(t0 - 1, timeline, rates, extremes)).toBeUndefined();
   });
