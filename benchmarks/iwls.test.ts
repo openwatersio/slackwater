@@ -312,16 +312,35 @@ describe("the client", () => {
   });
 
   test("never admits a request before its interval has passed", async () => {
-    // Node schedules timers on a whole-millisecond loop clock, so a bare
-    // setTimeout can fire just short of the gap performance.now() asked for.
-    const p = new Pacer(3);
-    const admitted: number[] = [];
-    for (let i = 0; i < 40; i++) {
+    // #499: a busy loop can delay the consumer's timestamp after admission.
+    // Control the monotonic clock separately so timers can wake before the deadline.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0.25);
+    try {
+      const p = new Pacer(3);
       await p.wait();
-      admitted.push(performance.now());
+      let admitted = false;
+      const waiting = p.wait().then(() => {
+        admitted = true;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+
+      clock.mockReturnValue(3);
+      await vi.advanceTimersByTimeAsync(3);
+      expect(admitted).toBe(false);
+
+      clock.mockReturnValue(3.24);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(admitted).toBe(false);
+
+      clock.mockReturnValue(3.25);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(admitted).toBe(true);
+      await waiting;
+    } finally {
+      clock.mockRestore();
+      vi.useRealTimers();
     }
-    const gaps = admitted.slice(1).map((t, i) => t - admitted[i]);
-    expect(Math.min(...gaps)).toBeGreaterThanOrEqual(3);
   });
 
   test("a cancelled waiter gives up its slot", async () => {
