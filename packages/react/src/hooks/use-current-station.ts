@@ -1,12 +1,7 @@
 import { keepPreviousData, useQuery, type UseQueryOptions } from "@tanstack/react-query";
 import { useSlackwaterConfig } from "../provider.js";
-import {
-  fetchCurrentStations,
-  fetchCurrentStation,
-  fetchCurrentStationEvents,
-  fetchCurrentStationTimeline,
-  type StationsSearchParams,
-} from "../client.js";
+import type { StationsSearchParams } from "../client.js";
+import { resolveDataSource, type SlackwaterDataSource } from "../data-source.js";
 import { queryKeys } from "../query-keys.js";
 import type { CurrentStationSummary } from "../types.js";
 
@@ -20,19 +15,19 @@ export function useCurrentStations(
   params: StationsSearchParams = {},
   options: CurrentStationsQueryOptions = {},
 ) {
-  const { baseUrl } = useSlackwaterConfig();
+  const { dataSource } = useSlackwaterConfig();
   return useQuery({
-    queryKey: queryKeys.currentStations(params),
-    queryFn: () => fetchCurrentStations(baseUrl, params),
+    queryKey: queryKeys.currentStations(params, dataSource.cacheKey),
+    queryFn: () => dataSource.getCurrentStations(params),
     ...options,
   });
 }
 
 export function useCurrentStation(id: string | undefined) {
-  const { baseUrl } = useSlackwaterConfig();
+  const { dataSource } = useSlackwaterConfig();
   return useQuery({
-    queryKey: queryKeys.currentStation(id),
-    queryFn: () => fetchCurrentStation(baseUrl, id!),
+    queryKey: queryKeys.currentStation(id, dataSource.cacheKey),
+    queryFn: () => dataSource.getCurrentStation(id!),
     enabled: !!id,
   });
 }
@@ -43,9 +38,9 @@ export interface CurrentPredictionRange {
 }
 
 export function useCurrentEvents(id: string, range: CurrentPredictionRange | undefined) {
-  const { baseUrl } = useSlackwaterConfig();
+  const { dataSource } = useSlackwaterConfig();
   return useQuery({
-    ...currentEventsQuery(baseUrl, id, range),
+    ...currentEventsQuery(dataSource, id, range),
     enabled: !!range,
     // Predictions for a fixed window never change, and refetching would rebuild the strip.
     staleTime: Infinity,
@@ -55,25 +50,35 @@ export function useCurrentEvents(id: string, range: CurrentPredictionRange | und
 }
 
 /** The events shared by map pins and their station cards. */
-export function currentEventsQuery(baseUrl: string, id: string, range?: CurrentPredictionRange) {
+export function currentEventsQuery(
+  input: string | SlackwaterDataSource,
+  id: string,
+  range?: CurrentPredictionRange,
+) {
+  const source = resolveDataSource(input);
   return {
-    queryKey: queryKeys.currentEvents({ id, ...range }),
-    queryFn: () => fetchCurrentStationEvents(baseUrl, { id, ...range }),
+    queryKey: queryKeys.currentEvents({ id, ...range }, source.cacheKey),
+    queryFn: () => source.getCurrentEvents({ id, ...range }),
   };
 }
 
 /** The current timeline query for a station's window, so a map pin and a card share one cache entry. */
-export function currentTimelineQuery(baseUrl: string, id: string, range?: CurrentPredictionRange) {
+export function currentTimelineQuery(
+  input: string | SlackwaterDataSource,
+  id: string,
+  range?: CurrentPredictionRange,
+) {
+  const source = resolveDataSource(input);
   return {
-    queryKey: queryKeys.currentTimeline({ id, ...range }),
-    queryFn: () => fetchCurrentStationTimeline(baseUrl, { id, ...range }),
+    queryKey: queryKeys.currentTimeline({ id, ...range }, source.cacheKey),
+    queryFn: () => source.getCurrentTimeline({ id, ...range }),
   };
 }
 
 export function useCurrentTimeline(id: string, range: CurrentPredictionRange | undefined) {
-  const { baseUrl } = useSlackwaterConfig();
+  const { dataSource } = useSlackwaterConfig();
   return useQuery({
-    ...currentTimelineQuery(baseUrl, id, range),
+    ...currentTimelineQuery(dataSource, id, range),
     enabled: !!range,
     // Predictions for a fixed window never change, and refetching would rebuild the strip.
     staleTime: Infinity,

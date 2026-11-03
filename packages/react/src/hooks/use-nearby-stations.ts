@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { useSlackwaterConfig } from "../provider.js";
-import { fetchStations } from "../client.js";
 import { queryKeys } from "../query-keys.js";
 
 export interface UseNearbyStationsParams {
@@ -11,11 +10,11 @@ export interface UseNearbyStationsParams {
 }
 
 export function useNearbyStations(params: UseNearbyStationsParams | undefined) {
-  const { baseUrl } = useSlackwaterConfig();
+  const { dataSource } = useSlackwaterConfig();
 
   return useQuery({
-    queryKey: queryKeys.nearbyStations(params ?? {}),
-    queryFn: () => fetchStations(baseUrl, params!),
+    queryKey: queryKeys.nearbyStations(params ?? {}, dataSource.cacheKey),
+    queryFn: () => dataSource.getStations(params!),
     enabled: !!params,
   });
 }

@@ -1,3 +1,8 @@
+export {
+  createApiDataSource,
+  type SlackwaterDataSource,
+  type TidePredictionParams,
+} from "./data-source.js";
 export * from "./types.js";
 export * from "./provider.js";
 export * from "./client.js";
