@@ -6,6 +6,7 @@ import { StationSearch } from "../src/components/StationSearch.js";
 import { NearbyStations } from "../src/components/NearbyStations.js";
 import { TideStation } from "../src/components/TideStation.js";
 import { TideGraphChart } from "../src/components/TideGraph/index.js";
+import { CurrentStation } from "../src/components/CurrentStation.js";
 import { createTestWrapper } from "./helpers.js";
 
 async function checkA11y(container: HTMLElement) {
@@ -140,6 +141,17 @@ describe("accessibility", () => {
         wrapper: createTestWrapper(),
       },
     );
+
+    await checkA11y(container);
+  });
+
+  test("CurrentStation has no violations after loading", { timeout: 15000 }, async () => {
+    const { container } = render(<CurrentStation id="noaa/PUG1701" />, {
+      wrapper: createTestWrapper(),
+    });
+    const view = within(container);
+
+    await waitFor(() => expect(view.getByRole("slider")).toBeDefined(), { timeout: 10000 });
 
     await checkA11y(container);
   });
