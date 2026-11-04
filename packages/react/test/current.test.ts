@@ -31,12 +31,87 @@ const events: CurrentEvent[] = [
   { time: new Date(t0 + 9 * H), speed: -3, kind: "maxEbb", direction: 225 },
 ];
 
-test("describes a nonreciprocal ebb heading as a published phase bearing", () => {
+test("uses a nonreciprocal published ebb bearing when vector data is unavailable", () => {
   const reading = readCurrent(t0 + 8 * H, timeline, events, [], { flood: 45, ebb: 200 })!;
   expect(reading.direction).toBe(200);
-  expect(spokenReading(reading, t0 + 8 * H, "UTC", "en-US")).toContain(
-    "published phase bearing SSW",
+  expect(spokenReading(reading, t0 + 8 * H, "UTC", "en-US")).toContain("set 200 degrees true, SSW");
+});
+
+describe("vector readings", () => {
+  const point = (h: number, speed: number, magnitude: number, direction?: number) => ({
+    time: new Date(t0 + h * H),
+    speed,
+    magnitude,
+    ...(direction !== undefined && { direction }),
+  });
+  test("keeps crossflow and its set at a flood/ebb zero", () => {
+    const tl = [point(0, 0, 2, 90), point(1, -1, 2, 120)];
+    const reading = readCurrent(t0, tl, [slackAt(t0)], [], { flood: 0, ebb: 180 })!;
+    expect(reading).toMatchObject({ speed: 0, magnitude: 2, direction: 90 });
+    expect(spokenReading(reading, t0, "UTC", "en-US")).toMatch(
+      /^2.0 knots, set 90 degrees true, E,/,
+    );
+    expect(spokenReading(reading, t0, "UTC", "en-US")).not.toMatch(/slack/i);
+  });
+  test("interpolates vectors through north rather than turning south", () => {
+    const reading = readCurrent(t0 + H / 2, [point(0, 1, 1, 350), point(1, 1, 1, 10)], [], [], {})!;
+    expect(reading.magnitude).toBeCloseTo(0.984807753);
+    expect(reading.direction).toBeCloseTo(0);
+  });
+  test("opposite vectors cancel without inventing a set", () => {
+    const reading = readCurrent(
+      t0 + H / 2,
+      [point(0, 1, 1, 90), point(1, -1, 1, 270)],
+      [],
+      [],
+      {},
+    )!;
+    expect(reading.magnitude).toBeCloseTo(0);
+    expect(reading).not.toHaveProperty("direction");
+  });
+  test("interpolates from a zero vector with no bearing", () => {
+    const tl = [point(0, 0, 0), point(1, 1, 1, 90)];
+    expect(readCurrent(t0, tl, [], [], {})).toMatchObject({ magnitude: 0 });
+    expect(readCurrent(t0, tl, [], [], {})).not.toHaveProperty("direction");
+    expect(readCurrent(t0 + H / 2, tl, [], [], {})).toMatchObject({
+      magnitude: 0.5,
+      direction: 90,
+    });
+  });
+  test("preserves speed without a known set, including a known endpoint beside an unknown one", () => {
+    const tl = [point(0, 1, 2, 90), point(1, 1, 3)];
+    expect(readCurrent(t0, tl, [], [], {})).toMatchObject({ magnitude: 2, direction: 90 });
+    expect(readCurrent(t0 + H / 2, tl, [], [], {})).toMatchObject({ magnitude: 2.5 });
+    expect(readCurrent(t0 + H / 2, tl, [], [], {})).not.toHaveProperty("direction");
+    expect(readCurrent(t0 + H, tl, [], [], {})).not.toHaveProperty("direction");
+  });
+  test.each([1, -1])(
+    "keeps scalar phase bearings through a nonreciprocal reversal, direction %s",
+    (sign) => {
+      const tl =
+        sign > 0
+          ? [point(0, 0.3, 0.3, 45), point(1, -0.3, 0.3, 200)]
+          : [point(0, -0.3, 0.3, 200), point(1, 0.3, 0.3, 45)];
+      const zero = readCurrent(t0 + H / 2, tl, [], [], { flood: 45, ebb: 200 })!;
+      expect(zero.magnitude).toBe(0);
+      expect(zero).not.toHaveProperty("direction");
+      const before = readCurrent(t0 + H * 0.4, tl, [], [], { flood: 45, ebb: 200 })!;
+      expect(before.magnitude).toBeCloseTo(0.06);
+      expect(before.direction).toBe(sign > 0 ? 45 : 200);
+      const after = readCurrent(t0 + H * 0.6, tl, [], [], { flood: 45, ebb: 200 })!;
+      expect(after.magnitude).toBeCloseTo(0.06);
+      expect(after.direction).toBe(sign > 0 ? 200 : 45);
+    },
   );
+
+  test("falls back to absolute signed speed for older sources", () => {
+    expect(readCurrent(t0 + 8 * H, timeline, events, [], { ebb: 200 })?.magnitude).toBeCloseTo(
+      2.598076211353316,
+    );
+    const zero = readCurrent(t0 + 6 * H, timeline, events, [], { flood: 45, ebb: 225 })!;
+    expect(zero.magnitude).toBeCloseTo(0);
+    expect(zero).not.toHaveProperty("direction");
+  });
 });
 
 describe("speedColor", () => {
@@ -337,22 +412,15 @@ test("spokenReading: state, speed, set when known, then dated clock and zone", (
   const t = Date.parse("2026-10-14T23:22:00Z");
   expect(
     spokenReading(
-      { state: "Flooding", speed: 2.3, direction: 45 },
+      { state: "Flooding", speed: 2.3, magnitude: 2.4, direction: 45 },
       t,
       "America/Los_Angeles",
       "en-US",
     ),
-  ).toMatch(
-    /^Flooding, 2\.3 knots along the major axis, published phase bearing NE, Oct 14, 4:22\sPM PDT$/,
-  );
+  ).toMatch(/^2\.4 knots, set 45 degrees true, NE, Oct 14, 4:22\sPM PDT$/);
   expect(
-    spokenReading(
-      { state: "Slack", speed: -0.1, direction: 225 },
-      t,
-      "America/Los_Angeles",
-      "en-US",
-    ),
-  ).toMatch(/^Axis slack, 0\.1 knots along the major axis, Oct 14/);
+    spokenReading({ state: "Slack", speed: 0, magnitude: 0 }, t, "America/Los_Angeles", "en-US"),
+  ).toMatch(/^0\.0 knots, Oct 14/);
 });
 
 test("formatCountdown floors to minutes", () => {

@@ -247,7 +247,7 @@ describe("CurrentStation", () => {
     expect(rows.some((r) => /\d kn axisPhase (WNW|W)Ebb$/.test(r))).toBe(true);
     expect(
       screen.getByText(
-        "NOAA harmonic current prediction. Flood bearing 102°T. Speeds and windows use the major axis. Bearings are published flood/ebb headings. Crossing flow can remain.",
+        "NOAA harmonic current prediction. Flood bearing 102°T. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and axis windows use the flood/ebb component; crossing flow can remain at an axis zero. Without rotation data, Set uses published flood/ebb bearings.",
       ),
     ).toBeDefined();
 
@@ -264,7 +264,7 @@ describe("CurrentStation", () => {
 
     expect(
       await screen.findByText(
-        /^NOAA subordinate station: .+'s slacks and maxima, corrected by published offsets\. Flood bearing 210°T\. Speeds and windows use the major axis\. Bearings are published flood\/ebb headings\. Crossing flow can remain\.$/,
+        /^NOAA subordinate station: .+'s slacks and maxima, corrected by published offsets\. Flood bearing 210°T\. The reading shows full predicted speed and Set, the direction water flows toward\. The graph, maxima and axis windows use the flood\/ebb component; crossing flow can remain at an axis zero\. Without rotation data, Set uses published flood\/ebb bearings\.$/,
         undefined,
         { timeout: 10000 },
       ),
@@ -302,7 +302,7 @@ describe("CurrentStation", () => {
 
     expect(
       await screen.findByText(
-        "Harmonic constants from Test Survey. Speeds and windows use the major axis. Bearings are published flood/ebb headings. Crossing flow can remain.",
+        "Harmonic constants from Test Survey. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and axis windows use the flood/ebb component; crossing flow can remain at an axis zero. Without rotation data, Set uses published flood/ebb bearings.",
       ),
     ).toBeDefined();
     fireEvent.click(screen.getByText("Station details"));

@@ -134,9 +134,24 @@ describe("readCurrentCard", () => {
   ];
   const directions = { flood: 90, ebb: 270 };
 
+  test("reads full speed and rotating set independently of the signed graph component", () => {
+    const tl = [
+      { time: at(0), speed: 0, magnitude: 2, direction: 90 },
+      { time: at(1), speed: -1, magnitude: 2, direction: 120 },
+    ];
+    expect(
+      readCurrentCard(tl, [{ time: at(0), speed: 0, kind: "slack" }], directions, T0),
+    ).toMatchObject({
+      speed: 0,
+      magnitude: 2,
+      direction: 90,
+    });
+  });
+
   test("sets toward flood or ebb by the sign of the speed", () => {
     expect(readCurrentCard(timeline, [], directions, T0)).toEqual({
       speed: 2,
+      magnitude: 2,
       slack: false,
       direction: 90,
     });

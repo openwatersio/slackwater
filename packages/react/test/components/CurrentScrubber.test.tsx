@@ -127,17 +127,24 @@ afterEach(() => {
 });
 
 describe("CurrentScrubber", () => {
-  test("qualifies an axis zero when vector magnitude remains nonzero", async () => {
+  test("shows full speed and Set at an axis zero while keeping the signed graph", async () => {
     const timeline = fixture(t0).timeline.map((point) => ({
       ...point,
       magnitude: 2,
       direction: 90,
     }));
-    const { slider } = renderScrubber({ timeline, now: t0 + 24 * H });
+    const { slider, container } = renderScrubber({ timeline, now: t0 + 24 * H });
     await restsOn(slider, t0 + 24 * H);
-    expect(screen.getByText("Axis slack")).toBeDefined();
-    expect(text(slider)).toMatch(/^Axis slack, 0\.0 knots along the major axis,/);
-    expect(screen.getByText("kn axis")).toBeDefined();
+    expect(text(slider)).toMatch(/^2\.0 knots, set 90 degrees true, E,/);
+    expect(screen.getByText("Set 90°T · E")).toBeDefined();
+    expect(screen.getByText("kn")).toBeDefined();
+    expect(screen.queryByText("Axis slack")).toBeNull();
+    const curve = container.querySelector('path[stroke^="url("]')!;
+    const ys = [...curve.getAttribute("d")!.matchAll(/[ML][\d.]+ ([\d.]+)/g)].map((m) =>
+      Number(m[1]),
+    );
+    expect(Math.min(...ys)).toBeLessThan((G.plotTop + G.plotBottom) / 2);
+    expect(Math.max(...ys)).toBeGreaterThan((G.plotTop + G.plotBottom) / 2);
   });
 
   test("glides open onto now and reads the current there", async () => {
@@ -145,9 +152,7 @@ describe("CurrentScrubber", () => {
 
     expect(value(slider)).toBeLessThan(NOW);
     await restsOn(slider, NOW);
-    expect(text(slider)).toBe(
-      "Flooding, 1.5 knots along the major axis, published phase bearing NE, Oct 11, 1:00 AM UTC",
-    );
+    expect(text(slider)).toBe("1.5 knots, set 45 degrees true, NE, Oct 11, 1:00 AM UTC");
     expect(commentaryPill().ariaLabel).toBe("Maximum flood along the major axis in 2 hours");
     expect(commentaryPill().textContent).toBe("Max flood2h 0m");
     expect(nowPill()).toBeNull();
@@ -197,15 +202,13 @@ describe("CurrentScrubber", () => {
 
     key(slider, "ArrowRight", true);
     expect(value(slider)).toBe(t0 + 27 * H);
-    expect(text(slider)).toMatch(
-      /^Max flood, 3\.0 knots along the major axis, published phase bearing NE/,
-    );
+    expect(text(slider)).toMatch(/^3\.0 knots, set 45 degrees true, NE/);
     expect(nowPill()!.textContent).toBe("Now");
 
     key(slider, "ArrowLeft", true);
     key(slider, "ArrowLeft", true);
     expect(value(slider)).toBe(t0 + 24 * H);
-    expect(text(slider)).toMatch(/^Axis slack, 0\.0 knots along the major axis, Oct 11/);
+    expect(text(slider)).toMatch(/^0\.0 knots, Oct 11/);
 
     fireEvent.click(nowPill()!);
     expect(document.activeElement).toBe(slider);
@@ -762,7 +765,7 @@ test("bounded partial windows draw the maximum the commentary names near the end
     },
     736,
   );
-  expect(commentaryPill().ariaLabel).toBe("Maximum flood current in 1 hour");
+  expect(commentaryPill().ariaLabel).toBe("Maximum flood along the major axis in 1 hour");
   const times = [...container.querySelectorAll(`text[y="${G.eventTimeY + 20}"]`)];
   expect(times).toHaveLength(1);
   expect(times[0].textContent).toMatch(/^3:00\sAM$/);

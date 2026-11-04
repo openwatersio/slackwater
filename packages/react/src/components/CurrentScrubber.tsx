@@ -4,9 +4,9 @@ import type { CurrentEvent, CurrentTimelineEntry } from "../types.js";
 import {
   DEFAULT_SLACK_THRESHOLD,
   EMPTY_MESSAGE,
-  compass16,
   currentStops,
   formatSpeed,
+  formatSet,
   isDotRun,
   readCurrent,
   slackRuns,
@@ -28,7 +28,6 @@ import {
   HALO_GAP,
   SET_ARROW_PATH,
   Scrubber,
-  SlackGlyph,
   geometry,
   type ScrubberProps,
   type StripKit,
@@ -344,7 +343,6 @@ function CurrentStrip({
       lead: (t) => {
         const reading = read(t);
         if (!reading) return undefined;
-        const slack = reading.state === "Slack";
         return {
           spoken: spokenReading(reading, t, timezone, locale),
           content: (
@@ -353,21 +351,15 @@ function CurrentStrip({
                 className="flex items-center gap-1.5 text-[13px] font-semibold"
                 aria-hidden="true"
               >
-                <span className="font-medium opacity-85">
-                  {slack ? "Axis slack" : reading.state}
-                </span>
-                <span
-                  className="flex items-center gap-1"
-                  style={{ color: slack ? C.go : reading.speed >= 0 ? C.flood : C.ebb }}
-                >
-                  {slack ? (
-                    <SlackGlyph />
-                  ) : reading.direction !== undefined ? (
+                <span className="flex items-center gap-1 font-medium opacity-85">
+                  {reading.direction !== undefined ? (
                     <>
                       <SetArrow direction={reading.direction} size={13} />
-                      Phase {compass16(reading.direction)}
+                      Set {formatSet(reading.direction)}
                     </>
-                  ) : null}
+                  ) : (
+                    "Set —"
+                  )}
                 </span>
               </div>
               <div
@@ -376,9 +368,9 @@ function CurrentStrip({
                 aria-hidden="true"
               >
                 <span className="text-[44px] leading-none font-medium">
-                  {formatSpeed(reading.speed, locale)}
+                  {formatSpeed(reading.magnitude, locale)}
                 </span>
-                <span className="text-[22px] font-light">kn axis</span>
+                <span className="text-[22px] font-light">kn</span>
               </div>
               <div className="text-xs tabular-nums whitespace-pre" aria-hidden="true">
                 {leadTime(t, timezone, locale)}

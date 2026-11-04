@@ -676,11 +676,12 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
                 Currents kn axis
               </span>
             </div>
+            <span>Current arrows use published flood/ebb bearings.</span>
             <span>Not for navigation.</span>
           </div>
         ) : (
-          <span className="sw-glass rounded-full px-3 py-1.5 text-[11px] text-(--sw-foam)">
-            Not for navigation.
+          <span className="sw-glass max-w-[calc(100%_-_136px)] rounded-[24px] px-3 py-1.5 text-center text-[11px] text-(--sw-foam)">
+            Current arrows use published flood/ebb bearings. Not for navigation.
           </span>
         )}
       </div>

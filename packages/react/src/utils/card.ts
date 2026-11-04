@@ -93,8 +93,10 @@ export function readTideCard(
 export interface CurrentCardReading {
   /** Signed major-axis knots: positive flood. */
   speed: number;
+  /** Full predicted speed in knots. */
+  magnitude: number;
   slack: boolean;
-  /** The published flood or ebb bearing; absent when the station has none. */
+  /** Predicted set in degrees true; absent at zero speed or when unknown. */
   direction?: number;
 }
 
@@ -108,6 +110,7 @@ export function readCurrentCard(
   if (!reading) return undefined;
   return {
     speed: reading.speed,
+    magnitude: reading.magnitude,
     slack: reading.state === "Slack",
     ...(reading.direction !== undefined && { direction: reading.direction }),
   };

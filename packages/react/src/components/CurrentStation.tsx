@@ -48,7 +48,7 @@ function provenance(station: CurrentStationInfo, reference: string | undefined) 
   const flood = station.current?.flood_direction;
   const sets = flood === undefined ? "" : ` Flood bearing ${degrees(flood)}.`;
   const axis =
-    " Speeds and windows use the major axis. Bearings are published flood/ebb headings. Crossing flow can remain.";
+    " The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and axis windows use the flood/ebb component; crossing flow can remain at an axis zero. Without rotation data, Set uses published flood/ebb bearings.";
   if (station.type === "subordinate") {
     const whose = reference ? `${reference}'s ` : "";
     return `NOAA subordinate station: ${whose}slacks and maxima, corrected by published offsets.${sets}${axis}`;

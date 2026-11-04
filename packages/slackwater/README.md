@@ -56,7 +56,7 @@ for (const { time, kind, speed } of prediction.events) {
 }
 ```
 
-The package also gets water level timelines (`getTimelinePrediction`), the level at one moment (`getWaterLevelAtTime`), station lookup (`nearestStation`, `stationsNear`, `findStation`), current speed timelines (`getCurrentTimelinePrediction`), slack windows (`slackWindows`), and current station lookup (`nearestCurrentStation`, `currentStationsNear`, `findCurrentStation`). The [repository README](https://github.com/openwatersio/slackwater#readme) covers each one with examples. If the database marks a tide record redundant, `findStation` resolves its ID to an accepted replacement with a tide model. A commercially usable record never automatically resolves to a noncommercial replacement; direct lookups of noncommercial records remain available.
+The package also gets water level timelines (`getTimelinePrediction`), the level at one moment (`getWaterLevelAtTime`), station lookup (`nearestStation`, `stationsNear`, `findStation`), current speed timelines (`getCurrentTimelinePrediction`), slack windows (`slackWindows`), and current station lookup (`nearestCurrentStation`, `currentStationsNear`, `findCurrentStation`). The [repository README](https://github.com/openwatersio/slackwater#readme) covers each one with examples. If the database marks a tide record redundant, `findStation` resolves its ID to an accepted replacement with a tide model. A commercially usable record never automatically resolves to a noncommercial replacement; direct lookups of noncommercial records remain available. A replacement can carry different license and attribution terms; use the returned canonical record’s metadata.
 
 ## Documentation
 

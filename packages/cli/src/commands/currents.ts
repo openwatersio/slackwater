@@ -52,7 +52,7 @@ function parseSpan(opts: { start?: string; end?: string }, defaultHours: number)
 
 const events = predictionCommand(
   "events",
-  "Get slack water, max flood, and max ebb for a current station",
+  "Get major-axis zeros, max flood, and max ebb for a current station",
   72,
 ).action(async (opts) => {
   const span = parseSpan(opts, 72);

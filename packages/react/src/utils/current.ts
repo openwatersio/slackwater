@@ -149,13 +149,69 @@ export type CurrentState = "Slack" | "Max flood" | "Max ebb" | "Flooding" | "Ebb
 export interface CurrentReading {
   state: CurrentState;
   speed: number;
-  /** Set in degrees true; absent in slack or when the station has none. */
+  magnitude: number;
+  /** Predicted set in degrees true; absent at zero speed or when unknown. */
   direction?: number;
 }
 
 export interface Directions {
   flood?: number;
   ebb?: number;
+}
+
+function vectorAt(
+  timeline: CurrentTimelineEntry[],
+  time: number,
+  speed: number,
+  directions: Directions,
+) {
+  let lo = 0;
+  let hi = timeline.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (timeline[mid].time.getTime() <= time) lo = mid;
+    else hi = mid;
+  }
+  const a = timeline[lo];
+  const b = timeline[hi];
+  const span = b.time.getTime() - a.time.getTime();
+  const mix = span === 0 ? 0 : (time - a.time.getTime()) / span;
+  if (mix === 0 || mix === 1) {
+    const p = mix === 0 ? a : b;
+    const magnitude = p.magnitude ?? Math.abs(speed);
+    const direction =
+      p.magnitude === undefined ? (speed >= 0 ? directions.flood : directions.ebb) : p.direction;
+    return { magnitude, ...(magnitude > 1e-9 && direction !== undefined && { direction }) };
+  }
+  // Scalar phase bearings need not be reciprocal; their reversal must not synthesize crossflow.
+  const axialReversal =
+    a.magnitude === Math.abs(a.speed) && b.magnitude === Math.abs(b.speed) && a.speed * b.speed < 0;
+  if (a.magnitude === undefined || b.magnitude === undefined || axialReversal) {
+    const magnitude = Math.abs(speed);
+    const direction = axialReversal
+      ? (speed >= 0 === a.speed >= 0 ? a : b).direction
+      : speed >= 0
+        ? directions.flood
+        : directions.ebb;
+    return { magnitude, ...(magnitude > 1e-9 && direction !== undefined && { direction }) };
+  }
+  if (
+    (a.magnitude !== 0 && a.direction === undefined) ||
+    (b.magnitude !== 0 && b.direction === undefined)
+  ) {
+    return { magnitude: a.magnitude + (b.magnitude - a.magnitude) * mix };
+  }
+  // Interpolate vectors so north crossings and opposing flows retain their physical meaning.
+  const radians = Math.PI / 180;
+  const x =
+    a.magnitude * Math.sin((a.direction ?? 0) * radians) * (1 - mix) +
+    b.magnitude * Math.sin((b.direction ?? 0) * radians) * mix;
+  const y =
+    a.magnitude * Math.cos((a.direction ?? 0) * radians) * (1 - mix) +
+    b.magnitude * Math.cos((b.direction ?? 0) * radians) * mix;
+  const magnitude = Math.hypot(x, y);
+  const direction = (((Math.atan2(x, y) / radians) % 360) + 360) % 360;
+  return { magnitude, ...(magnitude > 1e-9 && { direction }) };
 }
 
 /** The lead reading at `time`, following the app's scrubber rules. */
@@ -168,10 +224,10 @@ export function readCurrent(
 ): CurrentReading | undefined {
   const speed = speedAt(timeline, time);
   if (speed === undefined) return undefined;
+  const vector = vectorAt(timeline, time, speed, directions);
   if (events.some((e) => e.kind === "slack" && Math.abs(e.time.getTime() - time) <= 1000)) {
-    return { state: "Slack", speed };
+    return { state: "Slack", speed, ...vector };
   }
-  const direction = speed >= 0 ? directions.flood : directions.ebb;
   const max = events.find((e) => e.kind !== "slack" && Math.abs(e.time.getTime() - time) <= 1000);
   const state: CurrentState = max
     ? max.kind === "maxFlood"
@@ -180,7 +236,7 @@ export function readCurrent(
     : speed >= 0
       ? "Flooding"
       : "Ebbing";
-  return direction === undefined ? { state, speed } : { state, speed, direction };
+  return { state, speed, ...vector };
 }
 
 /** Forward water stops: drawn window edges, exact zeros, and maxima. */
@@ -234,21 +290,25 @@ export function formatSpeed(knots: number, locale?: string): string {
   }).format(Math.abs(knots));
 }
 
-/** One spoken reading: state, speed, set when known, then the dated station clock and zone. */
+/** A set uses true north and points toward the flow. */
+export function formatSet(direction: number): string {
+  return `${Math.round(direction) % 360}°T · ${compass16(direction)}`;
+}
+
+export function spokenSet(direction: number): string {
+  return `set ${Math.round(direction) % 360} degrees true, ${compass16(direction)}`;
+}
+
+/** One spoken reading: full speed, set when known, then the dated station clock and zone. */
 export function spokenReading(
   reading: CurrentReading,
   time: number,
   timeZone: string,
   locale?: string,
 ): string {
-  const set =
-    reading.direction === undefined || reading.state === "Slack"
-      ? []
-      : [`published phase bearing ${compass16(reading.direction)}`];
   return [
-    reading.state === "Slack" ? "Axis slack" : reading.state,
-    `${formatSpeed(reading.speed, locale)} knots along the major axis`,
-    ...set,
+    `${formatSpeed(reading.magnitude, locale)} knots`,
+    ...(reading.direction === undefined ? [] : [spokenSet(reading.direction)]),
     spokenTime(time, timeZone, locale),
   ].join(", ");
 }
