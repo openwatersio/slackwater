@@ -278,7 +278,7 @@ export const Schedule = memo(function Schedule({
                         <button
                           type="button"
                           aria-current={on ? "true" : undefined}
-                          className={`relative flex w-full cursor-pointer items-center gap-2 px-3.5 py-[9px] text-left ${on ? "bg-(--sw-go)/13" : ""}`}
+                          className={`relative flex w-full cursor-pointer items-center gap-1 px-3.5 py-[9px] text-left ${on ? "bg-(--sw-go)/13" : ""}`}
                           onClick={() => onSelect(e.time)}
                         >
                           {on && <span className="absolute inset-y-0 left-0 w-0.5 bg-(--sw-go)" />}
@@ -293,7 +293,7 @@ export const Schedule = memo(function Schedule({
                           >
                             {e.value ?? "—"}
                           </span>
-                          <span className="flex min-w-[120px] justify-end">
+                          <span className="flex min-w-[110px] justify-end">
                             <Pill entry={e} setFormat={resolvedSetFormat} />
                           </span>
                         </button>

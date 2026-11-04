@@ -7,10 +7,17 @@ on:
 
 jobs:
   smoke-swiftpm:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
+      - uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6.2.1"
+
       - name: Resolve and run this tag from SwiftPM
         run: |
+          swift --version
           version="${GITHUB_REF_NAME#v}"
           mkdir -p /tmp/slackwater-smoke/Sources/slackwater-smoke
           cd /tmp/slackwater-smoke

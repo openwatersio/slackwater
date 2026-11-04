@@ -8,6 +8,7 @@ junit.xml
 /dist
 /packages/*/dist
 .build
+.build-watch
 .swiftpm
 DerivedData
 *.tsbuildinfo
