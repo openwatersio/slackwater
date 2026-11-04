@@ -498,16 +498,6 @@ describe("slackWindows", () => {
     expect(between[0].end).toEqual(new Date(hours(3)));
   });
 
-  test("a step holding both the reversal and the band edge folds the absolute speed", () => {
-    // −1 kn to +0.1 kn in one hour at a 0.15 kn band: |speed| falls from 0.85
-    // above the band to 0.05 inside it, so the folded crossing is 0.85/0.9 of
-    // the way across, later than the signed line's 0.85/1.1.
-    const windows = slackWindows([sample(0, -1), sample(1, 0.1), sample(2, 1)], 0.15);
-    expect(windows.length).toBe(1);
-    expect(windows[0].start.getTime()).toBeCloseTo(hours(0.85 / 0.9), -2);
-    expect(windows[0].end.getTime()).toBeCloseTo(hours(1 + 0.05 / 0.9), -2);
-  });
-
   test("the threshold applies to full rotary speed, including cross-flow", () => {
     const magnitude = Math.SQRT2;
     const points = [sample(0, 1), sample(1, -1)].map((point, index) => ({
@@ -532,6 +522,25 @@ describe("slackWindows", () => {
       expect(windows[0].start.getTime()).toBeCloseTo(hours(2 / 3), -2);
       expect(windows[0].end.getTime()).toBeCloseTo(hours(4 / 3), -2);
     }
+  });
+
+  test("a band edge on the reversal step interpolates the signed speed", () => {
+    const at = (s: number, speed: number): CurrentPoint => ({
+      time: new Date(s * 1000),
+      hour: s / 3600,
+      speed,
+    });
+
+    // Entering: −1 kn → +0.1 kn crosses −0.15 kn at 463.6 s, not the folded
+    // |speed| crossing at 566.7 s.
+    const entering = slackWindows([at(0, -1), at(600, 0.1)], 0.15);
+    expect(entering.length).toBe(1);
+    expect(entering[0].start.getTime() / 1000).toBeCloseTo(463.6, 1);
+
+    // Leaving: +0.1 kn → −1 kn crosses −0.15 kn at 136.4 s, not 33.3 s.
+    const leaving = slackWindows([at(0, 0.1), at(600, -1)], 0.15);
+    expect(leaving.length).toBe(1);
+    expect(leaving[0].end.getTime() / 1000).toBeCloseTo(136.4, 1);
   });
 
   test("a reversal landing on an exact-zero sample still counts", () => {

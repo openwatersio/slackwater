@@ -233,7 +233,7 @@ Database and caller-supplied station records can include `current.minor_constitu
 
 `slackWindows(timeline, threshold)` returns runs where full current speed stays below `threshold` knots, including same-direction lulls, with interpolated crossings. A window still open at the frame edge is kept and ends at the edge. A lull is not a zero-current slack event.
 
-`slackRuns(timeline, events, threshold)` finds windows from sampled speed and predicted events. `currentWindows(timeline, events, threshold)` also returns each window’s contained `slackTimes`. A slack is retained even when no window can be measured; a qualifying minimum is inserted into the sampled series so a narrow lull between samples is retained. `slackWindows` needs no events and reports sampled low-speed runs. On a sample step that holds both the reversal and the band edge, `slackWindows` interpolates the absolute speed and the event-centred pair interpolate the signed speed, so their edges can differ there by a fraction of a sample.
+`slackRuns(timeline, events, threshold)` finds windows from sampled speed and predicted events. `currentWindows(timeline, events, threshold)` also returns each window’s contained `slackTimes`. A slack is retained even when no window can be measured; a qualifying minimum is inserted into the sampled series so a narrow lull between samples is retained. `slackWindows` needs no events and reports sampled low-speed runs. Both families interpolate the signed speed at a band crossing, so their edges agree on a sample step that holds both the reversal and the band edge.
 
 ## Readings
 

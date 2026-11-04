@@ -520,13 +520,6 @@ export function slackWindows(
 
   // Signed distance out of the band — negative inside, zero at the edge.
   const out = (s: Pick<CurrentPoint, "time" | "speed">) => Math.abs(s.speed) - threshold;
-  // The folded crossing on a reversal step is kept on purpose; see the `slackWindows` paragraph in the README.
-  const cross = (a: (typeof timeline)[number], b: (typeof timeline)[number]) =>
-    a.speed * b.speed >= 0
-      ? bandCrossing(a, b, threshold)
-      : new Date(
-          a.time.getTime() + (out(a) / (out(a) - out(b))) * (b.time.getTime() - a.time.getTime()),
-        );
 
   const windows: SlackWindow[] = [];
   let from: Date | undefined = out(timeline[0]) <= 0 ? timeline[0].time : undefined;
@@ -536,10 +529,10 @@ export function slackWindows(
     const inA = out(a) <= 0;
     const inB = out(b) <= 0;
     if (!inA && inB) {
-      from = cross(a, b);
+      from = bandCrossing(a, b, threshold);
     }
     if (inA && !inB) {
-      if (from) windows.push({ start: from, end: cross(a, b) });
+      if (from) windows.push({ start: from, end: bandCrossing(a, b, threshold) });
       from = undefined;
     }
   }
