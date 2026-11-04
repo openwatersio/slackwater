@@ -25,7 +25,7 @@ export function interpolate<T extends { time: Date }>(
     : value(a) + ((value(b) - value(a)) * (at - a.time.getTime())) / span;
 }
 
-/** Where the signed line from `a` to `b` meets ±`threshold`, on the side of whichever sample is outside the band. */
+/** Where the signed line from `a` to `b` meets ±`threshold`, on the side of whichever sample is outside the band. Exactly one of the two samples lies outside the band, so the two speeds differ. */
 export function bandCrossing(
   a: Pick<CurrentPoint, "time" | "speed">,
   b: Pick<CurrentPoint, "time" | "speed">,

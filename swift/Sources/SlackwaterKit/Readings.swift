@@ -169,7 +169,7 @@ public func slackWindow(_ points: [CurrentPoint], around slack: Date, threshold:
     if abs(points[i].speed) <= threshold { k = i }
     else if i + 1 < points.count, abs(points[i + 1].speed) <= threshold { k = i + 1 }
     else if i + 1 < points.count, (points[i].speed > 0) != (points[i + 1].speed > 0) {
-        // A reversal between two out-of-band samples crosses the band along the straight segment of absolute speed.
+        // A reversal between two out-of-band samples crosses the band along the straight segment of signed speed.
         let a = points[i], b = points[i + 1]
         let span = abs(a.speed) + abs(b.speed), dt = b.time.timeIntervalSince(a.time)
         return SlackWindow(start: min(a.time.addingTimeInterval(dt * (abs(a.speed) - threshold) / span), slack),

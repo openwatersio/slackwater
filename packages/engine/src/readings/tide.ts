@@ -107,6 +107,7 @@ export function levelRange(
  * The lead reading at `time`: High or Low within a second of a turn, where
  * the turn's own height reads; otherwise rising toward a high or falling
  * toward a low, using the sampled rate when no later turn is loaded.
+ * Undefined when either the timeline or the rates do not cover `time`.
  */
 export function readTide(
   time: Date,
@@ -116,8 +117,8 @@ export function readTide(
 ): TideReading | undefined {
   const level = levelAt(timeline, time);
   if (level === undefined) return undefined;
-  // Rates share the timeline's instants, so a level always has one.
-  const rate = rateAt(rates, time)!;
+  const rate = rateAt(rates, time);
+  if (rate === undefined) return undefined;
   const at = time.getTime();
   const turn = extremes.find((e) => Math.abs(e.time.getTime() - at) <= 1000);
   if (turn) return { state: turn.high ? "High" : "Low", level: turn.level, up: turn.high, rate };

@@ -93,7 +93,7 @@ Before adopting timeline directions, callers that used `metadata.floodDirection 
 
 ### Readings
 
-A reading names what the water is doing at one instant, from a series and its events. They port the readings in [`@slackwater/engine`](../packages/engine), and `fixtures/readings.json` holds both, and Kotlin, to the same answers.
+A reading names what the water is doing at one instant, from a series and its events. They port the readings in [`@slackwater/engine`](../packages/engine), and `fixtures/readings.json` holds TypeScript, Swift and Kotlin to the same answers.
 
 ```swift
 let speeds = dp.speeds(from: start, to: end)

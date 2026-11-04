@@ -33,6 +33,11 @@ describe("tideRates", () => {
 
   test("a single sample, or a repeated instant, has no rate", () => {
     expect(tideRates(series([2]), "meters")[0].rate).toBe(0);
+    const repeated = [
+      { time: new Date(t0), level: 1 },
+      { time: new Date(t0), level: 2 },
+    ];
+    expect(tideRates(repeated, "meters").map((r) => r.rate)).toEqual([0, 0]);
   });
 
   test("rateAt interpolates between samples", () => {
@@ -129,6 +134,11 @@ describe("readTide", () => {
     expect(
       readTide(new Date(timeline.at(-1)!.time.getTime() + 1), timeline, rates, extremes),
     ).toBeUndefined();
+  });
+
+  test("reads nothing when the rates do not cover the instant", () => {
+    const rising = series([0, 1, 2]);
+    expect(readTide(new Date(t0 + H), rising, [], [])).toBeUndefined();
   });
 });
 

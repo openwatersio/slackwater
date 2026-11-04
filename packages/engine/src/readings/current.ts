@@ -183,7 +183,7 @@ export function slackWindowAround(
   if (inBand(i)) k = i;
   else if (i + 1 < n && inBand(i + 1)) k = i + 1;
   else if (i + 1 < n && timeline[i].speed > 0 !== timeline[i + 1].speed > 0) {
-    // A reversal between two out-of-band samples crosses the band along the straight segment of absolute speed.
+    // A reversal between two out-of-band samples crosses the band along the straight segment of signed speed.
     const a = Math.abs(timeline[i].speed);
     const span = a + Math.abs(timeline[i + 1].speed);
     const dt = ms(i + 1) - ms(i);

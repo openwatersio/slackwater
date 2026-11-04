@@ -17,7 +17,7 @@
 - Names and shapes follow each language; units, signs, kinds and numbers match across the three engines.
 - No engine helper reads a colour anchor or layout constant. Floors and thresholds are parameters.
 - No behaviour change to `slackWindows` or to `slackWindowAround`. React's visible and spoken output is unchanged; its tests pass with only import and call-site edits.
-- The branch is `feat/shared-readings` on `feat/adopt-current-vectors`. Commit subjects are imperative plain language with no prefix. Every commit ends with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
+- The branch is `feat/shared-readings` on `feat/adopt-current-vectors`. Commit subjects are imperative plain language with no prefix. Every commit ends with the session's attribution trailer.
 - Durable prose (READMEs, CONTRACT.md, changesets) describes the current state only, never hard-wrapped.
 - Lint before each commit: `npm run lint` (oxlint and prettier). Fix with `npm run format`.
 

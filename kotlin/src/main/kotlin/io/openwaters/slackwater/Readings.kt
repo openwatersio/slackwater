@@ -209,7 +209,7 @@ fun slackWindowAround(points: List<CurrentPoint>, slack: Instant, thresholdKnots
         inBand(i) -> i
         i + 1 < n && inBand(i + 1) -> i + 1
         i + 1 < n && (points[i].speedKnots > 0) != (points[i + 1].speedKnots > 0) -> {
-            // A reversal between two out-of-band samples crosses the band along the straight segment of absolute speed.
+            // A reversal between two out-of-band samples crosses the band along the straight segment of signed speed.
             val a = abs(points[i].speedKnots)
             val span = a + abs(points[i + 1].speedKnots)
             return SlackWindow(minOf(slack, between(points[i].time, points[i + 1].time, (a - thresholdKnots) / span)),

@@ -359,6 +359,7 @@ private func checkCurrent(_ expected: [ReadingsFixture.Reading], timeline: [Curr
     }
 
     let s = f.scalar
+    #expect(s.readings.count == 4)
     try checkCurrent(s.readings, timeline: s.timeline.map { CurrentPoint(time: parseISO($0.time), speed: $0.speed) },
                      events: s.events.map(\.event), flood: s.flood, ebb: s.ebb)
 

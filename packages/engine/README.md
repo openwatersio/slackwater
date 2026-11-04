@@ -238,12 +238,16 @@ The readings are the calculations the Slackwater apps run to say what the water 
 ```ts
 import { readCurrent, compass16 } from "@slackwater/engine";
 
-const timeline = station.getTimelinePrediction({ start, end, timeFidelity: 600 }).timeline;
-const events = station.getEventsPrediction({ start, end }).events;
+const currentTimeline = currentStation.getTimelinePrediction({
+  start,
+  end,
+  timeFidelity: 600,
+}).timeline;
+const currentEvents = currentStation.getEventsPrediction({ start, end }).events;
 
-const now = readCurrent(new Date(), timeline, events, {
-  flood: station.current?.flood_direction,
-  ebb: station.current?.ebb_direction,
+const now = readCurrent(new Date(), currentTimeline, currentEvents, {
+  flood: currentStation.current?.flood_direction,
+  ebb: currentStation.current?.ebb_direction,
 });
 // { state: "Flooding", speed: 1.8, magnitude: 1.9, direction: 31 }
 if (now?.direction !== undefined) console.log(now.state, compass16(now.direction));
@@ -258,11 +262,11 @@ if (now?.direction !== undefined) console.log(now.state, compass16(now.direction
 ```ts
 import { readTide, tideRates } from "@slackwater/engine";
 
-const { timeline, units } = station.getTimelinePrediction({ start, end });
-const { extremes } = station.getExtremesPrediction({ start, end });
+const { timeline: tideTimeline, units } = tideStation.getTimelinePrediction({ start, end });
+const { extremes } = tideStation.getExtremesPrediction({ start, end });
 
-const rates = tideRates(timeline, units); // meters per hour, positive rising
-const reading = readTide(new Date(), timeline, rates, extremes);
+const rates = tideRates(tideTimeline, units); // meters per hour, positive rising
+const reading = readTide(new Date(), tideTimeline, rates, extremes);
 // { state: "Rising", level: 1.2, up: true, rate: 0.4 }
 ```
 
@@ -283,7 +287,7 @@ const peaks = flowPeaks(rates, 0.3); // [{ time, rate }, ...]
 ```ts
 import { slackRuns } from "@slackwater/engine";
 
-const runs = slackRuns(timeline, events, 0.3); // [{ start, end }, ...]
+const runs = slackRuns(currentTimeline, currentEvents, 0.3); // [{ start, end }, ...]
 ```
 
 ### Ranking against the rest
@@ -297,7 +301,7 @@ import { peakRank, swingHeights, maxSpeeds } from "@slackwater/engine";
 const tide = peakRank(swingHeights(extremes).at(-1)!, swingHeights(extremes));
 
 // How strong is a flood, among the span's floods?
-const flood = maxSpeeds(events, "maxFlood");
+const flood = maxSpeeds(currentEvents, "maxFlood");
 const strength = peakRank(flood[0], flood);
 ```
 
