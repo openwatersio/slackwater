@@ -134,9 +134,9 @@ Swift and Kotlin have no `slackWindows` today, so they gain only the event-centr
 
 ### Follow-ups filed, not done here
 
-- slackwater-ios: adopt the kit readings and the #508 full-speed and Set reading; drop the app's `SlackWindow.swift` window code, `compass16`, `interp`, and lead-state logic in favour of the kit.
-- slackwater-ios: the Dodd map flow provider derives the ebb bearing as flood plus 180 degrees instead of the published ebb bearing.
-- slackwater: `slackWindows` interpolates the folded absolute speed on a step that holds both the reversal and the band edge, which disagrees with the signed crossing iOS and `slackWindowAround` use.
+- slackwater-ios [#889](https://github.com/openwatersio/slackwater-ios/issues/889): adopt the kit readings and the #508 full-speed and Set reading; drop the app's `SlackWindow.swift` window code, `compass16`, `interp`, and lead-state logic in favour of the kit.
+- slackwater-ios [#890](https://github.com/openwatersio/slackwater-ios/issues/890): the Dodd map flow provider derives the ebb bearing as flood plus 180 degrees instead of the published ebb bearing.
+- slackwater [#511](https://github.com/openwatersio/slackwater/issues/511): `slackWindows` interpolates the folded absolute speed on a step that holds both the reversal and the band edge, which disagrees with the signed crossing iOS and `slackWindowAround` use.
 
 ## Left to the builder
 
