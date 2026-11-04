@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
   compass16,
+  formatSet,
+  spokenSet,
   currentStops,
   formatSpeed,
   isDotRun,
@@ -34,7 +36,7 @@ const events: CurrentEvent[] = [
 test("uses a nonreciprocal published ebb bearing when vector data is unavailable", () => {
   const reading = readCurrent(t0 + 8 * H, timeline, events, [], { flood: 45, ebb: 200 })!;
   expect(reading.direction).toBe(200);
-  expect(spokenReading(reading, t0 + 8 * H, "UTC", "en-US")).toContain("set 200 degrees true, SSW");
+  expect(spokenReading(reading, t0 + 8 * H, "UTC", "en-US")).toContain("set south-southwest");
 });
 
 describe("vector readings", () => {
@@ -48,9 +50,7 @@ describe("vector readings", () => {
     const tl = [point(0, 0, 2, 90), point(1, -1, 2, 120)];
     const reading = readCurrent(t0, tl, [slackAt(t0)], [], { flood: 0, ebb: 180 })!;
     expect(reading).toMatchObject({ speed: 0, magnitude: 2, direction: 90 });
-    expect(spokenReading(reading, t0, "UTC", "en-US")).toMatch(
-      /^2.0 knots, set 90 degrees true, E,/,
-    );
+    expect(spokenReading(reading, t0, "UTC", "en-US")).toMatch(/^2.0 knots, set east,/);
     expect(spokenReading(reading, t0, "UTC", "en-US")).not.toMatch(/slack/i);
   });
   test("interpolates vectors through north rather than turning south", () => {
@@ -112,6 +112,36 @@ describe("vector readings", () => {
     expect(zero.magnitude).toBeCloseTo(0);
     expect(zero).not.toHaveProperty("direction");
   });
+});
+
+test("Set defaults to compass and degree readings wrap and pad without a true suffix", () => {
+  expect(formatSet(225)).toBe("SW");
+  expect(formatSet(5, "degrees")).toBe("005°");
+  expect(formatSet(359.8, "degrees")).toBe("000°");
+  expect(formatSet(-1, "degrees")).toBe("359°");
+  expect(spokenSet(225)).toBe("set southwest");
+  expect(spokenSet(5, "degrees")).toBe("set 5 degrees");
+});
+
+test.each([
+  [0, "north"],
+  [22.5, "north-northeast"],
+  [45, "northeast"],
+  [67.5, "east-northeast"],
+  [90, "east"],
+  [112.5, "east-southeast"],
+  [135, "southeast"],
+  [157.5, "south-southeast"],
+  [180, "south"],
+  [202.5, "south-southwest"],
+  [225, "southwest"],
+  [247.5, "west-southwest"],
+  [270, "west"],
+  [292.5, "west-northwest"],
+  [315, "northwest"],
+  [337.5, "north-northwest"],
+])("speaks compass bearing %s as %s", (bearing, name) => {
+  expect(spokenSet(Number(bearing))).toBe(`set ${name}`);
 });
 
 describe("speedColor", () => {
@@ -417,7 +447,7 @@ test("spokenReading: state, speed, set when known, then dated clock and zone", (
       "America/Los_Angeles",
       "en-US",
     ),
-  ).toMatch(/^2\.4 knots, set 45 degrees true, NE, Oct 14, 4:22\sPM PDT$/);
+  ).toMatch(/^2\.4 knots, set northeast, Oct 14, 4:22\sPM PDT$/);
   expect(
     spokenReading({ state: "Slack", speed: 0, magnitude: 0 }, t, "America/Los_Angeles", "en-US"),
   ).toMatch(/^0\.0 knots, Oct 14/);

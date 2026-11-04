@@ -51,14 +51,15 @@ function App() {
 </SlackwaterProvider>
 ```
 
-| Prop          | Type                   | Default                            | Description                                                     |
-| ------------- | ---------------------- | ---------------------------------- | --------------------------------------------------------------- |
-| `baseUrl`     | `string`               | —                                  | API server URL; required unless `dataSource` is supplied        |
-| `dataSource`  | `SlackwaterDataSource` | —                                  | Local or remote source; takes precedence over `baseUrl`         |
-| `units`       | `"meters" \| "feet"`   | feet for `en-US`, otherwise meters | Height units                                                    |
-| `timezone`    | `string`               | the station's time zone            | Time zone for `<TideConditions>`                                |
-| `locale`      | `string`               | `navigator.language`               | BCP 47 locale for clocks, dates, and numbers                    |
-| `queryClient` | `QueryClient`          | created for you                    | A TanStack Query client, for example one hydrated on the server |
+| Prop          | Type                     | Default                            | Description                                                      |
+| ------------- | ------------------------ | ---------------------------------- | ---------------------------------------------------------------- |
+| `baseUrl`     | `string`                 | —                                  | API server URL; required unless `dataSource` is supplied         |
+| `dataSource`  | `SlackwaterDataSource`   | —                                  | Local or remote source; takes precedence over `baseUrl`          |
+| `units`       | `"meters" \| "feet"`     | feet for `en-US`, otherwise meters | Height units                                                     |
+| `setFormat`   | `"compass" \| "degrees"` | `"compass"`                        | Current direction display, shared by visible and spoken readings |
+| `timezone`    | `string`                 | the station's time zone            | Time zone for `<TideConditions>`                                 |
+| `locale`      | `string`                 | `navigator.language`               | BCP 47 locale for clocks, dates, and numbers                     |
+| `queryClient` | `QueryClient`            | created for you                    | A TanStack Query client, for example one hydrated on the server  |
 
 ## Local and precomputed data
 
@@ -111,7 +112,9 @@ Heights are above the station's chart datum, which the page names. A station who
 
 ### `<CurrentStation>`
 
-Current readings show full predicted speed and **Set**, the direction water flows toward, measured clockwise from true north. With two-component predictions, Set follows the rotating current; without them, speed is the absolute flood/ebb component and Set uses the published flood/ebb bearings. Between samples, two-component readings interpolate the velocity vectors, including direction changes through north. A zero vector has no Set. Speed readings round to a tenth of a knot; nonzero flow can retain a Set when its displayed speed rounds to 0.0.
+Current readings show full predicted speed and **Set**, the direction water flows toward, measured clockwise from true north. Set uses 16-point compass labels by default, such as `SW`. Set `setFormat="degrees"` on the provider to show a three-digit bearing such as `225°`, or read `const updateConfig = useUpdateConfig()` in your settings component and call `updateConfig({ setFormat: "degrees" })` from its change handler. A valid saved choice takes precedence over the provider’s initial `setFormat` prop, as it does for height units. The choice persists with the reader’s other preferences. Settings can label the option “Degrees °T” to explain true north; readings omit the T and show only the chosen format. Standalone components inherit the provider preference unless their own `setFormat` prop overrides it; without a provider they default to compass. Custom current components can use the exported `useSetFormat()` hook. Spoken compass readings use full direction names, such as “north-northeast.” Schedule bearings speak full direction names and identify their published source. They follow the same format preference but represent the station’s published flood/ebb headings. Fixed flood/ebb bearings in station details stay in degrees, without a T suffix.
+
+With two-component predictions, Set follows the rotating current; without them, speed is the absolute flood/ebb component and Set uses the published flood/ebb bearings. Between samples, two-component readings interpolate the velocity vectors, including direction changes through north. A zero vector has no Set. Speed readings round to a tenth of a knot; nonzero flow can retain a Set when its displayed speed rounds to 0.0.
 
 The graph, maximum flood/ebb events and axis windows use signed major-axis speed. Axis slack is a zero of that component; crossing flow can remain. The window threshold does not limit full speed, and axis zeros are not rotary-current minimum-speed predictions. Instantaneous readings do not infer a Slack state from these events.
 
@@ -175,19 +178,20 @@ The current timeline: full predicted speed and Set at the selected moment above 
 />
 ```
 
-| Prop         | Type                     | Default         | Description                                                                                                                |
-| ------------ | ------------------------ | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `timeline`   | `CurrentTimelineEntry[]` | —               | Signed major-axis speeds in knots, with magnitude and direction when known, flood positive; fewer than two shows a message |
-| `events`     | `CurrentEvent[]`         | —               | Slack, max flood, and max ebb events                                                                                       |
-| `timezone`   | `string`                 | —               | Station IANA time zone for clocks, dates, and days                                                                         |
-| `latitude`   | `number`                 | —               | Station latitude, for sunrise and sunset                                                                                   |
-| `longitude`  | `number`                 | —               | Station longitude, for sunrise and sunset                                                                                  |
-| `directions` | `{ flood?, ebb? }`       | `{}`            | Flood and ebb set in degrees true                                                                                          |
-| `threshold`  | `number`                 | `0.5`           | Major-axis speed in knots that sizes the axis windows                                                                      |
-| `locale`     | `string`                 | reader's locale | BCP 47 locale for clocks and dates                                                                                         |
-| `now`        | `number`                 | the clock       | The current instant in ms; pass it to render deterministically                                                             |
-| `bounded`    | `boolean`                | `false`         | Pad both ends so every supplied sample can reach the fixed reading line                                                    |
-| `className`  | `string`                 | —               | Extra classes for the outer element                                                                                        |
+| Prop         | Type                     | Default                    | Description                                                                                                                |
+| ------------ | ------------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `timeline`   | `CurrentTimelineEntry[]` | —                          | Signed major-axis speeds in knots, with magnitude and direction when known, flood positive; fewer than two shows a message |
+| `events`     | `CurrentEvent[]`         | —                          | Slack, max flood, and max ebb events                                                                                       |
+| `timezone`   | `string`                 | —                          | Station IANA time zone for clocks, dates, and days                                                                         |
+| `latitude`   | `number`                 | —                          | Station latitude, for sunrise and sunset                                                                                   |
+| `longitude`  | `number`                 | —                          | Station longitude, for sunrise and sunset                                                                                  |
+| `setFormat`  | `"compass" \| "degrees"` | provider, else `"compass"` | Direction override; otherwise inherits the provider or defaults to compass                                                 |
+| `directions` | `{ flood?, ebb? }`       | `{}`                       | Flood and ebb set in degrees true                                                                                          |
+| `threshold`  | `number`                 | `0.5`                      | Major-axis speed in knots that sizes the axis windows                                                                      |
+| `locale`     | `string`                 | reader's locale            | BCP 47 locale for clocks and dates                                                                                         |
+| `now`        | `number`                 | the clock                  | The current instant in ms; pass it to render deterministically                                                             |
+| `bounded`    | `boolean`                | `false`                    | Pad both ends so every supplied sample can reach the fixed reading line                                                    |
+| `className`  | `string`                 | —                          | Extra classes for the outer element                                                                                        |
 
 Set `bounded` on either scrubber for a finite window supplied by your application, such as one CHS day fetched directly in its browser. The scrubber does not fetch CHS predictions. Empty space on either side lets every supplied sample reach the fixed center line at the same 18 pixels per hour, including on a pane wider than the data. Selections clamp to the first and last samples; no curve is extrapolated. The default remains the continuous multi-day strip. A bounded scrubber displays only its supplied data and does not request or rank a fortnight of predictions. When the clock is outside the supplied span, Now means the nearest available endpoint; changing days or loading another window belongs to the host.
 

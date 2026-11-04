@@ -99,10 +99,23 @@ describe("StationCard", () => {
       NOW,
     )!;
     render(<CurrentReading reading={reading} locale="en-US" />);
-    expect(screen.getByText("2.0 knots, set 90 degrees true, E")).toBeDefined();
+    expect(screen.getByText("2.0 knots, set east")).toBeDefined();
     expect(screen.getByText("2.0")).toBeDefined();
-    expect(screen.getByText("Set 90°T · E")).toBeDefined();
+    expect(screen.getByText("Set E")).toBeDefined();
     expect(screen.queryByText(/slack/i)).toBeNull();
+  });
+
+  test("shows only degrees when the current card selects degrees", () => {
+    render(
+      <CurrentReading
+        reading={{ speed: 0, magnitude: 2, slack: false, direction: 5 }}
+        locale="en-US"
+        setFormat="degrees"
+      />,
+    );
+    expect(screen.getByText("Set 005°")).toBeDefined();
+    expect(screen.getByText("2.0 knots, set 5 degrees")).toBeDefined();
+    expect(screen.queryByText(/°T/)).toBeNull();
   });
 
   test("a zero vector has no Set on the card", () => {
@@ -122,7 +135,17 @@ describe("StationCard", () => {
     render(<StationCard station={deceptionPass} now={NOW} />, { wrapper: createTestWrapper() });
 
     await curve();
-    expect(screen.getByText(/^\d+\.\d knots, set \d+ degrees true, [NESW]{1,3}$/)).toBeDefined();
+    expect(screen.getByText(/^\d+\.\d knots, set [a-z-]+$/)).toBeDefined();
+  });
+
+  test("takes the Set preference from its provider", async () => {
+    render(<StationCard station={deceptionPass} now={NOW} />, {
+      wrapper: createTestWrapper({ setFormat: "degrees" }),
+    });
+    await curve();
+    expect(screen.getByText(/^Set \d{3}°$/)).toBeDefined();
+    expect(screen.getByText(/^\d+\.\d knots, set \d+ degrees$/)).toBeDefined();
+    expect(screen.queryByText(/°T/)).toBeNull();
   });
 
   test("a wide comfort window does not hide the current's phase or set", async () => {
@@ -130,7 +153,7 @@ describe("StationCard", () => {
       wrapper: createTestWrapper(),
     });
     await curve();
-    expect(screen.getByText(/^\d+\.\d knots, set \d+ degrees true, [NESW]{1,3}$/)).toBeDefined();
+    expect(screen.getByText(/^\d+\.\d knots, set [a-z-]+$/)).toBeDefined();
     expect(screen.queryByText("Axis slack")).toBeNull();
   });
 
@@ -144,9 +167,7 @@ describe("StationCard", () => {
     render(<StationCard station={deceptionPass} now={slack} />, { wrapper: createTestWrapper() });
 
     await curve();
-    expect(
-      screen.getByText(/^\d+\.\d knots(?:, set \d+ degrees true, [NESW]{1,3})?$/),
-    ).toBeDefined();
+    expect(screen.getByText(/^\d+\.\d knots(?:, set [a-z-]+)?$/)).toBeDefined();
     expect(screen.queryByText("Axis slack")).toBeNull();
   });
 

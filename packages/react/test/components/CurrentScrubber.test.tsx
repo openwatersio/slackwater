@@ -1,3 +1,4 @@
+import { createTestWrapper } from "../helpers.js";
 import { G } from "../../src/components/Scrubber.js";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -135,8 +136,8 @@ describe("CurrentScrubber", () => {
     }));
     const { slider, container } = renderScrubber({ timeline, now: t0 + 24 * H });
     await restsOn(slider, t0 + 24 * H);
-    expect(text(slider)).toMatch(/^2\.0 knots, set 90 degrees true, E,/);
-    expect(screen.getByText("Set 90°T · E")).toBeDefined();
+    expect(text(slider)).toMatch(/^2\.0 knots, set east,/);
+    expect(screen.getByText("Set E")).toBeDefined();
     expect(screen.getByText("kn")).toBeDefined();
     expect(screen.queryByText("Axis slack")).toBeNull();
     const curve = container.querySelector('path[stroke^="url("]')!;
@@ -147,12 +148,31 @@ describe("CurrentScrubber", () => {
     expect(Math.max(...ys)).toBeGreaterThan((G.plotTop + G.plotBottom) / 2);
   });
 
+  test("inherits the provider preference without a standalone override", async () => {
+    render(scrubber(), { wrapper: createTestWrapper({ setFormat: "degrees" }) });
+    const slider = screen.getByRole("slider", { name: "Current timeline" });
+    await restsOn(slider, NOW);
+    expect(screen.getByText("Set 045°")).toBeDefined();
+    expect(text(slider)).toMatch(/^1\.5 knots, set 45 degrees,/);
+  });
+
+  test("uses the chosen degree format for visible and spoken Set", async () => {
+    const { slider, rerender } = renderScrubber({ setFormat: "degrees" });
+    await restsOn(slider, NOW);
+    expect(screen.getByText("Set 045°")).toBeDefined();
+    expect(text(slider)).toMatch(/^1\.5 knots, set 45 degrees,/);
+    expect(text(slider)).not.toContain("true");
+    rerender(scrubber({ setFormat: "compass" }));
+    expect(screen.getByText("Set NE")).toBeDefined();
+    expect(text(slider)).toMatch(/^1\.5 knots, set northeast,/);
+  });
+
   test("glides open onto now and reads the current there", async () => {
     const { slider } = renderScrubber();
 
     expect(value(slider)).toBeLessThan(NOW);
     await restsOn(slider, NOW);
-    expect(text(slider)).toBe("1.5 knots, set 45 degrees true, NE, Oct 11, 1:00 AM UTC");
+    expect(text(slider)).toBe("1.5 knots, set northeast, Oct 11, 1:00 AM UTC");
     expect(commentaryPill().ariaLabel).toBe("Maximum flood along the major axis in 2 hours");
     expect(commentaryPill().textContent).toBe("Max flood2h 0m");
     expect(nowPill()).toBeNull();
@@ -202,7 +222,7 @@ describe("CurrentScrubber", () => {
 
     key(slider, "ArrowRight", true);
     expect(value(slider)).toBe(t0 + 27 * H);
-    expect(text(slider)).toMatch(/^3\.0 knots, set 45 degrees true, NE/);
+    expect(text(slider)).toMatch(/^3\.0 knots, set northeast/);
     expect(nowPill()!.textContent).toBe("Now");
 
     key(slider, "ArrowLeft", true);

@@ -1,4 +1,4 @@
-import type { CurrentEvent, CurrentTimelineEntry } from "../types.js";
+import type { CurrentEvent, CurrentTimelineEntry, SetFormat } from "../types.js";
 import { spokenTime } from "./time.js";
 import { KNOT_ANCHORS, rampColor } from "./color.js";
 import { UNIT_MS, interpolate, targetsWithin, type Stop } from "./scrubber.js";
@@ -30,9 +30,29 @@ export function threadOpacity(knots: number): number {
 
 const POINTS16 = "N NNE NE ENE E ESE SE SSE S SSW SW WSW W WNW NW NNW".split(" ");
 
+const SPOKEN_POINTS16 = [
+  "north",
+  "north-northeast",
+  "northeast",
+  "east-northeast",
+  "east",
+  "east-southeast",
+  "southeast",
+  "south-southeast",
+  "south",
+  "south-southwest",
+  "southwest",
+  "west-southwest",
+  "west",
+  "west-northwest",
+  "northwest",
+  "north-northwest",
+];
+const compassIndex = (degrees: number) => ((Math.round(degrees / 22.5) % 16) + 16) % 16;
+
 /** A bearing in degrees true as a 16-point compass word. */
 export function compass16(degrees: number): string {
-  return POINTS16[((Math.round(degrees / 22.5) % 16) + 16) % 16];
+  return POINTS16[compassIndex(degrees)];
 }
 
 /**
@@ -290,13 +310,21 @@ export function formatSpeed(knots: number, locale?: string): string {
   }).format(Math.abs(knots));
 }
 
-/** A set uses true north and points toward the flow. */
-export function formatSet(direction: number): string {
-  return `${Math.round(direction) % 360}°T · ${compass16(direction)}`;
+/** Bearings are measured from true north; the display follows the reader's preference. */
+export function formatSet(direction: number, format: SetFormat = "compass"): string {
+  return format === "degrees"
+    ? `${(((Math.round(direction) % 360) + 360) % 360).toString().padStart(3, "0")}°`
+    : compass16(direction);
 }
 
-export function spokenSet(direction: number): string {
-  return `set ${Math.round(direction) % 360} degrees true, ${compass16(direction)}`;
+export function spokenBearing(direction: number, format: SetFormat = "compass"): string {
+  return format === "degrees"
+    ? `${((Math.round(direction) % 360) + 360) % 360} degrees`
+    : SPOKEN_POINTS16[compassIndex(direction)];
+}
+
+export function spokenSet(direction: number, format: SetFormat = "compass"): string {
+  return `set ${spokenBearing(direction, format)}`;
 }
 
 /** One spoken reading: full speed, set when known, then the dated station clock and zone. */
@@ -305,10 +333,11 @@ export function spokenReading(
   time: number,
   timeZone: string,
   locale?: string,
+  setFormat: SetFormat = "compass",
 ): string {
   return [
     `${formatSpeed(reading.magnitude, locale)} knots`,
-    ...(reading.direction === undefined ? [] : [spokenSet(reading.direction)]),
+    ...(reading.direction === undefined ? [] : [spokenSet(reading.direction, setFormat)]),
     spokenTime(time, timeZone, locale),
   ].join(", ");
 }

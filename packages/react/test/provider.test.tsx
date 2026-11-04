@@ -2,6 +2,7 @@ import { createApiDataSource } from "../src/data-source.js";
 import { describe, test, expect, beforeEach, vi } from "vitest";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { SlackwaterProvider, useSlackwaterConfig, useUpdateConfig } from "../src/provider.js";
+import type { SlackwaterConfig } from "../src/provider.js";
 import type { ReactNode } from "react";
 
 beforeEach(() => {
@@ -26,8 +27,63 @@ describe("SlackwaterProvider", () => {
         cacheKey: createApiDataSource("https://api.example.com").cacheKey,
       }),
       units: "feet",
+      setFormat: "compass",
       locale: "en-US",
     });
+  });
+
+  test("defaults the Set preference to compass", () => {
+    const { result } = renderHook(() => useSlackwaterConfig(), { wrapper });
+    expect(result.current.setFormat).toBe("compass");
+  });
+
+  test("accepts degrees as an initial Set preference", () => {
+    const degrees = ({ children }: { children: ReactNode }) => (
+      <SlackwaterProvider baseUrl="https://api.example.com" setFormat="degrees">
+        {children}
+      </SlackwaterProvider>
+    );
+    const { result } = renderHook(() => useSlackwaterConfig(), { wrapper: degrees });
+    expect(result.current.setFormat).toBe("degrees");
+  });
+
+  test("persists a Set preference and restores it over the initial prop", () => {
+    const first = renderHook(() => ({ config: useSlackwaterConfig(), update: useUpdateConfig() }), {
+      wrapper,
+    });
+    act(() => first.result.current.update({ setFormat: "degrees" }));
+    expect(first.result.current.config.setFormat).toBe("degrees");
+    first.unmount();
+    const second = renderHook(() => useSlackwaterConfig(), { wrapper });
+    expect(second.result.current.setFormat).toBe("degrees");
+    expect(JSON.parse(localStorage.getItem("slackwater-settings")!).setFormat).toBe("degrees");
+  });
+
+  test.each([
+    ["compass", "compass"],
+    ["unknown", "degrees"],
+  ])("stored Set format %s overrides only when valid", (saved, expected) => {
+    localStorage.setItem("slackwater-settings", JSON.stringify({ setFormat: saved }));
+    const degrees = ({ children }: { children: ReactNode }) => (
+      <SlackwaterProvider baseUrl="https://api.example.com" setFormat="degrees">
+        {children}
+      </SlackwaterProvider>
+    );
+    const { result } = renderHook(() => useSlackwaterConfig(), { wrapper: degrees });
+    expect(result.current.setFormat).toBe(expected);
+  });
+
+  test("accepts legacy config objects without a direction preference", () => {
+    const config: SlackwaterConfig = {
+      dataSource: createApiDataSource("https://api.example.com"),
+      units: "feet",
+      locale: "en-US",
+    };
+    const legacy = ({ children }: { children: ReactNode }) => (
+      <SlackwaterProvider {...config}>{children}</SlackwaterProvider>
+    );
+    const { result } = renderHook(() => useSlackwaterConfig(), { wrapper: legacy });
+    expect(result.current.setFormat).toBe("compass");
   });
 
   test("defaults units based on locale", () => {

@@ -1,8 +1,9 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useSlackwaterConfig } from "../provider.js";
-import type { Units } from "../types.js";
+import type { SetFormat, Units } from "../types.js";
 import { formatNm, type CurrentCardReading, type TideCardReading } from "../utils/card.js";
+import { useSetFormat } from "../provider.js";
 import { formatSet, formatSpeed, spokenSet } from "../utils/current.js";
 import { formatHeight, heightUnit } from "../utils/tide.js";
 import { C, SET_ARROW_PATH, TideGlyph } from "./Scrubber.js";
@@ -180,23 +181,32 @@ export function TideReading({
   );
 }
 
-export function spokenCurrentCard(reading: CurrentCardReading, locale?: string): string {
+export function spokenCurrentCard(
+  reading: CurrentCardReading,
+  locale?: string,
+  setFormat: SetFormat = "compass",
+): string {
   const speed = `${formatSpeed(reading.magnitude, locale)} knots`;
-  return reading.direction === undefined ? speed : `${speed}, ${spokenSet(reading.direction)}`;
+  return reading.direction === undefined
+    ? speed
+    : `${speed}, ${spokenSet(reading.direction, setFormat)}`;
 }
 
 /** Full predicted speed and the direction the water flows toward. */
 export function CurrentReading({
   reading,
   locale,
+  setFormat,
 }: {
   reading: CurrentCardReading;
   locale?: string;
+  setFormat?: SetFormat;
 }) {
+  const resolvedSetFormat = useSetFormat(setFormat);
   const { magnitude, direction } = reading;
   return (
     <>
-      <span className="sr-only">{spokenCurrentCard(reading, locale)}</span>
+      <span className="sr-only">{spokenCurrentCard(reading, locale, resolvedSetFormat)}</span>
       <span className="whitespace-nowrap text-white" aria-hidden="true">
         <span className="text-xl leading-[25px] font-bold tabular-nums">
           {formatSpeed(magnitude, locale)}
@@ -208,7 +218,7 @@ export function CurrentReading({
           <span className="text-(--sw-foam)/60">Set —</span>
         ) : (
           <span className="flex items-center gap-1 text-(--sw-foam)/80">
-            Set {formatSet(direction)}
+            Set {formatSet(direction, resolvedSetFormat)}
             <svg width={11} height={11} viewBox="-6 -6 12 12">
               <path
                 d={SET_ARROW_PATH}

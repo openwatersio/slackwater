@@ -1,6 +1,7 @@
 import { useMemo } from "react";
+import { useSetFormat } from "../provider.js";
 
-import type { CurrentEvent, CurrentTimelineEntry } from "../types.js";
+import type { CurrentEvent, CurrentTimelineEntry, SetFormat } from "../types.js";
 import {
   DEFAULT_SLACK_THRESHOLD,
   EMPTY_MESSAGE,
@@ -51,6 +52,7 @@ export interface CurrentScrubberProps extends Pick<
   latitude: number;
   longitude: number;
   directions?: Directions;
+  setFormat?: SetFormat;
   /** Major-axis speed threshold for axis windows, in knots. */
   threshold?: number;
   /** BCP 47 locale for clocks and dates; defaults to the reader's. */
@@ -315,6 +317,7 @@ function CurrentStrip({
   latitude,
   longitude,
   directions,
+  setFormat,
   threshold = DEFAULT_SLACK_THRESHOLD,
   locale,
   now,
@@ -324,6 +327,7 @@ function CurrentStrip({
   moveTo,
   onNow,
 }: CurrentScrubberProps) {
+  const resolvedSetFormat = useSetFormat(setFormat);
   const flood = directions?.flood;
   const ebb = directions?.ebb;
   const track = useMemo((): Track => {
@@ -344,7 +348,7 @@ function CurrentStrip({
         const reading = read(t);
         if (!reading) return undefined;
         return {
-          spoken: spokenReading(reading, t, timezone, locale),
+          spoken: spokenReading(reading, t, timezone, locale, resolvedSetFormat),
           content: (
             <>
               <div
@@ -355,7 +359,7 @@ function CurrentStrip({
                   {reading.direction !== undefined ? (
                     <>
                       <SetArrow direction={reading.direction} size={13} />
-                      Set {formatSet(reading.direction)}
+                      Set {formatSet(reading.direction, resolvedSetFormat)}
                     </>
                   ) : (
                     "Set —"
@@ -381,7 +385,7 @@ function CurrentStrip({
       },
       draw: (kit) => drawCurrent(kit, timeline, events, runs, y, locale),
     };
-  }, [timeline, events, threshold, flood, ebb, timezone, locale]);
+  }, [timeline, events, threshold, flood, ebb, timezone, locale, resolvedSetFormat]);
 
   return (
     <Scrubber

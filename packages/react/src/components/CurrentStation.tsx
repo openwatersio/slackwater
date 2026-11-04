@@ -7,7 +7,7 @@ import {
   useCurrentTimeline,
 } from "../hooks/use-current-station.js";
 import type { CurrentEvent, CurrentStationInfo } from "../types.js";
-import { formatSpeed } from "../utils/current.js";
+import { formatSpeed, formatSet } from "../utils/current.js";
 import type { ScheduleEntry } from "../utils/schedule.js";
 import { nextMaxTile } from "../utils/standing.js";
 import { CurrentScrubber } from "./CurrentScrubber.js";
@@ -41,14 +41,14 @@ export interface CurrentStationProps {
   className?: string;
 }
 
-const degrees = (d: number) => `${Math.round(d)}°T`;
+const degrees = (d: number) => formatSet(d, "degrees");
 
 /** Where the speeds come from, after the app's current footer. */
 function provenance(station: CurrentStationInfo, reference: string | undefined) {
   const flood = station.current?.flood_direction;
   const sets = flood === undefined ? "" : ` Flood bearing ${degrees(flood)}.`;
   const axis =
-    " The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and axis windows use the flood/ebb component; crossing flow can remain at an axis zero. Without rotation data, Set uses published flood/ebb bearings.";
+    " Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and axis windows use the flood/ebb component; crossing flow can remain at an axis zero. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.";
   if (station.type === "subordinate") {
     const whose = reference ? `${reference}'s ` : "";
     return `NOAA subordinate station: ${whose}slacks and maxima, corrected by published offsets.${sets}${axis}`;
@@ -91,7 +91,7 @@ export function CurrentStation(props: CurrentStationProps) {
 }
 
 function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStationProps) {
-  const { locale } = useSlackwaterConfig();
+  const { locale, setFormat } = useSlackwaterConfig();
   const station = useCurrentStation(id);
   const s = station.data;
   const week = useStationWeek(s?.timezone);
@@ -136,6 +136,7 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
             latitude={s.latitude}
             longitude={s.longitude}
             directions={{ flood, ebb }}
+            setFormat={setFormat}
             threshold={threshold}
             locale={locale}
             onSelect={sync.onSelect}
@@ -155,6 +156,7 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
           <div className="mt-[26px]">
             <Schedule
               days={sync.days}
+              setFormat={setFormat}
               timezone={s.timezone}
               latitude={s.latitude}
               longitude={s.longitude}
