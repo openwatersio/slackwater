@@ -223,7 +223,7 @@ A subordinate's timeline is a half-cosine drawn through its event knots — a dr
 
 Caller-supplied station records can include `current.minor_constituents`, `current.minor_mean_flow`, and `current.azimuth`. Bundled station data contains only the major axis, so bundled predictions use the one-axis fallback.
 
-`slackWindows(timeline, threshold)` returns the runs of time where |speed| stays below `threshold` knots around a reversal, with interpolated band crossings. A lull that never reverses is weak water, not slack, and does not count; a window still open at the frame edge is kept and ends at the edge.
+`slackWindows(timeline, threshold)` returns the runs of time where |speed| stays below `threshold` knots around a reversal, with interpolated band crossings. Each crossing interpolates the signed speed to the band edge on the outside sample's side, so a sample step that holds both the reversal and the edge is not distorted by folding |speed|. A lull that never reverses is weak water, not slack, and does not count; a window still open at the frame edge is kept and ends at the edge.
 
 ## Harmonic fitting
 

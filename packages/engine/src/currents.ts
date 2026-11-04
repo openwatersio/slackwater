@@ -432,10 +432,16 @@ export function slackWindows(
 
   // Signed distance out of the band — negative inside, zero at the edge.
   const out = (s: Pick<CurrentPoint, "time" | "speed">) => Math.abs(s.speed) - threshold;
-  const cross = (a: (typeof timeline)[number], b: (typeof timeline)[number]) =>
-    new Date(
-      a.time.getTime() + (out(a) / (out(a) - out(b))) * (b.time.getTime() - a.time.getTime()),
+  // Interpolate the signed speed to the band edge on the outside sample's
+  // side. On a step that also holds the reversal, |speed| bends at zero, so
+  // interpolating it would misplace the edge; without a reversal the two agree.
+  const cross = (a: (typeof timeline)[number], b: (typeof timeline)[number]) => {
+    const edge = Math.sign((out(a) > 0 ? a : b).speed) * threshold;
+    return new Date(
+      a.time.getTime() +
+        ((edge - a.speed) / (b.speed - a.speed)) * (b.time.getTime() - a.time.getTime()),
     );
+  };
 
   const windows: SlackWindow[] = [];
   let from: Date | undefined = out(timeline[0]) <= 0 ? timeline[0].time : undefined;

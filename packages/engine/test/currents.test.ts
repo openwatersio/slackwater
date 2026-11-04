@@ -367,6 +367,25 @@ describe("slackWindows", () => {
     expect(slackWindows([sample(0, 2), sample(1, 0), sample(2, 2)], 1)).toEqual([]);
   });
 
+  test("a band edge on the reversal step interpolates the signed speed", () => {
+    const at = (s: number, speed: number): CurrentPoint => ({
+      time: new Date(s * 1000),
+      hour: s / 3600,
+      speed,
+    });
+
+    // Entering: −1 kn → +0.1 kn crosses −0.15 kn at 463.6 s, not the folded
+    // |speed| crossing at 566.7 s.
+    const entering = slackWindows([at(0, -1), at(600, 0.1)], 0.15);
+    expect(entering.length).toBe(1);
+    expect(entering[0].start.getTime() / 1000).toBeCloseTo(463.6, 1);
+
+    // Leaving: +0.1 kn → −1 kn crosses −0.15 kn at 136.4 s, not 33.3 s.
+    const leaving = slackWindows([at(0, 0.1), at(600, -1)], 0.15);
+    expect(leaving.length).toBe(1);
+    expect(leaving[0].end.getTime() / 1000).toBeCloseTo(136.4, 1);
+  });
+
   test("a reversal landing on an exact-zero sample still counts", () => {
     const windows = slackWindows([sample(0, 2), sample(1, 0), sample(2, -2)], 1);
     expect(windows.length).toBe(1);
