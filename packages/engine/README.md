@@ -229,7 +229,7 @@ Database and caller-supplied station records can include `current.minor_constitu
 
 ## Readings
 
-The readings are the calculations the Slackwater apps run to say what the water is doing at one instant. They take a prediction's timeline, events or extremes and a `Date`, and return `undefined` for an instant outside the timeline. They have no framework dependency.
+The readings are the calculations the Slackwater apps run to say what the water is doing at one instant. They take a prediction's timeline, events or extremes and a `Date`, and return `undefined` for an instant outside the timeline, and a tide reading is also `undefined` when the rates given do not cover the instant. They have no framework dependency.
 
 ### Current
 
