@@ -30,19 +30,22 @@ Subordinate current time adjustments are seconds in all low-level engines (`Subo
 
 ## Public API correspondence
 
-| Capability                  | TypeScript                                                         | Swift                                                     | Kotlin                                                |
-| --------------------------- | ------------------------------------------------------------------ | --------------------------------------------------------- | ----------------------------------------------------- |
-| Harmonic tide station       | `createTidePredictor` or `useStation`                              | `Station`                                                 | `Station`                                             |
-| Timeline heights            | `getTimelinePrediction`                                            | `Station.heights(from:to:step:)`                          | `Station.heights`                                     |
-| Height at one instant       | `getWaterLevelAtTime`                                              | —                                                         | —                                                     |
-| High and low waters         | `getExtremesPrediction`                                            | `Station.extremes(from:to:)`                              | `Station.extremes`                                    |
-| Tide rate                   | —                                                                  | `Station.rates(from:to:step:)`                            | `Station.rates`                                       |
-| Subordinate tide station    | `ExtremeOffsets` passed to prediction                              | `SubordinateTideStation`                                  | `SubordinateTideStation`                              |
-| Harmonic current station    | `createCurrentPredictor` or `useCurrentStation`                    | `CurrentStation`                                          | `CurrentStation`                                      |
-| Current speed and events    | `CurrentPredictor.getTimelinePrediction` and `getEventsPrediction` | `CurrentStation.speeds`, `slacks`, `maxima`, and `events` | `CurrentStation.speeds`, `slacks`, `maxima`, `events` |
-| Subordinate current station | `createSubordinateCurrentPredictor`                                | `SubordinateStation`                                      | `SubordinateCurrentStation`                           |
-| Extreme ranking             | —                                                                  | `TideExtreme.ranges`, `percentileRank`, and `percentile`  | —                                                     |
-| Tide-derived slack          | —                                                                  | `DerivedSlackStation`                                     | —                                                     |
+| Capability                   | TypeScript                                                         | Swift                                                                                | Kotlin                                                          |
+| ---------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| Harmonic tide station        | `createTidePredictor` or `useStation`                              | `Station`                                                                            | `Station`                                                       |
+| Timeline heights             | `getTimelinePrediction`                                            | `Station.heights(from:to:step:)`                                                     | `Station.heights`                                               |
+| Height at one instant        | `getWaterLevelAtTime`                                              | —                                                                                    | —                                                               |
+| High and low waters          | `getExtremesPrediction`                                            | `Station.extremes(from:to:)`                                                         | `Station.extremes`                                              |
+| Tide rate, analytic          | —                                                                  | `Station.rates(from:to:step:)`                                                       | `Station.rates`                                                 |
+| Tide rate, sampled           | `tideRates`                                                        | `[TidePoint].rates()`                                                                | `List<TidePoint>.sampledRates`                                  |
+| Reading at one instant       | `readCurrent`, `readTide`                                          | `readCurrent(at:timeline:events:flood:ebb:)`, `readTide(at:heights:rates:extremes:)` | `readCurrent`, `readTide`                                       |
+| Slack window around an event | `slackWindowAround`, `slackRuns`                                   | `slackWindow(_:around:threshold:)`, `slackRuns(_:events:threshold:)`                 | `slackWindowAround`, `slackRuns`                                |
+| Subordinate tide station     | `ExtremeOffsets` passed to prediction                              | `SubordinateTideStation`                                                             | `SubordinateTideStation`                                        |
+| Harmonic current station     | `createCurrentPredictor` or `useCurrentStation`                    | `CurrentStation`                                                                     | `CurrentStation`                                                |
+| Current speed and events     | `CurrentPredictor.getTimelinePrediction` and `getEventsPrediction` | `CurrentStation.speeds`, `slacks`, `maxima`, and `events`                            | `CurrentStation.speeds`, `slacks`, `maxima`, `events`           |
+| Subordinate current station  | `createSubordinateCurrentPredictor`                                | `SubordinateStation`                                                                 | `SubordinateCurrentStation`                                     |
+| Extreme ranking              | `swingRanges`, `swingHeights`, `peakRank`                          | `[TideExtreme].ranges()`, `swingHeights()`, `[Double].percentileRank(of:)`           | `List<TideExtreme>.swingHeights`, `List<Double>.percentileRank` |
+| Tide-derived slack           | —                                                                  | `DerivedSlackStation`                                                                | —                                                               |
 
 API names and return shapes do not need to match across languages. Units, signs, event kinds, and numerical results do.
 
@@ -60,21 +63,28 @@ Kotlin subordinate tide and current curves expand their event context until corr
 - A subordinate current uses the offset for the phase following each slack: slack-before-flood or slack-before-ebb.
 - Some current stations publish no flood or ebb direction. TypeScript takes directions as optional and leaves `direction` off events for a phase without one, because 0 would read as due north. Swift current events carry no direction. The Swift `CurrentStation` and `SubordinateStation` direction parameters are optional; callers pass nil for an unpublished bearing. Their numeric phase properties retain a zero placeholder for source compatibility, while timeline calculations preserve the missing value. Timeline points omit direction when the vector is zero or the bearing is unknown.
 - Current validation applies strict event tolerances only at navigationally significant speeds of at least 0.75 kn. Weak, nearly flat extrema have unstable event times and are reported without gating the suite.
+- Readings reach events within one second: a slack, maximum or turn event within one second of the instant decides the state.
+- A zero vector (magnitude at or below 1e-9) has no direction.
+- Swift and Kotlin `CurrentPoint`s always carry a magnitude, so a point with no direction, a magnitude equal to its absolute speed, and a nonzero magnitude is read as a one-axis sample and takes the published bearing for its sign; a zero sample with no direction is a zero vector. TypeScript reads a sample with no `magnitude` the same way.
+- Percentile rank: Swift and Kotlin return nil/null only for an empty list, so one value ranks 1.0; TypeScript's `peakRank` is undefined with fewer than two values.
+- The sampled tide rate (`tideRates`, `[TidePoint].rates()`, `sampledRates`) is a central difference over the samples given, one-sided at the ends; Swift and Kotlin also offer the analytic `Station.rates`. The two are different capabilities and are listed as such.
+- `slackWindows` (TypeScript only) interpolates the absolute speed on a sample step that holds both the reversal and the band edge; the event-centred `slackWindowAround` family interpolates the signed speed, so edges can differ there by a fraction of a sample.
 
 ## Cross-port parity
 
 These gates compare Swift and Kotlin results with fixtures generated from the TypeScript workspace package.
 
-| Area             | Comparison                      | Tolerance                                   |
-| ---------------- | ------------------------------- | ------------------------------------------- |
-| Astronomy        | Mean longitudes and node angles | `< 1e-6°` circular difference               |
-| Node corrections | IHO `f` and `u`                 | `< 1e-6` for `f`; `< 1e-6°` for `u`         |
-| Constituents     | `V0`, compound `f`, and `u`     | `< 1e-6`                                    |
-| Tide timeline    | Timestamp and height            | `< 0.5 s`; maximum height error `< 1e-6 m`  |
-| Current timeline | Timestamp and signed speed      | `< 0.5 s`; maximum speed error `< 1e-6 kn`  |
-| Current vector   | Magnitude and direction         | `< 1e-6 kn`; `< 1e-5°` circular difference  |
-| Current events   | Count, kind, time, and speed    | Count and kind exact; `< 60 s`; `< 0.02 kn` |
-| Tide extremes    | Count, kind, time, and height   | Count and kind exact; `< 60 s`; `< 0.02 m`  |
+| Area             | Comparison                      | Tolerance                                                                           |
+| ---------------- | ------------------------------- | ----------------------------------------------------------------------------------- |
+| Astronomy        | Mean longitudes and node angles | `< 1e-6°` circular difference                                                       |
+| Node corrections | IHO `f` and `u`                 | `< 1e-6` for `f`; `< 1e-6°` for `u`                                                 |
+| Constituents     | `V0`, compound `f`, and `u`     | `< 1e-6`                                                                            |
+| Tide timeline    | Timestamp and height            | `< 0.5 s`; maximum height error `< 1e-6 m`                                          |
+| Current timeline | Timestamp and signed speed      | `< 0.5 s`; maximum speed error `< 1e-6 kn`                                          |
+| Current vector   | Magnitude and direction         | `< 1e-6 kn`; `< 1e-5°` circular difference                                          |
+| Current events   | Count, kind, time, and speed    | Count and kind exact; `< 60 s`; `< 0.02 kn`                                         |
+| Tide extremes    | Count, kind, time, and height   | Count and kind exact; `< 60 s`; `< 0.02 m`                                          |
+| Readings         | `fixtures/readings.json`        | Times `< 0.5 s`; speeds, heights, and rates `< 1e-6`; directions `< 1e-5°` circular |
 
 ## Physical accuracy
 
@@ -118,7 +128,7 @@ A consumer that gates a range claim on the annual constituent will hide it at ev
 | Harmonic prediction, extremes, and node corrections | yes        | yes   | yes    |
 | Subordinate tide stations                           | yes        | yes   | yes    |
 | Currents, including subordinate reduction           | yes        | yes   | yes    |
-| Extreme ranking against a station's history         | —          | yes   | —      |
+| Extreme ranking against a station's history         | yes        | yes   | yes    |
 | Slack derived from a tide reference's lag           | —          | yes   | —      |
 
-Asymmetric features remain outside the parity gates. They enter the shared contract when participating ports implement them and a common fixture can exercise them. `fixtures/currents-parity.json` is generated from the TypeScript engine and carries the signed current timeline and events for Swift and Kotlin parity gates. `fixtures/currents-vector.json` carries three-day magnitude and direction parity values with synthetic minor-axis constants; all three ports already share the NOAA golden current fixtures and their physical-accuracy tolerances above.
+Asymmetric features remain outside the parity gates. They enter the shared contract when participating ports implement them and a common fixture can exercise them. `fixtures/currents-parity.json` is generated from the TypeScript engine and carries the signed current timeline and events for Swift and Kotlin parity gates. `fixtures/currents-vector.json` carries three-day magnitude and direction parity values with synthetic minor-axis constants. `fixtures/readings.json` is generated from the TypeScript readings and carries current and tide readings, slack windows and runs, flow peaks and swing ranks for the Swift and Kotlin parity gates. All three ports already share the NOAA golden current fixtures and their physical-accuracy tolerances above.
