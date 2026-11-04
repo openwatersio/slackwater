@@ -225,6 +225,8 @@ Database and caller-supplied station records can include `current.minor_constitu
 
 `slackWindows(timeline, threshold)` returns the runs of time where |speed| stays below `threshold` knots around a reversal, with interpolated band crossings. A lull that never reverses is weak water, not slack, and does not count; a window still open at the frame edge is kept and ends at the edge.
 
+`slackRuns(timeline, events, threshold)` and `slackWindowAround(timeline, slack, threshold)` start from the engine's slack events, always contain the slack, and report a window for a reversal the sampled series never dips into; `slackWindows` needs no events and only counts a dip that contains a reversal. On a sample step that holds both the reversal and the band edge, `slackWindows` interpolates the absolute speed and the event-centred pair interpolate the signed speed, so their edges can differ there by a fraction of a sample.
+
 ## Harmonic fitting
 
 Fit tidal heights or signed current velocities to a caller-selected harmonic basis.

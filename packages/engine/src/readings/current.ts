@@ -1,5 +1,5 @@
-import type { CurrentEvent, CurrentEventKind, CurrentPoint } from "../currents.js";
-import { interpolate } from "./series.js";
+import type { CurrentEvent, CurrentEventKind, CurrentPoint, SlackWindow } from "../currents.js";
+import { bandCrossing, interpolate } from "./series.js";
 
 /** The fields of a timeline sample that a reading needs. */
 export type CurrentSample = Pick<CurrentPoint, "time" | "speed" | "magnitude" | "direction">;
@@ -154,4 +154,75 @@ export function maxSpeeds(
   kind: Extract<CurrentEventKind, "maxFlood" | "maxEbb">,
 ): number[] {
   return events.filter((e) => e.kind === kind).map((e) => Math.abs(e.speed));
+}
+
+/** The default major-axis speed threshold for slack windows, in knots. */
+export const DEFAULT_SLACK_THRESHOLD = 0.5;
+
+/** The workable window around one slack: where |speed| stays within `threshold`, clamped to the series and holding the slack itself; undefined for a slack outside the series or with no reversal to bound. */
+export function slackWindowAround(
+  timeline: Pick<CurrentPoint, "time" | "speed">[],
+  slack: Date,
+  threshold: number,
+): SlackWindow | undefined {
+  const n = timeline.length;
+  const at = slack.getTime();
+  if (
+    threshold <= 0 ||
+    n === 0 ||
+    at < timeline[0].time.getTime() ||
+    at > timeline[n - 1].time.getTime()
+  ) {
+    return undefined;
+  }
+  const ms = (i: number) => timeline[i].time.getTime();
+  const inBand = (i: number) => Math.abs(timeline[i].speed) <= threshold;
+  let i = n - 1;
+  while (ms(i) > at) i--;
+  let k: number;
+  if (inBand(i)) k = i;
+  else if (i + 1 < n && inBand(i + 1)) k = i + 1;
+  else if (i + 1 < n && timeline[i].speed > 0 !== timeline[i + 1].speed > 0) {
+    // A reversal between two out-of-band samples crosses the band along the straight segment of absolute speed.
+    const a = Math.abs(timeline[i].speed);
+    const span = a + Math.abs(timeline[i + 1].speed);
+    const dt = ms(i + 1) - ms(i);
+    return {
+      start: new Date(Math.min(at, ms(i) + (dt * (a - threshold)) / span)),
+      end: new Date(Math.max(at, ms(i) + (dt * (a + threshold)) / span)),
+    };
+  } else return undefined;
+  let lo = k;
+  while (lo > 0 && inBand(lo - 1)) lo--;
+  let hi = k;
+  while (hi < n - 1 && inBand(hi + 1)) hi++;
+  const start = lo > 0 ? bandCrossing(timeline[lo - 1], timeline[lo], threshold) : timeline[0].time;
+  const end =
+    hi < n - 1 ? bandCrossing(timeline[hi], timeline[hi + 1], threshold) : timeline[n - 1].time;
+  return {
+    start: new Date(Math.min(at, start.getTime())),
+    end: new Date(Math.max(at, end.getTime())),
+  };
+}
+
+/** Touching or overlapping windows around the slacks in the series merged into runs; a slack with no window stays an exact instant. */
+export function slackRuns(
+  timeline: Pick<CurrentPoint, "time" | "speed">[],
+  events: CurrentEvent[],
+  threshold: number,
+): SlackWindow[] {
+  const first = timeline[0]?.time.getTime();
+  const last = timeline[timeline.length - 1]?.time.getTime();
+  const windows = events
+    .filter((e) => e.kind === "slack" && e.time.getTime() >= first && e.time.getTime() <= last)
+    .map((e) => slackWindowAround(timeline, e.time, threshold) ?? { start: e.time, end: e.time })
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
+  const runs: SlackWindow[] = [];
+  for (const window of windows) {
+    const previous = runs.at(-1);
+    if (previous && window.start <= previous.end) {
+      previous.end = new Date(Math.max(previous.end.getTime(), window.end.getTime()));
+    } else runs.push(window);
+  }
+  return runs;
 }
