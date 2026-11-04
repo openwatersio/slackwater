@@ -175,7 +175,6 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
           <StationFooter
             provenance={s.predictions ? provenance(s, ref?.name) : undefined}
             disclaimers={s.disclaimers}
-            attribution={s.attribution}
           />
           {s.predictions && (
             <StationDetails>
@@ -204,7 +203,12 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
               )}
             </StationDetails>
           )}
-          <StationNearby id={id} kind="current" onStationSelect={onStationSelect} />
+          <StationNearby
+            id={id}
+            attribution={s.attribution}
+            kind="current"
+            onStationSelect={onStationSelect}
+          />
         </>
       )}
     </StationPage>

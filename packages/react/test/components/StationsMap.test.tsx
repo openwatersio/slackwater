@@ -338,6 +338,84 @@ describe("StationsMap", () => {
       return { container, map: await loadedMap(ref) };
     }
 
+    test("late basemap attribution stays visible for five seconds before folding", async () => {
+      const queryClient = createQueryClient();
+      const fetch = vi.spyOn(window, "fetch").mockImplementation(async () => Response.json([]));
+      try {
+        const ref = createRef<MapRef>();
+        const { container } = render(
+          <StationsMap
+            ref={ref}
+            mapStyle={style}
+            now={NOW}
+            initialViewState={{ longitude: 0, latitude: 0, zoom: 6 }}
+          />,
+          { wrapper: mapWrapper(queryClient) },
+        );
+        const map = await loadedMap(ref);
+        await waitFor(() => expect(queryClient.getQueryCache().getAll().length).toBeGreaterThan(0));
+        await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+        const added = performance.now();
+        map.addSource("credited", {
+          type: "geojson",
+          attribution: "Test basemap credit",
+          data: { type: "FeatureCollection", features: [] },
+        });
+        map.addLayer({ id: "credited", type: "circle", source: "credited" });
+        const control = container.querySelector(".maplibregl-ctrl-attrib")!;
+        await waitFor(() => expect(control.textContent).toContain("Test basemap credit"));
+        expect(control.classList.contains("maplibregl-compact-show")).toBe(true);
+        await waitFor(
+          () => expect(control.classList.contains("maplibregl-compact-show")).toBe(false),
+          { timeout: 7000 },
+        );
+        expect(performance.now() - added).toBeGreaterThanOrEqual(5000);
+        fireEvent.click(container.querySelector(".maplibregl-ctrl-attrib-button")!);
+        expect(control.classList.contains("maplibregl-compact-show")).toBe(true);
+        map.fire("styledata");
+        expect(control.classList.contains("maplibregl-compact-show")).toBe(true);
+      } finally {
+        fetch.mockRestore();
+      }
+    });
+
+    test("reading attribution cancels its pending fold", async () => {
+      const queryClient = createQueryClient();
+      const fetch = vi.spyOn(window, "fetch").mockImplementation(async () => Response.json([]));
+      try {
+        const ref = createRef<MapRef>();
+        const { container } = render(
+          <StationsMap
+            ref={ref}
+            mapStyle={style}
+            now={NOW}
+            initialViewState={{ longitude: 0, latitude: 0, zoom: 6 }}
+          />,
+          { wrapper: mapWrapper(queryClient) },
+        );
+        const map = await loadedMap(ref);
+        await waitFor(() => expect(queryClient.getQueryCache().getAll().length).toBeGreaterThan(0));
+        await waitFor(() => expect(queryClient.isFetching()).toBe(0));
+        const added = performance.now();
+        map.addSource("credited", {
+          type: "geojson",
+          attribution: "Test basemap credit",
+          data: { type: "FeatureCollection", features: [] },
+        });
+        map.addLayer({ id: "credited", type: "circle", source: "credited" });
+        const control = container.querySelector(".maplibregl-ctrl-attrib")!;
+        await waitFor(() => expect(control.textContent).toContain("Test basemap credit"));
+        expect(control.classList.contains("maplibregl-compact-show")).toBe(true);
+        fireEvent.focusIn(control);
+        await waitFor(() => expect(performance.now() - added).toBeGreaterThan(5100), {
+          timeout: 7000,
+        });
+        expect(control.classList.contains("maplibregl-compact-show")).toBe(true);
+      } finally {
+        fetch.mockRestore();
+      }
+    });
+
     test("the stations predicted in view, beside the basemap's", async () => {
       const { container, map } = await renderBergen();
       const controls = () => [...container.querySelectorAll(".maplibregl-ctrl-attrib")];
@@ -354,6 +432,8 @@ describe("StationsMap", () => {
           timeout: 10000,
         },
       );
+
+      expect(folded()).toEqual([false]);
 
       // A drag folds the control to its ⓘ, and a change of credits leaves it folded.
       map.fire("drag");
@@ -375,9 +455,14 @@ describe("StationsMap", () => {
           ),
         { timeout: 10000 },
       );
+      fireEvent.click(container.querySelector(".maplibregl-ctrl-attrib-button")!);
+      expect(folded()).toEqual([false]);
+      map.jumpTo({ center: [bergen.longitude, bergen.latitude] });
+      await waitFor(() => expect(control()).toMatch(/Source: .*Kartverket/));
+      expect(folded()).toEqual([false]);
     });
 
-    test("the open card's station, under the card", async () => {
+    test("the open card credits its station in the map control, without a caption", async () => {
       const { container, map } = await renderBergen();
       await waitFor(
         () =>
@@ -392,14 +477,26 @@ describe("StationsMap", () => {
       const canvas = container.querySelector("canvas")!;
       const pin = map.project([bergen.longitude, bergen.latitude]);
       tap(canvas, pin.x - 20, pin.y);
-      const card = await screen.findByRole("button", { name: /Bergen/ }, { timeout: 10000 });
-      const [credit, ...more] = screen
-        .getAllByText(/^Slackwater database \(.+Source: .*Kartverket/)
-        .filter((p) => !p.closest(".maplibregl-ctrl"));
-      expect(more).toEqual([]);
-      expect(credit.getBoundingClientRect().top).toBeGreaterThanOrEqual(
-        card.getBoundingClientRect().bottom,
+      await screen.findByRole("button", { name: /Bergen/ }, { timeout: 10000 });
+      const control = container.querySelector(".maplibregl-ctrl-attrib")!;
+      const captions = () =>
+        screen.queryAllByText(/^Slackwater database/).filter((p) => !p.closest(".maplibregl-ctrl"));
+      expect(captions()).toEqual([]);
+
+      // The selected card still shows predictions after its pin leaves the view.
+      map.jumpTo({ center: map.unproject([500, 150]) });
+      await waitFor(() =>
+        expect(
+          map
+            .queryRenderedFeatures({ layers: ["sw-pins"] })
+            .some((f) => f.properties.key === "tide:kartverket/BGO"),
+        ).toBe(false),
       );
+      await waitFor(() => expect(control.textContent).toMatch(/Source: .*Kartverket/));
+      expect(control.classList.contains("maplibregl-attrib-empty")).toBe(false);
+      tap(canvas, 5, 5);
+      await waitFor(() => expect(screen.queryByRole("button", { name: /Bergen/ })).toBeNull());
+      await waitFor(() => expect(control.classList.contains("maplibregl-attrib-empty")).toBe(true));
     });
   });
 

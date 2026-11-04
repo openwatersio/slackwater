@@ -190,6 +190,32 @@ describe("NearbyStations", () => {
     ]);
   });
 
+  test("combines the originating station credit with nearby sources in a closed disclosure", async () => {
+    const attribution =
+      "Slackwater database (https://github.com/openwatersio/slackwater-database). Source: Home Survey";
+    render(<NearbyStations {...DECEPTION_PASS} attribution={attribution} />, {
+      wrapper: createTestWrapper(),
+    });
+    await cards();
+    expect(credits().map((p) => p.textContent)).toEqual([attribution]);
+    const summary = screen.getByText("Data sources");
+    expect(summary.closest("details")!.open).toBe(false);
+    expect(credits()[0].checkVisibility()).toBe(false);
+    fireEvent.click(summary);
+    expect(credits()[0].checkVisibility()).toBe(true);
+  });
+
+  test("keeps the originating credit if nearby predictions cannot load", async () => {
+    vi.spyOn(window, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ message: "Unavailable" }), { status: 503 }),
+    );
+    render(<NearbyStations {...DECEPTION_PASS} attribution="Slackwater database (home)" />, {
+      wrapper: createTestWrapper(),
+    });
+    await screen.findByText("Unavailable");
+    expect(credits().map((p) => p.textContent)).toEqual(["Slackwater database (home)"]);
+  });
+
   test("applies className to the list", async () => {
     render(<NearbyStations {...DECEPTION_PASS} className="my-list" />, {
       wrapper: createTestWrapper(),

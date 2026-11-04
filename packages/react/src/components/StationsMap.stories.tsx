@@ -64,7 +64,7 @@ export const SelectedStation: Story = {
   },
 };
 
-/** Bergen's card, with Kartverket's credit under it and in the map's ⓘ. */
+/** Bergen's card, with Kartverket's credit in the map's ⓘ. */
 export const NorwayStation: Story = {
   args: { initialViewState: { longitude: 5.320487, latitude: 60.398046, zoom: 11.5 } },
   play: SelectedStation.play,
