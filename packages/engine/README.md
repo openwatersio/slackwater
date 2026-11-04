@@ -225,6 +225,86 @@ Database and caller-supplied station records can include `current.minor_constitu
 
 `slackWindows(timeline, threshold)` returns the runs of time where |speed| stays below `threshold` knots around a reversal, with interpolated band crossings. A lull that never reverses is weak water, not slack, and does not count; a window still open at the frame edge is kept and ends at the edge.
 
+`slackRuns(timeline, events, threshold)` and `slackWindowAround(timeline, slack, threshold)` start from the engine's slack events, always contain the slack, and report a window for a reversal the sampled series never dips into; `slackWindows` needs no events and only counts a dip that contains a reversal. On a sample step that holds both the reversal and the band edge, `slackWindows` interpolates the absolute speed and the event-centred pair interpolate the signed speed, so their edges can differ there by a fraction of a sample.
+
+## Readings
+
+The readings are the calculations the Slackwater apps run to say what the water is doing at one instant. They take a prediction's timeline, events or extremes and a `Date`, and return `undefined` for an instant outside the timeline, and a tide reading is also `undefined` when the rates given do not cover the instant. They have no framework dependency.
+
+### Current
+
+`readCurrent(time, timeline, events, directions)` returns the phase, the signed major-axis `speed`, and the vector `magnitude` and `direction`. `directions` is the station's published `{ flood, ebb }` bearing in degrees true, used when the timeline has no vector of its own.
+
+```ts
+import { readCurrent, compass16 } from "@slackwater/engine";
+
+const currentTimeline = currentStation.getTimelinePrediction({
+  start,
+  end,
+  timeFidelity: 600,
+}).timeline;
+const currentEvents = currentStation.getEventsPrediction({ start, end }).events;
+
+const now = readCurrent(new Date(), currentTimeline, currentEvents, {
+  flood: currentStation.current?.flood_direction,
+  ebb: currentStation.current?.ebb_direction,
+});
+// { state: "Flooding", speed: 1.8, magnitude: 1.9, direction: 31 }
+if (now?.direction !== undefined) console.log(now.state, compass16(now.direction));
+```
+
+`state` is `"Slack"`, `"Max flood"` or `"Max ebb"` when an event falls within one second of the instant, and `"Flooding"` or `"Ebbing"` otherwise. A zero vector has no direction, so `direction` is absent at exact slack and when the bearing is unknown. `speedAt(timeline, time)` and `vectorAt(timeline, time, directions)` give the speed and the vector alone, interpolating vectors rather than bearings so a swing through north stays physical. `compass16` and `compassIndex` name a bearing as a 16-point compass abbreviation, and `COMPASS_POINTS` and `SPOKEN_COMPASS_POINTS` list the names.
+
+### Tide
+
+`readTide(time, timeline, rates, extremes)` returns `"High"`, `"Low"`, `"Rising"` or `"Falling"`, the height, whether the water is `up`, and the rate. A turn within one second of the instant reads as that high or low at its own height.
+
+```ts
+import { readTide, tideRates } from "@slackwater/engine";
+
+const { timeline: tideTimeline, units } = tideStation.getTimelinePrediction({ start, end });
+const { extremes } = tideStation.getExtremesPrediction({ start, end });
+
+const rates = tideRates(tideTimeline, units); // meters per hour, positive rising
+const reading = readTide(new Date(), tideTimeline, rates, extremes);
+// { state: "Rising", level: 1.2, up: true, rate: 0.4 }
+```
+
+`tideRates` is a central difference over the timeline's samples, one-sided at its ends, so a finer `timeFidelity` gives a closer rate. Swift and Kotlin also offer an analytic rate from the constituents; the TypeScript readings use the sampled one. Rates are always meters per hour, whatever the timeline's units. `levelAt(timeline, time)` and `rateAt(rates, time)` interpolate one value, and `levelRange(timeline, from, to)` gives the lowest and highest sample in a span.
+
+`flowPeaks(rates, floor)` returns the fastest sample of each rising or falling run whose rate reaches `floor` meters per hour. The floor is the caller's choice; it keeps the slow runs of a weak tide out of the list.
+
+```ts
+import { flowPeaks } from "@slackwater/engine";
+
+const peaks = flowPeaks(rates, 0.3); // [{ time, rate }, ...]
+```
+
+### Slack runs
+
+`slackRuns(timeline, events, threshold)` merges the window around each slack event into runs, so slacks whose windows touch read as one stretch of quiet water. The threshold is in knots, and `DEFAULT_SLACK_THRESHOLD` is 0.5.
+
+```ts
+import { slackRuns } from "@slackwater/engine";
+
+const runs = slackRuns(currentTimeline, currentEvents, 0.3); // [{ start, end }, ...]
+```
+
+### Ranking against the rest
+
+`peakRank(value, values)` places a value among others from 0 to 1, with ties counting as below, and is `undefined` when fewer than two values are given to rank against. `swingHeights(extremes)` lists the height of each rise or fall between adjacent opposite turns, and `swingRanges(extremes)` keeps the time of each. `maxSpeeds(events, kind)` lists one direction's maxima as unsigned speeds, so floods rank against floods and ebbs against ebbs.
+
+```ts
+import { peakRank, swingHeights, maxSpeeds } from "@slackwater/engine";
+
+// How big is the latest swing, among the span's swings?
+const tide = peakRank(swingHeights(extremes).at(-1)!, swingHeights(extremes));
+
+// How strong is a flood, among the span's floods?
+const flood = maxSpeeds(currentEvents, "maxFlood");
+const strength = peakRank(flood[0], flood);
+```
+
 ## Harmonic fitting
 
 Fit tidal heights or signed current velocities to a caller-selected harmonic basis.

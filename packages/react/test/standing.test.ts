@@ -3,11 +3,8 @@ import {
   fortnightWindow,
   outlookWeek,
   dailySwingRanges,
-  maxSpeeds,
   nextMaxTile,
-  peakRank,
   rangeTile,
-  swingHeights,
 } from "../src/utils/standing.js";
 import type { CurrentEvent, Extreme } from "../src/types.js";
 
@@ -40,50 +37,6 @@ describe("fortnightWindow", () => {
       start: "2026-10-26T07:00:00.000Z",
       end: "2026-11-25T08:00:00.000Z",
     });
-  });
-});
-
-describe("peakRank", () => {
-  test("the fraction at or below the value, ties counting as below", () => {
-    expect(peakRank(3, [1, 2, 3, 4])).toBe(0.75);
-    expect(peakRank(2, [2, 2, 3, 4])).toBe(0.5);
-    expect(peakRank(4, [1, 2, 3, 4])).toBe(1);
-    expect(peakRank(1, [1, 2, 3, 4])).toBe(0.25);
-  });
-
-  test("nothing to rank against with fewer than two", () => {
-    expect(peakRank(3, [3])).toBeUndefined();
-    expect(peakRank(3, [])).toBeUndefined();
-  });
-});
-
-describe("swingHeights", () => {
-  test("each rise and each fall", () => {
-    const list = [extreme(0, 0, false), extreme(6, 3, true), extreme(12, 1, false)];
-    expect(swingHeights(list)).toEqual([3, 2]);
-  });
-
-  test("a run of lows starts the next rise from the lower, and a run of highs the next fall from the higher", () => {
-    const lows = [extreme(0, 1, false), extreme(3, 0.5, false), extreme(6, 3, true)];
-    expect(swingHeights(lows)).toEqual([2.5]);
-    const shallower = [extreme(0, 0.5, false), extreme(3, 1, false), extreme(6, 3, true)];
-    expect(swingHeights(shallower)).toEqual([2.5]);
-    const highs = [
-      extreme(0, 0, false),
-      extreme(3, 2, true),
-      extreme(6, 3, true),
-      extreme(9, 1, false),
-    ];
-    expect(swingHeights(highs)).toEqual([2, 2]);
-  });
-
-  test("an inverted pair is no swing", () => {
-    expect(swingHeights([extreme(0, 2, false), extreme(6, 1, true)])).toEqual([]);
-  });
-
-  test("none without two turns", () => {
-    expect(swingHeights([])).toEqual([]);
-    expect(swingHeights([extreme(0, 1, true)])).toEqual([]);
   });
 });
 
@@ -197,11 +150,6 @@ describe("nextMaxTile", () => {
     expect(
       nextMaxTile(events, t0 + H, [...floods(5), event(-11, 5, "maxFlood")], tz, "en-US"),
     ).toMatchObject({ caption: "Flood at 8:00 PM", marked: false });
-  });
-
-  test("maxSpeeds is one direction's unsigned speeds", () => {
-    expect(maxSpeeds(events, "maxEbb")).toEqual([6.4]);
-    expect(maxSpeeds(events, "maxFlood")).toEqual([4.2]);
   });
 });
 

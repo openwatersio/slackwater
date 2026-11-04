@@ -1,3 +1,4 @@
+import { levelAt, rateAt, readCurrent, tideRates } from "@slackwater/engine";
 import type {
   CurrentEvent,
   CurrentTimelineEntry,
@@ -5,8 +6,7 @@ import type {
   StationSummary,
   TimelineEntry,
 } from "../types.js";
-import { readCurrent, type Directions } from "./current.js";
-import { levelAt, rateAt, tideRates } from "./tide.js";
+import type { Directions } from "./current.js";
 
 const HOUR = 3_600_000;
 
@@ -81,12 +81,12 @@ export function readTideCard(
   extremes: Extreme[],
   now: number,
 ): TideCardReading | undefined {
-  const level = levelAt(timeline, now);
+  const level = levelAt(timeline, new Date(now));
   if (level === undefined) return undefined;
   // Only the rate's sign is used, so a positive height-unit conversion cannot change the trend.
   const rising =
     extremes.find((e) => e.time.getTime() > now)?.high ??
-    rateAt(tideRates(timeline, "meters"), now)! >= 0;
+    rateAt(tideRates(timeline, "meters"), new Date(now))! >= 0;
   return { level, rising };
 }
 
@@ -106,7 +106,7 @@ export function readCurrentCard(
   directions: Directions,
   now: number,
 ): CurrentCardReading | undefined {
-  const reading = readCurrent(now, timeline, events, [], directions);
+  const reading = readCurrent(new Date(now), timeline, events, directions);
   if (!reading) return undefined;
   return {
     speed: reading.speed,

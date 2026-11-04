@@ -20,7 +20,42 @@ import {
   type CurrentStationTimelineOptions,
 } from "@slackwater/engine";
 
-export { slackWindows } from "@slackwater/engine";
+export {
+  slackWindows,
+  interpolate,
+  bandCrossing,
+  peakRank,
+  COMPASS_POINTS,
+  SPOKEN_COMPASS_POINTS,
+  DEFAULT_SLACK_THRESHOLD,
+  compassIndex,
+  compass16,
+  speedAt,
+  vectorAt,
+  readCurrent,
+  maxSpeeds,
+  slackWindowAround,
+  slackRuns,
+  tideRates,
+  levelAt,
+  rateAt,
+  flowPeaks,
+  levelRange,
+  readTide,
+  swingRanges,
+  swingHeights,
+  type CurrentSample,
+  type Directions,
+  type CurrentState,
+  type CurrentVector,
+  type CurrentReading,
+  type TidePoint,
+  type TurnPoint,
+  type RatePoint,
+  type TideState,
+  type TideReading,
+  type Swing,
+} from "@slackwater/engine";
 
 // The database carries both tide and current stations; each prediction kind
 // only works with its own. Derived on first use, so importing reads no data.

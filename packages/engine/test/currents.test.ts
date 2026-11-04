@@ -358,6 +358,16 @@ describe("slackWindows", () => {
     expect(between[0].end).toEqual(new Date(hours(3)));
   });
 
+  test("a step holding both the reversal and the band edge folds the absolute speed", () => {
+    // −1 kn to +0.1 kn in one hour at a 0.15 kn band: |speed| falls from 0.85
+    // above the band to 0.05 inside it, so the folded crossing is 0.85/0.9 of
+    // the way across, later than the signed line's 0.85/1.1.
+    const windows = slackWindows([sample(0, -1), sample(1, 0.1), sample(2, 1)], 0.15);
+    expect(windows.length).toBe(1);
+    expect(windows[0].start.getTime()).toBeCloseTo(hours(0.85 / 0.9), -2);
+    expect(windows[0].end.getTime()).toBeCloseTo(hours(1 + 0.05 / 0.9), -2);
+  });
+
   test("a lull that never reverses is not a window", () => {
     // Dips under the threshold and builds back the way it came: weak water.
     const windows = slackWindows([sample(0, 2), sample(1, 0.5), sample(2, 2)], 1);

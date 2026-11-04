@@ -102,7 +102,31 @@ Empty or ineffective minor constituents without mean cross-flow use the one-axis
 
 All numeric inputs must be finite. Steps must be positive, representable at the requested epoch and at least one nanosecond. Timeline and event searches exceeding the indexed work/result range are rejected. Invalid inputs throw `IllegalArgumentException`. Reversed windows return empty lists. Equal timeline bounds produce the samples from outward snapping; event roots on an exact bracket boundary, and current slacks at a node-correction refresh, are not guaranteed. Steps default to 600 seconds; the start is floored and the end ceiled to the step on the UTC epoch grid. No default time zone enters prediction. Station constructors copy caller collections, and requests have independent calculation state.
 
-Unknown names and zero amplitudes contribute nothing. Astronomy returns null for an unknown name. IHO node corrections are supported. `ChsTideFit` and `ChsCurrentFit` carry the CHS tide and current fit recipes shared with TypeScript and Swift, `ChsCurrentFit.STAMP` identifies the current recipe, and `ChsCurrentFit.project` makes a current gate's `HarmonicSample` series. The stamp is checked against `fixtures/chs-current-golden.json` and changes when a change moves the golden gate's predicted velocity by 1e-4 kn or more, a slack or peak by 30 seconds or more, or a peak's speed by 0.001 kn or more. Schureman, fitting, station lookup, datum resolution, ranking, derived slack and publication tooling are outside this port; CHS stations are resolved by the separate [IWLS module](#iwls-fetching).
+Unknown names and zero amplitudes contribute nothing. Astronomy returns null for an unknown name. IHO node corrections are supported. `ChsTideFit` and `ChsCurrentFit` carry the CHS tide and current fit recipes shared with TypeScript and Swift, `ChsCurrentFit.STAMP` identifies the current recipe, and `ChsCurrentFit.project` makes a current gate's `HarmonicSample` series. The stamp is checked against `fixtures/chs-current-golden.json` and changes when a change moves the golden gate's predicted velocity by 1e-4 kn or more, a slack or peak by 30 seconds or more, or a peak's speed by 0.001 kn or more. Schureman, fitting, station lookup, datum resolution, derived slack and publication tooling are outside this port; CHS stations are resolved by the separate [IWLS module](#iwls-fetching).
+
+## Readings
+
+A reading names what the water is doing at one instant, from a series and its events. These port the readings in [`@slackwater/engine`](../packages/engine), and `fixtures/readings.json` holds them to the same answers as TypeScript and Swift. Continuing from the predictions above:
+
+```kotlin
+val now = Instant.parse("2026-06-01T09:00:00Z")
+readCurrent(now, speeds, events, floodDirectionDegrees = 90.0, ebbDirectionDegrees = 270.0)?.let {
+    println("${it.state} ${it.speedKnots} ${it.magnitudeKnots} ${it.directionDegrees?.let(::compassPoint) ?: "no set"}")
+}
+val runs: List<SlackWindow> = slackRuns(speeds, events, DEFAULT_SLACK_THRESHOLD_KNOTS)
+
+val sampled = heights.sampledRates()                 // sampled central difference, metres per hour
+readTide(now, heights, sampled, highLow)?.let {
+    println("${it.state} ${it.heightMetres} ${it.rising} ${it.rateMetresPerHour}")
+}
+val peaks = flowPeaks(rates, floorMetresPerHour = 0.6)   // each rise and fall's fastest sample
+val swings = highLow.swingHeights()                  // each rise and fall's height
+val rank = swings.percentileRank(swings.lastOrNull() ?: 0.0)
+```
+
+`readCurrent` reads `SLACK` within one second of a slack event and `MAX_FLOOD` or `MAX_EBB` within one second of a maximum; otherwise the sign of the speed gives `FLOODING` or `EBBING`. `vectorAt` interpolates the full vector through bearings, so a set turning through north stays north and opposing flows cancel. A zero vector has no direction. A point with no `directionDegrees` whose `magnitudeKnots` is `abs(speedKnots)`, as `CurrentPoint(time, speedKnots)` builds, is a one-axis sample: it takes the flood or ebb bearing for its sign, and the two need not be reciprocal. `slackWindowAround` is the span around one slack where the speed stays within the threshold, and `slackRuns` merges the windows that touch. A threshold at or below zero gives no windows.
+
+`readTide` reads `HIGH` or `LOW` at the turn's own height within one second of an extreme, otherwise `RISING` or `FALLING` toward the next extreme, and by the sign of the rate after the last one. `sampledRates()` is a sampled difference over the heights you pass; `Station.rates` is the analytic derivative, and either list can be passed as `rates`. `percentileRank` is null only for an empty list. Readings return null outside the series. Floors and thresholds are yours to choose; only `DEFAULT_SLACK_THRESHOLD_KNOTS` (0.5 kn) ships as a default.
 
 ## IWLS fetching
 

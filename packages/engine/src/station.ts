@@ -84,7 +84,7 @@ export type StationPredictor = Station & {
   getWaterLevelAtTime: (options: StationWaterLevelOptions) => StationWaterLevelPrediction;
 };
 
-const feetPerMeter = 3.2808399;
+export const feetPerMeter = 3.2808399;
 const defaultUnits: Units = "meters";
 
 export function useStation(station: Station, distance?: number): StationPredictor {

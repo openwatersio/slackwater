@@ -96,30 +96,6 @@ export function dayRowHit(
   return best;
 }
 
-/** `value` at `time`, linearly interpolated between sorted samples; undefined outside them. */
-export function interpolate<T extends { time: Date }>(
-  points: T[],
-  time: number,
-  value: (p: T) => number,
-): number | undefined {
-  let lo = 0;
-  let hi = points.length - 1;
-  if (hi < 0 || time < points[0].time.getTime() || time > points[hi].time.getTime()) {
-    return undefined;
-  }
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (points[mid].time.getTime() <= time) lo = mid;
-    else hi = mid;
-  }
-  const a = points[lo];
-  const b = points[hi];
-  const span = b.time.getTime() - a.time.getTime();
-  return span === 0
-    ? value(a)
-    : value(a) + ((value(b) - value(a)) * (time - a.time.getTime())) / span;
-}
-
 export type StopKind =
   | "High"
   | "Low"

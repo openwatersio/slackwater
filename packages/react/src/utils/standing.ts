@@ -1,3 +1,4 @@
+import { maxSpeeds, peakRank, swingRanges } from "@slackwater/engine";
 import type { CurrentEvent, Extreme, Units } from "../types.js";
 import { formatSpeed } from "./current.js";
 import { formatHeight, heightUnit } from "./tide.js";
@@ -26,34 +27,6 @@ export function fortnightWindow(time: number, timeZone: string): { start: string
   };
 }
 
-/** Where `value` sits among `values`, 0…1, ties counting as below; undefined with fewer than two to rank against. */
-export function peakRank(value: number, values: number[]): number | undefined {
-  if (values.length < 2) return undefined;
-  return values.filter((v) => v <= value).length / values.length;
-}
-
-/** Every rise and fall between adjacent opposite turns, with a run of same-kind turns kept at its true extreme. */
-export function swingHeights(extremes: Extreme[]): number[] {
-  return swingRanges(extremes).map((s) => s.range);
-}
-
-function swingRanges(extremes: Extreme[]): { time: number; range: number }[] {
-  const out: { time: number; range: number }[] = [];
-  let prev = extremes[0];
-  for (const e of extremes.slice(1)) {
-    if (e.high === prev.high) {
-      // Two lows in a row mean the high between them is missing, so the swing starts from the lower.
-      if (e.low === e.level < prev.level) prev = e;
-      continue;
-    }
-    const [low, high] = prev.high ? [e, prev] : [prev, e];
-    prev = e;
-    // A subordinate's separate high and low offsets can invert a pair, which is no swing at all.
-    if (high.level > low.level) out.push({ time: e.time.getTime(), range: high.level - low.level });
-  }
-  return out;
-}
-
 export function outlookWeek(anchor: number, time: number, timezone: string): number {
   const day = startOfDay(time, timezone);
   if (day < anchor) return addDays(day, -4, timezone);
@@ -77,7 +50,7 @@ export function dailySwingRanges(
 ): { day: number; range?: number }[] {
   const peaks = new Map<number, number>();
   for (const swing of swingRanges(extremes)) {
-    const day = startOfDay(swing.time, timezone);
+    const day = startOfDay(swing.time.getTime(), timezone);
     if (day < start || addDays(day, 1, timezone) > end) continue;
     peaks.set(day, Math.max(peaks.get(day) ?? 0, swing.range));
   }
@@ -113,11 +86,6 @@ export function rangeTile(
         : "beyond normal here",
     marked,
   };
-}
-
-/** One direction's maxima as unsigned speeds, so floods rank against floods and ebbs against ebbs. */
-export function maxSpeeds(events: CurrentEvent[], kind: "maxFlood" | "maxEbb"): number[] {
-  return events.filter((e) => e.kind === kind).map((e) => Math.abs(e.speed));
 }
 
 /** The Next max tile: the first maximum after `time`, ranked within its own direction's fortnight. */

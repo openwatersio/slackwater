@@ -1,3 +1,4 @@
+import { tideRates } from "@slackwater/engine";
 import { useId, useLayoutEffect, useEffect, useRef, useState, type ReactNode } from "react";
 
 import type {
@@ -22,7 +23,7 @@ import {
   slackAxisTimes,
   type SlackWindow,
 } from "../utils/current.js";
-import { formatHeight, heightUnit, rateColor, tideRates } from "../utils/tide.js";
+import { formatHeight, heightUnit, rateColor } from "../utils/tide.js";
 import { chartTime } from "../utils/time.js";
 import { C, GLYPH, HALO_GAP, SET_ARROW_PATH, toBarPath } from "./Scrubber.js";
 

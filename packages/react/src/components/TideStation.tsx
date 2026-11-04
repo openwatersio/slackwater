@@ -1,3 +1,4 @@
+import { swingHeights } from "@slackwater/engine";
 import { useMemo } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 
@@ -7,7 +8,7 @@ import { useTimeline } from "../hooks/use-timeline.js";
 import { useSlackwaterConfig } from "../provider.js";
 import type { Extreme, Station, Units } from "../types.js";
 import type { ScheduleEntry } from "../utils/schedule.js";
-import { rangeTile, swingHeights } from "../utils/standing.js";
+import { rangeTile } from "../utils/standing.js";
 import { formatHeight, heightUnit } from "../utils/tide.js";
 import { Schedule } from "./Schedule.js";
 import type { CardStation } from "./StationCard.js";

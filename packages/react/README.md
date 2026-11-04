@@ -63,7 +63,7 @@ function App() {
 
 ## Local and precomputed data
 
-Pass a `SlackwaterDataSource` to use your own station catalogue and predictions. The React package does not bundle a prediction engine or database. Your adapter implements all eight methods: tide station lookup, listing, timeline and extremes, plus current station lookup, listing, events and timeline. The exported interface uses the same request and response types as the HTTP client.
+Pass a `SlackwaterDataSource` to use your own station catalogue and predictions. The React package depends on `@slackwater/engine` for its readings but not on the station database or a prediction catalogue, so predictions still come from your data source. Your adapter implements all eight methods: tide station lookup, listing, timeline and extremes, plus current station lookup, listing, events and timeline. The exported interface uses the same request and response types as the HTTP client.
 
 ```tsx
 import { SlackwaterProvider, TideStation, type SlackwaterDataSource } from "@slackwater/react";

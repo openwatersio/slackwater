@@ -5,6 +5,12 @@ import {
   getTimelinePrediction,
   getWaterLevelAtTime,
   stationsNear,
+  readCurrent,
+  readTide,
+  slackRuns,
+  tideRates,
+  peakRank,
+  compass16,
 } from "../src/index.js";
 import { describe, test, expect } from "vitest";
 import { loadStations } from "@slackwater/database";
@@ -278,5 +284,13 @@ describe("findStation", () => {
     expect(station).toBeDefined();
     expect(station.id).toBe("noaa/8443970");
     expect(station.getExtremesPrediction).toBeDefined();
+  });
+});
+
+describe("readings", () => {
+  test("re-exports the engine's reading helpers", () => {
+    for (const helper of [readCurrent, readTide, slackRuns, tideRates, peakRank, compass16]) {
+      expect(helper).toBeTypeOf("function");
+    }
   });
 });

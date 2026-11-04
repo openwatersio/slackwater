@@ -38,7 +38,7 @@ Every function that reads the station database returns a promise, and the databa
 
 `getCurrentTimelinePrediction` returns signed major-axis `speed`, nonnegative `magnitude` in knots, and optional `direction` in degrees true. NOAA harmonic stations use both axes where the database supplies published minor-axis data, so direction can rotate through a major-axis slack while water keeps moving. Stations without effective minor data and subordinate stations use absolute speed and their published flood or ebb bearing. Zero vectors and unpublished bearings have no direction. For caller-supplied constants, use the [engine's vector predictor](../engine/README.md#current-prediction). Flood, ebb, and slack events use the major axis.
 
-Current predictions are signed speeds in knots along the station's flood axis: positive is flood, negative is ebb, zero is slack.
+Current predictions are signed speeds in knots along the station's flood axis: positive is flood, negative is ebb, zero is slack. To read the water at one instant from a prediction, the same helpers as the engine's [Readings](../engine/README.md#readings) (`readCurrent`, `readTide`, `slackRuns`, `peakRank` and the rest) are exported from `slackwater`.
 
 ```typescript
 import { getCurrentEventsPrediction } from "slackwater";
