@@ -1,3 +1,4 @@
+import { createTestWrapper } from "../helpers.js";
 import { G } from "../../src/components/Scrubber.js";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -127,13 +128,52 @@ afterEach(() => {
 });
 
 describe("CurrentScrubber", () => {
+  test("shows full speed and Set at an axis zero while keeping the signed graph", async () => {
+    const timeline = fixture(t0).timeline.map((point) => ({
+      ...point,
+      magnitude: 2,
+      direction: 90,
+    }));
+    const { slider, container } = renderScrubber({ timeline, now: t0 + 24 * H });
+    await restsOn(slider, t0 + 24 * H);
+    expect(text(slider)).toMatch(/^2\.0 knots, set east,/);
+    expect(screen.getByText("Set E")).toBeDefined();
+    expect(screen.getByText("kn")).toBeDefined();
+    expect(screen.queryByText("Axis slack")).toBeNull();
+    const curve = container.querySelector('path[stroke^="url("]')!;
+    const ys = [...curve.getAttribute("d")!.matchAll(/[ML][\d.]+ ([\d.]+)/g)].map((m) =>
+      Number(m[1]),
+    );
+    expect(Math.min(...ys)).toBeLessThan((G.plotTop + G.plotBottom) / 2);
+    expect(Math.max(...ys)).toBeGreaterThan((G.plotTop + G.plotBottom) / 2);
+  });
+
+  test("inherits the provider preference without a standalone override", async () => {
+    render(scrubber(), { wrapper: createTestWrapper({ setFormat: "degrees" }) });
+    const slider = screen.getByRole("slider", { name: "Current timeline" });
+    await restsOn(slider, NOW);
+    expect(screen.getByText("Set 045°")).toBeDefined();
+    expect(text(slider)).toMatch(/^1\.5 knots, set 45 degrees,/);
+  });
+
+  test("uses the chosen degree format for visible and spoken Set", async () => {
+    const { slider, rerender } = renderScrubber({ setFormat: "degrees" });
+    await restsOn(slider, NOW);
+    expect(screen.getByText("Set 045°")).toBeDefined();
+    expect(text(slider)).toMatch(/^1\.5 knots, set 45 degrees,/);
+    expect(text(slider)).not.toContain("true");
+    rerender(scrubber({ setFormat: "compass" }));
+    expect(screen.getByText("Set NE")).toBeDefined();
+    expect(text(slider)).toMatch(/^1\.5 knots, set northeast,/);
+  });
+
   test("glides open onto now and reads the current there", async () => {
     const { slider } = renderScrubber();
 
     expect(value(slider)).toBeLessThan(NOW);
     await restsOn(slider, NOW);
-    expect(text(slider)).toBe("Flooding, 1.5 knots, setting NE, Oct 11, 1:00 AM UTC");
-    expect(commentaryPill().ariaLabel).toBe("Maximum flood current in 2 hours");
+    expect(text(slider)).toBe("1.5 knots, set northeast, Oct 11, 1:00 AM UTC");
+    expect(commentaryPill().ariaLabel).toBe("Maximum flood along the major axis in 2 hours");
     expect(commentaryPill().textContent).toBe("Max flood2h 0m");
     expect(nowPill()).toBeNull();
   });
@@ -182,13 +222,13 @@ describe("CurrentScrubber", () => {
 
     key(slider, "ArrowRight", true);
     expect(value(slider)).toBe(t0 + 27 * H);
-    expect(text(slider)).toMatch(/^Max flood, 3\.0 knots, setting NE/);
+    expect(text(slider)).toMatch(/^3\.0 knots, set northeast/);
     expect(nowPill()!.textContent).toBe("Now");
 
     key(slider, "ArrowLeft", true);
     key(slider, "ArrowLeft", true);
     expect(value(slider)).toBe(t0 + 24 * H);
-    expect(text(slider)).toMatch(/^Slack, 0\.0 knots, Oct 11/);
+    expect(text(slider)).toMatch(/^0\.0 knots, Oct 11/);
 
     fireEvent.click(nowPill()!);
     expect(document.activeElement).toBe(slider);
@@ -207,11 +247,11 @@ describe("CurrentScrubber", () => {
     } while (value(slider) !== last && commentaryPill());
 
     expect([...spoken].sort()).toEqual([
-      "Maximum ebb current",
-      "Maximum flood current",
-      "Slack current",
-      "Slack window",
-      "Slack window closes",
+      "Major-axis slack",
+      "Major-axis window",
+      "Major-axis window closes",
+      "Maximum ebb along the major axis",
+      "Maximum flood along the major axis",
       "Sunrise",
       "Sunset",
     ]);
@@ -229,7 +269,8 @@ describe("CurrentScrubber", () => {
     getByTestId("frame").style.width = "300px";
     // Resize observations wait for a frame, and frames run late while other files keep the browser busy.
     await waitFor(
-      () => expect(commentaryPill()?.ariaLabel).toBe("Maximum flood current in 2 hours"),
+      () =>
+        expect(commentaryPill()?.ariaLabel).toBe("Maximum flood along the major axis in 2 hours"),
       { timeout: 4000 },
     );
   });
@@ -744,7 +785,7 @@ test("bounded partial windows draw the maximum the commentary names near the end
     },
     736,
   );
-  expect(commentaryPill().ariaLabel).toBe("Maximum flood current in 1 hour");
+  expect(commentaryPill().ariaLabel).toBe("Maximum flood along the major axis in 1 hour");
   const times = [...container.querySelectorAll(`text[y="${G.eventTimeY + 20}"]`)];
   expect(times).toHaveLength(1);
   expect(times[0].textContent).toMatch(/^3:00\sAM$/);

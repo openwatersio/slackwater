@@ -10,7 +10,7 @@ import {
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import { resolveDataSource, type SlackwaterDataSource } from "./data-source.js";
-import type { Units } from "./types.js";
+import type { SetFormat, Units } from "./types.js";
 import { getDefaultUnits } from "./utils/defaults.js";
 
 const defaultLocale = typeof navigator !== "undefined" ? navigator.language : "en-US";
@@ -19,12 +19,13 @@ export interface SlackwaterConfig {
   baseUrl?: string;
   dataSource: SlackwaterDataSource;
   units: Units;
+  setFormat?: SetFormat;
   timezone?: string;
   locale: string;
 }
 
 export type SlackwaterConfigUpdater = (
-  patch: Partial<Pick<SlackwaterConfig, "units" | "timezone" | "locale">>,
+  patch: Partial<Pick<SlackwaterConfig, "units" | "timezone" | "locale" | "setFormat">>,
 ) => void;
 
 interface SlackwaterContextValue {
@@ -35,7 +36,9 @@ interface SlackwaterContextValue {
 const SlackwaterContext = createContext<SlackwaterContextValue | null>(null);
 
 const SETTINGS_KEY = "slackwater-settings";
-type PersistedSettings = Partial<Pick<SlackwaterConfig, "units" | "timezone" | "locale">>;
+type PersistedSettings = Partial<
+  Pick<SlackwaterConfig, "units" | "timezone" | "locale" | "setFormat">
+>;
 
 function loadSettings(): PersistedSettings {
   try {
@@ -83,6 +86,7 @@ function getDefaultQueryClient(): QueryClient {
 
 interface ProviderOptions {
   units?: Units;
+  setFormat?: SetFormat;
   timezone?: string;
   locale?: string;
   queryClient?: QueryClient;
@@ -101,6 +105,7 @@ export function SlackwaterProvider({
   locale: initialLocale = defaultLocale,
   units: initialUnits = getDefaultUnits(initialLocale),
   timezone: initialTimezone,
+  setFormat: initialSetFormat = "compass",
   queryClient,
   children,
 }: SlackwaterProviderProps) {
@@ -122,10 +127,23 @@ export function SlackwaterProvider({
       baseUrl: dataSource ? undefined : baseUrl,
       dataSource: source,
       units: overrides.units ?? initialUnits,
+      setFormat:
+        overrides.setFormat === "compass" || overrides.setFormat === "degrees"
+          ? overrides.setFormat
+          : initialSetFormat,
       timezone: overrides.timezone ?? initialTimezone,
       locale: overrides.locale ?? initialLocale,
     }),
-    [baseUrl, dataSource, source, initialUnits, initialTimezone, initialLocale, overrides],
+    [
+      baseUrl,
+      dataSource,
+      source,
+      initialUnits,
+      initialTimezone,
+      initialLocale,
+      initialSetFormat,
+      overrides,
+    ],
   );
 
   const updateConfig = useCallback<SlackwaterConfigUpdater>((patch) => {
@@ -164,4 +182,10 @@ export function useUpdateConfig(): SlackwaterConfigUpdater {
     throw new Error("useUpdateConfig must be used within a <SlackwaterProvider>");
   }
   return ctx.updateConfig;
+}
+
+/** Standalone components can inherit reader settings without requiring a provider. */
+export function useSetFormat(override?: SetFormat): SetFormat {
+  const context = useContext(SlackwaterContext);
+  return override ?? context?.config.setFormat ?? "compass";
 }

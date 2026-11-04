@@ -117,7 +117,7 @@ export interface StationsMapProps extends Omit<ComponentProps<typeof Map>, Manag
   showLegend?: boolean;
   /** Station ID to mark as selected without opening its card: the station a page is about. */
   focusStation?: string;
-  /** Comfort-window threshold on the selected station card, in knots. */
+  /** Major-axis window threshold on the selected station card, in knots. */
   threshold?: number;
   /** The current instant; defaults to the clock. Pass it to render deterministically. */
   now?: number;
@@ -658,7 +658,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
               </span>
               <span
                 className="inline-flex items-center gap-1 whitespace-nowrap"
-                aria-label="Currents knots"
+                aria-label="Currents, knots along the major axis"
               >
                 <svg
                   width={12}
@@ -673,14 +673,15 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
                 >
                   <path d="M6 10V2M2.5 5.5 6 2l3.5 3.5" />
                 </svg>
-                Currents kn
+                Currents kn axis
               </span>
             </div>
+            <span>Current arrows use published flood/ebb bearings.</span>
             <span>Not for navigation.</span>
           </div>
         ) : (
-          <span className="sw-glass rounded-full px-3 py-1.5 text-[11px] text-(--sw-foam)">
-            Not for navigation.
+          <span className="sw-glass max-w-[calc(100%_-_136px)] rounded-[24px] px-3 py-1.5 text-center text-[11px] text-(--sw-foam)">
+            Current arrows use published flood/ebb bearings. Not for navigation.
           </span>
         )}
       </div>

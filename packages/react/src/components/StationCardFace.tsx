@@ -1,9 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useSlackwaterConfig } from "../provider.js";
-import type { Units } from "../types.js";
+import type { SetFormat, Units } from "../types.js";
 import { formatNm, type CurrentCardReading, type TideCardReading } from "../utils/card.js";
-import { compass16, formatSpeed } from "../utils/current.js";
+import { useSetFormat } from "../provider.js";
+import { formatSet, formatSpeed, spokenSet } from "../utils/current.js";
 import { formatHeight, heightUnit } from "../utils/tide.js";
 import { C, SET_ARROW_PATH, TideGlyph } from "./Scrubber.js";
 
@@ -180,61 +181,56 @@ export function TideReading({
   );
 }
 
-export function spokenCurrentCard(reading: CurrentCardReading, locale?: string): string {
-  const speed = `${formatSpeed(reading.speed, locale)} knots`;
-  if (reading.slack) return `${speed}, slack`;
-  const word = reading.speed >= 0 ? "flooding" : "ebbing";
+export function spokenCurrentCard(
+  reading: CurrentCardReading,
+  locale?: string,
+  setFormat: SetFormat = "compass",
+): string {
+  const speed = `${formatSpeed(reading.magnitude, locale)} knots`;
   return reading.direction === undefined
-    ? `${speed}, ${word}`
-    : `${speed}, ${word}, setting ${compass16(reading.direction)}`;
+    ? speed
+    : `${speed}, ${spokenSet(reading.direction, setFormat)}`;
 }
 
-/** The current's reading: speed, then the state and the set, which the arrow's color names. */
+/** Full predicted speed and the direction the water flows toward. */
 export function CurrentReading({
   reading,
   locale,
+  setFormat,
 }: {
   reading: CurrentCardReading;
   locale?: string;
+  setFormat?: SetFormat;
 }) {
-  const { speed, slack, direction } = reading;
-  const tint = slack ? C.go : speed >= 0 ? C.flood : C.ebb;
+  const resolvedSetFormat = useSetFormat(setFormat);
+  const { magnitude, direction } = reading;
   return (
     <>
-      <span className="sr-only">{spokenCurrentCard(reading, locale)}</span>
+      <span className="sr-only">{spokenCurrentCard(reading, locale, resolvedSetFormat)}</span>
       <span className="whitespace-nowrap text-white" aria-hidden="true">
         <span className="text-xl leading-[25px] font-bold tabular-nums">
-          {formatSpeed(speed, locale)}
+          {formatSpeed(magnitude, locale)}
         </span>
         <span className="text-[17px]"> kn</span>
       </span>
       <span className="flex items-center gap-1 text-[11px]" aria-hidden="true">
-        <span
-          style={slack ? { color: C.go } : undefined}
-          className={slack ? "" : "text-(--sw-foam)/60"}
-        >
-          {slack ? "Slack" : speed >= 0 ? "Flooding" : "Ebbing"}
-        </span>
-        {Math.abs(speed) < 0.05 ? (
-          // Under 0.05 kn the set gives way to a mark of the same footprint, so the row never resizes.
-          <span className="w-[30px] text-center text-(--sw-foam)/60">•</span>
+        {direction === undefined ? (
+          <span className="text-(--sw-foam)/60">Set —</span>
         ) : (
-          direction !== undefined && (
-            <span className="flex items-center gap-1" style={{ color: tint }}>
-              {compass16(direction)}
-              <svg width={11} height={11} viewBox="-6 -6 12 12">
-                <path
-                  d={SET_ARROW_PATH}
-                  transform={`rotate(${direction})`}
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={1.8}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </span>
-          )
+          <span className="flex items-center gap-1 text-(--sw-foam)/80">
+            Set {formatSet(direction, resolvedSetFormat)}
+            <svg width={11} height={11} viewBox="-6 -6 12 12">
+              <path
+                d={SET_ARROW_PATH}
+                transform={`rotate(${direction})`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.8}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </span>
         )}
       </span>
     </>

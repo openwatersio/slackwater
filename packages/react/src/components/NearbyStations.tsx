@@ -63,7 +63,13 @@ export function NearbyStations({
 
 function NearTideStation({ stationId, ...props }: ListProps & { stationId: string }) {
   const station = useStation(stationId);
-  return <NearStation station={station} exclude={{ id: stationId, kind: "tide" }} {...props} />;
+  return (
+    <NearStation
+      station={station}
+      exclude={{ id: station.data?.id ?? stationId, kind: "tide" }}
+      {...props}
+    />
+  );
 }
 
 function NearCurrentStation({ stationId, ...props }: ListProps & { stationId: string }) {

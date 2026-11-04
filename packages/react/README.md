@@ -51,14 +51,15 @@ function App() {
 </SlackwaterProvider>
 ```
 
-| Prop          | Type                   | Default                            | Description                                                     |
-| ------------- | ---------------------- | ---------------------------------- | --------------------------------------------------------------- |
-| `baseUrl`     | `string`               | —                                  | API server URL; required unless `dataSource` is supplied        |
-| `dataSource`  | `SlackwaterDataSource` | —                                  | Local or remote source; takes precedence over `baseUrl`         |
-| `units`       | `"meters" \| "feet"`   | feet for `en-US`, otherwise meters | Height units                                                    |
-| `timezone`    | `string`               | the station's time zone            | Time zone for `<TideConditions>`                                |
-| `locale`      | `string`               | `navigator.language`               | BCP 47 locale for clocks, dates, and numbers                    |
-| `queryClient` | `QueryClient`          | created for you                    | A TanStack Query client, for example one hydrated on the server |
+| Prop          | Type                     | Default                            | Description                                                      |
+| ------------- | ------------------------ | ---------------------------------- | ---------------------------------------------------------------- |
+| `baseUrl`     | `string`                 | —                                  | API server URL; required unless `dataSource` is supplied         |
+| `dataSource`  | `SlackwaterDataSource`   | —                                  | Local or remote source; takes precedence over `baseUrl`          |
+| `units`       | `"meters" \| "feet"`     | feet for `en-US`, otherwise meters | Height units                                                     |
+| `setFormat`   | `"compass" \| "degrees"` | `"compass"`                        | Current direction display, shared by visible and spoken readings |
+| `timezone`    | `string`                 | the station's time zone            | Time zone for `<TideConditions>`                                 |
+| `locale`      | `string`                 | `navigator.language`               | BCP 47 locale for clocks, dates, and numbers                     |
+| `queryClient` | `QueryClient`            | created for you                    | A TanStack Query client, for example one hydrated on the server  |
 
 ## Local and precomputed data
 
@@ -111,7 +112,13 @@ Heights are above the station's chart datum, which the page names. A station who
 
 ### `<CurrentStation>`
 
-A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb above the Moon and Sun tiles, the week's slacks and maxima with their set, where the predictions come from, the station's details, and the nearest stations. Main and nearby station credits appear once in the Data sources disclosure at the end of the nearby section. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. Use the API beta from the same release as these components. It must include attribution and license fields on station listings, tide availability flags, and direct lookups for unprefixed CHS records; the published API 1.0.0-beta.4 does not include those additions.
+Current readings show full predicted speed and **Set**, the direction water flows toward, measured clockwise from true north. Set uses 16-point compass labels by default, such as `SW`. Set `setFormat="degrees"` on the provider to show a three-digit bearing such as `225°`, or read `const updateConfig = useUpdateConfig()` in your settings component and call `updateConfig({ setFormat: "degrees" })` from its change handler. A valid saved choice takes precedence over the provider’s initial `setFormat` prop, as it does for height units. The choice persists with the reader’s other preferences. Settings can label the option “Degrees °T” to explain true north; readings omit the T and show only the chosen format. Standalone components inherit the provider preference unless their own `setFormat` prop overrides it; without a provider they default to compass. Custom current components can use the exported `useSetFormat()` hook. Spoken compass readings use full direction names, such as “north-northeast.” Schedule bearings speak full direction names and identify their published source. They follow the same format preference but represent the station’s published flood/ebb headings. Fixed flood/ebb bearings in station details stay in degrees, without a T suffix.
+
+With two-component predictions, Set follows the rotating current; without them, speed is the absolute flood/ebb component and Set uses the published flood/ebb bearings. Between samples, two-component readings interpolate the velocity vectors, including direction changes through north. A zero vector has no Set. Speed readings round to a tenth of a knot; nonzero flow can retain a Set when its displayed speed rounds to 0.0.
+
+The graph, maximum flood/ebb events and axis windows use signed major-axis speed. Axis slack is a zero of that component; crossing flow can remain. The window threshold does not limit full speed, and axis zeros are not rotary-current minimum-speed predictions. Instantaneous readings do not infer a Slack state from these events.
+
+A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb above the Moon and Sun tiles, the week's axis zeros and maxima with their phase bearings, where the predictions come from, the station's details, and the nearest stations. Main and nearby station credits appear once in the Data sources disclosure at the end of the nearby section. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. Use the API beta from the same release as these components. It must include attribution and license fields on station listings, tide availability flags, and direct lookups for unprefixed CHS records; the published API 1.0.0-beta.4 does not include those additions.
 
 ```tsx
 <CurrentStation id="noaa/PUG1701" />
@@ -121,7 +128,7 @@ A tidal current station's page, with the same layout as `<TideStation>`: a `<Cur
 | Prop              | Type                | Default | Description                                                        |
 | ----------------- | ------------------- | ------- | ------------------------------------------------------------------ |
 | `id`              | `string`            | —       | Station ID, optionally with a depth bin (e.g. `"noaa/EPT0003@11"`) |
-| `threshold`       | `number`            | `0.5`   | Boat speed in knots that sizes the slack windows                   |
+| `threshold`       | `number`            | `0.5`   | Major-axis speed in knots that sizes the axis windows              |
 | `onStationSelect` | `(station) => void` | —       | Called with a nearby station when it is picked                     |
 | `className`       | `string`            | —       | Extra classes for the outer element                                |
 
@@ -158,7 +165,7 @@ A tide timeline that scrolls under a fixed reading line. The lead reads the heig
 
 ### `<CurrentScrubber>`
 
-The current timeline: the speed, set, and state at the selected moment, blue comfort windows sized by a boat-speed threshold and short green strokes at the exact slack instants, a curve threaded by speed, and the speed and set at each maximum. The lead says Slack only within a second of a predicted zero; the window does not hide Flooding, Ebbing or a maximum. The pill walks through window opening, zero, window closing and maxima, competing with sunrise and sunset. A zero threshold turns windows off while retaining exact slacks. Window edges follow the signed sampled curve. Touching or overlapping windows merge; a continuous window spanning several slacks shows their exact times in green, while an ordinary window shows its opening. Maximum flood and ebb times appear on a separate gray row beneath the green Slack times. Without a window, the curve stays yellow. Used by `<CurrentStation>`, and available on its own.
+The current timeline: full predicted speed and Set at the selected moment above a signed flood/ebb graph, blue axis windows sized by an along-axis speed threshold and short green strokes at the exact slack instants, a curve threaded by speed, and the component speed and published flood/ebb bearing at each maximum. The lead shows full speed and Set even at a major-axis zero. Graph event labels identify the flood/ebb component separately. The pill walks through window opening, zero, window closing and maxima, competing with sunrise and sunset. A zero threshold turns windows off while retaining exact slacks. Window edges follow the signed sampled curve. Touching or overlapping windows merge; a continuous window spanning several slacks shows their exact times in green, while an ordinary window shows its opening. Maximum flood and ebb times appear on a separate gray row beneath the green axis-zero times. Without a window, the curve stays yellow. Used by `<CurrentStation>`, and available on its own.
 
 ```tsx
 <CurrentScrubber
@@ -171,19 +178,20 @@ The current timeline: the speed, set, and state at the selected moment, blue com
 />
 ```
 
-| Prop         | Type                     | Default         | Description                                                                                                                |
-| ------------ | ------------------------ | --------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `timeline`   | `CurrentTimelineEntry[]` | —               | Signed major-axis speeds in knots, with magnitude and direction when known, flood positive; fewer than two shows a message |
-| `events`     | `CurrentEvent[]`         | —               | Slack, max flood, and max ebb events                                                                                       |
-| `timezone`   | `string`                 | —               | Station IANA time zone for clocks, dates, and days                                                                         |
-| `latitude`   | `number`                 | —               | Station latitude, for sunrise and sunset                                                                                   |
-| `longitude`  | `number`                 | —               | Station longitude, for sunrise and sunset                                                                                  |
-| `directions` | `{ flood?, ebb? }`       | `{}`            | Flood and ebb set in degrees true                                                                                          |
-| `threshold`  | `number`                 | `0.5`           | Boat speed in knots that sizes the slack windows                                                                           |
-| `locale`     | `string`                 | reader's locale | BCP 47 locale for clocks and dates                                                                                         |
-| `now`        | `number`                 | the clock       | The current instant in ms; pass it to render deterministically                                                             |
-| `bounded`    | `boolean`                | `false`         | Pad both ends so every supplied sample can reach the fixed reading line                                                    |
-| `className`  | `string`                 | —               | Extra classes for the outer element                                                                                        |
+| Prop         | Type                     | Default                    | Description                                                                                                                |
+| ------------ | ------------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `timeline`   | `CurrentTimelineEntry[]` | —                          | Signed major-axis speeds in knots, with magnitude and direction when known, flood positive; fewer than two shows a message |
+| `events`     | `CurrentEvent[]`         | —                          | Slack, max flood, and max ebb events                                                                                       |
+| `timezone`   | `string`                 | —                          | Station IANA time zone for clocks, dates, and days                                                                         |
+| `latitude`   | `number`                 | —                          | Station latitude, for sunrise and sunset                                                                                   |
+| `longitude`  | `number`                 | —                          | Station longitude, for sunrise and sunset                                                                                  |
+| `setFormat`  | `"compass" \| "degrees"` | provider, else `"compass"` | Direction override; otherwise inherits the provider or defaults to compass                                                 |
+| `directions` | `{ flood?, ebb? }`       | `{}`                       | Flood and ebb set in degrees true                                                                                          |
+| `threshold`  | `number`                 | `0.5`                      | Major-axis speed in knots that sizes the axis windows                                                                      |
+| `locale`     | `string`                 | reader's locale            | BCP 47 locale for clocks and dates                                                                                         |
+| `now`        | `number`                 | the clock                  | The current instant in ms; pass it to render deterministically                                                             |
+| `bounded`    | `boolean`                | `false`                    | Pad both ends so every supplied sample can reach the fixed reading line                                                    |
+| `className`  | `string`                 | —                          | Extra classes for the outer element                                                                                        |
 
 Set `bounded` on either scrubber for a finite window supplied by your application, such as one CHS day fetched directly in its browser. The scrubber does not fetch CHS predictions. Empty space on either side lets every supplied sample reach the fixed center line at the same 18 pixels per hour, including on a pane wider than the data. Selections clamp to the first and last samples; no curve is extrapolated. The default remains the continuous multi-day strip. A bounded scrubber displays only its supplied data and does not request or rank a fortnight of predictions. When the clock is outside the supplied span, Now means the nearest available endpoint; changing days or loading another window belongs to the host.
 
@@ -213,7 +221,7 @@ The tide now, after the app's small home-screen widget: the station's name, the 
 
 ### `<StationCard>`
 
-A station's card, after the app's: its name and region, the reading now (height and rising or falling for a tide; speed, flooding, ebbing, or slack, and the set for a current), and a curve from one and a half swings back to two and a half ahead with each high, low, maximum, and slack window. The card loads its own predictions once it scrolls near the viewport, with a skeleton until then. A station the API can't serve shows only its name and region. The card has no room for its station's credit, so put a `<StationCredits>` Data sources disclosure under the cards you show. Current cards say Slack only within a second of a predicted zero, show comfort windows in blue, and mark exact slacks with short green strokes even when the comfort window is off.
+A station's card, after the app's: its name and region, the reading now (height and rising or falling for a tide; full predicted speed and Set for a current), and a curve from one and a half swings back to two and a half ahead with each high, low, maximum, and slack window. The card loads its own predictions once it scrolls near the viewport, with a skeleton until then. A station the API can't serve shows only its name and region. The card has no room for its station's credit, so put a `<StationCredits>` Data sources disclosure under the cards you show. Current cards show full predicted speed and Set above the signed flood/ebb curve, with axis windows in blue and exact axis zeros marked by short green strokes even when the window is off. The numeric reading and graph describe different quantities when crossing flow is present.
 
 ```tsx
 <StationCard station={station} onSelect={(station) => navigate(station)} />
@@ -226,7 +234,7 @@ A station's card, after the app's: its name and region, the reading now (height 
 | `distance`  | `number`            | —         | Kilometers away, shown in nautical miles                                                                                                                                               |
 | `href`      | `string`            | —         | Makes the card a link                                                                                                                                                                  |
 | `onSelect`  | `(station) => void` | —         | Called when the card is activated; makes it a button without `href`. With `href`, a plain click calls it in place of following the link, and a modified or middle click opens the link |
-| `threshold` | `number`            | `0.5`     | Boat speed in knots that sizes a current's slack windows                                                                                                                               |
+| `threshold` | `number`            | `0.5`     | Major-axis speed in knots that sizes a current's axis windows                                                                                                                          |
 | `now`       | `number`            | the clock | The current instant in ms; pass it to render deterministically                                                                                                                         |
 | `className` | `string`            | —         | Extra classes for the card                                                                                                                                                             |
 

@@ -64,6 +64,8 @@ Options:
 
 Get predicted high and low tides for a station:
 
+Superseded tide IDs follow an accepted replacement model when it preserves commercial-use permission. Output names and credits that replacement; its chart datum supplies the default height reference. JSON identifies the canonical station and the prediction datum.
+
 ```sh
 slackwater extremes --station noaa/9414290
 ```
@@ -117,25 +119,27 @@ Options:
 
 Current commands live under `slackwater currents`. Speeds are in knots along the station's flood axis: in JSON, positive is flood and negative is ebb. Directions are in degrees true. Times are shown in the station's time zone.
 
-Get slack water, maximum flood, and maximum ebb (the default subcommand, so `slackwater currents` and `slackwater currents events` are the same):
+Get axis slack, maximum flood, and maximum ebb (the default subcommand, so `slackwater currents` and `slackwater currents events` are the same):
 
 ```sh
-slackwater currents --near 48.406,-122.643
+slackwater currents --station noaa/PUG1701 --start 2026-06-01T07:00:00Z --end 2026-06-01T15:00:00Z
 ```
 
 ```
 Deception Pass (Narrows)
-noaa/PUG1701  ·  knots  ·  flood 102°T  ·  ebb 282°T  ·  0.0 km away
+noaa/PUG1701  ·  knots  ·  flood 102°T  ·  ebb 282°T  ·  major-axis speed
 
-┌──────────────┬──────────────┬───────────┬────────┬───────────┐
-│ Date         │ Time         │ Event     │ Speed  │ Direction │
-├──────────────┼──────────────┼───────────┼────────┼───────────┤
-│ Jun 1, 2026  │ 1:25 AM PDT  │ Max flood │ 4.0 kn │     102°T │
-├──────────────┼──────────────┼───────────┼────────┼───────────┤
-│              │ 4:13 AM PDT  │ Slack     │        │           │
-├──────────────┼──────────────┼───────────┼────────┼───────────┤
-│              │ 7:07 AM PDT  │ Max ebb   │ 7.1 kn │     282°T │
-└──────────────┴──────────────┴───────────┴────────┴───────────┘
+┌─────────────┬─────────────┬────────────┬────────┬───────────┐
+│ Date        │ Time        │ Event      │ Speed  │ Direction │
+├─────────────┼─────────────┼────────────┼────────┼───────────┤
+│ Jun 1, 2026 │ 1:25 AM PDT │ Max flood  │ 4.0 kn │     102°T │
+├─────────────┼─────────────┼────────────┼────────┼───────────┤
+│             │ 4:13 AM PDT │ Axis slack │        │           │
+├─────────────┼─────────────┼────────────┼────────┼───────────┤
+│             │ 7:07 AM PDT │ Max ebb    │ 7.1 kn │     282°T │
+└─────────────┴─────────────┴────────────┴────────┴───────────┘
+
+Slackwater database (https://github.com/openwatersio/slackwater-database)
 ```
 
 Get a timeline of current speed:
@@ -144,7 +148,7 @@ Get a timeline of current speed:
 slackwater currents timeline --station noaa/PUG1701 --interval 30
 ```
 
-Get slack water windows, the stretches around each turn when the current runs below a speed you choose (0.5 knots by default). A window that runs past the start or end of the period shows its duration as `≥`, a lower bound:
+Get windows around each major-axis reversal when absolute signed speed stays below a threshold you choose (0.5 knots by default). Rotary current can keep moving across that axis inside a window. A window that runs past the start or end of the period shows its duration as `≥`, a lower bound:
 
 ```sh
 slackwater currents slack --station noaa/PUG1701 --threshold 1
@@ -182,7 +186,7 @@ Options for `events`, `timeline`, and `slack`:
 | `--start <date>`          | Start date in ISO format (default: now)                                            |
 | `--end <date>`            | End date, at most 366 days from start (default: 24h for `timeline`, otherwise 72h) |
 | `--interval <minutes>`    | `timeline` only: whole minutes between data points (default: 60)                   |
-| `-t, --threshold <knots>` | `slack` only: speed the current must stay below (default: 0.5 kn)                  |
+| `-t, --threshold <knots>` | `slack` only: absolute major-axis speed limit (default: 0.5 kn)                    |
 | `-f, --format <format>`   | Output format: `text`, `json`                                                      |
 
 ### API server

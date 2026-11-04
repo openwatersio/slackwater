@@ -42,11 +42,11 @@ describe("slackwater currents events", () => {
     const { stdout } = await run(["currents", "events", "--station", "noaa/PUG1701", ...span]);
     expect(stdout).toContain("Deception Pass (Narrows)");
     expect(stdout).toContain("noaa/PUG1701  ·  knots  ·  flood 102°T  ·  ebb 282°T");
-    expect(stdout).toContain("Slack");
+    expect(stdout).toContain("Axis slack");
     expect(stdout).toMatch(/Max flood\s*│\s*\d+\.\d kn\s*│\s*102°T/);
     expect(stdout).toMatch(/Max ebb\s*│\s*\d+\.\d kn\s*│\s*282°T/);
     // Speeds are magnitudes; the event name carries flood or ebb.
-    expect(stdout).not.toContain("-");
+    expect(stdout).not.toMatch(/-\d+(?:\.\d+)? kn/);
   });
 
   test("outputs JSON in the API's shape", async () => {
@@ -259,7 +259,7 @@ describe("slackwater currents timeline", () => {
     expect(stdout).toMatch(/Ebb\s*│\s*\d+\.\d kn/);
   });
 
-  test("labels samples that round to 0.0 kn as slack", async () => {
+  test("labels near-zero major-axis samples as axis slack", async () => {
     // Deception Pass turns at about 00:05Z.
     const { stdout } = await run([
       "currents",
@@ -273,7 +273,7 @@ describe("slackwater currents timeline", () => {
       "--interval",
       "1",
     ]);
-    expect(stdout).toMatch(/Slack\s*│\s*0\.0 kn/);
+    expect(stdout).toMatch(/Axis slack\s*│\s*0\.0 kn/);
   });
 
   test("outputs JSON in the API's shape", async () => {
@@ -468,7 +468,7 @@ describe("slackwater currents slack", () => {
       "--end",
       "2026-06-01T09:00:00Z",
     ]);
-    expect(stdout).toContain("No slack windows below 0.5 kn in this period");
+    expect(stdout).toContain("No major-axis slack windows below 0.5 kn in this period");
   });
 
   test("errors on an invalid threshold", async () => {

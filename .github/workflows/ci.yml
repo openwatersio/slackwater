@@ -166,15 +166,25 @@ jobs:
   swift:
     needs: changes
     if: needs.changes.outputs.swift == 'true'
+    permissions:
+      contents: read
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-24.04, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
 
+      - uses: swift-actions/setup-swift@v2
+        if: runner.os == 'Linux'
+        with:
+          swift-version: "6.2.1"
+
       - name: Test Swift
-        run: swift test -c release
+        run: |
+          swift --version
+          swift test -c release
 
       - name: Compile for watchOS
         if: runner.os == 'macOS'

@@ -1,9 +1,9 @@
-import type { CurrentEvent, CurrentTimelineEntry } from "../types.js";
+import type { CurrentEvent, CurrentTimelineEntry, SetFormat } from "../types.js";
 import { spokenTime } from "./time.js";
 import { KNOT_ANCHORS, rampColor } from "./color.js";
 import { UNIT_MS, interpolate, targetsWithin, type Stop } from "./scrubber.js";
 
-/** A run of time around slack when the current stays within the boat-speed threshold. */
+/** A run around a major-axis zero where the along-axis speed stays within the threshold. */
 export interface SlackWindow {
   start: Date;
   end: Date;
@@ -12,7 +12,7 @@ export interface SlackWindow {
 /** What shows in place of a strip with fewer than two samples. */
 export const EMPTY_MESSAGE = "No current predictions for this period.";
 
-/** The app's default boat-speed threshold for slack windows, in knots. */
+/** The default major-axis speed threshold for axis windows, in knots. */
 export const DEFAULT_SLACK_THRESHOLD = 0.5;
 
 /**
@@ -30,9 +30,29 @@ export function threadOpacity(knots: number): number {
 
 const POINTS16 = "N NNE NE ENE E ESE SE SSE S SSW SW WSW W WNW NW NNW".split(" ");
 
+const SPOKEN_POINTS16 = [
+  "north",
+  "north-northeast",
+  "northeast",
+  "east-northeast",
+  "east",
+  "east-southeast",
+  "southeast",
+  "south-southeast",
+  "south",
+  "south-southwest",
+  "southwest",
+  "west-southwest",
+  "west",
+  "west-northwest",
+  "northwest",
+  "north-northwest",
+];
+const compassIndex = (degrees: number) => ((Math.round(degrees / 22.5) % 16) + 16) % 16;
+
 /** A bearing in degrees true as a 16-point compass word. */
 export function compass16(degrees: number): string {
-  return POINTS16[((Math.round(degrees / 22.5) % 16) + 16) % 16];
+  return POINTS16[compassIndex(degrees)];
 }
 
 /**
@@ -149,13 +169,69 @@ export type CurrentState = "Slack" | "Max flood" | "Max ebb" | "Flooding" | "Ebb
 export interface CurrentReading {
   state: CurrentState;
   speed: number;
-  /** Set in degrees true; absent in slack or when the station has none. */
+  magnitude: number;
+  /** Predicted set in degrees true; absent at zero speed or when unknown. */
   direction?: number;
 }
 
 export interface Directions {
   flood?: number;
   ebb?: number;
+}
+
+function vectorAt(
+  timeline: CurrentTimelineEntry[],
+  time: number,
+  speed: number,
+  directions: Directions,
+) {
+  let lo = 0;
+  let hi = timeline.length - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (timeline[mid].time.getTime() <= time) lo = mid;
+    else hi = mid;
+  }
+  const a = timeline[lo];
+  const b = timeline[hi];
+  const span = b.time.getTime() - a.time.getTime();
+  const mix = span === 0 ? 0 : (time - a.time.getTime()) / span;
+  if (mix === 0 || mix === 1) {
+    const p = mix === 0 ? a : b;
+    const magnitude = p.magnitude ?? Math.abs(speed);
+    const direction =
+      p.magnitude === undefined ? (speed >= 0 ? directions.flood : directions.ebb) : p.direction;
+    return { magnitude, ...(magnitude > 1e-9 && direction !== undefined && { direction }) };
+  }
+  // Scalar phase bearings need not be reciprocal; their reversal must not synthesize crossflow.
+  const axialReversal =
+    a.magnitude === Math.abs(a.speed) && b.magnitude === Math.abs(b.speed) && a.speed * b.speed < 0;
+  if (a.magnitude === undefined || b.magnitude === undefined || axialReversal) {
+    const magnitude = Math.abs(speed);
+    const direction = axialReversal
+      ? (speed >= 0 === a.speed >= 0 ? a : b).direction
+      : speed >= 0
+        ? directions.flood
+        : directions.ebb;
+    return { magnitude, ...(magnitude > 1e-9 && direction !== undefined && { direction }) };
+  }
+  if (
+    (a.magnitude !== 0 && a.direction === undefined) ||
+    (b.magnitude !== 0 && b.direction === undefined)
+  ) {
+    return { magnitude: a.magnitude + (b.magnitude - a.magnitude) * mix };
+  }
+  // Interpolate vectors so north crossings and opposing flows retain their physical meaning.
+  const radians = Math.PI / 180;
+  const x =
+    a.magnitude * Math.sin((a.direction ?? 0) * radians) * (1 - mix) +
+    b.magnitude * Math.sin((b.direction ?? 0) * radians) * mix;
+  const y =
+    a.magnitude * Math.cos((a.direction ?? 0) * radians) * (1 - mix) +
+    b.magnitude * Math.cos((b.direction ?? 0) * radians) * mix;
+  const magnitude = Math.hypot(x, y);
+  const direction = (((Math.atan2(x, y) / radians) % 360) + 360) % 360;
+  return { magnitude, ...(magnitude > 1e-9 && { direction }) };
 }
 
 /** The lead reading at `time`, following the app's scrubber rules. */
@@ -168,10 +244,10 @@ export function readCurrent(
 ): CurrentReading | undefined {
   const speed = speedAt(timeline, time);
   if (speed === undefined) return undefined;
+  const vector = vectorAt(timeline, time, speed, directions);
   if (events.some((e) => e.kind === "slack" && Math.abs(e.time.getTime() - time) <= 1000)) {
-    return { state: "Slack", speed };
+    return { state: "Slack", speed, ...vector };
   }
-  const direction = speed >= 0 ? directions.flood : directions.ebb;
   const max = events.find((e) => e.kind !== "slack" && Math.abs(e.time.getTime() - time) <= 1000);
   const state: CurrentState = max
     ? max.kind === "maxFlood"
@@ -180,7 +256,7 @@ export function readCurrent(
     : speed >= 0
       ? "Flooding"
       : "Ebbing";
-  return direction === undefined ? { state, speed } : { state, speed, direction };
+  return { state, speed, ...vector };
 }
 
 /** Forward water stops: drawn window edges, exact zeros, and maxima. */
@@ -234,21 +310,34 @@ export function formatSpeed(knots: number, locale?: string): string {
   }).format(Math.abs(knots));
 }
 
-/** One spoken reading: state, speed, set when known, then the dated station clock and zone. */
+/** Bearings are measured from true north; the display follows the reader's preference. */
+export function formatSet(direction: number, format: SetFormat = "compass"): string {
+  return format === "degrees"
+    ? `${(((Math.round(direction) % 360) + 360) % 360).toString().padStart(3, "0")}°`
+    : compass16(direction);
+}
+
+export function spokenBearing(direction: number, format: SetFormat = "compass"): string {
+  return format === "degrees"
+    ? `${((Math.round(direction) % 360) + 360) % 360} degrees`
+    : SPOKEN_POINTS16[compassIndex(direction)];
+}
+
+export function spokenSet(direction: number, format: SetFormat = "compass"): string {
+  return `set ${spokenBearing(direction, format)}`;
+}
+
+/** One spoken reading: full speed, set when known, then the dated station clock and zone. */
 export function spokenReading(
   reading: CurrentReading,
   time: number,
   timeZone: string,
   locale?: string,
+  setFormat: SetFormat = "compass",
 ): string {
-  const set =
-    reading.direction === undefined || reading.state === "Slack"
-      ? []
-      : [`setting ${compass16(reading.direction)}`];
   return [
-    reading.state,
-    `${formatSpeed(reading.speed, locale)} knots`,
-    ...set,
+    `${formatSpeed(reading.magnitude, locale)} knots`,
+    ...(reading.direction === undefined ? [] : [spokenSet(reading.direction, setFormat)]),
     spokenTime(time, timeZone, locale),
   ].join(", ");
 }

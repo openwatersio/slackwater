@@ -1,4 +1,5 @@
 export type Units = "meters" | "feet";
+export type SetFormat = "compass" | "degrees";
 
 /** The license a station's data is under. */
 export interface StationLicense {

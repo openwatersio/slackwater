@@ -2,7 +2,8 @@ import { afterEach, describe, expect, inject, test, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StationCard, type CardStation } from "../../src/components/StationCard.js";
 import { fetchCurrentStationEvents } from "../../src/client.js";
-import { cardRange } from "../../src/utils/card.js";
+import { CurrentReading } from "../../src/components/StationCardFace.js";
+import { readCurrentCard, cardRange } from "../../src/utils/card.js";
 import { createTestWrapper } from "../helpers.js";
 
 const NOW = Date.parse("2026-10-15T19:00:00Z");
@@ -87,13 +88,64 @@ describe("StationCard", () => {
     expect(graph.querySelector('line[stroke-dasharray="1 3"]')).toBeNull();
   });
 
+  test("shows crossing flow and Set on the card at a flood/ebb zero", () => {
+    const reading = readCurrentCard(
+      [
+        { time: new Date(NOW), speed: 0, magnitude: 2, direction: 90 },
+        { time: new Date(NOW + 600000), speed: -1, magnitude: 2, direction: 120 },
+      ],
+      [{ time: new Date(NOW), speed: 0, kind: "slack" }],
+      { flood: 0, ebb: 180 },
+      NOW,
+    )!;
+    render(<CurrentReading reading={reading} locale="en-US" />);
+    expect(screen.getByText("2.0 knots, set east")).toBeDefined();
+    expect(screen.getByText("2.0")).toBeDefined();
+    expect(screen.getByText("Set E")).toBeDefined();
+    expect(screen.queryByText(/slack/i)).toBeNull();
+  });
+
+  test("shows only degrees when the current card selects degrees", () => {
+    render(
+      <CurrentReading
+        reading={{ speed: 0, magnitude: 2, slack: false, direction: 5 }}
+        locale="en-US"
+        setFormat="degrees"
+      />,
+    );
+    expect(screen.getByText("Set 005°")).toBeDefined();
+    expect(screen.getByText("2.0 knots, set 5 degrees")).toBeDefined();
+    expect(screen.queryByText(/°T/)).toBeNull();
+  });
+
+  test("a zero vector has no Set on the card", () => {
+    const reading = readCurrentCard(
+      [{ time: new Date(NOW), speed: 0, magnitude: 0 }],
+      [],
+      {},
+      NOW,
+    )!;
+    render(<CurrentReading reading={reading} locale="en-US" />);
+    expect(screen.getByText("0.0 knots")).toBeDefined();
+    expect(screen.getByText("Set —")).toBeDefined();
+    expect(screen.queryByRole("img")).toBeNull();
+  });
+
   test("reads a current's speed, state, and set", async () => {
     render(<StationCard station={deceptionPass} now={NOW} />, { wrapper: createTestWrapper() });
 
     await curve();
-    expect(
-      screen.getByText(/^\d+\.\d knots, (flooding|ebbing), setting [NESW]{1,3}$/),
-    ).toBeDefined();
+    expect(screen.getByText(/^\d+\.\d knots, set [a-z-]+$/)).toBeDefined();
+  });
+
+  test("takes the Set preference from its provider", async () => {
+    render(<StationCard station={deceptionPass} now={NOW} />, {
+      wrapper: createTestWrapper({ setFormat: "degrees" }),
+    });
+    await curve();
+    expect(screen.getByText(/^Set \d{3}°$/)).toBeDefined();
+    expect(screen.getByText(/^\d+\.\d knots, set \d+ degrees$/)).toBeDefined();
+    expect(screen.queryByText(/°T/)).toBeNull();
   });
 
   test("a wide comfort window does not hide the current's phase or set", async () => {
@@ -101,13 +153,11 @@ describe("StationCard", () => {
       wrapper: createTestWrapper(),
     });
     await curve();
-    expect(
-      screen.getByText(/^\d+\.\d knots, (flooding|ebbing), setting [NESW]{1,3}$/),
-    ).toBeDefined();
-    expect(screen.queryByText("Slack")).toBeNull();
+    expect(screen.getByText(/^\d+\.\d knots, set [a-z-]+$/)).toBeDefined();
+    expect(screen.queryByText("Axis slack")).toBeNull();
   });
 
-  test("says Slack on a slack", async () => {
+  test("keeps a flood/ebb zero in the graph without calling the full flow slack", async () => {
     const range = cardRange(NOW).timeline;
     const { events } = await fetchCurrentStationEvents(inject("apiBaseUrl"), {
       id: deceptionPass.id,
@@ -117,8 +167,8 @@ describe("StationCard", () => {
     render(<StationCard station={deceptionPass} now={slack} />, { wrapper: createTestWrapper() });
 
     await curve();
-    expect(screen.getByText(/^\d+\.\d knots, slack$/)).toBeDefined();
-    expect(screen.getByText("Slack")).toBeDefined();
+    expect(screen.getByText(/^\d+\.\d knots(?:, set [a-z-]+)?$/)).toBeDefined();
+    expect(screen.queryByText("Axis slack")).toBeNull();
   });
 
   test("shows a nearby list's distance in nautical miles", () => {

@@ -22,6 +22,18 @@ const app = createApp({
   }),
 });
 
+test.each(["", "/timeline", "/extremes"])(
+  "keeps a superseded station's %s route usable",
+  async (suffix) => {
+    const call = request(app).get(`/stations/ticon/abashiri-347-jpn-uhslc_fd${suffix}`);
+    const response = await (suffix
+      ? call.query({ start: "2026-06-01T00:00:00Z", end: "2026-06-02T00:00:00Z" })
+      : call);
+    expect(response.status).toBe(200);
+    expect((response.body.station ?? response.body).id).toBe("jma/AS");
+  },
+);
+
 describe("GET /", () => {
   test("returns API information", async () => {
     const response = await request(app).get("/");

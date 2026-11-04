@@ -114,7 +114,7 @@ describe("StationsMap", () => {
         expect(seattle()?.selected).toBe(true);
         expect(seattle()?.reading).toMatch(/^-?\d+\.\d$/);
         expect(screen.getByLabelText("Map legend").textContent).toContain("Tides ft");
-        expect(screen.getByLabelText("Map legend").textContent).toContain("Currents kn");
+        expect(screen.getByLabelText("Map legend").textContent).toContain("Currents kn axis");
         expect(seattle()?.icon).toMatch(/^sw-pin\|gauge\|/);
       },
       { timeout: 15000 },

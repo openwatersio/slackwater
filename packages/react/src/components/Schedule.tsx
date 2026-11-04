@@ -1,6 +1,7 @@
 import { Fragment, memo, useMemo, useRef, useState } from "react";
 
-import { compass16 } from "../utils/current.js";
+import { useSetFormat } from "../provider.js";
+import { formatSet, spokenBearing } from "../utils/current.js";
 import type { ScheduleDay, ScheduleEntry } from "../utils/schedule.js";
 import {
   chartTime,
@@ -13,6 +14,7 @@ import {
   weekLabel,
   type Day,
 } from "../utils/time.js";
+import type { SetFormat } from "../types.js";
 import { SetArrow } from "./CurrentScrubber.js";
 import { SlackGlyph, SunPath, UpDownArrow } from "./Scrubber.js";
 
@@ -29,6 +31,7 @@ export interface ScheduleProps {
   /** The entry nearest the scrubber's selection. */
   highlight?: number;
   locale?: string;
+  setFormat?: SetFormat;
   /** A row was chosen: move the scrubber to its time. */
   onSelect: (time: number) => void;
   /** A date was picked: start the week on that day's midnight. */
@@ -38,7 +41,7 @@ export interface ScheduleProps {
 const PILL =
   "inline-flex items-center gap-[3px] rounded-full px-2 py-1 font-(family-name:--sw-font-mono) text-[11px] leading-none font-medium uppercase tracking-[0.5px] text-(--sw-navy-deep)";
 
-function Pill({ entry }: { entry: ScheduleEntry }) {
+function Pill({ entry, setFormat }: { entry: ScheduleEntry; setFormat: SetFormat }) {
   switch (entry.pill) {
     case "high":
     case "low":
@@ -54,16 +57,26 @@ function Pill({ entry }: { entry: ScheduleEntry }) {
       return (
         <span className={`${PILL} bg-(--sw-go)`}>
           <SlackGlyph />
-          Slack
+          Axis slack
         </span>
       );
     default:
       return (
-        <span className={`${PILL} ${entry.pill === "flood" ? "bg-(--sw-flood)" : "bg-(--sw-ebb)"}`}>
+        <span
+          className={`${PILL} ${entry.pill === "flood" ? "bg-(--sw-flood)" : "bg-(--sw-ebb)"}`}
+          role="img"
+          aria-label={
+            entry.direction === undefined
+              ? entry.pill === "flood"
+                ? "Flood"
+                : "Ebb"
+              : `Published ${entry.pill} bearing ${spokenBearing(entry.direction, setFormat)}`
+          }
+        >
           {entry.direction !== undefined && (
             <>
               <SetArrow direction={entry.direction} size={10} />
-              {compass16(entry.direction)}
+              {formatSet(entry.direction, setFormat)}
             </>
           )}
           <span className="opacity-90">{entry.pill === "flood" ? "Flood" : "Ebb"}</span>
@@ -128,9 +141,11 @@ export const Schedule = memo(function Schedule({
   now,
   highlight,
   locale,
+  setFormat,
   onSelect,
   onPick,
 }: ScheduleProps) {
+  const resolvedSetFormat = useSetFormat(setFormat);
   const [open, setOpen] = useState<number | undefined>(anchor);
   const [shownAnchor, setShownAnchor] = useState(anchor);
   // A new week opens on its first day, as the app's does.
@@ -263,7 +278,7 @@ export const Schedule = memo(function Schedule({
                         <button
                           type="button"
                           aria-current={on ? "true" : undefined}
-                          className={`relative flex w-full cursor-pointer items-center gap-2 px-3.5 py-[9px] text-left ${on ? "bg-(--sw-go)/13" : ""}`}
+                          className={`relative flex w-full cursor-pointer items-center gap-1 px-3.5 py-[9px] text-left ${on ? "bg-(--sw-go)/13" : ""}`}
                           onClick={() => onSelect(e.time)}
                         >
                           {on && <span className="absolute inset-y-0 left-0 w-0.5 bg-(--sw-go)" />}
@@ -278,8 +293,8 @@ export const Schedule = memo(function Schedule({
                           >
                             {e.value ?? "—"}
                           </span>
-                          <span className="flex min-w-[120px] justify-end">
-                            <Pill entry={e} />
+                          <span className="flex min-w-[110px] justify-end">
+                            <Pill entry={e} setFormat={resolvedSetFormat} />
                           </span>
                         </button>
                       </Fragment>

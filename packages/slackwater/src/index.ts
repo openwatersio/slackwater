@@ -210,7 +210,8 @@ export async function stationsNear(options: NearOptions) {
  * Find a specific station by its ID or source ID.
  */
 export async function findStation(query: string): Promise<StationPredictor> {
-  const { accepted } = await loadStations();
+  const db = await loadStations();
+  const { accepted } = db;
   tideStations ??= accepted.filter((station) => station.kind === "tide");
   const searches = [(s: Station) => s.id === query, (s: Station) => s.source.id === query];
 
@@ -221,6 +222,17 @@ export async function findStation(query: string): Promise<StationPredictor> {
     if (found) break;
   }
 
+  if (!found) {
+    const former = db.byId(query) ?? db.all.find((s) => s.kind === "tide" && s.source.id === query);
+    const replacement = former?.kind === "tide" ? former.quality?.redundant : undefined;
+    if (replacement)
+      found = tideStations.find(
+        (s) =>
+          s.id === replacement &&
+          hasTideModel(s) &&
+          (former?.license.commercial_use !== true || s.license.commercial_use === true),
+      );
+  }
   if (!found) throw new Error(`Station not found: ${query}`);
   return useStation(found);
 }

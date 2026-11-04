@@ -221,7 +221,7 @@ A subordinate's timeline is a half-cosine drawn through its event knots — a dr
 
 `useCurrentStation(station, { reference })` wraps a `@slackwater/database` current station (`kind: "current"`), predicting harmonically when the station has its own constituents and reducing the given reference station otherwise — the database's offset minutes are converted internally.
 
-Caller-supplied station records can include `current.minor_constituents`, `current.minor_mean_flow`, and `current.azimuth`. Bundled station data contains only the major axis, so bundled predictions use the one-axis fallback.
+Database and caller-supplied station records can include `current.minor_constituents`, `current.minor_mean_flow`, and `current.azimuth`. NOAA harmonic records supply published minor-axis data for vector timelines. Records without effective minor data and subordinate stations use the one-axis fallback.
 
 `slackWindows(timeline, threshold)` returns the runs of time where |speed| stays below `threshold` knots around a reversal, with interpolated band crossings. A lull that never reverses is weak water, not slack, and does not count; a window still open at the frame edge is kept and ends at the edge.
 

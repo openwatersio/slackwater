@@ -30,7 +30,7 @@ export interface StationCardProps {
    * modified or middle click opens the link as usual.
    */
   onSelect?: (station: CardStation) => void;
-  /** Boat-speed threshold for a current's slack windows, in knots. */
+  /** Major-axis speed threshold for a current's axis windows, in knots. */
   threshold?: number;
   /** The current instant; defaults to the clock. Pass it to render deterministically. */
   now?: number;
@@ -173,7 +173,7 @@ function CurrentCardBody({
   now,
   threshold,
 }: BodyProps & { threshold: number }) {
-  const { locale } = useSlackwaterConfig();
+  const { locale, setFormat } = useSlackwaterConfig();
   const range = useCardRange(now).timeline;
   const timeline = useCurrentTimeline(station.id, seen ? range : undefined);
   const events = useCurrentEvents(station.id, seen ? range : undefined);
@@ -199,7 +199,7 @@ function CurrentCardBody({
   return (
     <StationCardFace
       {...identity}
-      reading={<CurrentReading reading={reading} locale={locale} />}
+      reading={<CurrentReading reading={reading} locale={locale} setFormat={setFormat} />}
       graph={
         <StationCardGraph
           data={{

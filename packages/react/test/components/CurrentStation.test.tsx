@@ -211,6 +211,35 @@ describe("CurrentStation", () => {
     await waitFor(() => expect(offNow()).toBeLessThan(60_000), { timeout: 4000 });
   });
 
+  test("applies the degree preference to the lead and schedule without a true suffix", async () => {
+    const { container } = render(
+      <div style={{ width: 390 }}>
+        <CurrentStation id="noaa/PUG1701" />
+      </div>,
+      {
+        wrapper: createTestWrapper({ setFormat: "degrees" }),
+      },
+    );
+    await screen.findByText(/^Set \d{3}°$/, undefined, { timeout: 10000 });
+    await screen.findAllByRole(
+      "img",
+      { name: /^Published (?:flood|ebb) bearing \d+ degrees$/ },
+      { timeout: 10000 },
+    );
+    expect(container.textContent).not.toContain("°T");
+    const rows = [...container.querySelectorAll("button")].filter((row) =>
+      /kn axis.*(?:Flood|Ebb)$/.test(row.textContent ?? ""),
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const pill = row.lastElementChild!.firstElementChild!;
+      expect(pill.getBoundingClientRect().right).toBeLessThanOrEqual(
+        row.closest(".sw-card")!.getBoundingClientRect().right,
+      );
+    }
+    expect(screen.getByRole("slider").getAttribute("aria-valuetext")).toMatch(/set \d+ degrees,/);
+  });
+
   test("lists the week's slacks and maxima, and says where they come from", async () => {
     const realFetch = window.fetch;
     const attribution =
@@ -236,23 +265,25 @@ describe("CurrentStation", () => {
     expect(nearby.contains(credits[0])).toBe(true);
 
     const rows = [...container.querySelectorAll("button")].map((b) => b.textContent ?? "");
-    expect(rows.some((r) => /—Slack$/.test(r))).toBe(true);
+    expect(rows.some((r) => /—Axis slack$/.test(r))).toBe(true);
     const nextMax = [...container.querySelectorAll(".sw-card")].find((t) =>
       t.textContent!.startsWith("Next max"),
     )!;
     expect(nextMax.textContent).toMatch(
-      /^Next max\d+\.\d\u00a0kn((Flood|Ebb) at|(Hardest|Strong) (flood|ebb) ·) \d{1,2}:\d\d [AP]M$/,
+      /^Next max\d+\.\d\u00a0kn axis((Flood|Ebb) at|(Hardest|Strong) (flood|ebb) ·) \d{1,2}:\d\d [AP]M$/,
     );
-    expect(rows.some((r) => /\d kn(ESE|E)Flood$/.test(r))).toBe(true);
-    expect(rows.some((r) => /\d kn(WNW|W)Ebb$/.test(r))).toBe(true);
+    expect(rows.some((r) => /\d kn axis(ESE|E)Flood$/.test(r))).toBe(true);
+    expect(rows.some((r) => /\d kn axis(WNW|W)Ebb$/.test(r))).toBe(true);
     expect(
-      screen.getByText("NOAA harmonic current prediction. Flood sets 102°T. Speeds use knots."),
+      screen.getByText(
+        "NOAA harmonic current prediction. Flood bearing 102°. Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and axis windows use the flood/ebb component; crossing flow can remain at an axis zero. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.",
+      ),
     ).toBeDefined();
 
     fireEvent.click(screen.getByText("Station details"));
-    expect(screen.getByText("102°T")).toBeDefined();
-    expect(screen.getByText("282°T")).toBeDefined();
-    expect(screen.getByText("0.6 kn toward ebb")).toBeDefined();
+    expect(screen.getByText("102°")).toBeDefined();
+    expect(screen.getByText("282°")).toBeDefined();
+    expect(screen.getByText("0.6 kn axis toward ebb")).toBeDefined();
     expect(screen.getByText(/^48\.\d{3}°N, 122\.\d{3}°W$/)).toBeDefined();
   });
 
@@ -262,14 +293,14 @@ describe("CurrentStation", () => {
 
     expect(
       await screen.findByText(
-        /^NOAA subordinate station: .+'s slacks and maxima, corrected by published offsets\. Flood sets 210°T\.$/,
+        /^NOAA subordinate station: .+'s slacks and maxima, corrected by published offsets\. Flood bearing 210°\. Bearings are measured from true north\. The reading shows full predicted speed and Set, the direction water flows toward\. The graph, maxima and axis windows use the flood\/ebb component; crossing flow can remain at an axis zero\. Schedule headings use published flood\/ebb bearings; Set uses them when rotation data is unavailable\.$/,
         undefined,
         { timeout: 10000 },
       ),
     ).toBeDefined();
     fireEvent.click(screen.getByText("Station details"));
     expect(screen.getByText(/, \d+ km away$/)).toBeDefined();
-    expect(screen.queryByText("Mean flow")).toBeNull();
+    expect(screen.queryByText("Major-axis mean flow")).toBeNull();
   });
 
   test("a station from another source credits it, and slack-free water says none measured", async () => {
@@ -298,7 +329,11 @@ describe("CurrentStation", () => {
     });
     render(<CurrentStation id="test/STILL" />, { wrapper: createTestWrapper() });
 
-    expect(await screen.findByText("Harmonic constants from Test Survey.")).toBeDefined();
+    expect(
+      await screen.findByText(
+        "Harmonic constants from Test Survey. Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and axis windows use the flood/ebb component; crossing flow can remain at an axis zero. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.",
+      ),
+    ).toBeDefined();
     fireEvent.click(screen.getByText("Station details"));
     expect(screen.getByText("None measured")).toBeDefined();
     expect(screen.getByText("10.000°S, 20.000°E")).toBeDefined();

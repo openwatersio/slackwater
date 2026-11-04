@@ -36,7 +36,7 @@ Every function that reads the station database returns a promise, and the databa
 
 ### Currents
 
-`getCurrentTimelinePrediction` returns signed major-axis `speed`, nonnegative `magnitude` in knots, and optional `direction` in degrees true. Bundled stations carry only the major axis, so magnitude is absolute speed and direction is the published flood or ebb bearing; zero vectors and unpublished bearings have no direction. For caller-supplied minor-axis constants, use the [engine's vector predictor](../engine/README.md#current-prediction). Flood, ebb, and slack events use the major axis.
+`getCurrentTimelinePrediction` returns signed major-axis `speed`, nonnegative `magnitude` in knots, and optional `direction` in degrees true. NOAA harmonic stations use both axes where the database supplies published minor-axis data, so direction can rotate through a major-axis slack while water keeps moving. Stations without effective minor data and subordinate stations use absolute speed and their published flood or ebb bearing. Zero vectors and unpublished bearings have no direction. For caller-supplied constants, use the [engine's vector predictor](../engine/README.md#current-prediction). Flood, ebb, and slack events use the major axis.
 
 Current predictions are signed speeds in knots along the station's flood axis: positive is flood, negative is ebb, zero is slack.
 
@@ -56,7 +56,7 @@ for (const { time, kind, speed } of prediction.events) {
 }
 ```
 
-The package also gets water level timelines (`getTimelinePrediction`), the level at one moment (`getWaterLevelAtTime`), station lookup (`nearestStation`, `stationsNear`, `findStation`), current speed timelines (`getCurrentTimelinePrediction`), slack windows (`slackWindows`), and current station lookup (`nearestCurrentStation`, `currentStationsNear`, `findCurrentStation`). The [repository README](https://github.com/openwatersio/slackwater#readme) covers each one with examples.
+The package also gets water level timelines (`getTimelinePrediction`), the level at one moment (`getWaterLevelAtTime`), station lookup (`nearestStation`, `stationsNear`, `findStation`), current speed timelines (`getCurrentTimelinePrediction`), slack windows (`slackWindows`), and current station lookup (`nearestCurrentStation`, `currentStationsNear`, `findCurrentStation`). The [repository README](https://github.com/openwatersio/slackwater#readme) covers each one with examples. If the database marks a tide record redundant, `findStation` resolves its ID to an accepted replacement with a tide model. A commercially usable record never automatically resolves to a noncommercial replacement; direct lookups of noncommercial records remain available. A replacement can carry different license and attribution terms; use the returned canonical record’s metadata.
 
 ## Documentation
 

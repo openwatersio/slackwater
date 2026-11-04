@@ -7,7 +7,7 @@ import {
   useCurrentTimeline,
 } from "../hooks/use-current-station.js";
 import type { CurrentEvent, CurrentStationInfo } from "../types.js";
-import { formatSpeed } from "../utils/current.js";
+import { formatSpeed, formatSet } from "../utils/current.js";
 import type { ScheduleEntry } from "../utils/schedule.js";
 import { nextMaxTile } from "../utils/standing.js";
 import { CurrentScrubber } from "./CurrentScrubber.js";
@@ -34,28 +34,30 @@ import { SummaryTiles } from "./SummaryTiles.js";
 export interface CurrentStationProps {
   /** "source/id", optionally with a depth bin: "noaa/PUG1701", "noaa/EPT0003@11". */
   id: string;
-  /** Boat-speed threshold for slack windows, in knots. */
+  /** Major-axis speed threshold for axis windows, in knots. */
   threshold?: number;
   /** Called when a nearby station is picked; its `kind` says which page it belongs on. */
   onStationSelect?: (station: CardStation) => void;
   className?: string;
 }
 
-const degrees = (d: number) => `${Math.round(d)}°T`;
+const degrees = (d: number) => formatSet(d, "degrees");
 
 /** Where the speeds come from, after the app's current footer. */
 function provenance(station: CurrentStationInfo, reference: string | undefined) {
   const flood = station.current?.flood_direction;
-  const sets = flood === undefined ? "" : ` Flood sets ${degrees(flood)}.`;
+  const sets = flood === undefined ? "" : ` Flood bearing ${degrees(flood)}.`;
+  const axis =
+    " Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and axis windows use the flood/ebb component; crossing flow can remain at an axis zero. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.";
   if (station.type === "subordinate") {
     const whose = reference ? `${reference}'s ` : "";
-    return `NOAA subordinate station: ${whose}slacks and maxima, corrected by published offsets.${sets}`;
+    return `NOAA subordinate station: ${whose}slacks and maxima, corrected by published offsets.${sets}${axis}`;
   }
   if (station.id?.startsWith("noaa/")) {
-    return `NOAA harmonic current prediction.${sets} Speeds use knots.`;
+    return `NOAA harmonic current prediction.${sets}${axis}`;
   }
   const source = station.source?.name;
-  return source ? `Harmonic constants from ${source}.${sets}` : sets.trim() || undefined;
+  return source ? `Harmonic constants from ${source}.${sets}${axis}` : `${sets}${axis}`.trim();
 }
 
 /** The tiles at the scrubber's moment: the maximum the water is heading for, and the Moon. */
@@ -89,7 +91,7 @@ export function CurrentStation(props: CurrentStationProps) {
 }
 
 function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStationProps) {
-  const { locale } = useSlackwaterConfig();
+  const { locale, setFormat } = useSlackwaterConfig();
   const station = useCurrentStation(id);
   const s = station.data;
   const week = useStationWeek(s?.timezone);
@@ -108,7 +110,7 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
       events.data?.events.map((e): ScheduleEntry => {
         const time = e.time.getTime();
         if (e.kind === "slack") return { time, pill: "slack" };
-        const value = `${formatSpeed(e.speed, locale)} kn`;
+        const value = `${formatSpeed(e.speed, locale)} kn axis`;
         return e.kind === "maxFlood"
           ? { time, pill: "flood", value, direction: flood }
           : { time, pill: "ebb", value, direction: ebb };
@@ -134,6 +136,7 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
             latitude={s.latitude}
             longitude={s.longitude}
             directions={{ flood, ebb }}
+            setFormat={setFormat}
             threshold={threshold}
             locale={locale}
             onSelect={sync.onSelect}
@@ -153,6 +156,7 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
           <div className="mt-[26px]">
             <Schedule
               days={sync.days}
+              setFormat={setFormat}
               timezone={s.timezone}
               latitude={s.latitude}
               longitude={s.longitude}
@@ -186,11 +190,11 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
               {s.type !== "subordinate" && meanFlow !== undefined && (
                 <>
                   <DetailRow
-                    label="Mean flow"
+                    label="Major-axis mean flow"
                     value={
                       Math.abs(meanFlow) < 0.05
                         ? "None measured"
-                        : `${formatSpeed(meanFlow, locale)} kn toward ${meanFlow > 0 ? "flood" : "ebb"}`
+                        : `${formatSpeed(meanFlow, locale)} kn axis toward ${meanFlow > 0 ? "flood" : "ebb"}`
                     }
                   />
                   <DetailNote>

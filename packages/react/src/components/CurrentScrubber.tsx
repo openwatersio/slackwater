@@ -1,12 +1,13 @@
 import { useMemo } from "react";
+import { useSetFormat } from "../provider.js";
 
-import type { CurrentEvent, CurrentTimelineEntry } from "../types.js";
+import type { CurrentEvent, CurrentTimelineEntry, SetFormat } from "../types.js";
 import {
   DEFAULT_SLACK_THRESHOLD,
   EMPTY_MESSAGE,
-  compass16,
   currentStops,
   formatSpeed,
+  formatSet,
   isDotRun,
   readCurrent,
   slackRuns,
@@ -28,7 +29,6 @@ import {
   HALO_GAP,
   SET_ARROW_PATH,
   Scrubber,
-  SlackGlyph,
   geometry,
   type ScrubberProps,
   type StripKit,
@@ -52,7 +52,8 @@ export interface CurrentScrubberProps extends Pick<
   latitude: number;
   longitude: number;
   directions?: Directions;
-  /** Boat-speed threshold for slack windows, in knots. */
+  setFormat?: SetFormat;
+  /** Major-axis speed threshold for axis windows, in knots. */
   threshold?: number;
   /** BCP 47 locale for clocks and dates; defaults to the reader's. */
   locale?: string;
@@ -316,6 +317,7 @@ function CurrentStrip({
   latitude,
   longitude,
   directions,
+  setFormat,
   threshold = DEFAULT_SLACK_THRESHOLD,
   locale,
   now,
@@ -325,6 +327,7 @@ function CurrentStrip({
   moveTo,
   onNow,
 }: CurrentScrubberProps) {
+  const resolvedSetFormat = useSetFormat(setFormat);
   const flood = directions?.flood;
   const ebb = directions?.ebb;
   const track = useMemo((): Track => {
@@ -344,28 +347,23 @@ function CurrentStrip({
       lead: (t) => {
         const reading = read(t);
         if (!reading) return undefined;
-        const slack = reading.state === "Slack";
         return {
-          spoken: spokenReading(reading, t, timezone, locale),
+          spoken: spokenReading(reading, t, timezone, locale, resolvedSetFormat),
           content: (
             <>
               <div
                 className="flex items-center gap-1.5 text-[13px] font-semibold"
                 aria-hidden="true"
               >
-                <span className="font-medium opacity-85">{reading.state}</span>
-                <span
-                  className="flex items-center gap-1"
-                  style={{ color: slack ? C.go : reading.speed >= 0 ? C.flood : C.ebb }}
-                >
-                  {slack ? (
-                    <SlackGlyph />
-                  ) : reading.direction !== undefined ? (
+                <span className="flex items-center gap-1 font-medium opacity-85">
+                  {reading.direction !== undefined ? (
                     <>
                       <SetArrow direction={reading.direction} size={13} />
-                      {compass16(reading.direction)}
+                      Set {formatSet(reading.direction, resolvedSetFormat)}
                     </>
-                  ) : null}
+                  ) : (
+                    "Set —"
+                  )}
                 </span>
               </div>
               <div
@@ -374,7 +372,7 @@ function CurrentStrip({
                 aria-hidden="true"
               >
                 <span className="text-[44px] leading-none font-medium">
-                  {formatSpeed(reading.speed, locale)}
+                  {formatSpeed(reading.magnitude, locale)}
                 </span>
                 <span className="text-[22px] font-light">kn</span>
               </div>
@@ -387,7 +385,7 @@ function CurrentStrip({
       },
       draw: (kit) => drawCurrent(kit, timeline, events, runs, y, locale),
     };
-  }, [timeline, events, threshold, flood, ebb, timezone, locale]);
+  }, [timeline, events, threshold, flood, ebb, timezone, locale, resolvedSetFormat]);
 
   return (
     <Scrubber

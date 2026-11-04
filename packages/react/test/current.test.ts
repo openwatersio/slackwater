@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
 import {
   compass16,
+  formatSet,
+  spokenSet,
   currentStops,
   formatSpeed,
   isDotRun,
@@ -30,6 +32,126 @@ const events: CurrentEvent[] = [
   { time: new Date(t0 + 6 * H), speed: 0, kind: "slack" },
   { time: new Date(t0 + 9 * H), speed: -3, kind: "maxEbb", direction: 225 },
 ];
+
+test("uses a nonreciprocal published ebb bearing when vector data is unavailable", () => {
+  const reading = readCurrent(t0 + 8 * H, timeline, events, [], { flood: 45, ebb: 200 })!;
+  expect(reading.direction).toBe(200);
+  expect(spokenReading(reading, t0 + 8 * H, "UTC", "en-US")).toContain("set south-southwest");
+});
+
+describe("vector readings", () => {
+  const point = (h: number, speed: number, magnitude: number, direction?: number) => ({
+    time: new Date(t0 + h * H),
+    speed,
+    magnitude,
+    ...(direction !== undefined && { direction }),
+  });
+  test("keeps crossflow and its set at a flood/ebb zero", () => {
+    const tl = [point(0, 0, 2, 90), point(1, -1, 2, 120)];
+    const reading = readCurrent(t0, tl, [slackAt(t0)], [], { flood: 0, ebb: 180 })!;
+    expect(reading).toMatchObject({ speed: 0, magnitude: 2, direction: 90 });
+    expect(spokenReading(reading, t0, "UTC", "en-US")).toMatch(/^2.0 knots, set east,/);
+    expect(spokenReading(reading, t0, "UTC", "en-US")).not.toMatch(/slack/i);
+  });
+  test("interpolates vectors through north rather than turning south", () => {
+    const reading = readCurrent(t0 + H / 2, [point(0, 1, 1, 350), point(1, 1, 1, 10)], [], [], {})!;
+    expect(reading.magnitude).toBeCloseTo(0.984807753);
+    expect(reading.direction).toBeCloseTo(0);
+  });
+  test("opposite vectors cancel without inventing a set", () => {
+    const reading = readCurrent(
+      t0 + H / 2,
+      [point(0, 1, 1, 90), point(1, -1, 1, 270)],
+      [],
+      [],
+      {},
+    )!;
+    expect(reading.magnitude).toBeCloseTo(0);
+    expect(reading).not.toHaveProperty("direction");
+  });
+  test("interpolates from a zero vector with no bearing", () => {
+    const tl = [point(0, 0, 0), point(1, 1, 1, 90)];
+    expect(readCurrent(t0, tl, [], [], {})).toMatchObject({ magnitude: 0 });
+    expect(readCurrent(t0, tl, [], [], {})).not.toHaveProperty("direction");
+    expect(readCurrent(t0 + H / 2, tl, [], [], {})).toMatchObject({
+      magnitude: 0.5,
+      direction: 90,
+    });
+  });
+  test("interpolates toward a zero vector with no bearing", () => {
+    const tl = [point(0, 1, 2, 90), point(1, 0, 0)];
+    expect(readCurrent(t0 + H / 2, tl, [], [], {})).toMatchObject({
+      speed: 0.5,
+      magnitude: 1,
+      direction: 90,
+    });
+    expect(readCurrent(t0 + H, tl, [], [], {})).not.toHaveProperty("direction");
+  });
+  test("preserves speed without a known set, including a known endpoint beside an unknown one", () => {
+    const tl = [point(0, 1, 2, 90), point(1, 1, 3)];
+    expect(readCurrent(t0, tl, [], [], {})).toMatchObject({ magnitude: 2, direction: 90 });
+    expect(readCurrent(t0 + H / 2, tl, [], [], {})).toMatchObject({ magnitude: 2.5 });
+    expect(readCurrent(t0 + H / 2, tl, [], [], {})).not.toHaveProperty("direction");
+    expect(readCurrent(t0 + H, tl, [], [], {})).not.toHaveProperty("direction");
+  });
+  test.each([1, -1])(
+    "keeps scalar phase bearings through a nonreciprocal reversal, direction %s",
+    (sign) => {
+      const tl =
+        sign > 0
+          ? [point(0, 0.3, 0.3, 45), point(1, -0.3, 0.3, 200)]
+          : [point(0, -0.3, 0.3, 200), point(1, 0.3, 0.3, 45)];
+      const zero = readCurrent(t0 + H / 2, tl, [], [], { flood: 45, ebb: 200 })!;
+      expect(zero.magnitude).toBe(0);
+      expect(zero).not.toHaveProperty("direction");
+      const before = readCurrent(t0 + H * 0.4, tl, [], [], { flood: 45, ebb: 200 })!;
+      expect(before.magnitude).toBeCloseTo(0.06);
+      expect(before.direction).toBe(sign > 0 ? 45 : 200);
+      const after = readCurrent(t0 + H * 0.6, tl, [], [], { flood: 45, ebb: 200 })!;
+      expect(after.magnitude).toBeCloseTo(0.06);
+      expect(after.direction).toBe(sign > 0 ? 200 : 45);
+    },
+  );
+
+  test("falls back to absolute signed speed for older sources", () => {
+    expect(readCurrent(t0 + 8 * H, timeline, events, [], { ebb: 200 })?.magnitude).toBeCloseTo(
+      2.598076211353316,
+    );
+    const zero = readCurrent(t0 + 6 * H, timeline, events, [], { flood: 45, ebb: 225 })!;
+    expect(zero.magnitude).toBeCloseTo(0);
+    expect(zero).not.toHaveProperty("direction");
+  });
+});
+
+test("Set defaults to compass and degree readings wrap and pad without a true suffix", () => {
+  expect(formatSet(225)).toBe("SW");
+  expect(formatSet(5, "degrees")).toBe("005°");
+  expect(formatSet(359.8, "degrees")).toBe("000°");
+  expect(formatSet(-1, "degrees")).toBe("359°");
+  expect(spokenSet(225)).toBe("set southwest");
+  expect(spokenSet(5, "degrees")).toBe("set 5 degrees");
+});
+
+test.each([
+  [0, "north"],
+  [22.5, "north-northeast"],
+  [45, "northeast"],
+  [67.5, "east-northeast"],
+  [90, "east"],
+  [112.5, "east-southeast"],
+  [135, "southeast"],
+  [157.5, "south-southeast"],
+  [180, "south"],
+  [202.5, "south-southwest"],
+  [225, "southwest"],
+  [247.5, "west-southwest"],
+  [270, "west"],
+  [292.5, "west-northwest"],
+  [315, "northwest"],
+  [337.5, "north-northwest"],
+])("speaks compass bearing %s as %s", (bearing, name) => {
+  expect(spokenSet(Number(bearing))).toBe(`set ${name}`);
+});
 
 describe("speedColor", () => {
   test("clamps below the first anchor and above the last", () => {
@@ -329,20 +451,15 @@ test("spokenReading: state, speed, set when known, then dated clock and zone", (
   const t = Date.parse("2026-10-14T23:22:00Z");
   expect(
     spokenReading(
-      { state: "Flooding", speed: 2.3, direction: 45 },
+      { state: "Flooding", speed: 2.3, magnitude: 2.4, direction: 45 },
       t,
       "America/Los_Angeles",
       "en-US",
     ),
-  ).toMatch(/^Flooding, 2\.3 knots, setting NE, Oct 14, 4:22\sPM PDT$/);
+  ).toMatch(/^2\.4 knots, set northeast, Oct 14, 4:22\sPM PDT$/);
   expect(
-    spokenReading(
-      { state: "Slack", speed: -0.1, direction: 225 },
-      t,
-      "America/Los_Angeles",
-      "en-US",
-    ),
-  ).toMatch(/^Slack, 0\.1 knots, Oct 14/);
+    spokenReading({ state: "Slack", speed: 0, magnitude: 0 }, t, "America/Los_Angeles", "en-US"),
+  ).toMatch(/^0\.0 knots, Oct 14/);
 });
 
 test("formatCountdown floors to minutes", () => {
@@ -356,14 +473,16 @@ describe("commentary", () => {
     expect(commentary(t0, stops, "en-US")).toEqual({
       stop: stops[0],
       duration: "1h 28m",
-      spoken: "Maximum flood current in 1 hour, 28 minutes",
+      spoken: "Maximum flood along the major axis in 1 hour, 28 minutes",
     });
   });
   test("speaks whole hours and minutes alone", () => {
     expect(commentary(t0 + 28 * 60_000, stops, "en-US")?.spoken).toBe(
-      "Maximum flood current in 1 hour",
+      "Maximum flood along the major axis in 1 hour",
     );
-    expect(commentary(t0 + H, stops, "en-US")?.spoken).toBe("Maximum flood current in 28 minutes");
+    expect(commentary(t0 + H, stops, "en-US")?.spoken).toBe(
+      "Maximum flood along the major axis in 28 minutes",
+    );
   });
   test("one cutoff: the first stop more than a second after the selection", () => {
     expect(commentary(stops[0].time - 1000, stops)).toBeUndefined();

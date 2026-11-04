@@ -57,8 +57,8 @@ export const TideBelowDatum: Story = {
 
 export const Current: Story = { args: { station: deceptionPass, distance: 31.6 } };
 
-/** A predicted zero shows Slack without a set. */
-export const CurrentAtSlack: Story = {
+/** Full speed and Set remain visible at a flood/ebb zero. */
+export const CurrentAtAxisZero: Story = {
   args: { station: deceptionPass, now: Date.parse("2026-10-15T21:11:35.957Z") },
 };
 
