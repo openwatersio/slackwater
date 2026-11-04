@@ -254,3 +254,55 @@ describe("TideScrubber", () => {
     expect(screen.queryByRole("slider")).toBeNull();
   });
 });
+
+test("centers and clamps a bounded tide day wider than its real curve", async () => {
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  const data = fixture({ hours: 24 });
+  const now = t0 + 22 * H;
+  const { slider } = renderScrubber({ ...data, now, bounded: true }, 736);
+  await waitFor(() => expect(value(slider)).toBe(now));
+  expect(slider.scrollLeft).toBeCloseTo(22 * 18, 1);
+  fireEvent.keyDown(slider, { key: "ArrowLeft", shiftKey: true });
+  expect(value(slider)).toBe(t0 + 21 * H);
+  fireEvent.keyDown(slider, { key: "ArrowRight", shiftKey: true });
+  expect(value(slider)).toBe(t0 + 21 * H);
+  slider.scrollLeft = 0;
+  await waitFor(() => expect(value(slider)).toBe(t0));
+  fireEvent.keyDown(slider, { key: "ArrowLeft" });
+  expect(value(slider)).toBe(t0);
+  slider.scrollLeft = slider.scrollWidth;
+  await waitFor(() => expect(value(slider)).toBe(t0 + 24 * H));
+  expect(text(slider)).not.toBe("");
+});
+
+test("a bounded falling segment without a following low reads and announces Falling", () => {
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  const timeline = [1, 0.8, 0.6].map((level, i) => ({ time: new Date(t0 + (i + 2) * H), level }));
+  const { slider } = renderScrubber(
+    { timeline, extremes: [], now: t0 + 3 * H, bounded: true },
+    736,
+  );
+  expect(value(slider)).toBe(t0 + 3 * H);
+  expect(text(slider)).toMatch(/^Falling 0.80 metres/);
+  expect(screen.getByText("Falling")).toBeDefined();
+});
+
+test("bounded tide windows retain high and low labels near both real endpoints", () => {
+  vi.stubGlobal("matchMedia", () => ({ matches: true }));
+  const timeline = Array.from({ length: 21 }, (_, i) => ({
+    time: new Date(t0 + (i * H) / 4),
+    level: 2 + Math.cos(((i / 4 - 0.25) * Math.PI) / 4.5),
+  }));
+  const extremes: Extreme[] = [
+    { time: new Date(t0 + H / 4), level: 3, high: true, low: false, label: "High" },
+    { time: new Date(t0 + 4.75 * H), level: 1, high: false, low: true, label: "Low" },
+  ];
+  const { container } = renderScrubber(
+    { timeline, extremes, now: t0 + 2.5 * H, bounded: true },
+    736,
+  );
+  expect([...container.querySelectorAll('text[font-size="18"]')].map((t) => t.textContent)).toEqual(
+    ["3.00", "1.00"],
+  );
+  expect(container.querySelectorAll(`text[y="${G.eventTimeY}"]`)).toHaveLength(2);
+});

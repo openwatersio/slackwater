@@ -180,3 +180,7 @@ For background on tidal harmonic prediction concepts (constituents, node correct
 - Update this CONTRIBUTING.md document with any relevant architectural notes or patterns related to the new feature.
 - Ensure the `README.md` files in the relevant packages are updated with usage instructions and examples for the new feature.
 - Use `npm run changeset` to create a changeset for the new feature, which feeds versioning and the release notes (see [Release Notes](#release-notes)).
+
+## React scrubber windows
+
+`TideScrubber` and `CurrentScrubber` accept `bounded` for finite prediction windows. The shared `Scrubber` pads both ends by half the viewport and clamps selection to supplied sample times without changing the 18 px/hour scale. Its time-to-scroll and pointer mappings account for that padding; track geometry and prediction data stay unchanged. The default continuous multi-day behavior retains its loaded-edge limits. Browser tests cover finite days, partial days, 23-/25-hour spans in UTC, resizing, keyboard and touch-tap navigation, and pending host moves. A single published day belongs in the scrubber directly, not a station page's fortnight ranking inputs.

@@ -39,7 +39,14 @@ export function adjacentTarget(
 }
 
 /** `time` clamped to the center times a strip of `viewport` ms can scroll to. */
-export function reachable(time: number, start: number, end: number, viewport: number): number {
+export function reachable(
+  time: number,
+  start: number,
+  end: number,
+  viewport: number,
+  bounded = false,
+): number {
+  if (bounded) return Math.min(end, Math.max(start, time));
   const lo = start + viewport / 2;
   const hi = Math.max(lo, end - viewport / 2);
   return Math.min(hi, Math.max(lo, time));
@@ -51,13 +58,15 @@ export function rides(from: number, to: number, reduceMotion: boolean): boolean 
   return !reduceMotion && travel >= UNIT_MS / 2 && travel <= LONG_TRAVEL_MS;
 }
 
-/** Items far enough from both loaded edges to draw whole. */
+/** In-range marks; a continuous strip keeps labels clear of its loaded edges. */
 export function awayFromEdges<T extends { time: number }>(
   items: T[],
   start: number,
   end: number,
+  bounded = false,
 ): T[] {
-  return items.filter((i) => i.time - start >= EDGE_MS && end - i.time >= EDGE_MS);
+  const margin = bounded ? 0 : EDGE_MS;
+  return items.filter((i) => i.time - start >= margin && end - i.time >= margin);
 }
 
 /** Sorted labels, keeping the earlier of any two closer than the label gap. */

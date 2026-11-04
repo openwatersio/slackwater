@@ -81,6 +81,25 @@ describe("valueAt", () => {
 });
 
 describe("readTideCard", () => {
+  test("flat samples retain the default trend when no turn is supplied", () => {
+    expect(
+      readTideCard(
+        [
+          { time: at(0), level: 1 },
+          { time: at(1), level: 1 },
+        ],
+        [],
+        T0,
+      )?.rising,
+    ).toBe(true);
+  });
+  test.each([1, 3.2808399])(
+    "uses the falling sampled trend without a later turn at height scale %s",
+    (scale) => {
+      const falling = [1, 0.8, 0.6].map((level, i) => ({ time: at(i), level: level * scale }));
+      expect(readTideCard(falling, [], T0 + HOUR)?.rising).toBe(false);
+    },
+  );
   const timeline = [0, 1, 2].map((h) => ({ time: at(h), level: h }));
   const turn = (h: number, high: boolean): Extreme => ({
     time: at(h),
@@ -102,7 +121,7 @@ describe("readTideCard", () => {
     expect(readTideCard(timeline, [turn(1, true), turn(7, false)], T0 + HOUR)?.rising).toBe(false);
   });
 
-  test("rises when no later turn is loaded, and reads nothing outside the samples", () => {
+  test("follows the sampled rise without a later turn and reads nothing outside the samples", () => {
     expect(readTideCard(timeline, [], T0)?.rising).toBe(true);
     expect(readTideCard(timeline, [], T0 + 5 * HOUR)).toBeUndefined();
   });

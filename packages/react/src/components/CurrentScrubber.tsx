@@ -42,7 +42,10 @@ const SLACK_WIDTH = 3.5;
 
 export type { Directions };
 
-export interface CurrentScrubberProps extends Pick<ScrubberProps, "onSelect" | "moveTo" | "onNow"> {
+export interface CurrentScrubberProps extends Pick<
+  ScrubberProps,
+  "onSelect" | "moveTo" | "onNow" | "bounded"
+> {
   timeline: CurrentTimelineEntry[];
   events: CurrentEvent[];
   timezone: string;
@@ -84,7 +87,7 @@ function speedY(timeline: CurrentTimelineEntry[]) {
 }
 
 function drawCurrent(
-  { id, g, now, past, pastMask, shade, eventTimes, dayChrome }: StripKit,
+  { id, g, bounded, now, past, pastMask, shade, eventTimes, dayChrome }: StripKit,
   timeline: CurrentTimelineEntry[],
   events: CurrentEvent[],
   runs: SlackWindow[],
@@ -121,6 +124,7 @@ function drawCurrent(
     events.filter((e) => e.kind !== "slack").map((e) => ({ ...e, time: e.time.getTime() })),
     g.start,
     g.end,
+    bounded,
   );
   const axisTimes = slackAxisTimes(
     strokes,
@@ -131,6 +135,7 @@ function drawCurrent(
       axisTimes.sort((a, b) => a - b).map((time) => ({ time })),
       g.start,
       g.end,
+      bounded,
     ),
   ).map((l) => l.time);
 
@@ -315,6 +320,7 @@ function CurrentStrip({
   locale,
   now,
   className,
+  bounded,
   onSelect,
   moveTo,
   onNow,
@@ -386,6 +392,7 @@ function CurrentStrip({
   return (
     <Scrubber
       track={track}
+      bounded={bounded}
       timezone={timezone}
       latitude={latitude}
       longitude={longitude}

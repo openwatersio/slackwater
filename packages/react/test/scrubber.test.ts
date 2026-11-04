@@ -47,6 +47,11 @@ test("adjacentTarget ignores targets within a second", () => {
 });
 
 describe("reachable", () => {
+  test("bounded windows clamp to real endpoints even when narrower than the viewport", () => {
+    expect(reachable(2 * H, 0, 24 * H, 40 * H, true)).toBe(2 * H);
+    expect(reachable(-H, 0, 24 * H, 40 * H, true)).toBe(0);
+    expect(reachable(30 * H, 0, 24 * H, 40 * H, true)).toBe(24 * H);
+  });
   test("clamps to the centers the scroll range can reach", () => {
     expect(reachable(H, 0, 100 * H, 20 * H)).toBe(10 * H);
     expect(reachable(99 * H, 0, 100 * H, 20 * H)).toBe(90 * H);
@@ -101,4 +106,9 @@ describe("interpolate", () => {
 
 test("targetsWithin keeps sorted, unique times inside the window", () => {
   expect(targetsWithin([5, 1, 3, 3, 9, 0], 1, 5)).toEqual([1, 3, 5]);
+});
+
+test("bounded edge marks include both real endpoints and exclude events outside the supplied span", () => {
+  const items = [-1, 0, H, 4 * H, 4 * H + 1].map((time) => ({ time }));
+  expect(awayFromEdges(items, 0, 4 * H, true).map((p) => p.time)).toEqual([0, H, 4 * H]);
 });
