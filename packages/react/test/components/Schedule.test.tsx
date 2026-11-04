@@ -2,6 +2,32 @@ import { expect, test } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Schedule } from "../../src/components/Schedule.js";
 
+test("unpublished phase bearings keep their flood and ebb labels without inventing a direction", () => {
+  const anchor = Date.UTC(2026, 10, 3);
+  render(
+    <Schedule
+      days={[
+        {
+          start: anchor,
+          entries: [
+            { time: anchor + 12 * 3600000, pill: "flood", value: "1.2 kn axis" },
+            { time: anchor + 18 * 3600000, pill: "ebb", value: "0.8 kn axis" },
+          ],
+        },
+      ]}
+      timezone="UTC"
+      latitude={48.5}
+      longitude={-122.65}
+      anchor={anchor}
+      now={anchor}
+      onSelect={() => {}}
+      onPick={() => {}}
+    />,
+  );
+  expect(screen.getByRole("img", { name: "Flood", exact: true }).textContent).toBe("Flood");
+  expect(screen.getByRole("img", { name: "Ebb", exact: true }).textContent).toBe("Ebb");
+});
+
 test.each([
   [360, "system-ui"],
   [360, "monospace"],
