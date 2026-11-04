@@ -90,4 +90,5 @@ export function createTidePredictor(
 
 export type { HarmonicConstituent, TimelinePoint, Extreme };
 export * from "./currents.js";
+export * from "./readings/series.js";
 export * from "./station.js";

@@ -4,6 +4,7 @@ import { resolveFundamentals } from "./node-corrections/index.js";
 import { findExtremes, findSlacks, evalH } from "./harmonics/extremes.js";
 import { createParamsFactory } from "./harmonics/params.js";
 import { getTimeline } from "./harmonics/index.js";
+import { bandCrossing } from "./readings/series.js";
 import type { HarmonicConstituent } from "./harmonics/index.js";
 import type { TimeSpan } from "./index.js";
 
@@ -432,10 +433,13 @@ export function slackWindows(
 
   // Signed distance out of the band — negative inside, zero at the edge.
   const out = (s: Pick<CurrentPoint, "time" | "speed">) => Math.abs(s.speed) - threshold;
+  // The folded crossing on a reversal step is kept on purpose; see the `slackWindows` paragraph in the README.
   const cross = (a: (typeof timeline)[number], b: (typeof timeline)[number]) =>
-    new Date(
-      a.time.getTime() + (out(a) / (out(a) - out(b))) * (b.time.getTime() - a.time.getTime()),
-    );
+    a.speed * b.speed >= 0
+      ? bandCrossing(a, b, threshold)
+      : new Date(
+          a.time.getTime() + (out(a) / (out(a) - out(b))) * (b.time.getTime() - a.time.getTime()),
+        );
 
   const windows: SlackWindow[] = [];
   let from: Date | undefined = out(timeline[0]) <= 0 ? timeline[0].time : undefined;
