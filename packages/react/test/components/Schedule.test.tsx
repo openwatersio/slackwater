@@ -24,8 +24,8 @@ test("unpublished phase bearings keep their flood and ebb labels without inventi
       onPick={() => {}}
     />,
   );
-  expect(screen.getByRole("img", { name: "Flood", exact: true }).textContent).toBe("Flood");
-  expect(screen.getByRole("img", { name: "Ebb", exact: true }).textContent).toBe("Ebb");
+  expect(screen.getByRole("img", { name: "Flood" }).textContent).toBe("Flood");
+  expect(screen.getByRole("img", { name: "Ebb" }).textContent).toBe("Ebb");
 });
 
 test.each([
