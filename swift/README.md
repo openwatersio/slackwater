@@ -91,6 +91,35 @@ Subordinate timeline points use absolute speed for magnitude and the subordinate
 
 Before adopting timeline directions, callers that used `metadata.floodDirection ?? 0` or `metadata.ebbDirection ?? 0` must pass the optional metadata values directly to the station initializer. Zero is a valid north bearing, so the engine cannot identify a substituted zero as missing data.
 
+### Readings
+
+A reading names what the water is doing at one instant, from a series and its events. They port the readings in [`@slackwater/engine`](../packages/engine), and `fixtures/readings.json` holds both to the same answers.
+
+```swift
+let speeds = dp.speeds(from: start, to: end)
+let events = dp.events(from: start, to: end)
+if let now = readCurrent(at: Date(), timeline: speeds, events: events, flood: 92.9, ebb: 272.9) {
+    print(now.state, now.speed, now.magnitude, now.direction.map(compassPoint) ?? "no set")
+}
+let runs = slackRuns(speeds, events: events, threshold: defaultSlackThreshold)  // [SlackWindow], merged
+```
+
+`readCurrent` reads `.slack` within one second of a slack event and `.maxFlood` or `.maxEbb` within one second of a maximum; otherwise the sign of the speed gives `.flooding` or `.ebbing`. `speeds.vector(at:flood:ebb:)` interpolates the full vector through bearings, so a set turning through north stays north and opposing flows cancel. A zero vector has no direction. A point with no `direction` whose `magnitude` is `abs(speed)`, as `CurrentPoint(time:speed:)` builds, is a one-axis sample: it takes the `flood` or `ebb` bearing for its sign, and the two need not be reciprocal. `slackWindow(_:around:threshold:)` is the span around one slack where the speed stays within the threshold, and `slackRuns` merges the windows that touch. A threshold at or below zero gives no windows.
+
+```swift
+let heights = station.heights(from: start, to: end)
+let rates = heights.rates()                               // sampled central difference, metres per hour
+let extremes = station.extremes(from: start, to: end)
+if let tide = readTide(at: Date(), heights: heights, rates: rates, extremes: extremes) {
+    print(tide.state, tide.height, tide.rising, tide.rate)
+}
+let peaks = flowPeaks(rates, floor: 0.6)                  // each rise and fall's fastest sample
+let swings = extremes.swingHeights()                      // each rise and fall's height
+let rank = swings.percentileRank(of: swings.last ?? 0)
+```
+
+`readTide` reads `.high` or `.low` at the turn's own height within one second of an extreme, otherwise `.rising` or `.falling` toward the next extreme, and by the sign of the rate after the last one. `[TidePoint].rates()` is a sampled difference over the heights you pass; `Station.rates(from:to:step:)` is the analytic derivative. Readings return `nil` outside the series. Floors and thresholds are yours to choose; only `defaultSlackThreshold` (0.5 kn) ships as a default.
+
 ### Harmonic fitting
 
 `fit(samples:constituents:)` fits an offset and a fixed list of constituents to heights or signed current velocities. Available on macOS 13, iOS 16, and watchOS 9.
