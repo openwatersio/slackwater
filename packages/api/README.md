@@ -127,7 +127,7 @@ Every listing mode excludes tide stations without a prediction model. Identity-o
 
 - `predictions`: whether this API can serve predictions for the station
 - `unavailable`: why not, when `predictions` is `false`
-- `attribution`: the credit to display wherever the station's data is shown
+- `attribution`: the credit to include wherever the station's data is shown
 - `license`: the station data's license (`type`, `commercial_use`, `url`, and sometimes `notes`). A commercial product must leave out stations marked `commercial_use: false`, the TICON records under CC BY-NC 4.0
 
 ### GET /tides/stations/:source/:id

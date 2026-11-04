@@ -189,11 +189,10 @@ export function StationPage({ name, region, className, children }: StationPagePr
 export interface StationFooterProps {
   provenance?: string;
   disclaimers?: string;
-  attribution?: string;
 }
 
 /** Where the numbers come from, under the safety label. */
-export function StationFooter({ provenance, disclaimers, attribution }: StationFooterProps) {
+export function StationFooter({ provenance, disclaimers }: StationFooterProps) {
   return (
     <footer className="mt-3.5 flex flex-col items-center gap-1.5 px-6 pt-2 text-center text-[11px]">
       <p className="m-0 font-(family-name:--sw-font-mono) font-medium tracking-[1.4px] text-(--sw-foam)/62 uppercase">
@@ -201,7 +200,6 @@ export function StationFooter({ provenance, disclaimers, attribution }: StationF
       </p>
       {provenance && <p className="m-0 text-(--sw-foam)/30">{provenance}</p>}
       <StationDisclaimers disclaimers={disclaimers} />
-      {attribution && <p className="m-0 text-(--sw-foam)/62">{attribution}</p>}
     </footer>
   );
 }
@@ -270,10 +268,12 @@ export function distanceKm(
 export function StationNearby({
   id,
   kind,
+  attribution,
   onStationSelect,
 }: {
   id: string;
   kind: StationSummary["kind"];
+  attribution?: string;
   onStationSelect?: (station: CardStation) => void;
 }) {
   const [filter, setFilter] = useState<StationFilter>();
@@ -288,6 +288,7 @@ export function StationNearby({
       <NearbyStations
         stationId={id}
         kind={kind}
+        attribution={attribution}
         maxResults={PAGE_NEARBY_RESULTS}
         showMap
         filter={filter}

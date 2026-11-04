@@ -6,7 +6,7 @@ import type {
   TimelineEntry,
 } from "../types.js";
 import { readCurrent, type Directions } from "./current.js";
-import { levelAt } from "./tide.js";
+import { levelAt, rateAt, tideRates } from "./tide.js";
 
 const HOUR = 3_600_000;
 
@@ -75,7 +75,7 @@ export interface TideCardReading {
   rising: boolean;
 }
 
-/** The height now, rising toward a high or falling toward a low; rising when no later turn is loaded. */
+/** The height and trend now, using the sampled rate when no following turn is supplied. */
 export function readTideCard(
   timeline: TimelineEntry[],
   extremes: Extreme[],
@@ -83,7 +83,11 @@ export function readTideCard(
 ): TideCardReading | undefined {
   const level = levelAt(timeline, now);
   if (level === undefined) return undefined;
-  return { level, rising: extremes.find((e) => e.time.getTime() > now)?.high ?? true };
+  // Only the rate's sign is used, so a positive height-unit conversion cannot change the trend.
+  const rising =
+    extremes.find((e) => e.time.getTime() > now)?.high ??
+    rateAt(tideRates(timeline, "meters"), now)! >= 0;
+  return { level, rising };
 }
 
 export interface CurrentCardReading {

@@ -196,7 +196,6 @@ function TidePage({ id, onStationSelect, className }: TideStationProps) {
           <StationFooter
             provenance={servable ? provenance(s, datum, ref?.name) : undefined}
             disclaimers={s.disclaimers}
-            attribution={s.attribution}
           />
           {servable && (
             <StationDetails>
@@ -224,7 +223,12 @@ function TidePage({ id, onStationSelect, className }: TideStationProps) {
               )}
             </StationDetails>
           )}
-          <StationNearby id={id} kind="tide" onStationSelect={onStationSelect} />
+          <StationNearby
+            id={id}
+            attribution={s.attribution}
+            kind="tide"
+            onStationSelect={onStationSelect}
+          />
         </>
       )}
     </StationPage>

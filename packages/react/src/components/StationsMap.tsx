@@ -75,7 +75,6 @@ import {
   type PinState,
 } from "../utils/pin.js";
 import { StationCard } from "./StationCard.js";
-import { StationCredits } from "./StationCredits.js";
 import { useMinuteClock } from "./StationCardFace.js";
 
 /** OpenFreeMap's fiord: the app's dark basemap, whose water the pin colors are tuned against. */
@@ -248,10 +247,19 @@ function layers(colors: ThemeColors): LayerProps[] {
   ];
 }
 
-/** The map's attribution: the basemap's credit, then the credits of the stations predicted in view. */
+/** The map's attribution: the basemap's credit, then the credits of the selected station and stations predicted in view. */
 function Credits({ credits }: { credits: string[] }) {
+  const element = useRef<HTMLElement | null>(null);
   const control = useControl(
-    ({ mapLib }) => new mapLib.AttributionControl({ compact: true, customAttribution: credits }),
+    ({ mapLib }) => {
+      const attribution = new mapLib.AttributionControl({
+        compact: true,
+        customAttribution: credits,
+      });
+      const onAdd = attribution.onAdd.bind(attribution);
+      attribution.onAdd = (map) => (element.current = onAdd(map));
+      return attribution;
+    },
     { position: "top-right" },
   );
   useEffect(() => {
@@ -259,6 +267,28 @@ function Credits({ credits }: { credits: string[] }) {
     control.options = { ...control.options, customAttribution: credits };
     control._updateAttributions();
   }, [control, credits]);
+  useEffect(() => {
+    const target = element.current!;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const initialize = () => {
+      if (!target.querySelector(".maplibregl-ctrl-attrib-inner")?.textContent?.trim()) return;
+      observer.disconnect();
+      // OSM's attribution guidance allows automatic collapse after five seconds of visibility.
+      timer = setTimeout(() => target.classList.remove("maplibregl-compact-show"), 5000);
+    };
+    const cancel = () => clearTimeout(timer);
+    const observer = new MutationObserver(initialize);
+    observer.observe(target, { childList: true, subtree: true });
+    target.addEventListener("click", cancel);
+    target.addEventListener("focusin", cancel);
+    initialize();
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+      target.removeEventListener("click", cancel);
+      target.removeEventListener("focusin", cancel);
+    };
+  }, [control]);
   return null;
 }
 
@@ -352,7 +382,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
   const { pins, credits } = useMemo(() => {
     let i = 0;
     const holding = new globalThis.Map<string, unknown[]>();
-    const shown: (string | undefined)[] = [];
+    const shown: (string | undefined)[] = [selected?.attribution];
     const features = visible.map((s): Feature<Point> => {
       const key = stationKey(s);
       const count = 2;
@@ -425,6 +455,7 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
     pinned,
     camera,
     showLegend,
+    selected,
   ]);
 
   const byKey = useMemo(
@@ -607,7 +638,6 @@ export const StationsMap = forwardRef<MapRef, StationsMapProps>(function Station
               threshold={threshold}
               now={fixedNow}
             />
-            <StationCredits stations={[selected]} className="px-5 pt-1 pb-3" />
           </div>
         )}
         {showLegend ? (

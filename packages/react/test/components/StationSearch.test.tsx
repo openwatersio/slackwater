@@ -176,6 +176,7 @@ describe("StationSearch", () => {
     await user.type(field, "Bergen");
 
     expect(await results()).toContain("Bergen");
+    expect(screen.getByText("Data sources").closest("details")!.open).toBe(false);
     // Kartverket's credit opens with the database's, which the NOAA results carry alone.
     expect(credits()).toEqual([
       expect.stringMatching(/Source: .*Kartverket/),

@@ -28,6 +28,8 @@ export interface NearbyStationsStationProps {
 }
 
 export type NearbyStationsProps = (NearbyStationsPositionProps | NearbyStationsStationProps) & {
+  /** Include the originating station’s credit with the nearby stations’ credits. */
+  attribution?: string;
   maxResults?: number;
   showMap?: boolean;
   filter?: StationSummary["kind"];
@@ -85,8 +87,14 @@ function NearStation({
   station: { data?: StationSummary; error: Error | null };
   exclude: { id: string; kind: StationSummary["kind"] };
 }) {
-  if (station.error) return <Status error>{station.error.message}</Status>;
-  if (!station.data) return <Status>Loading nearby stations</Status>;
+  if (station.error)
+    return (
+      <Status error attribution={props.attribution}>
+        {station.error.message}
+      </Status>
+    );
+  if (!station.data)
+    return <Status attribution={props.attribution}>Loading nearby stations</Status>;
   return (
     <NearbyFromPosition
       latitude={station.data.latitude}
@@ -97,13 +105,26 @@ function NearStation({
   );
 }
 
-function Status({ error, children }: { error?: boolean; children: string }) {
-  return error ? (
-    <p className="m-0 p-4 text-center text-sm text-(--sw-attention)">{children}</p>
-  ) : (
-    <p className="sr-only" role="status">
-      {children}
-    </p>
+function Status({
+  error,
+  children,
+  attribution,
+}: {
+  error?: boolean;
+  children: string;
+  attribution?: string;
+}) {
+  return (
+    <>
+      {error ? (
+        <p className="m-0 p-4 text-center text-sm text-(--sw-attention)">{children}</p>
+      ) : (
+        <p className="sr-only" role="status">
+          {children}
+        </p>
+      )}
+      <StationCredits stations={[{ attribution }]} className="mt-3" />
+    </>
   );
 }
 
@@ -118,6 +139,7 @@ function NearbyFromPosition({
   className,
   showMap = false,
   filter,
+  attribution,
 }: ListProps & {
   latitude: number;
   longitude: number;
@@ -128,9 +150,15 @@ function NearbyFromPosition({
   const tides = useNearbyStations(params);
   const currents = useCurrentStations(params);
 
-  if (tides.isLoading || currents.isLoading) return <Status>Loading nearby stations</Status>;
+  if (tides.isLoading || currents.isLoading)
+    return <Status attribution={attribution}>Loading nearby stations</Status>;
   // An API without the current routes still lists its tide stations.
-  if (tides.error && currents.error) return <Status error>{tides.error.message}</Status>;
+  if (tides.error && currents.error)
+    return (
+      <Status error attribution={attribution}>
+        {tides.error.message}
+      </Status>
+    );
   const stations = mergeNearby<CardStation>(
     [
       filter === "current" ? [] : (tides.data ?? []),
@@ -178,7 +206,7 @@ function NearbyFromPosition({
           )}
         </div>
       )}
-      <StationCredits stations={stations} className="mt-3" />
+      <StationCredits stations={[{ attribution }, ...stations]} className="mt-3" />
     </div>
   );
 }

@@ -604,3 +604,188 @@ describe("CurrentScrubber", () => {
     expect(value(screen.getByRole("slider"))).toBe(t0 + H);
   });
 });
+
+describe("bounded current windows", () => {
+  test.each([
+    [360, 24],
+    [736, 24],
+    [1200, 24],
+    [736, 23],
+    [736, 25],
+    [736, 4],
+  ])("centers the actual reading throughout a %i px, %i-hour window", async (width, hours) => {
+    reduceMotion();
+    const data = fixture(t0);
+    const timeline = data.timeline.filter((p) => +p.time <= t0 + hours * H);
+    const events = data.events.filter((e) => +e.time <= t0 + hours * H);
+    const now = t0 + 2 * H;
+    const { slider } = renderScrubber({ timeline, events, now, bounded: true }, width);
+    await waitFor(() => expect(value(slider)).toBe(now));
+    expect(text(slider)).toMatch(/2:00 AM/);
+    expect(slider.scrollLeft).toBeCloseTo(2 * PX_PER_HOUR, 1);
+    const curveNow = [...slider.querySelectorAll("circle")].find((c) =>
+      c.getAttribute("fill")?.includes("sw-paper"),
+    )!;
+    const dot = curveNow.getBoundingClientRect();
+    expect(dot.left + dot.width / 2).toBeCloseTo(
+      slider.getBoundingClientRect().left + slider.clientWidth / 2,
+      1,
+    );
+
+    // Native scrolling reaches either real endpoint, with no readings beyond them.
+    slider.scrollLeft = slider.scrollWidth;
+    await waitFor(() => expect(value(slider)).toBe(t0 + hours * H));
+    key(slider, "ArrowRight");
+    expect(value(slider)).toBe(t0 + hours * H);
+    slider.scrollLeft = 0;
+    await waitFor(() => expect(value(slider)).toBe(t0));
+    key(slider, "ArrowLeft");
+    expect(value(slider)).toBe(t0);
+
+    fireEvent.click(nowPill()!);
+    await waitFor(() => expect(value(slider)).toBe(now));
+    expect(slider.scrollLeft).toBeCloseTo(2 * PX_PER_HOUR, 1);
+  });
+
+  test("keeps an early single-day selection centered on resize", async () => {
+    reduceMotion();
+    const data = fixture(t0);
+    const now = t0 + H;
+    const { slider, getByTestId } = renderScrubber({
+      timeline: data.timeline.slice(0, 145),
+      events: data.events.filter((e) => +e.time <= t0 + 24 * H),
+      now,
+      bounded: true,
+    });
+    await waitFor(() => expect(value(slider)).toBe(now));
+    getByTestId("frame").style.width = "1000px";
+    await waitFor(() => expect(slider.clientWidth).toBe(1000));
+    expect(value(slider)).toBe(now);
+    expect(slider.scrollLeft).toBeCloseTo(PX_PER_HOUR, 1);
+  });
+});
+
+test("bounded opening, taps, event pills, and host moves share the padded time scale", async () => {
+  const data = fixture(t0);
+  const day = {
+    timeline: data.timeline.slice(0, 145),
+    events: data.events.filter((e) => +e.time <= t0 + 24 * H),
+  };
+  const now = t0 + 2 * H;
+  const { slider, rerender } = renderScrubber({ ...day, now, bounded: true }, 736);
+  await restsOn(slider, now);
+  reduceMotion();
+  fireEvent.click(commentaryPill());
+  expect(value(slider)).toBe(t0 + 3 * H);
+
+  const rect = slider.getBoundingClientRect();
+  const at = {
+    clientX: rect.left + slider.clientWidth / 2 + PX_PER_HOUR,
+    clientY: rect.top + 100,
+    pointerType: "touch",
+    pointerId: 1,
+  };
+  fireEvent.pointerDown(slider, at);
+  fireEvent.pointerUp(slider, at);
+  expect(value(slider)).toBe(t0 + 4 * H);
+
+  const moveTo = { time: t0 + 26 * H };
+  rerender(scrubber({ ...day, now, bounded: true, moveTo }, 736));
+  expect(value(slider)).toBe(t0 + 24 * H);
+  const next = fixture(t0 + 24 * H);
+  rerender(
+    scrubber(
+      {
+        timeline: next.timeline.slice(0, 145),
+        events: next.events.filter((e) => +e.time <= t0 + 48 * H),
+        now,
+        bounded: true,
+        moveTo,
+      },
+      736,
+    ),
+  );
+  expect(value(slider)).toBe(moveTo.time);
+  expect(slider.scrollLeft).toBeCloseTo(2 * PX_PER_HOUR, 1);
+});
+
+test("changing bounded mode keeps the selection reachable and centered", async () => {
+  reduceMotion();
+  const data = fixture(t0);
+  const now = t0 + 2 * H;
+  const { slider, rerender } = renderScrubber({ ...data, now, bounded: true });
+  expect(value(slider)).toBe(now);
+  rerender(scrubber({ ...data, now, bounded: false }));
+  expect(value(slider)).toBe(t0 + 10 * H);
+  rerender(scrubber({ ...data, now, bounded: true }));
+  expect(value(slider)).toBe(t0 + 10 * H);
+  expect(slider.scrollLeft).toBeCloseTo(10 * PX_PER_HOUR, 1);
+});
+
+test.each([t0 - H, t0 + 30 * H])(
+  "bounded callbacks stay inside the supplied day when now is %i",
+  (now) => {
+    reduceMotion();
+    const data = fixture(t0);
+    const selected: number[] = [];
+    const onSelect = (time: number) => selected.push(time);
+    const { slider, rerender } = renderScrubber(
+      { timeline: data.timeline.slice(0, 145), events: [], now, bounded: true, onSelect },
+      736,
+    );
+    expect(value(slider)).toBe(Math.min(t0 + 24 * H, Math.max(t0, now)));
+    expect(selected.length).toBeGreaterThan(0);
+    expect(selected.every((t) => t >= t0 && t <= t0 + 24 * H)).toBe(true);
+    const next = fixture(t0 + 48 * H);
+    selected.length = 0;
+    rerender(
+      scrubber(
+        { timeline: next.timeline.slice(0, 145), events: [], now, bounded: true, onSelect },
+        736,
+      ),
+    );
+    expect(value(slider)).toBe(t0 + 48 * H);
+    expect(selected.length).toBeGreaterThan(0);
+    expect(selected.every((t) => t >= t0 + 48 * H && t <= t0 + 72 * H)).toBe(true);
+  },
+);
+
+test("bounded partial windows draw the maximum the commentary names near the endpoint", () => {
+  reduceMotion();
+  const data = fixture(t0);
+  const { container } = renderScrubber(
+    {
+      timeline: data.timeline.slice(0, 25),
+      events: data.events.filter((e) => +e.time <= t0 + 4 * H),
+      now: t0 + 2 * H,
+      bounded: true,
+    },
+    736,
+  );
+  expect(commentaryPill().ariaLabel).toBe("Maximum flood current in 1 hour");
+  const times = [...container.querySelectorAll(`text[y="${G.eventTimeY + 20}"]`)];
+  expect(times).toHaveLength(1);
+  expect(times[0].textContent).toMatch(/^3:00\sAM$/);
+  expect(container.querySelector('text[font-size="18"]')?.textContent).toBe("3.0");
+});
+
+test("native bounded scrolling reaches a quarter-hour endpoint at a fractional pixel", async () => {
+  reduceMotion();
+  const timeline = Array.from({ length: 96 }, (_, i) => ({
+    time: new Date(t0 + i * 15 * M),
+    speed: 3 * Math.sin((i * Math.PI) / 24),
+  }));
+  const end = +timeline[timeline.length - 1].time;
+  const { slider } = renderScrubber(
+    {
+      timeline,
+      events: fixture(t0).events.filter((e) => +e.time <= end),
+      now: t0 + 2 * H,
+      bounded: true,
+    },
+    736,
+  );
+  expect(value(slider)).toBe(t0 + 2 * H);
+  slider.scrollLeft = slider.scrollWidth;
+  await waitFor(() => expect(value(slider)).toBe(end));
+});

@@ -14,15 +14,18 @@ export function StationCredits({ stations, className }: StationCreditsProps) {
   const credits = useMemo(() => distinctCredits(stations.map((s) => s.attribution)), [stations]);
   if (credits.length === 0) return null;
   return (
-    <div
-      className={`flex flex-col gap-2 px-1.5 text-[11px] leading-snug text-(--sw-foam)/62 wrap-anywhere ${className ?? ""}`}
+    <details
+      className={`px-1.5 text-[11px] leading-snug text-(--sw-foam)/62 wrap-anywhere ${className ?? ""}`}
       style={{ fontFamily: "var(--sw-font-sans)" }}
     >
-      {credits.map((credit) => (
-        <p key={credit} className="m-0">
-          {credit}
-        </p>
-      ))}
-    </div>
+      <summary className="cursor-pointer py-2">Data sources</summary>
+      <div className="flex flex-col gap-2">
+        {credits.map((credit) => (
+          <p key={credit} className="m-0">
+            {credit}
+          </p>
+        ))}
+      </div>
+    </details>
   );
 }

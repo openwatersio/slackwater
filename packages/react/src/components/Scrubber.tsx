@@ -92,6 +92,7 @@ export interface Geometry {
 export interface StripKit {
   id: string;
   g: Geometry;
+  bounded: boolean;
   now: number;
   /** Event marks and labels for a moment already passed fade to 45%. */
   past: (t: number) => number;
@@ -145,6 +146,8 @@ export interface Track {
 
 export interface ScrubberProps {
   track: Track;
+  /** Pad a finite prediction window so its first and last samples can reach the center line. */
+  bounded?: boolean;
   timezone: string;
   latitude: number;
   longitude: number;
@@ -307,6 +310,7 @@ export function nextStopComment(t: number, stops: Stop[], locale?: string): Comm
 
 interface StripProps {
   track: Track;
+  bounded: boolean;
   daysList: Day[];
   bands: Band[];
   now: number;
@@ -314,7 +318,15 @@ interface StripProps {
   locale?: string;
 }
 
-const Strip = memo(function Strip({ track, daysList, bands, now, timezone, locale }: StripProps) {
+const Strip = memo(function Strip({
+  track,
+  bounded,
+  daysList,
+  bands,
+  now,
+  timezone,
+  locale,
+}: StripProps) {
   const rowOffset = track.hasMaxTimes ? 20 : 0;
   const height = G.height + rowOffset;
   const id = useId().replace(/\W/g, "");
@@ -325,6 +337,7 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
   const kit: StripKit = {
     id,
     g,
+    bounded,
     now,
     past,
     pastMask: `url(#${id}past)`,
@@ -433,7 +446,12 @@ const Strip = memo(function Strip({ track, daysList, bands, now, timezone, local
   };
 
   return (
-    <svg width={g.width} height={height} style={{ display: "block" }} aria-hidden="true">
+    <svg
+      width={g.width}
+      height={height}
+      style={{ display: "block", overflow: bounded ? "visible" : undefined }}
+      aria-hidden="true"
+    >
       <defs>
         <linearGradient
           id={`${id}shadeFade`}
@@ -500,6 +518,7 @@ export function EmptyStrip({ message, className }: { message: string; className?
  */
 export function Scrubber({
   track,
+  bounded = false,
   timezone,
   latitude,
   longitude,
@@ -525,8 +544,8 @@ export function Scrubber({
   const [width, setWidth] = useState(0);
   const span = (width / PX_PER_HOUR) * HOUR;
   // Only stops the center line can reach are named or snapped to.
-  const first = reachable(g.start, g.start, g.end, span);
-  const last = reachable(g.end, g.start, g.end, span);
+  const first = reachable(g.start, g.start, g.end, span, bounded);
+  const last = reachable(g.end, g.start, g.end, span, bounded);
   const stops = useMemo(
     () => scrubberStops(track.stops, daysList, first, last),
     [track.stops, daysList, first, last],
@@ -534,7 +553,8 @@ export function Scrubber({
   const targets = useMemo(() => track.targets(stops, first, last), [track, stops, first, last]);
 
   const scroller = useRef<HTMLDivElement>(null);
-  const [selected, setSelected] = useState(now);
+  const [selection, setSelected] = useState(now);
+  const selected = bounded ? Math.min(g.end, Math.max(g.start, selection)) : selection;
   const [resting, setResting] = useState(false);
   const restTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   /** A person scrolled since the last rest, so the magnet runs when it comes. */
@@ -552,11 +572,11 @@ export function Scrubber({
   const viewport = () => (scroller.current!.clientWidth / PX_PER_HOUR) * HOUR;
   const centerTime = useCallback(() => {
     const el = scroller.current!;
-    return g.start + ((el.scrollLeft + el.clientWidth / 2) / PX_PER_HOUR) * HOUR;
-  }, [g]);
+    return g.start + ((el.scrollLeft + (bounded ? 0 : el.clientWidth / 2)) / PX_PER_HOUR) * HOUR;
+  }, [g, bounded]);
   const leftFor = useCallback(
-    (t: number) => g.x(t) - (scroller.current?.clientWidth ?? 0) / 2,
-    [g],
+    (t: number) => g.x(t) - (bounded ? 0 : (scroller.current?.clientWidth ?? 0) / 2),
+    [g, bounded],
   );
 
   const restSoon = useCallback((onRest: () => void) => {
@@ -579,7 +599,7 @@ export function Scrubber({
       const el = scroller.current!;
       stopOpening();
       userMoved.current = false;
-      const dest = reachable(t, g.start, g.end, viewport());
+      const dest = reachable(t, g.start, g.end, viewport(), bounded);
       target.current = dest;
       const left = Math.max(0, Math.min(el.scrollWidth - el.clientWidth, leftFor(dest)));
       if (Math.abs(left - el.scrollLeft) < 0.5) {
@@ -593,7 +613,7 @@ export function Scrubber({
       restSoon(() => onRestRef.current());
       return true;
     },
-    [g, leftFor, centerTime, restSoon],
+    [g, leftFor, centerTime, restSoon, bounded],
   );
 
   /** A host's request: goes now, and again once data reaches it. */
@@ -656,7 +676,7 @@ export function Scrubber({
     const el = scroller.current;
     if (!el || opened.current) return;
     opened.current = true;
-    const to = reachable(now, g.start, g.end, viewport());
+    const to = reachable(now, g.start, g.end, viewport(), bounded);
     target.current = to;
     if (prefersReducedMotion()) {
       el.scrollLeft = leftFor(to);
@@ -664,7 +684,7 @@ export function Scrubber({
       restSoon(() => onRestRef.current());
       return;
     }
-    const from = reachable(now - OPEN_FROM_MS, g.start, g.end, viewport());
+    const from = reachable(now - OPEN_FROM_MS, g.start, g.end, viewport(), bounded);
     el.scrollLeft = leftFor(from);
     setSelected(from);
     const began = performance.now();
@@ -675,7 +695,7 @@ export function Scrubber({
     };
     opening.current = requestAnimationFrame(frame);
     restSoon(() => onRestRef.current());
-  }, [now, g, leftFor, restSoon]);
+  }, [now, g, leftFor, restSoon, bounded]);
 
   // A width change keeps the selected time under the new center.
   useEffect(() => {
@@ -697,17 +717,17 @@ export function Scrubber({
   }, [leftFor]);
 
   // New data with a different span keeps the selection, clamped into it, or takes a request it now reaches.
-  const range = useRef(g);
+  const range = useRef({ start: g.start, end: g.end, bounded });
   useIsomorphicLayoutEffect(() => {
     const prev = range.current;
-    range.current = g;
-    if (prev.start === g.start && prev.end === g.end) return;
+    range.current = { start: g.start, end: g.end, bounded };
+    if (prev.start === g.start && prev.end === g.end && prev.bounded === bounded) return;
     const wanted = pending.current;
     if (wanted !== undefined && wanted >= g.start && wanted <= g.end) {
       pending.current = undefined;
       goTo(wanted, false);
     } else goTo(selectedRef.current, false);
-  }, [g, goTo]);
+  }, [g, goTo, bounded]);
 
   // Now is sampled on open, on the Now pill, and on returning to the page;
   // never on a timer. A selection that was home follows it.
@@ -717,14 +737,15 @@ export function Scrubber({
       if (document.visibilityState !== "visible") return;
       const fresh = Date.now();
       const home =
-        Math.abs(selectedRef.current - reachable(nowRef.current, g.start, g.end, viewport())) <=
-        NEAR_NOW_MS;
+        Math.abs(
+          selectedRef.current - reachable(nowRef.current, g.start, g.end, viewport(), bounded),
+        ) <= NEAR_NOW_MS;
       setClock(fresh);
       if (home) goTo(fresh, true);
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [nowProp, goTo, g]);
+  }, [nowProp, goTo, g, bounded]);
 
   useEffect(
     () => () => {
@@ -734,8 +755,12 @@ export function Scrubber({
     [],
   );
 
-  useEffect(() => onSelect?.(selected), [onSelect, selected]);
-  useEffect(() => onView?.(selected, span), [onView, selected, span]);
+  useEffect(() => {
+    onSelect?.(selected);
+  }, [onSelect, selected]);
+  useEffect(() => {
+    onView?.(selected, span);
+  }, [onView, selected, span]);
   // A request is an object so tapping the same row twice still moves there.
   const requestRef = useRef(request);
   requestRef.current = request;
@@ -776,7 +801,8 @@ export function Scrubber({
     if (!d || d.moved) return;
     const el = scroller.current!;
     const rect = el.getBoundingClientRect();
-    const t = g.start + ((el.scrollLeft + e.clientX - rect.left) / PX_PER_HOUR) * HOUR;
+    const offset = bounded ? el.clientWidth / 2 : 0;
+    const t = g.start + ((el.scrollLeft + e.clientX - rect.left - offset) / PX_PER_HOUR) * HOUR;
     stopMotion();
     pending.current = undefined;
     if (e.clientY - rect.top < DAY_ROW_Y + rowOffset) {
@@ -813,8 +839,20 @@ export function Scrubber({
     ? track.comment(selected, stops)
     : nextStopComment(selected, stops, locale);
   // Where the Now pill goes: now, or as near as a strip this wide can center.
-  const home = reachable(now, g.start, g.end, span);
+  const home = reachable(now, g.start, g.end, span, bounded);
   const awayFromNow = Math.abs(selected - home) > NEAR_NOW_MS;
+
+  const strip = (
+    <Strip
+      track={track}
+      bounded={bounded}
+      daysList={daysList}
+      bands={bands}
+      now={now}
+      timezone={timezone}
+      locale={locale}
+    />
+  );
 
   const fade = "transition-opacity duration-200 motion-reduce:transition-none";
   const pillButton = `absolute flex min-h-[44px] min-w-[44px] items-center justify-center cursor-pointer ${fade}`;
@@ -859,14 +897,11 @@ export function Scrubber({
         onPointerCancel={() => (drag.current = undefined)}
         onKeyDown={onKeyDown}
       >
-        <Strip
-          track={track}
-          daysList={daysList}
-          bands={bands}
-          now={now}
-          timezone={timezone}
-          locale={locale}
-        />
+        {bounded ? (
+          <div style={{ width: "max-content", paddingInline: "50%" }}>{strip}</div>
+        ) : (
+          strip
+        )}
       </div>
 
       <div className="pointer-events-none absolute inset-0">
