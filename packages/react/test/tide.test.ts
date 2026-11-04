@@ -1,20 +1,16 @@
+import { readTide, tideRates } from "@slackwater/engine";
 import { describe, expect, test } from "vitest";
 import {
   eased,
   fastTideInk,
   fastTideText,
   fitScale,
-  flowPeaks,
   formatHeight,
   governScale,
   heightUnit,
   lerpScale,
-  levelRange,
-  rateAt,
   rateColor,
-  readTide,
   spokenTide,
-  tideRates,
   tideStops,
 } from "../src/utils/tide.js";
 import type { Extreme } from "../src/types.js";
@@ -31,47 +27,6 @@ const extreme = (hours: number, level: number, high: boolean): Extreme => ({
   label: high ? "High" : "Low",
 });
 
-describe("tideRates", () => {
-  test("central differences in meters per hour, one-sided at the ends", () => {
-    const rates = tideRates(series([0, 1, 3, 3.5]), "meters");
-    expect(rates.map((r) => r.rate)).toEqual([1, 1.5, 1.25, 0.5]);
-    expect(rates[1].time).toEqual(new Date(t0 + H));
-  });
-
-  test("converts feet to meters first", () => {
-    const rates = tideRates(series([0, 3.2808399]), "feet");
-    expect(rates[0].rate).toBeCloseTo(1);
-  });
-
-  test("a single sample, or a repeated instant, has no rate", () => {
-    expect(tideRates(series([2]), "meters")[0].rate).toBe(0);
-  });
-
-  test("rateAt interpolates between samples", () => {
-    const rates = tideRates(series([0, 1, 3]), "meters");
-    expect(rateAt(rates, t0 + 0.5 * H)).toBeCloseTo(1.25);
-    expect(rateAt(rates, t0 - 1)).toBeUndefined();
-  });
-});
-
-describe("flowPeaks", () => {
-  const at = (rate: number, i: number) => ({ time: new Date(t0 + i * H), rate });
-
-  test("one peak per rising or falling run, only when it reaches 0.6 m/hr", () => {
-    const rates = [0.2, 0.7, 0.9, 0.4, -0.3, -0.5, -0.1, 0.65, 0.6].map(at);
-    expect(flowPeaks(rates)).toEqual([at(0.9, 2), at(0.65, 7)]);
-  });
-
-  test("a still sample ends a run", () => {
-    const rates = [0.8, 0, 1.2].map(at);
-    expect(flowPeaks(rates)).toEqual([at(0.8, 0), at(1.2, 2)]);
-  });
-
-  test("a falling run's peak is its most negative rate", () => {
-    expect(flowPeaks([-0.7, -1.1, -0.9].map(at))).toEqual([at(-1.1, 1)]);
-  });
-});
-
 test("tideStops names each turn", () => {
   expect(tideStops([extreme(1, 2, true), extreme(7, 0.1, false)])).toEqual([
     { time: t0 + H, label: "High" },
@@ -83,12 +38,6 @@ describe("vertical scale", () => {
   test("fits around the midpoint with 6% padding and a floor", () => {
     expect(fitScale(-1, 3)).toEqual({ mid: 1, span: 2 * 1.06 });
     expect(fitScale(2, 2)).toEqual({ mid: 2, span: 0.01 * 1.06 });
-  });
-
-  test("levelRange spans only the samples inside the window", () => {
-    const tl = series([5, 1, 4, 9]);
-    expect(levelRange(tl, t0 + H, t0 + 2 * H)).toEqual({ min: 1, max: 4 });
-    expect(levelRange(tl, t0 + 10 * H, t0 + 11 * H)).toBeUndefined();
   });
 
   test("holds the scale while the curve fits comfortably", () => {
@@ -156,60 +105,13 @@ describe("rate colors", () => {
   });
 });
 
-describe("readTide", () => {
-  test("flat samples retain the default direction without inventing a high or low", () => {
-    const flat = series([1, 1, 1]);
-    expect(readTide(t0 + H, flat, tideRates(flat, "meters"), [])).toMatchObject({
-      state: "Rising",
-      rate: 0,
-    });
-  });
+describe("spokenTide", () => {
   const timeline = series([1, 2, 3, 2, 1, 0, 1]);
   const rates = tideRates(timeline, "meters");
   const extremes = [extreme(2, 3.04, true), extreme(5, -0.02, false)];
 
-  test("High or Low within a second of a turn, at the turn's own height", () => {
-    expect(readTide(t0 + 2 * H + 1000, timeline, rates, extremes)).toMatchObject({
-      state: "High",
-      level: 3.04,
-      up: true,
-    });
-    expect(readTide(t0 + 5 * H - 1000, timeline, rates, extremes)?.state).toBe("Low");
-    expect(readTide(t0 + 2 * H + 1001, timeline, rates, extremes)?.state).toBe("Falling");
-  });
-
-  test("rising toward a high and falling toward a low, interpolating the height", () => {
-    expect(readTide(t0 + 0.5 * H, timeline, rates, extremes)).toEqual({
-      state: "Rising",
-      level: 1.5,
-      up: true,
-      rate: 1,
-    });
-    expect(readTide(t0 + 3.5 * H, timeline, rates, extremes)).toMatchObject({
-      state: "Falling",
-      up: false,
-    });
-  });
-
-  test.each([{ turns: [] }, { turns: [extreme(0, 1, true)] }])(
-    "uses the sampled fall when the following turn is absent: $turns",
-    ({ turns }) => {
-      const falling = series([1, 0.8, 0.6]);
-      const reading = readTide(t0 + H, falling, tideRates(falling, "meters"), turns)!;
-      expect(reading.state).toBe("Falling");
-      expect(reading.up).toBe(false);
-      expect(reading.level).toBe(0.8);
-      expect(reading.rate).toBeCloseTo(-0.2);
-    },
-  );
-
-  test("follows the sampled rise without a later turn and reads nothing outside the timeline", () => {
-    expect(readTide(t0 + 5.5 * H, timeline, rates, extremes)?.state).toBe("Rising");
-    expect(readTide(t0 - 1, timeline, rates, extremes)).toBeUndefined();
-  });
-
   test("speaks the state, the height and its unit, then the dated clock", () => {
-    const reading = readTide(t0 + 0.5 * H, timeline, rates, extremes)!;
+    const reading = readTide(new Date(t0 + 0.5 * H), timeline, rates, extremes)!;
     expect(spokenTide(reading, t0 + 0.5 * H, "UTC", "meters", "en-US")).toMatch(
       /^Rising 1\.50 metres, 1\.00 metres per hour, Oct 10, 12:30\sAM UTC$/,
     );

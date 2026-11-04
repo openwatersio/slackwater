@@ -1,3 +1,4 @@
+import { flowPeaks, levelAt, levelRange, readTide, tideRates } from "@slackwater/engine";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { Extreme, TimelineEntry, Units } from "../types.js";
@@ -5,21 +6,17 @@ import { awayFromEdges, targetsWithin, thinLabels } from "../utils/scrubber.js";
 import { leadTime } from "../utils/time.js";
 import {
   EMPTY_TIDE_MESSAGE,
+  FAST_RATE,
   eased,
   fastTideInk,
   fastTideText,
   fitScale,
-  flowPeaks,
   formatHeight,
   governScale,
   heightUnit,
   lerpScale,
-  levelAt,
-  levelRange,
   rateColor,
-  readTide,
   spokenTide,
-  tideRates,
   tideStops,
   type RatePoint,
   type TideScale,
@@ -67,8 +64,8 @@ export interface TideScrubberProps extends Pick<
 /** The fit that opens the strip: the two days either side of now, as the app first builds them. */
 function openingScale(timeline: TimelineEntry[], now: number): TideScale {
   const r =
-    levelRange(timeline, now - 48 * HOUR, now + 48 * HOUR) ??
-    levelRange(timeline, -Infinity, Infinity)!;
+    levelRange(timeline, new Date(now - 48 * HOUR), new Date(now + 48 * HOUR)) ??
+    levelRange(timeline, timeline[0].time, timeline[timeline.length - 1].time)!;
   return fitScale(r.min, r.max);
 }
 
@@ -97,7 +94,7 @@ function drawTide(
     bounded,
   );
   const times = thinLabels(turns);
-  const nowLevel = now >= g.start && now <= g.end ? levelAt(timeline, now) : undefined;
+  const nowLevel = now >= g.start && now <= g.end ? levelAt(timeline, new Date(now)) : undefined;
 
   return (
     <>
@@ -253,7 +250,7 @@ function TideStrip({
 }: TideScrubberProps) {
   const id = useId().replace(/\W/g, "");
   const rates = useMemo(() => tideRates(timeline, units), [timeline, units]);
-  const peaks = useMemo(() => flowPeaks(rates), [rates]);
+  const peaks = useMemo(() => flowPeaks(rates, FAST_RATE), [rates]);
 
   // The drawn scale, and the governor's target it glides toward.
   const [scale, setScale] = useState(() => openingScale(timeline, now ?? Date.now()));
@@ -266,7 +263,7 @@ function TideStrip({
   const onView = useCallback(
     (t: number, span: number) => {
       const half = Math.max(span, 6 * HOUR) / 2 + HOUR;
-      const r = levelRange(timeline, t - half, t + half);
+      const r = levelRange(timeline, new Date(t - half), new Date(t + half));
       if (!r) return;
       const next = governScale(held.current, r.min, r.max);
       if (next === held.current) return;
@@ -321,7 +318,7 @@ function TideStrip({
       label: "Tide timeline",
       start,
       end,
-      y: (t) => y(levelAt(timeline, t) ?? scale.mid),
+      y: (t) => y(levelAt(timeline, new Date(t)) ?? scale.mid),
       dot: { size: 13, glow: 4 },
       stops: tideStops(extremes, peaks),
       targets: (stops, first, last) =>
@@ -331,7 +328,7 @@ function TideStrip({
           last,
         ),
       lead: (t) => {
-        const reading = readTide(t, timeline, rates, extremes);
+        const reading = readTide(new Date(t), timeline, rates, extremes);
         if (!reading) return undefined;
         const fast =
           reading.state === "Rising" || reading.state === "Falling"

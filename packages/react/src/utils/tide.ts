@@ -1,10 +1,9 @@
-import { interpolate } from "@slackwater/engine";
-import type { Extreme, TimelineEntry, Units } from "../types.js";
+import type { RatePoint, TideReading } from "@slackwater/engine";
+import type { Extreme, Units } from "../types.js";
 import { TIDE_RATE_ANCHORS, rampColor, rampInk } from "./color.js";
 import type { Stop } from "./scrubber.js";
 import { spokenTime } from "./time.js";
 
-const HOUR = 3_600_000;
 const FEET_PER_METRE = 3.2808399;
 
 /** What shows in place of a strip with fewer than two samples. */
@@ -13,58 +12,7 @@ export const EMPTY_TIDE_MESSAGE = "No tide predictions for this period.";
 /** Below this rate the curve is plain blue; at and above it the line, lead and commentary warn. */
 export const FAST_RATE = TIDE_RATE_ANCHORS[0];
 
-export interface RatePoint {
-  time: Date;
-  /** Signed meters per hour: positive rising. */
-  rate: number;
-}
-
-/** The rate of rise at each sample in meters per hour, by central differences, one-sided at the ends. */
-export function tideRates(timeline: TimelineEntry[], units: Units): RatePoint[] {
-  const metres = units === "feet" ? 1 / FEET_PER_METRE : 1;
-  return timeline.map((p, i) => {
-    const a = timeline[Math.max(0, i - 1)];
-    const b = timeline[Math.min(timeline.length - 1, i + 1)];
-    const hours = (b.time.getTime() - a.time.getTime()) / HOUR;
-    return { time: p.time, rate: hours > 0 ? ((b.level - a.level) * metres) / hours : 0 };
-  });
-}
-
-export function levelAt(timeline: TimelineEntry[], time: number): number | undefined {
-  return interpolate(timeline, new Date(time), (p) => p.level);
-}
-
-export function rateAt(rates: RatePoint[], time: number): number | undefined {
-  return interpolate(rates, new Date(time), (p) => p.rate);
-}
-
-/** Each rising or falling run's fastest sample, when it reaches the fast-tide floor. */
-export function flowPeaks(rates: RatePoint[]): RatePoint[] {
-  const peaks: RatePoint[] = [];
-  let run: RatePoint[] = [];
-  let direction = 0;
-  const finish = () => {
-    const peak = run.reduce<RatePoint | undefined>(
-      (best, p) => (!best || Math.abs(p.rate) > Math.abs(best.rate) ? p : best),
-      undefined,
-    );
-    if (peak && Math.abs(peak.rate) >= FAST_RATE) peaks.push(peak);
-    run = [];
-  };
-  for (const p of rates) {
-    if (Math.abs(p.rate) < 0.0001) {
-      finish();
-      direction = 0;
-      continue;
-    }
-    const next = Math.sign(p.rate);
-    if (direction !== 0 && next !== direction) finish();
-    direction = next;
-    run.push(p);
-  }
-  finish();
-  return peaks;
-}
+export type { RatePoint, TideReading, TideState } from "@slackwater/engine";
 
 /** Every high, low and fast-rate peak, ordered so the pill walks forward. */
 export function tideStops(extremes: Extreme[], peaks: RatePoint[] = []): Stop[] {
@@ -87,23 +35,6 @@ export interface TideScale {
 /** The fit around a range's midpoint, padded 6% with a nonzero floor. */
 export function fitScale(min: number, max: number): TideScale {
   return { mid: (min + max) / 2, span: Math.max((max - min) / 2, 0.01) * 1.06 };
-}
-
-/** The lowest and highest sample in [from, to]. */
-export function levelRange(
-  timeline: TimelineEntry[],
-  from: number,
-  to: number,
-): { min: number; max: number } | undefined {
-  let min = Infinity;
-  let max = -Infinity;
-  for (const p of timeline) {
-    const t = p.time.getTime();
-    if (t < from || t > to) continue;
-    if (p.level < min) min = p.level;
-    if (p.level > max) max = p.level;
-  }
-  return min <= max ? { min, max } : undefined;
 }
 
 /**
@@ -136,39 +67,6 @@ export function rateColor(rate: number): string | undefined {
 /** The fast-tide ink for the lead glyph and the commentary; undefined while the tide is ordinary. */
 export function fastTideInk(rate: number): string | undefined {
   return Math.abs(rate) < FAST_RATE ? undefined : rampInk(rate, TIDE_RATE_ANCHORS);
-}
-
-export type TideState = "High" | "Low" | "Rising" | "Falling";
-
-export interface TideReading {
-  state: TideState;
-  /** Height in the timeline's units. */
-  level: number;
-  /** High or rising, rather than low or falling. */
-  up: boolean;
-  /** Signed meters per hour. */
-  rate: number;
-}
-
-/**
- * The lead reading at `time`: High or Low within a second of a turn, where
- * the turn's own height reads; otherwise rising toward a high or falling
- * toward a low, using the sampled rate when no later turn is loaded.
- */
-export function readTide(
-  time: number,
-  timeline: TimelineEntry[],
-  rates: RatePoint[],
-  extremes: Extreme[],
-): TideReading | undefined {
-  const level = levelAt(timeline, time);
-  if (level === undefined) return undefined;
-  // Rates share the timeline's instants, so a level always has one.
-  const rate = rateAt(rates, time)!;
-  const turn = extremes.find((e) => Math.abs(e.time.getTime() - time) <= 1000);
-  if (turn) return { state: turn.high ? "High" : "Low", level: turn.level, up: turn.high, rate };
-  const up = extremes.find((e) => e.time.getTime() > time)?.high ?? rate >= 0;
-  return { state: up ? "Rising" : "Falling", level, up, rate };
 }
 
 /** Feet to one decimal or meters to two, in the locale's digits; the minus goes only when it rounds to zero. */
