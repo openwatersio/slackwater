@@ -1,3 +1,4 @@
+import { DEFAULT_SLACK_THRESHOLD, slackRuns } from "@slackwater/engine";
 import { useSeen } from "../hooks/use-seen.js";
 import { useMemo, type MouseEvent } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -8,7 +9,7 @@ import { useTimeline } from "../hooks/use-timeline.js";
 import { useSlackwaterConfig } from "../provider.js";
 import type { StationSummary } from "../types.js";
 import { cardRange, readCurrentCard, readTideCard } from "../utils/card.js";
-import { DEFAULT_SLACK_THRESHOLD, EMPTY_MESSAGE, slackRuns } from "../utils/current.js";
+import { EMPTY_MESSAGE } from "../utils/current.js";
 import { EMPTY_TIDE_MESSAGE } from "../utils/tide.js";
 import { CurrentReading, StationCardFace, TideReading, useMinuteClock } from "./StationCardFace.js";
 import { StationCardGraph } from "./StationCardGraph.js";

@@ -1,3 +1,4 @@
+import { DEFAULT_SLACK_THRESHOLD } from "@slackwater/engine";
 import {
   forwardRef,
   useCallback,
@@ -46,7 +47,6 @@ import type {
 } from "../types.js";
 import { cardRange } from "../utils/card.js";
 import { creditHtml, distinctCredits } from "../utils/credit.js";
-import { DEFAULT_SLACK_THRESHOLD } from "../utils/current.js";
 import { heightUnit } from "../utils/tide.js";
 import { drawPinImage, pinImageId } from "../utils/pin-images.js";
 import {

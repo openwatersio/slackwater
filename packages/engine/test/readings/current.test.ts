@@ -78,6 +78,15 @@ describe("vector readings", () => {
       direction: 90,
     });
   });
+  test("interpolates toward a zero vector with no bearing", () => {
+    const tl = [point(0, 1, 2, 90), point(1, 0, 0)];
+    expect(readCurrent(new Date(t0 + H / 2), tl, [], {})).toMatchObject({
+      speed: 0.5,
+      magnitude: 1,
+      direction: 90,
+    });
+    expect(readCurrent(new Date(t0 + H), tl, [], {})).not.toHaveProperty("direction");
+  });
   test("preserves speed without a known set, including a known endpoint beside an unknown one", () => {
     const tl = [point(0, 1, 2, 90), point(1, 1, 3)];
     expect(readCurrent(new Date(t0), tl, [], {})).toMatchObject({ magnitude: 2, direction: 90 });

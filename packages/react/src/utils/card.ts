@@ -1,3 +1,4 @@
+import { readCurrent } from "@slackwater/engine";
 import type {
   CurrentEvent,
   CurrentTimelineEntry,
@@ -5,7 +6,7 @@ import type {
   StationSummary,
   TimelineEntry,
 } from "../types.js";
-import { readCurrent, type Directions } from "./current.js";
+import type { Directions } from "./current.js";
 import { levelAt, rateAt, tideRates } from "./tide.js";
 
 const HOUR = 3_600_000;
@@ -106,7 +107,7 @@ export function readCurrentCard(
   directions: Directions,
   now: number,
 ): CurrentCardReading | undefined {
-  const reading = readCurrent(now, timeline, events, [], directions);
+  const reading = readCurrent(new Date(now), timeline, events, directions);
   if (!reading) return undefined;
   return {
     speed: reading.speed,

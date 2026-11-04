@@ -1,3 +1,4 @@
+import { readCurrent } from "@slackwater/engine";
 import type {
   CurrentTimelineEntry,
   CurrentEvent,
@@ -7,7 +8,7 @@ import type {
   Units,
 } from "../types.js";
 import { pinRampColor } from "./color.js";
-import { readCurrent, formatSpeed, type Directions } from "./current.js";
+import { formatSpeed, type Directions } from "./current.js";
 import { formatHeight, heightUnit, levelAt } from "./tide.js";
 
 /** Readings, gauges, and the predictions behind them start here; below it every pin is a dot. */
@@ -119,7 +120,7 @@ export function currentPinState(
   detailed: boolean,
   locale?: string,
 ): PinState {
-  const readingNow = readCurrent(now, timeline, events, [], directions);
+  const readingNow = readCurrent(new Date(now), timeline, events, directions);
   if (!readingNow) return UNKNOWN_PIN;
   const { speed } = readingNow;
   const tone: PinTone =

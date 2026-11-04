@@ -1,19 +1,16 @@
+import { DEFAULT_SLACK_THRESHOLD, readCurrent, slackRuns, speedAt } from "@slackwater/engine";
 import { useMemo } from "react";
 import { useSetFormat } from "../provider.js";
 
 import type { CurrentEvent, CurrentTimelineEntry, SetFormat } from "../types.js";
 import {
-  DEFAULT_SLACK_THRESHOLD,
   EMPTY_MESSAGE,
   currentStops,
   formatSpeed,
   formatSet,
   isDotRun,
-  readCurrent,
-  slackRuns,
   slackAxisTimes,
   snapTargets,
-  speedAt,
   speedColor,
   spokenReading,
   threadOpacity,
@@ -105,7 +102,10 @@ function drawCurrent(
     const b = w.end.getTime();
     const times = [a, ...timeline.map((p) => p.time.getTime()).filter((t) => t > a && t < b), b];
     return times
-      .map((t, i) => `${i ? "L" : "M"}${g.x(t).toFixed(1)} ${y(speedAt(timeline, t)!).toFixed(1)}`)
+      .map(
+        (t, i) =>
+          `${i ? "L" : "M"}${g.x(t).toFixed(1)} ${y(speedAt(timeline, new Date(t))!).toFixed(1)}`,
+      )
       .join("");
   };
   const area = `${curve}L${g.width} ${ZERO_Y}L0 ${ZERO_Y}Z`;
@@ -140,7 +140,7 @@ function drawCurrent(
     ),
   ).map((l) => l.time);
 
-  const nowSpeed = now >= g.start && now <= g.end ? speedAt(timeline, now) : undefined;
+  const nowSpeed = now >= g.start && now <= g.end ? speedAt(timeline, new Date(now)) : undefined;
 
   return (
     <>
@@ -334,13 +334,13 @@ function CurrentStrip({
     const runs = slackRuns(timeline, events, threshold);
     const y = speedY(timeline);
     const g = geometry(timeline[0].time.getTime(), timeline[timeline.length - 1].time.getTime());
-    const read = (t: number) => readCurrent(t, timeline, events, runs, { flood, ebb });
+    const read = (t: number) => readCurrent(new Date(t), timeline, events, { flood, ebb });
     return {
       label: "Current timeline",
       hasMaxTimes: events.some((e) => e.kind !== "slack"),
       start: g.start,
       end: g.end,
-      y: (t) => y(speedAt(timeline, t) ?? 0),
+      y: (t) => y(speedAt(timeline, new Date(t)) ?? 0),
       dot: { size: 10, glow: 3 },
       stops: currentStops(timeline, events, runs),
       targets: (stops, first, last) => snapTargets(stops, events, runs, first, last),

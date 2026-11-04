@@ -3,7 +3,6 @@ import {
   fortnightWindow,
   outlookWeek,
   dailySwingRanges,
-  maxSpeeds,
   nextMaxTile,
   peakRank,
   rangeTile,
@@ -197,11 +196,6 @@ describe("nextMaxTile", () => {
     expect(
       nextMaxTile(events, t0 + H, [...floods(5), event(-11, 5, "maxFlood")], tz, "en-US"),
     ).toMatchObject({ caption: "Flood at 8:00 PM", marked: false });
-  });
-
-  test("maxSpeeds is one direction's unsigned speeds", () => {
-    expect(maxSpeeds(events, "maxEbb")).toEqual([6.4]);
-    expect(maxSpeeds(events, "maxFlood")).toEqual([4.2]);
   });
 });
 

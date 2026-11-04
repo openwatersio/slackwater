@@ -1,6 +1,7 @@
+import { interpolate } from "@slackwater/engine";
 import type { Extreme, TimelineEntry, Units } from "../types.js";
 import { TIDE_RATE_ANCHORS, rampColor, rampInk } from "./color.js";
-import { interpolate, type Stop } from "./scrubber.js";
+import type { Stop } from "./scrubber.js";
 import { spokenTime } from "./time.js";
 
 const HOUR = 3_600_000;
@@ -30,11 +31,11 @@ export function tideRates(timeline: TimelineEntry[], units: Units): RatePoint[] 
 }
 
 export function levelAt(timeline: TimelineEntry[], time: number): number | undefined {
-  return interpolate(timeline, time, (p) => p.level);
+  return interpolate(timeline, new Date(time), (p) => p.level);
 }
 
 export function rateAt(rates: RatePoint[], time: number): number | undefined {
-  return interpolate(rates, time, (p) => p.rate);
+  return interpolate(rates, new Date(time), (p) => p.rate);
 }
 
 /** Each rising or falling run's fastest sample, when it reaches the fast-tide floor. */

@@ -1,18 +1,14 @@
 import { describe, expect, test } from "vitest";
+import { readCurrent, slackRuns } from "@slackwater/engine";
 import {
-  compass16,
   formatSet,
   spokenSet,
   currentStops,
   formatSpeed,
   isDotRun,
-  readCurrent,
   runCenter,
-  slackRuns,
   slackAxisTimes,
-  slackWindowAround,
   snapTargets,
-  speedAt,
   speedColor,
   spokenReading,
   threadOpacity,
@@ -32,96 +28,6 @@ const events: CurrentEvent[] = [
   { time: new Date(t0 + 6 * H), speed: 0, kind: "slack" },
   { time: new Date(t0 + 9 * H), speed: -3, kind: "maxEbb", direction: 225 },
 ];
-
-test("uses a nonreciprocal published ebb bearing when vector data is unavailable", () => {
-  const reading = readCurrent(t0 + 8 * H, timeline, events, [], { flood: 45, ebb: 200 })!;
-  expect(reading.direction).toBe(200);
-  expect(spokenReading(reading, t0 + 8 * H, "UTC", "en-US")).toContain("set south-southwest");
-});
-
-describe("vector readings", () => {
-  const point = (h: number, speed: number, magnitude: number, direction?: number) => ({
-    time: new Date(t0 + h * H),
-    speed,
-    magnitude,
-    ...(direction !== undefined && { direction }),
-  });
-  test("keeps crossflow and its set at a flood/ebb zero", () => {
-    const tl = [point(0, 0, 2, 90), point(1, -1, 2, 120)];
-    const reading = readCurrent(t0, tl, [slackAt(t0)], [], { flood: 0, ebb: 180 })!;
-    expect(reading).toMatchObject({ speed: 0, magnitude: 2, direction: 90 });
-    expect(spokenReading(reading, t0, "UTC", "en-US")).toMatch(/^2.0 knots, set east,/);
-    expect(spokenReading(reading, t0, "UTC", "en-US")).not.toMatch(/slack/i);
-  });
-  test("interpolates vectors through north rather than turning south", () => {
-    const reading = readCurrent(t0 + H / 2, [point(0, 1, 1, 350), point(1, 1, 1, 10)], [], [], {})!;
-    expect(reading.magnitude).toBeCloseTo(0.984807753);
-    expect(reading.direction).toBeCloseTo(0);
-  });
-  test("opposite vectors cancel without inventing a set", () => {
-    const reading = readCurrent(
-      t0 + H / 2,
-      [point(0, 1, 1, 90), point(1, -1, 1, 270)],
-      [],
-      [],
-      {},
-    )!;
-    expect(reading.magnitude).toBeCloseTo(0);
-    expect(reading).not.toHaveProperty("direction");
-  });
-  test("interpolates from a zero vector with no bearing", () => {
-    const tl = [point(0, 0, 0), point(1, 1, 1, 90)];
-    expect(readCurrent(t0, tl, [], [], {})).toMatchObject({ magnitude: 0 });
-    expect(readCurrent(t0, tl, [], [], {})).not.toHaveProperty("direction");
-    expect(readCurrent(t0 + H / 2, tl, [], [], {})).toMatchObject({
-      magnitude: 0.5,
-      direction: 90,
-    });
-  });
-  test("interpolates toward a zero vector with no bearing", () => {
-    const tl = [point(0, 1, 2, 90), point(1, 0, 0)];
-    expect(readCurrent(t0 + H / 2, tl, [], [], {})).toMatchObject({
-      speed: 0.5,
-      magnitude: 1,
-      direction: 90,
-    });
-    expect(readCurrent(t0 + H, tl, [], [], {})).not.toHaveProperty("direction");
-  });
-  test("preserves speed without a known set, including a known endpoint beside an unknown one", () => {
-    const tl = [point(0, 1, 2, 90), point(1, 1, 3)];
-    expect(readCurrent(t0, tl, [], [], {})).toMatchObject({ magnitude: 2, direction: 90 });
-    expect(readCurrent(t0 + H / 2, tl, [], [], {})).toMatchObject({ magnitude: 2.5 });
-    expect(readCurrent(t0 + H / 2, tl, [], [], {})).not.toHaveProperty("direction");
-    expect(readCurrent(t0 + H, tl, [], [], {})).not.toHaveProperty("direction");
-  });
-  test.each([1, -1])(
-    "keeps scalar phase bearings through a nonreciprocal reversal, direction %s",
-    (sign) => {
-      const tl =
-        sign > 0
-          ? [point(0, 0.3, 0.3, 45), point(1, -0.3, 0.3, 200)]
-          : [point(0, -0.3, 0.3, 200), point(1, 0.3, 0.3, 45)];
-      const zero = readCurrent(t0 + H / 2, tl, [], [], { flood: 45, ebb: 200 })!;
-      expect(zero.magnitude).toBe(0);
-      expect(zero).not.toHaveProperty("direction");
-      const before = readCurrent(t0 + H * 0.4, tl, [], [], { flood: 45, ebb: 200 })!;
-      expect(before.magnitude).toBeCloseTo(0.06);
-      expect(before.direction).toBe(sign > 0 ? 45 : 200);
-      const after = readCurrent(t0 + H * 0.6, tl, [], [], { flood: 45, ebb: 200 })!;
-      expect(after.magnitude).toBeCloseTo(0.06);
-      expect(after.direction).toBe(sign > 0 ? 200 : 45);
-    },
-  );
-
-  test("falls back to absolute signed speed for older sources", () => {
-    expect(readCurrent(t0 + 8 * H, timeline, events, [], { ebb: 200 })?.magnitude).toBeCloseTo(
-      2.598076211353316,
-    );
-    const zero = readCurrent(t0 + 6 * H, timeline, events, [], { flood: 45, ebb: 225 })!;
-    expect(zero.magnitude).toBeCloseTo(0);
-    expect(zero).not.toHaveProperty("direction");
-  });
-});
 
 test("Set defaults to compass and degree readings wrap and pad without a true suffix", () => {
   expect(formatSet(225)).toBe("SW");
@@ -171,118 +77,22 @@ test("threadOpacity fades in from 0.5 to 3 kn", () => {
   expect(threadOpacity(4)).toBe(1);
 });
 
-test("compass16", () => {
-  expect(compass16(0)).toBe("N");
-  expect(compass16(349)).toBe("N");
-  expect(compass16(22.5)).toBe("NNE");
-  expect(compass16(225)).toBe("SW");
-  expect(compass16(-90)).toBe("W");
-});
-
-describe("speedAt", () => {
-  test("interpolates and is undefined outside the series", () => {
-    expect(speedAt(timeline, t0 + 300_000)).toBeCloseTo(
-      (timeline[0].speed + timeline[1].speed) / 2,
-    );
-    expect(speedAt(timeline, t0 - 1)).toBeUndefined();
-    expect(speedAt([], t0)).toBeUndefined();
-  });
-  test("handles duplicate samples", () => {
-    const flat = [timeline[0], timeline[0]];
-    expect(speedAt(flat, t0)).toBe(timeline[0].speed);
-  });
-});
-
 const M = 60_000;
 /** Ten-minute samples from t0 with the given speeds. */
 const series = (speeds: number[]) =>
   speeds.map((speed, i) => ({ time: new Date(t0 + i * 10 * M), speed }));
 const slackAt = (t: number): CurrentEvent => ({ time: new Date(t), speed: 0, kind: "slack" });
 
-describe("slackWindowAround", () => {
-  test("extends to the interpolated band crossings either side", () => {
-    const w = slackWindowAround(timeline, t0 + 6 * H, 0.5)!;
-    // |3 sin θ| ≤ 0.5 within asin(1/6) of the reversal: about 19 minutes each side.
-    const half = (Math.asin(1 / 6) / (2 * Math.PI)) * 12 * H;
-    expect((t0 + 6 * H - w.start.getTime()) / M).toBeCloseTo(half / M, 0);
-    expect((w.end.getTime() - t0 - 6 * H) / M).toBeCloseTo(half / M, 0);
-  });
-  test.each([-1, 1])(
-    "a signed band crossing across a reversal matches iOS, direction %s",
-    (direction) => {
-      const tl = series([-1, 0.1, 1].map((v) => v * direction));
-      const w = slackWindowAround(tl, t0 + 545_450, 0.15)!;
-      expect((w.start.getTime() - t0) / 1000).toBeCloseTo(463.64, 1);
-      expect((w.end.getTime() - t0) / 1000).toBeCloseTo(633.33, 1);
-    },
-  );
-  test("a reversal between two out-of-band samples still has a window where the segment crosses the band", () => {
-    const w = slackWindowAround(series([2, 1, -1, -2]), t0 + 15 * M, 0.5)!;
-    expect(w.start.getTime()).toBe(t0 + 12.5 * M);
-    expect(w.end.getTime()).toBe(t0 + 17.5 * M);
-  });
-  test("the reversal can land on the later bracketing sample's side", () => {
-    const w = slackWindowAround(series([2, 1, 0.25, -1, -2]), t0 + 22 * M, 0.5)!;
-    expect(w.start.getTime()).toBe(t0 + 10 * M + (10 * M * 0.5) / 0.75);
-    expect(w.end.getTime()).toBe(t0 + 26 * M);
-  });
-  test("a window widens to hold its slack", () => {
-    const w = slackWindowAround(series([2, 1, -3, -4]), t0 + 19 * M, 0.5)!;
-    expect(w.start.getTime()).toBe(t0 + 11.25 * M);
-    expect(w.end.getTime()).toBe(t0 + 19 * M);
-    // One in-band sample, with the slack beyond its crossing toward the fast side.
-    const g = slackWindowAround(series([0.3, -3]), t0 + 6 * M, 0.5)!;
-    expect(g.end.getTime()).toBe(t0 + 6 * M);
-  });
-  test("clamps to the series", () => {
-    const w = slackWindowAround(series([0.2, -0.3]), t0 + 4 * M, 0.5)!;
-    expect(w).toEqual({ start: new Date(t0), end: new Date(t0 + 10 * M) });
-  });
-  test("none outside the series or without a band or a reversal", () => {
-    expect(slackWindowAround(series([2, 1]), t0 - 1, 0.5)).toBeUndefined();
-    expect(slackWindowAround([], t0, 0.5)).toBeUndefined();
-    expect(slackWindowAround(series([2, 1, 2]), t0 + 5 * M, 0.5)).toBeUndefined();
-    expect(slackWindowAround(series([2, 1]), t0 + 10 * M, 0.5)).toBeUndefined();
-  });
-});
-
-describe("slackRuns", () => {
-  test("keeps a window shared by several slacks once", () => {
-    const tl = series([1, 0.2, -0.2, 0.2, -0.2, -1]);
-    const runs = slackRuns(
-      tl,
-      [slackAt(t0 + 15 * M), slackAt(t0 + 25 * M), slackAt(t0 + 35 * M)],
-      0.5,
-    );
-    expect(runs).toHaveLength(1);
-    expect(runs[0].start.getTime()).toBeLessThan(t0 + 10 * M);
-    expect(runs[0].end.getTime()).toBeGreaterThan(t0 + 40 * M);
-  });
-  test("overlapping windows keep their full combined tail", () => {
-    const runs = slackRuns(
-      series([2, 1, -3, -4]),
-      [slackAt(t0 + 12 * M), slackAt(t0 + 19 * M)],
-      0.5,
-    );
-    expect(runs).toEqual([{ start: new Date(t0 + 11.25 * M), end: new Date(t0 + 19 * M) }]);
-  });
-  test("keeps separate windows apart and skips slacks outside the series", () => {
-    const runs = slackRuns(timeline, [...events, slackAt(t0 + 12 * H), slackAt(t0 - H)], 0.5);
-    expect(runs).toHaveLength(2);
-  });
+describe("dot runs", () => {
   test("a slack with no window is a zero-width dot run: one Slack stop, and the lead reads Slack on it", () => {
     const tl = series([2, 1, 2]);
     const slack = slackAt(t0 + 5 * M);
     const runs = slackRuns(tl, [slack], 0.5);
-    expect(runs).toEqual([{ start: slack.time, end: slack.time }]);
     expect(isDotRun(runs[0])).toBe(true);
     expect(currentStops(tl, [slack], runs)).toEqual([{ time: t0 + 5 * M, label: "Slack" }]);
-    expect(readCurrent(t0 + 5 * M, tl, [slack], runs, {})?.state).toBe("Slack");
-    expect(readCurrent(t0 + 5 * M + 2000, tl, [slack], runs, {})?.state).toBe("Flooding");
+    expect(readCurrent(new Date(t0 + 5 * M), tl, [slack], {})?.state).toBe("Slack");
+    expect(readCurrent(new Date(t0 + 5 * M + 2000), tl, [slack], {})?.state).toBe("Flooding");
   });
-});
-
-describe("dot runs", () => {
   test("a run under the five-unit dot (1000 s) is a dot; one at it is a stroke", () => {
     expect(isDotRun({ start: new Date(t0), end: new Date(t0 + 999_999) })).toBe(true);
     expect(isDotRun({ start: new Date(t0), end: new Date(t0 + 1_000_000) })).toBe(false);
@@ -299,70 +109,6 @@ describe("dot runs", () => {
     expect(snapTargets(currentStops(tl, [off], runs), [off], runs, t0, t0 + H)).toEqual([
       t0 + 14 * M,
     ]);
-  });
-});
-
-describe("readCurrent", () => {
-  const windows = slackRuns(timeline, events, 0.5);
-  const dirs = { flood: 45, ebb: 225 };
-
-  test("slack inside a window", () => {
-    expect(readCurrent(t0 + 6 * H, timeline, events, windows, dirs)).toMatchObject({
-      state: "Slack",
-    });
-  });
-  test("slack is tied to a predicted zero, independently of the comfort window", () => {
-    expect(readCurrent(t0 + 6 * H, timeline, events, [], dirs)?.state).toBe("Slack");
-    const w = windows[0];
-    expect(readCurrent(w.start.getTime(), timeline, events, windows, dirs)?.state).toBe("Flooding");
-    expect(readCurrent(w.end.getTime(), timeline, events, windows, dirs)?.state).toBe("Ebbing");
-  });
-  test("comfort windows do not hide the phase or set on either side of zero", () => {
-    expect(readCurrent(t0 + 6 * H - 5 * M, timeline, events, windows, dirs)).toMatchObject({
-      state: "Flooding",
-      direction: 45,
-    });
-    expect(readCurrent(t0 + 6 * H + 5 * M, timeline, events, windows, dirs)).toMatchObject({
-      state: "Ebbing",
-      direction: 225,
-    });
-    expect(readCurrent(t0 + 6 * H, timeline, events, [], dirs)?.state).toBe("Slack");
-  });
-  test("a weak maximum inside a comfort window still reads Max flood", () => {
-    const tl = series([0.1, 0.2, 0.1]);
-    const max: CurrentEvent = { time: new Date(t0 + 10 * M), speed: 0.2, kind: "maxFlood" };
-    expect(
-      readCurrent(
-        t0 + 10 * M,
-        tl,
-        [max],
-        [{ start: new Date(t0), end: new Date(t0 + 20 * M) }],
-        dirs,
-      ),
-    ).toMatchObject({ state: "Max flood", direction: 45 });
-  });
-  test("max within a second of a max event", () => {
-    expect(readCurrent(t0 + 3 * H, timeline, events, windows, dirs)).toMatchObject({
-      state: "Max flood",
-      direction: 45,
-    });
-    expect(readCurrent(t0 + 9 * H, timeline, events, windows, dirs)?.state).toBe("Max ebb");
-  });
-  test("flooding or ebbing, with the phase's set", () => {
-    expect(readCurrent(t0 + 2 * H, timeline, events, windows, dirs)).toMatchObject({
-      state: "Flooding",
-      direction: 45,
-    });
-    expect(readCurrent(t0 + 8 * H, timeline, events, windows, dirs)).toMatchObject({
-      state: "Ebbing",
-      direction: 225,
-    });
-  });
-  test("no direction when the station has none", () => {
-    expect(readCurrent(t0 + 2 * H, timeline, events, windows, {})).not.toHaveProperty("direction");
-  });
-  test("undefined outside the series", () => {
-    expect(readCurrent(t0 - H, timeline, events, windows, dirs)).toBeUndefined();
   });
 });
 
