@@ -302,13 +302,34 @@ describe("the client", () => {
   });
 
   test("admits waiters one at a time even after the event loop stalls", async () => {
-    const p = new Pacer(50);
-    const admitted: number[] = [];
-    const waits = [p.wait(), p.wait()].map((w) => w.then(() => admitted.push(performance.now())));
-    const stall = performance.now() + 130;
-    while (performance.now() < stall); // a synchronous block longer than both slots
-    await Promise.all(waits);
-    expect(admitted[1] - admitted[0]).toBeGreaterThanOrEqual(49);
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const clock = vi.spyOn(performance, "now").mockReturnValue(0);
+    try {
+      const p = new Pacer(50);
+      const admitted: number[] = [];
+      const waits = [p.wait(), p.wait(), p.wait()].map((w) =>
+        w.then(() => admitted.push(performance.now())),
+      );
+      await vi.advanceTimersByTimeAsync(0);
+      expect(admitted).toEqual([0]);
+
+      // A stalled event loop lets the monotonic clock advance without waking timers.
+      clock.mockReturnValue(130);
+      await vi.advanceTimersByTimeAsync(130);
+      expect(admitted).toEqual([0, 130]);
+
+      clock.mockReturnValue(179);
+      await vi.advanceTimersByTimeAsync(49);
+      expect(admitted).toEqual([0, 130]);
+
+      clock.mockReturnValue(180);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(admitted).toEqual([0, 130, 180]);
+      await Promise.all(waits);
+    } finally {
+      clock.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   test("never admits a request before its interval has passed", async () => {
