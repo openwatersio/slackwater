@@ -1,5 +1,11 @@
 # @neaps/cli
 
+## 1.0.0-beta.8
+
+### Patch Changes
+
+- [#515](https://github.com/openwatersio/slackwater/pull/515) [`0c5a9cf`](https://github.com/openwatersio/slackwater/commit/0c5a9cf134879a6eedb588601428b669b40f9fdc) Thanks [@tstotzer](https://github.com/tstotzer)! - Report when a tide station has no local prediction model instead of directing `currents` users to tide commands that cannot predict it.
+
 ## 1.0.0-beta.7
 
 ### Patch Changes
