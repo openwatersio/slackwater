@@ -1,2 +1,5 @@
+min_version = "2026.9.11"
+
 [tools]
 node = "24"
+swift = "6.4.0"

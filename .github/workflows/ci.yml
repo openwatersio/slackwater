@@ -46,7 +46,7 @@ jobs:
           else
             echo 'kotlin=false' >> "$GITHUB_OUTPUT"
           fi
-          if printf '%s\n' "$changed" | grep -qE '^(swift/|fixtures/|docs/iwls-fetch\.md$|packages/engine/|Package\.swift$|\.github/workflows/)'; then
+          if printf '%s\n' "$changed" | grep -qE '^(swift/|fixtures/|docs/iwls-fetch\.md$|packages/engine/|Package\.swift$|mise\.toml$|\.github/workflows/)'; then
             echo 'swift=true' >> "$GITHUB_OUTPUT"
           else
             echo 'swift=false' >> "$GITHUB_OUTPUT"
@@ -168,27 +168,32 @@ jobs:
     if: needs.changes.outputs.swift == 'true'
     permissions:
       contents: read
+    env:
+      MISE_ENABLE_TOOLS: swift
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, macos-latest]
+        os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
 
-      - uses: swift-actions/setup-swift@v2
-        if: runner.os == 'Linux'
+      - uses: jdx/mise-action@v5
         with:
-          swift-version: "6.2.1"
+          version: "2026.9.11"
+          install_args: swift
+          cache_key_prefix: mise-swift-v1
 
       - name: Test Swift
         run: |
-          swift --version
-          swift test -c release
+          mise --version
+          mise which swift
+          mise exec swift -- swift --version
+          mise exec swift -- swift test -c release
 
       - name: Compile for watchOS
         if: runner.os == 'macOS'
-        run: swift build --scratch-path .build-watch --triple arm64_32-apple-watchos9.0 --sdk "$(xcrun --sdk watchos --show-sdk-path)"
+        run: mise exec swift -- swift build --scratch-path .build-watch --triple arm64_32-apple-watchos9.0 --sdk "$(xcrun --sdk watchos --show-sdk-path)"
 
   kotlin:
     needs: changes

@@ -324,7 +324,7 @@ The full-rank least-squares fit evaluates equilibrium arguments and IHO nodal co
 
 Invalid input throws `RangeError` with a message beginning with `invalidSamples`, `unknownConstituent`, `duplicateConstituent`, or `rankDeficient`. These correspond to the [Swift fitter's](../../swift/README.md#harmonic-fitting) errors. Swift uses Accelerate QR on Apple platforms; TypeScript works on Linux and in browsers.
 
-Both implementations consume the same noisy 60- and 210-day inputs, independent SVD expected coefficients, and invalid-input fixtures. Parity tolerances are `1e-7` for offset/RMS, `1e-6` for amplitudes, and `1e-3` degrees for circular phase differences. Run `npm run coverage` and `swift test -c release`. Regenerate the SVD oracle with `node fixtures/generate/gen-fit.mjs` after building the predictor; `npm run fixtures:check` checks for drift.
+Both implementations consume the same noisy 60- and 210-day inputs, independent SVD expected coefficients, and invalid-input fixtures. Parity tolerances are `1e-7` for offset/RMS, `1e-6` for amplitudes, and `1e-3` degrees for circular phase differences. Run `npm run coverage` and `mise exec swift -- swift test -c release`. Regenerate the SVD oracle with `node fixtures/generate/gen-fit.mjs` after building the predictor; `npm run fixtures:check` checks for drift.
 
 Callers choose a resolvable basis and validate predictions on held-out observations. Training RMS is not a forecast accuracy guarantee. Not for navigation.
 

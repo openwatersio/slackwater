@@ -7,21 +7,28 @@ on:
 
 jobs:
   smoke-swiftpm:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      MISE_ENABLE_TOOLS: swift
     steps:
-      - uses: swift-actions/setup-swift@v2
+      - uses: actions/checkout@v7
+
+      - uses: jdx/mise-action@v5
         with:
-          swift-version: "6.2.1"
+          version: "2026.9.11"
+          install_args: swift
+          cache_key_prefix: mise-swift-v1
 
       - name: Resolve and run this tag from SwiftPM
         run: |
-          swift --version
+          mise --version
+          mise which swift
+          mise exec swift -- swift --version
           version="${GITHUB_REF_NAME#v}"
           mkdir -p /tmp/slackwater-smoke/Sources/slackwater-smoke
-          cd /tmp/slackwater-smoke
-          cat > Package.swift <<EOF
+          cat > /tmp/slackwater-smoke/Package.swift <<EOF
           // swift-tools-version: 6.0
           import PackageDescription
 
@@ -41,7 +48,7 @@ jobs:
               ]
           )
           EOF
-          cat > Sources/slackwater-smoke/main.swift <<'EOF'
+          cat > /tmp/slackwater-smoke/Sources/slackwater-smoke/main.swift <<'EOF'
           import Foundation
           import SlackwaterIWLS
           import SlackwaterKit
@@ -53,4 +60,4 @@ jobs:
           // No request: building a plan is enough to prove the product resolves from a tag.
           print(IwlsFetch.chunkPlan(days: 60, end: Date()).count)
           EOF
-          swift run
+          mise exec swift -- swift run --package-path /tmp/slackwater-smoke

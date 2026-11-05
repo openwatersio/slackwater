@@ -136,7 +136,8 @@ The synthetic inputs in `fixtures/harmonic-fit.json` cover 60- and 210-day windo
 ## Develop
 
 ```sh
-swift test                                  # golden + NOAA-oracle validation
+mise install swift
+mise exec swift -- swift test -c release    # golden + NOAA-oracle validation
 npm run fixtures:check                      # regenerate in memory and fail on drift
 node fixtures/generate/gen-golden.mjs       # regenerate tide golden fixtures from workspace source
 node fixtures/generate/gen-catalog.mjs      # regenerate the bundled tide constituent catalog
