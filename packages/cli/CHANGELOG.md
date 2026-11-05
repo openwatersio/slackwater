@@ -1,5 +1,23 @@
 # @neaps/cli
 
+## 1.0.0-beta.7
+
+### Patch Changes
+
+- [#508](https://github.com/openwatersio/slackwater/pull/508) [`53201e7`](https://github.com/openwatersio/slackwater/commit/53201e73146c558a4b2a1d028bb190bd1e3b2474) Thanks [@clarkbw](https://github.com/clarkbw)! - Print the station's source credits alongside text predictions and listings.
+
+- [#508](https://github.com/openwatersio/slackwater/pull/508) [`53201e7`](https://github.com/openwatersio/slackwater/commit/53201e73146c558a4b2a1d028bb190bd1e3b2474) Thanks [@clarkbw](https://github.com/clarkbw)! - Predict magnitude and rotating direction for NOAA harmonic current stations using their published minor-axis data. Station lookups, API timelines, and CLI JSON include the vector predictions automatically. Signed speeds and flood, ebb, and slack events retain their major-axis meaning.
+
+  CLI text identifies slack-window thresholds as major-axis speed. The current-station API schema documents both axes.
+
+- [#508](https://github.com/openwatersio/slackwater/pull/508) [`53201e7`](https://github.com/openwatersio/slackwater/commit/53201e73146c558a4b2a1d028bb190bd1e3b2474) Thanks [@clarkbw](https://github.com/clarkbw)! - Resolve superseded tide-station IDs to accepted replacement models while preserving commercial-use permission. Saved IDs whose replacement would remove commercial-use permission are refused. Direct lookups of noncommercial records remain available; replacements carry their own license and attribution terms.
+
+  Nearby lists and map focus use the resolved station's canonical ID.
+
+- Updated dependencies [[`53201e7`](https://github.com/openwatersio/slackwater/commit/53201e73146c558a4b2a1d028bb190bd1e3b2474), [`aca73fb`](https://github.com/openwatersio/slackwater/commit/aca73fbb15d1bd43f6234019963a550879685e1c), [`53201e7`](https://github.com/openwatersio/slackwater/commit/53201e73146c558a4b2a1d028bb190bd1e3b2474)]:
+  - slackwater@1.0.0-beta.6
+  - @slackwater/api@1.0.0-beta.6
+
 ## 1.0.0-beta.6
 
 ### Minor Changes

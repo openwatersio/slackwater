@@ -1,5 +1,17 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.10
+
+### Minor Changes
+
+- [#513](https://github.com/openwatersio/slackwater/pull/513) [`aca73fb`](https://github.com/openwatersio/slackwater/commit/aca73fbb15d1bd43f6234019963a550879685e1c) Thanks [@clarkbw](https://github.com/clarkbw)! - Read the water at an instant from a timeline and its events: current state, speed, full vector speed and Set; tide state, height and rate; slack windows around each slack event; sampled tide rates and flow peaks; swing ranges and percentile ranks. These are the calculations the Slackwater apps use, with no framework dependency.
+
+### Patch Changes
+
+- [#508](https://github.com/openwatersio/slackwater/pull/508) [`53201e7`](https://github.com/openwatersio/slackwater/commit/53201e73146c558a4b2a1d028bb190bd1e3b2474) Thanks [@clarkbw](https://github.com/clarkbw)! - Predict magnitude and rotating direction for NOAA harmonic current stations using their published minor-axis data. Station lookups, API timelines, and CLI JSON include the vector predictions automatically. Signed speeds and flood, ebb, and slack events retain their major-axis meaning.
+
+  CLI text identifies slack-window thresholds as major-axis speed. The current-station API schema documents both axes.
+
 ## 1.0.0-beta.9
 
 ### Minor Changes

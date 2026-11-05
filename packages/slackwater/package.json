@@ -1,6 +1,6 @@
 {
   "name": "slackwater",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.0-beta.6",
   "description": "Tide and current predictions, with a built-in global station database",
   "keywords": [
     "slackwater",
@@ -39,6 +39,6 @@
   },
   "dependencies": {
     "@slackwater/database": "^1.0.1-beta.20261103",
-    "@slackwater/engine": "^1.0.0-beta.9"
+    "@slackwater/engine": "^1.0.0-beta.10"
   }
 }

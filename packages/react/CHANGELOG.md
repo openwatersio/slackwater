@@ -1,5 +1,36 @@
 # @neaps/react
 
+## 1.0.0-beta.4
+
+### Minor Changes
+
+- [#506](https://github.com/openwatersio/slackwater/pull/506) [`95ad741`](https://github.com/openwatersio/slackwater/commit/95ad741e66c7e97f8d6884b3986256ab2f18844d) Thanks [@clarkbw](https://github.com/clarkbw)! - Center a single day or shorter prediction window with `bounded` on `TideScrubber` and `CurrentScrubber`. Every supplied sample can reach the fixed reading line, including on wide screens. Scrolling, taps, event pills, keyboard moves, and Return to now stay inside the available data without extending the curve. Existing multi-day callers keep their current behavior.
+
+- [#508](https://github.com/openwatersio/slackwater/pull/508) [`277bacc`](https://github.com/openwatersio/slackwater/commit/277bacc84308e4db93741adf55008f1bd8d6538e) Thanks [@clarkbw](https://github.com/clarkbw)! - Choose compass points or three-digit degrees for current directions with the provider’s `setFormat` preference. Compass is the default; saved reader choices override the provider’s initial value. Cards, scrubber readings and schedule bearings share the preference, without a T suffix. Spoken compass readings use full direction names.
+
+  `SetFormat` is exported, and standalone `CurrentScrubber` takes a `setFormat` prop. The exported `useSetFormat` hook resolves a component override, the provider preference, then the compass default. Existing `SlackwaterConfig` objects without the optional field remain valid.
+
+- [#507](https://github.com/openwatersio/slackwater/pull/507) [`18bfd60`](https://github.com/openwatersio/slackwater/commit/18bfd60ad9241d11d06920c3e1ea0d56b7684005) Thanks [@clarkbw](https://github.com/clarkbw)! - Move the selected map station’s source credit into the map attribution control instead of showing a caption beneath its popup.
+
+  Consolidate station-page credits with nearby sources in one collapsed Data sources disclosure, and fold map attribution after five seconds.
+
+  StationCredits uses a collapsed Data sources disclosure for search, nearby lists, and direct consumers. NearbyStations accepts an optional attribution to combine an originating station’s credit with the nearby credits, including while nearby data is loading or unavailable.
+
+### Patch Changes
+
+- [#506](https://github.com/openwatersio/slackwater/pull/506) [`95ad741`](https://github.com/openwatersio/slackwater/commit/95ad741e66c7e97f8d6884b3986256ab2f18844d) Thanks [@clarkbw](https://github.com/clarkbw)! - Read falling water correctly when the next low tide is outside the supplied predictions. Tide scrubbers, station cards, and widgets use the sampled trend when no following high or low is available.
+
+- [#508](https://github.com/openwatersio/slackwater/pull/508) [`53201e7`](https://github.com/openwatersio/slackwater/commit/53201e73146c558a4b2a1d028bb190bd1e3b2474) Thanks [@clarkbw](https://github.com/clarkbw)! - Show full predicted current speed and Set on cards and scrubber readings, including screen-reader text. Set follows the rotating current where two-component predictions are available, with published flood/ebb bearings as the fallback. Keep the signed flood/ebb graph, events and windows separate from the full-speed reading; component zeros do not imply stopped water or rotary-current speed minima. Map pins keep their major-axis readings and published flood/ebb bearings.
+
+- [#513](https://github.com/openwatersio/slackwater/pull/513) [`cb3f604`](https://github.com/openwatersio/slackwater/commit/cb3f60489fd2faa16597d29c5995ce8245e75c0d) Thanks [@clarkbw](https://github.com/clarkbw)! - Readings, rates, slack windows and rankings now come from `@slackwater/engine`, which the package depends on. Nothing visible changes.
+
+- [#508](https://github.com/openwatersio/slackwater/pull/508) [`53201e7`](https://github.com/openwatersio/slackwater/commit/53201e73146c558a4b2a1d028bb190bd1e3b2474) Thanks [@clarkbw](https://github.com/clarkbw)! - Resolve superseded tide-station IDs to accepted replacement models while preserving commercial-use permission. Saved IDs whose replacement would remove commercial-use permission are refused. Direct lookups of noncommercial records remain available; replacements carry their own license and attribution terms.
+
+  Nearby lists and map focus use the resolved station's canonical ID.
+
+- Updated dependencies [[`53201e7`](https://github.com/openwatersio/slackwater/commit/53201e73146c558a4b2a1d028bb190bd1e3b2474), [`aca73fb`](https://github.com/openwatersio/slackwater/commit/aca73fbb15d1bd43f6234019963a550879685e1c)]:
+  - @slackwater/engine@1.0.0-beta.10
+
 ## 1.0.0-beta.3
 
 ### Major Changes
