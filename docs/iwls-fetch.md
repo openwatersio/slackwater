@@ -67,4 +67,4 @@ The client fetches directly for the user's own device. The TypeScript implementa
 
 ## Verification
 
-Run `swift test -c release --filter SlackwaterIWLSTests` and `npx vitest run --project benchmarks` from the repository root, and `./gradlew :slackwater-iwls:test` from `kotlin/`. Each suite consumes the fixture directly and checks the HTTP loop with synthetic responses, without contacting IWLS. Contract changes update the spec, fixture, and every implementing client's tests together. A fixture version change denotes a change to the fetching contract, independently of the harmonic fit recipe.
+Run `mise exec swift -- swift test -c release --filter SlackwaterIWLSTests` and `npx vitest run --project benchmarks` from the repository root, and `./gradlew :slackwater-iwls:test` from `kotlin/`. Each suite consumes the fixture directly and checks the HTTP loop with synthetic responses, without contacting IWLS. Contract changes update the spec, fixture, and every implementing client's tests together. A fixture version change denotes a change to the fetching contract, independently of the harmonic fit recipe.

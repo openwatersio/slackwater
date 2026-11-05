@@ -183,7 +183,6 @@ jobs:
           version: "2026.9.11"
           install_args: swift
           cache_key_prefix: mise-swift-v1
-          cache: false
 
       - name: Test Swift
         run: |
