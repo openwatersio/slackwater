@@ -174,6 +174,8 @@ slackwater currents --station noaa/EPT0003@11  # bin 11
 
 An unknown bin fails with the list of bins that exist.
 
+A tide station ID points you to `slackwater extremes` or `slackwater timeline` only when it has a local prediction model. An identity-only tide station reports that no local prediction model is available instead.
+
 Some stations can't be predicted. Canadian Hydrographic Service terms don't allow its predictions to be redistributed, so CHS stations are listed but the prediction commands point you to [tides.gc.ca](https://tides.gc.ca/en/tides-currents-and-water-levels) instead. A station with no harmonic constituents or reference station fails with that reason. `--near` skips stations with no model, but when the nearest station is a CHS station it fails rather than answering for a different channel farther away.
 
 Options for `events`, `timeline`, and `slack`:
