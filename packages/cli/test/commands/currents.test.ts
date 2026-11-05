@@ -1,4 +1,4 @@
-import { describe, test, expect, afterEach } from "vitest";
+import { describe, test, expect, afterEach, vi } from "vitest";
 import nock from "nock";
 import { loadStations, type Station } from "@slackwater/database";
 import { run } from "../helpers.js";
@@ -164,11 +164,58 @@ describe("slackwater currents events", () => {
     test("points a tide station at the tide commands", async () => {
       const { error } = await run(["currents", "-s", "noaa/9414290"]);
       expect(error!.message).toContain("noaa/9414290 is a tide station");
+      expect(error!.message).toContain('Use "slackwater extremes" or "slackwater timeline"');
     });
 
     test("points a tide station's source id at the tide commands", async () => {
       const { error } = await run(["currents", "-s", "9414290"]);
       expect(error!.message).toContain("9414290 is a tide station");
+      expect(error!.message).toContain('Use "slackwater extremes" or "slackwater timeline"');
+    });
+
+    test("does not send an identity-only CHS tide station to prediction commands", async () => {
+      const { error } = await run(["currents", "-s", "chs-abbotts-harbour"]);
+      expect(error!.message).toContain("has no local prediction model");
+      expect(error!.message).not.toContain("slackwater extremes");
+      expect(error!.message).not.toContain("slackwater timeline");
+    });
+
+    test.each(["id", "source id"])("checks the tide model when resolving a %s", async (kind) => {
+      const db = await loadStations();
+      const station: Station = {
+        ...db.byId("noaa/9414290")!,
+        id: "test/tide-without-model",
+        source: { ...db.byId("noaa/9414290")!.source, id: "tide-source-without-model" },
+        harmonic_constituents: [],
+        offsets: undefined,
+      };
+      const accepted = vi.spyOn(db, "accepted", "get").mockReturnValue([...db.accepted, station]);
+      try {
+        const query = kind === "id" ? station.id : station.source.id;
+        const { error } = await run(["currents", "-s", query]);
+        expect(error!.message).toBe(
+          `${query} is a tide station but has no local prediction model.`,
+        );
+      } finally {
+        accepted.mockRestore();
+      }
+    });
+
+    test("keeps tide command guidance for a station with only subordinate offsets", async () => {
+      const db = await loadStations();
+      const station: Station = {
+        ...db.byId("noaa/1610367")!,
+        harmonic_constituents: [],
+      };
+      const accepted = vi
+        .spyOn(db, "accepted", "get")
+        .mockReturnValue(db.accepted.map((s) => (s.id === station.id ? station : s)));
+      try {
+        const { error } = await run(["currents", "-s", station.id]);
+        expect(error!.message).toContain('Use "slackwater extremes" or "slackwater timeline"');
+      } finally {
+        accepted.mockRestore();
+      }
     });
 
     test("errors on an unknown station", async () => {

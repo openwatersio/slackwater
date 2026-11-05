@@ -85,7 +85,7 @@ export interface ResolvedCurrentStation {
 /**
  * Find a current station by id. A bare id is the station's primary bin and
  * `@N` selects bin N. An unknown bin lists the bins that exist, and a tide
- * station's id points at the tide commands.
+ * station's id points at the tide commands only when it has a prediction model.
  */
 async function findById(catalog: Catalog, query: string): Promise<CurrentStationPredictor> {
   const { db, currentStations } = catalog;
@@ -102,7 +102,13 @@ async function findById(catalog: Catalog, query: string): Promise<CurrentStation
         .join(", ");
       throw new Error(`${station.id} has no bin ${bin}. Available bins: ${available}`);
     }
-    if (db.accepted.some((s) => s.kind === "tide" && (s.id === query || s.source.id === query))) {
+    const tideStation = db.accepted.find(
+      (s) => s.kind === "tide" && (s.id === query || s.source.id === query),
+    );
+    if (tideStation) {
+      if (tideStation.harmonic_constituents.length === 0 && tideStation.offsets === undefined) {
+        throw new Error(`${query} is a tide station but has no local prediction model.`);
+      }
       throw new Error(
         `${query} is a tide station. Use "slackwater extremes" or "slackwater timeline" for it.`,
       );
