@@ -1,0 +1,49 @@
+{
+  "scope": "Development evidence only. Exact text excerpts of original retained NOAA exports; not complete export archives and not forecast accuracy evidence.",
+  "fixtures": {
+    "seattle-20261012-12.shef": {
+      "sha256": "a17d1d55f6692bedd3c7236ec8945f616eee7fa023e0d00d94d183251475dd16",
+      "sourceArchiveSha256": "976dcc9e5458e32a2cc29f3b6cf94aade2b468892f643bc10c4a3382ccdf22dc",
+      "sourceMemberSha256": "872859ea7812f73d566c8ff5368c23873aaa2a25125638205e7e535da8db8b28",
+      "sourceMember": "etss.20261012/shef.etss.t12z.totalwater.west",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/etss.20261012/etss.t12z.shef.tar.gz",
+      "requestStartedAt": "2026-10-13T08:28:23.442432+00:00",
+      "receivedAt": "2026-10-13T08:28:23.632752+00:00",
+      "sourceStatus": 200,
+      "extraction": "Original bulletin heading/declarations and complete 102-value EBSW1 section; all other station sections omitted."
+    },
+    "seattle-20261012-12.csv": {
+      "sha256": "b632dd969c2a08295b5af74c71842a14db462afc2b775576a1a0a4a221051e9d",
+      "sourceArchiveSha256": "ca8229ae9cc89a1a9ff7085470de4c5bb7804e4272deed813c90716d71462ee3",
+      "sourceMemberSha256": "344718394b9c66af1559f7cf8af3daa77388d035a4b2fa2fac03bba36a02c8ea",
+      "sourceMember": "etss.20261012/t12z.csv/9447130.csv",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/etss.20261012/etss.t12z.csv.tar.gz",
+      "requestStartedAt": "2026-10-13T08:28:22.156129+00:00",
+      "receivedAt": "2026-10-13T08:28:23.380336+00:00",
+      "sourceStatus": 200,
+      "extraction": "Original CSV header and contiguous 31 six-minute rows from 2026-10-12 12:00 through 15:00 UTC; all other rows omitted."
+    },
+    "seattle-20261012-00.shef": {
+      "sha256": "dda8cb0ec9835174fa37e8d9369b61420816f0258d0b4591ffeee003c2c74c07",
+      "sourceArchiveSha256": "e204cb46f5206ff66d2e11d0ae43f372241a8d16fd509ad13c3b55101b7f1336",
+      "sourceMemberSha256": "f5b09da4aa1a7ebe25d9ca2c8516ec3c6181381340ee18ac05c73d9b395b7cd4",
+      "sourceMember": "etss.20261012/shef.etss.t00z.totalwater.west",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/etss.20261012/etss.t00z.shef.tar.gz",
+      "requestStartedAt": "2026-10-13T08:28:21.854606+00:00",
+      "receivedAt": "2026-10-13T08:28:22.153091+00:00",
+      "sourceStatus": 200,
+      "extraction": "Original bulletin heading/declarations and complete 102-value EBSW1 section; all other station sections omitted."
+    },
+    "seattle-20261012-00.csv": {
+      "sha256": "a7f62402215698ee557bba0e8006c77dc8009629cd3bbe387ecf3bc95cc091f2",
+      "sourceArchiveSha256": "51da7f5295ac6121e0dca4281aa5b17897d2c00e9bb04b091e99fb95d6e86ec0",
+      "sourceMemberSha256": "dc457dfcc47ab98c4e4588436f10277b021a796825346062a0b88254296bffdc",
+      "sourceMember": "etss.20261012/t00z.csv/9447130.csv",
+      "sourceUrl": "https://nomads.ncep.noaa.gov/pub/data/nccf/com/petss/prod/etss.20261012/etss.t00z.csv.tar.gz",
+      "requestStartedAt": "2026-10-13T08:28:21.854064+00:00",
+      "receivedAt": "2026-10-13T08:28:23.796457+00:00",
+      "sourceStatus": 200,
+      "extraction": "Original CSV header and contiguous 31 six-minute rows from 2026-10-12 00:00 through 03:00 UTC; all other rows omitted."
+    }
+  }
+}
