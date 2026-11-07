@@ -54,13 +54,13 @@
   "dependencies": {
     "@noble/hashes": "^1.8.0",
     "@slackwater/engine": "^1.0.0-beta.10",
-    "@tanstack/react-query": "^5.105.0",
+    "@tanstack/react-query": "^5.105.3",
     "astronomy-engine": "^2.1.19"
   },
   "devDependencies": {
     "@storybook/react": "^10.6.5",
     "@storybook/react-vite": "^10.6.5",
-    "@tailwindcss/vite": "^4.2.0",
+    "@tailwindcss/vite": "^4.3.4",
     "@testing-library/react": "^16.0.0",
     "@testing-library/user-event": "^14.6.8",
     "@types/geojson": "^7946.0.16",
