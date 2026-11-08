@@ -320,7 +320,7 @@ Each sample is `{ time: Date, value: number }`. Values and times must be finite,
 
 The result contains unrounded `constituents` (amplitude in input units, Greenwich phase in degrees), `offset`, training residual `rms`, and `unseparable` Rayleigh warnings. Warnings do not remove constituents. An empty basis fits only the offset. No trend, rounding, automatic constituent selection, parsing, or database-specific frequency filtering is applied.
 
-The full-rank least-squares fit evaluates equilibrium arguments and IHO nodal corrections at every sample. `ml-matrix` QR runs in bounded batches, retaining only a reduced matrix between batches so workspace does not grow with the observation count. A second pass computes residuals. Rank-deficient and underdetermined fits are rejected; this is not a minimum-norm SVD API.
+The full-rank least-squares fit evaluates equilibrium arguments and IHO nodal corrections at every sample. A Householder QR runs in bounded batches, retaining only a reduced matrix between batches so workspace does not grow with the observation count, and the residual comes from those reductions, so each sample's astronomy is evaluated once. Rank-deficient and underdetermined fits are rejected; this is not a minimum-norm SVD API.
 
 Invalid input throws `RangeError` with a message beginning with `invalidSamples`, `unknownConstituent`, `duplicateConstituent`, or `rankDeficient`. These correspond to the [Swift fitter's](../../swift/README.md#harmonic-fitting) errors. Swift uses Accelerate QR on Apple platforms; TypeScript works on Linux and in browsers.
 
