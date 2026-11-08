@@ -108,6 +108,13 @@ class FitTest {
         assertEquals(ChsTideFit.basis, basis)
     }
 
+    @Test fun fitsValuesNearTheLargestFiniteNumber() {
+        val samples = listOf(HarmonicSample(Instant.EPOCH, 5e307), HarmonicSample(Instant.ofEpochSecond(1), 5e307))
+        assertEquals(1.0, fit(samples, emptyList()).offset / 5e307, 1e-12)
+        val spread = listOf(HarmonicSample(Instant.EPOCH, 4e307), HarmonicSample(Instant.ofEpochSecond(1), 6e307))
+        assertEquals(1.0, fit(spread, emptyList()).rms / 1e307, 1e-12)
+    }
+
     @Test fun rejectsOverflowInTheSolution() {
         assertFailsWith<HarmonicFitException.RankDeficient> {
             fit(firstCase.map { it.copy(value = Double.MAX_VALUE) }, emptyList())

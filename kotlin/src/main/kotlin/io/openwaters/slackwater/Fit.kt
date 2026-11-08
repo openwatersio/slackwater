@@ -99,7 +99,7 @@ private class LeastSquares(private val width: Int) {
     // Rows below `width` hold R and Qᵀb; they start as zero rows, which add nothing.
     private var rows = width
     private var count = 0
-    private var residualSquares = 0.0
+    private var residualNorm = 0.0
 
     fun add(row: DoubleArray, value: Double) {
         for (j in 0 until width) a[j][rows] = row[j]
@@ -128,14 +128,16 @@ private class LeastSquares(private val width: Int) {
             for (i in k + 1 until rows) pivot[i] = 0.0
         }
         // Rows past R are zero in every column, so their Qᵀb entries are residual no later batch can reduce.
-        for (i in width until rows) residualSquares += b[i] * b[i]
+        // hypot, because squaring a residual near the largest finite value overflows.
+        for (i in width until rows) residualNorm = hypot(residualNorm, b[i])
         rows = width
     }
 
     private fun reflect(column: DoubleArray, k: Int, vv: Double) {
         var dot = 0.0
         for (i in k until rows) dot += v[i] * column[i]
-        val scale = 2 * dot / vv
+        // Divide first: 2 · dot can overflow when the reflected value is finite.
+        val scale = 2 * (dot / vv)
         for (i in k until rows) column[i] -= scale * v[i]
     }
 
@@ -155,5 +157,5 @@ private class LeastSquares(private val width: Int) {
         return x
     }
 
-    fun rms() = sqrt(residualSquares / count)
+    fun rms() = residualNorm / sqrt(count.toDouble())
 }
