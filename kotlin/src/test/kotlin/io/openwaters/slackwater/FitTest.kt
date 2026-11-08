@@ -5,6 +5,7 @@ import java.time.Instant
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.sqrt
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
@@ -73,8 +74,24 @@ class FitTest {
         val result = fit(samples, emptyList())
         assertEquals(2.0, result.offset, 1e-12)
         assertEquals(1.0, result.rms, 1e-12)
-        fit(samples, listOf("M2"))
+        val m2 = fit(samples, listOf("M2"))
+        assertEquals(residualRms(samples, m2), m2.rms, 1e-12)
+        assertTrue(m2.rms <= result.rms)
     }
+
+    @Test fun measuresSpansLongerThanNanosecondsHold() {
+        val samples = listOf(HarmonicSample(Instant.parse("1700-01-01T00:00:00Z"), 1.0), HarmonicSample(Instant.parse("2026-01-01T00:00:00Z"), 3.0))
+        assertEquals(2.0, fit(samples, emptyList()).offset, 1e-12)
+    }
+
+    private fun residualRms(samples: List<HarmonicSample>, result: HarmonicFit) = sqrt(samples.sumOf { s ->
+        val state = astro(s.time)
+        val model = result.constituents.fold(result.offset) { sum, c ->
+            val correction = Catalog.correction(c.name, state)
+            sum + c.amplitude * correction.f * cos((Catalog.v0(c.name, state) + correction.uDegrees - c.phaseDegrees) * PI / 180)
+        }
+        (model - s.value) * (model - s.value)
+    } / samples.size)
 
     @Test fun preservesRepeatedSamplesAcrossBatchBoundaries() {
         val original = fit(firstCase, basis)
@@ -87,10 +104,8 @@ class FitTest {
         }
     }
 
-    @Test fun fitsTheChsTideRecipe() {
-        val result = fit(firstCase, ChsTideFit.basis)
-        assertEquals(ChsTideFit.basis, result.constituents.map { it.name })
-        assertTrue(result.rms.isFinite())
+    @Test fun theSharedOracleFitsTheChsTideRecipe() {
+        assertEquals(ChsTideFit.basis, basis)
     }
 
     @Test fun rejectsOverflowInTheSolution() {

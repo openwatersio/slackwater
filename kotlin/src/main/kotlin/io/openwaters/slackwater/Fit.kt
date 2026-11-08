@@ -1,6 +1,5 @@
 package io.openwaters.slackwater
 
-import java.time.Duration
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.ceil
@@ -43,7 +42,7 @@ fun fit(samples: List<HarmonicSample>, constituents: List<String>): HarmonicFit 
     val width = 1 + 2 * constituents.size
     val count = samples.size
     if (count < max(2, width) || samples.any { !it.value.isFinite() } ||
-        samples.zipWithNext().any { (a, b) -> b.time < a.time } || samples[count - 1].time <= samples[0].time
+        (1 until count).any { samples[it].time < samples[it - 1].time } || samples[count - 1].time <= samples[0].time
     ) throw HarmonicFitException.InvalidSamples()
     val seen = HashSet<String>()
     val speeds = constituents.map { name ->
@@ -51,7 +50,10 @@ fun fit(samples: List<HarmonicSample>, constituents: List<String>): HarmonicFit 
         if (!seen.add(Catalog.canonical(name))) throw HarmonicFitException.DuplicateConstituent(name)
         speed
     }
-    val spanHours = Duration.between(samples[0].time, samples[count - 1].time).toNanos() / 3.6e12
+    val first = samples[0].time
+    val last = samples[count - 1].time
+    // Instant's whole range fits a Long of seconds, where Duration.toNanos overflows past 292 years.
+    val spanHours = ((last.epochSecond - first.epochSecond) + (last.nano - first.nano) / 1e9) / 3600
     val unseparable = ArrayList<HarmonicFit.UnseparablePair>()
     for (i in constituents.indices) for (j in i + 1 until constituents.size) {
         val hours = 360 / abs(speeds[i] - speeds[j])
@@ -77,7 +79,7 @@ fun fit(samples: List<HarmonicSample>, constituents: List<String>): HarmonicFit 
         constituents.mapIndexed { j, name ->
             val a = solution[1 + 2 * j]
             val b = solution[2 + 2 * j]
-            HarmonicConstituent(name, hypot(a, b), (atan2(b, a) * R2D + 360) % 360)
+            HarmonicConstituent(name, hypot(a, b), wrap(atan2(b, a) * R2D))
         },
         solution[0], solver.rms(), unseparable,
     )
@@ -85,11 +87,13 @@ fun fit(samples: List<HarmonicSample>, constituents: List<String>): HarmonicFit 
 
 /**
  * Least squares by Householder QR of `[R; next batch]`, reduced every batch so a
- * multi-year record needs O(width²) memory. Adapted from packages/engine/src/fit.ts.
+ * multi-year record needs O(width²) memory, as packages/engine/src/fit.ts batches.
+ * RMS comes from the leftover Qᵀb entries, as SlackwaterKit reads them from DGELS.
  */
 private class LeastSquares(private val width: Int) {
     private val capacity = width + max(512, width)
-    private val a = Array(capacity) { DoubleArray(width) }
+    // Column-major, so the reflections walk contiguous memory.
+    private val a = Array(width) { DoubleArray(capacity) }
     private val b = DoubleArray(capacity)
     private val v = DoubleArray(capacity)
     // Rows below `width` hold R and Qᵀb; they start as zero rows, which add nothing.
@@ -98,7 +102,7 @@ private class LeastSquares(private val width: Int) {
     private var residualSquares = 0.0
 
     fun add(row: DoubleArray, value: Double) {
-        row.copyInto(a[rows])
+        for (j in 0 until width) a[j][rows] = row[j]
         b[rows++] = value
         count++
         if (rows == capacity) reduce()
@@ -106,35 +110,33 @@ private class LeastSquares(private val width: Int) {
 
     private fun reduce() {
         for (k in 0 until width) {
+            val pivot = a[k]
             var norm = 0.0
-            for (i in k until rows) norm += a[i][k] * a[i][k]
+            for (i in k until rows) norm += pivot[i] * pivot[i]
             // A column already zero from row k down needs no reflection.
             if (norm == 0.0) continue
             norm = sqrt(norm)
-            val alpha = if (a[k][k] > 0) -norm else norm
+            val alpha = if (pivot[k] > 0) -norm else norm
             var vv = 0.0
             for (i in k until rows) {
-                v[i] = if (i == k) a[i][k] - alpha else a[i][k]
+                v[i] = if (i == k) pivot[i] - alpha else pivot[i]
                 vv += v[i] * v[i]
             }
-            for (j in k + 1 until width) {
-                val scale = 2 * dot(k) { a[it][j] } / vv
-                for (i in k until rows) a[i][j] -= scale * v[i]
-            }
-            val scale = 2 * dot(k) { b[it] } / vv
-            for (i in k until rows) b[i] -= scale * v[i]
-            a[k][k] = alpha
-            for (i in k + 1 until rows) a[i][k] = 0.0
+            for (j in k + 1 until width) reflect(a[j], k, vv)
+            reflect(b, k, vv)
+            pivot[k] = alpha
+            for (i in k + 1 until rows) pivot[i] = 0.0
         }
         // Rows past R are zero in every column, so their Qᵀb entries are residual no later batch can reduce.
         for (i in width until rows) residualSquares += b[i] * b[i]
         rows = width
     }
 
-    private inline fun dot(k: Int, column: (Int) -> Double): Double {
-        var sum = 0.0
-        for (i in k until rows) sum += v[i] * column(i)
-        return sum
+    private fun reflect(column: DoubleArray, k: Int, vv: Double) {
+        var dot = 0.0
+        for (i in k until rows) dot += v[i] * column[i]
+        val scale = 2 * dot / vv
+        for (i in k until rows) column[i] -= scale * v[i]
     }
 
     fun solve(): DoubleArray {
@@ -146,7 +148,7 @@ private class LeastSquares(private val width: Int) {
         val x = DoubleArray(width)
         for (i in width - 1 downTo 0) {
             var sum = b[i]
-            for (j in i + 1 until width) sum -= a[i][j] * x[j]
+            for (j in i + 1 until width) sum -= a[j][i] * x[j]
             x[i] = sum / a[i][i]
         }
         if (!x.all { it.isFinite() }) throw HarmonicFitException.RankDeficient()
