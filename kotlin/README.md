@@ -102,7 +102,20 @@ Empty or ineffective minor constituents without mean cross-flow use the one-axis
 
 All numeric inputs must be finite. Steps must be positive, representable at the requested epoch and at least one nanosecond. Timeline and event searches exceeding the indexed work/result range are rejected. Invalid inputs throw `IllegalArgumentException`. Reversed windows return empty lists. Equal timeline bounds produce the samples from outward snapping; event roots on an exact bracket boundary, and current slacks at a node-correction refresh, are not guaranteed. Steps default to 600 seconds; the start is floored and the end ceiled to the step on the UTC epoch grid. No default time zone enters prediction. Station constructors copy caller collections, and requests have independent calculation state.
 
-Unknown names and zero amplitudes contribute nothing. Astronomy returns null for an unknown name. IHO node corrections are supported. `ChsTideFit` and `ChsCurrentFit` carry the CHS tide and current fit recipes shared with TypeScript and Swift, `ChsCurrentFit.STAMP` identifies the current recipe, and `ChsCurrentFit.project` makes a current gate's `HarmonicSample` series. The stamp is checked against `fixtures/chs-current-golden.json` and changes when a change moves the golden gate's predicted velocity by 1e-4 kn or more, a slack or peak by 30 seconds or more, or a peak's speed by 0.001 kn or more. Schureman, fitting, station lookup, datum resolution, derived slack and publication tooling are outside this port; CHS stations are resolved by the separate [IWLS module](#iwls-fetching).
+Unknown names and zero amplitudes contribute nothing. Astronomy returns null for an unknown name. IHO node corrections are supported. `ChsTideFit` and `ChsCurrentFit` carry the CHS tide and current fit recipes shared with TypeScript and Swift, `ChsCurrentFit.STAMP` identifies the current recipe, and `ChsCurrentFit.project` makes a current gate's `HarmonicSample` series. The stamp is checked against `fixtures/chs-current-golden.json` and changes when a change moves the golden gate's predicted velocity by 1e-4 kn or more, a slack or peak by 30 seconds or more, or a peak's speed by 0.001 kn or more. Schureman, station lookup, datum resolution, derived slack and publication tooling are outside this port; CHS stations are resolved by the separate [IWLS module](#iwls-fetching).
+
+## Fit
+
+`fit(samples, constituents)` fits an offset and a fixed list of constituents to heights or signed current velocities.
+
+```kotlin
+val fitted: HarmonicFit = fit(samples, ChsTideFit.basis)
+val station = Station(fitted.constituents, offsetMetres = fitted.offset)
+```
+
+Samples are `HarmonicSample(time, value)`, finite and ordered by time, with at least `max(2, 1 + 2 * constituents.size)` entries spanning a positive duration. Repeated timestamps keep their weight, including overlapping fetch boundaries. Each failure is a `HarmonicFitException`: `InvalidSamples`, `UnknownConstituent`, `DuplicateConstituent` (names are compared through their aliases, so `NU2` and `nu2` collide), or `RankDeficient`. Equilibrium arguments and IHO nodal corrections are evaluated at every sample. The solver is a Householder QR that reduces the samples in batches, so a multi-year record needs memory only for the basis, and the engine keeps no runtime dependencies. `rms` measures training residuals; `unseparable` lists the pairs whose synodic period is longer than the samples span, largest `requiredDays` first, without dropping them. Callers choose the basis and validate on held-out samples. CHS tide ports fit `ChsTideFit.DAYS` of samples on a `ChsTideFit.SAMPLE_MINUTES` grid with `ChsTideFit.basis`, and current gates fit `ChsCurrentFit.project` output with `ChsCurrentFit.basis` over one of `ChsCurrentFit.days`.
+
+`FitTest` holds the fit to `fixtures/harmonic-fit-parity.json`, the SVD oracle Swift and [`@slackwater/engine`](../packages/engine#harmonic-fitting) also check, at the same tolerances, and to the shared invalid inputs in `fixtures/harmonic-fit-invalid.json`.
 
 ## Readings
 
