@@ -30,9 +30,6 @@
   "files": [
     "dist"
   ],
-  "dependencies": {
-    "ml-matrix": "^6.15.1"
-  },
   "devDependencies": {
     "@slackwater/database": "^1.0.1-beta.20261103"
   },
