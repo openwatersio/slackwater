@@ -102,6 +102,43 @@ private struct FitFixture: Decodable {
     #expect(mean.rms < 1e-12)
 }
 
+@Test func harmonicFitKeepsLargeResidualRMSFinite() throws {
+    let start = Date(timeIntervalSince1970: 1_767_225_600)
+    let result = try fit(samples: [
+        HarmonicSample(time: start, value: 4e307),
+        HarmonicSample(time: start.addingTimeInterval(3600), value: 6e307),
+    ], constituents: [])
+    #expect(abs(result.rms / 1e307 - 1) < 1e-12)
+}
+
+@Test func harmonicFitKeepsLargeConstantOffsetFinite() throws {
+    let start = Date(timeIntervalSince1970: 1_767_225_600)
+    let result = try fit(samples: [
+        HarmonicSample(time: start, value: 5e307),
+        HarmonicSample(time: start.addingTimeInterval(3600), value: 5e307),
+    ], constituents: [])
+    #expect(abs(result.offset / 5e307 - 1) < 1e-12)
+}
+
+@Test func harmonicFitPreservesTinyResidualRMS() throws {
+    let start = Date(timeIntervalSince1970: 1_767_225_600)
+    let result = try fit(samples: [
+        HarmonicSample(time: start, value: 4e-307),
+        HarmonicSample(time: start.addingTimeInterval(3600), value: 6e-307),
+    ], constituents: [])
+    #expect(abs(result.rms / 1e-307 - 1) < 1e-12)
+}
+
+@Test func harmonicFitRejectsOverflowAfterRestoringScale() throws {
+    let start = Date(timeIntervalSince1970: 1_767_225_600)
+    let samples = [-1e308, 1e308, -1e308].enumerated().map {
+        HarmonicSample(time: start.addingTimeInterval(Double($0.offset) * 3600), value: $0.element)
+    }
+    #expect(throws: HarmonicFitError.rankDeficient) {
+        try fit(samples: samples, constituents: ["M2"])
+    }
+}
+
 @Test func harmonicFitPreservesRepeatedChunkBoundarySamples() throws {
     let fixture = try loadFixture("harmonic-fit", as: FitFixture.self)
     let samples = fixture.cases[0].samples.map {

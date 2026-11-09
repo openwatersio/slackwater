@@ -81,7 +81,10 @@ public func fit(samples: [HarmonicSample], constituents names: [String]) throws 
             matrix[(2 + 2 * j) * count + row] = correction.f * sin(theta)
         }
     }
-    var solution = samples.map(\.value)
+    // Keep DGELS from scaling b internally; it does not unscale trailing residuals.
+    let maxValue = samples.map { abs($0.value) }.max() ?? 0
+    let valueScale = maxValue == 0 ? 1 : maxValue
+    var solution = samples.map { $0.value / valueScale }
     var m = __CLPK_integer(count), n = __CLPK_integer(width), nrhs: __CLPK_integer = 1
     var lda = m, ldb = m, info: __CLPK_integer = 0, lwork: __CLPK_integer = -1
     var trans = Int8(78) // N: solve A*x = b.
@@ -93,6 +96,7 @@ public func fit(samples: [HarmonicSample], constituents names: [String]) throws 
     dgels_(&trans, &m, &n, &nrhs, &matrix, &lda, &solution, &ldb, &workspace, &lwork, &info)
     if info > 0 { throw HarmonicFitError.rankDeficient }
     guard info == 0 else { throw HarmonicFitError.solverFailure(Int(info)) }
+    for i in 0..<width { solution[i] *= valueScale }
     // DGELS only detects exact zero pivots. Reject numerical rank loss too.
     let diagonal = (0..<width).map { abs(matrix[$0 * count + $0]) }
     let threshold = Double.ulpOfOne * Double(count) * (diagonal.max() ?? 0)
@@ -105,7 +109,7 @@ public func fit(samples: [HarmonicSample], constituents names: [String]) throws 
         return HarmonicConstituent(name: names[j], amplitude: hypot(a, b), phase: phase)
     }
     // The trailing entries of Q^T*b hold the least-squares residual norm.
-    let rms = sqrt(solution.dropFirst(width).reduce(0) { $0 + $1 * $1 } / Double(count))
+    let rms = solution.dropFirst(width).reduce(0) { hypot($0, $1) } / sqrt(Double(count)) * valueScale
     return HarmonicFit(constituents: fitted, offset: solution[0], rms: rms, unseparable: pairs)
 }
 #endif
