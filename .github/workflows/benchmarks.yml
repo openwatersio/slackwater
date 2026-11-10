@@ -31,9 +31,9 @@ jobs:
         id: month
         run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
 
-      - name: Cache benchmark data
+      - name: Restore benchmark data
         id: benchmark-cache
-        uses: actions/cache@v6
+        uses: actions/cache/restore@v6
         with:
           path: .test-cache
           # Month-stamped so cached reference predictions roll over and the
@@ -54,6 +54,13 @@ jobs:
         env:
           NO_FLOORS: "1"
         run: npm run chs-current-fit
+
+      - name: Save benchmark data
+        if: ${{ always() && steps.benchmark-cache.outputs.cache-hit != 'true' && steps.benchmark-cache.outputs.cache-primary-key != '' }}
+        uses: actions/cache/save@v6
+        with:
+          path: .test-cache
+          key: ${{ steps.benchmark-cache.outputs.cache-primary-key }}
 
       - name: Upload benchmark results
         if: ${{ !cancelled() }}
