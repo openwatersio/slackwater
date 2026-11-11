@@ -61,7 +61,7 @@ export class Catalog {
     this.entries = new Map(index.stations.map((s) => [s.id, s]));
   }
   station(id: string): StationInfo & { requested_id: string } {
-    const canonical = this.index.aliases[id] ?? id;
+    const canonical = Object.hasOwn(this.index.aliases, id) ? this.index.aliases[id] : id;
     const station = this.entries.get(canonical);
     if (!station) {
       const primary = this.entries.get(canonical.replace(/@\d+$/, ""));
@@ -83,7 +83,11 @@ export class Catalog {
   find(input: SearchInput) {
     const query = normalize(input.query?.trim() ?? "");
     const located = input.latitude !== undefined && input.longitude !== undefined;
-    if ((!query && !located) || (query && located))
+    if (
+      (input.latitude === undefined) !== (input.longitude === undefined) ||
+      (!query && !located) ||
+      (query && located)
+    )
       throw new ToolError("invalid_input", "Supply either a query or a coordinate pair");
     if (query.length > 100 || (query && query.length < 2))
       throw new ToolError("invalid_input", "Search text must contain 2 to 100 characters");

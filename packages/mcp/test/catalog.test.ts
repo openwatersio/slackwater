@@ -1,7 +1,8 @@
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { buildCatalog, generateCatalog } from "../src/generate.js";
 import { Catalog } from "../src/catalog.js";
 import { station, versions } from "./fixtures.js";
+import fs from "node:fs/promises";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -167,6 +168,8 @@ test("search rejects ambiguous, unbounded and invalid coordinate inputs", () => 
   for (const input of [
     {},
     { query: "a" },
+    { query: "port", latitude: 0 },
+    { query: "port", longitude: 0 },
     { query: "x".repeat(101) },
     { query: "port", latitude: 0, longitude: 0 },
     { latitude: 91, longitude: 0 },
@@ -175,4 +178,38 @@ test("search rejects ambiguous, unbounded and invalid coordinate inputs", () => 
     { latitude: 0, longitude: 0, radius_nm: 0 },
   ])
     expect(() => catalog.find({ kind: "tide", ...input })).toThrow();
+});
+
+test.each(["constructor", "toString"])(
+  "inherited alias %s is an ordinary missing station",
+  (id) => {
+    const built = buildCatalog([station()], versions);
+    expect(() => new Catalog(built.index, async () => undefined).station(id)).toThrow(
+      /Station not found/,
+    );
+  },
+);
+
+test("repeated generation never truncates an already published model", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "mcp-atomic-"));
+  try {
+    const records = [station()];
+    const index = await generateCatalog(records, versions, directory);
+    const published = join(directory, index.files![records[0].id]);
+    const previous = await readFile(published, "utf8");
+    const original = fs.writeFile;
+    const spy = vi.spyOn(fs, "writeFile").mockImplementation(async (...args) => {
+      expect(args[0]).not.toBe(published);
+      expect(await readFile(published, "utf8")).toBe(previous);
+      return original(...args);
+    });
+    try {
+      await generateCatalog(records, versions, directory);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await readFile(published, "utf8")).toBe(previous);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

@@ -190,3 +190,21 @@ test("Worker errors fail closed, retry manifest loads and enforce the limiter", 
       .result.isError,
   ).toBe(true);
 });
+
+test("batch requests cannot multiply prediction work under one rate limit check", async () => {
+  let reads = 0;
+  const c = new Catalog(built.index, async () => {
+    reads++;
+    return station();
+  });
+  const call = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "tools/call",
+    params: { name: "get_station", arguments: { station_id: "test/port", diagnostics: true } },
+  };
+  expect((await handleRequest(c, request(JSON.stringify([call, { ...call, id: 2 }])))).status).toBe(
+    400,
+  );
+  expect(reads).toBe(0);
+});

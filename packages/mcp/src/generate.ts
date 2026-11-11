@@ -121,7 +121,13 @@ export async function generateCatalog(records: Station[], versions: Versions, de
   for (const [id, model] of models) {
     const name = `${Buffer.from(id, "utf8").toString("base64url")}.json`;
     const path = `${digest}/stations/${name}`;
-    await writeFile(join(directory, name), JSON.stringify(model));
+    const modelTemporary = join(directory, `.${randomUUID()}.json`);
+    try {
+      await writeFile(modelTemporary, JSON.stringify(model));
+      await rename(modelTemporary, join(directory, name));
+    } finally {
+      await rm(modelTemporary, { force: true });
+    }
     index.files[id] = path;
   }
   const temporary = join(destination, `.index-${randomUUID()}.json`);

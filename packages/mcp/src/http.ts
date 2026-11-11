@@ -69,6 +69,7 @@ export async function handleRequest(catalog: Catalog, request: Request, options:
   } catch {
     return reply(400, "Invalid JSON");
   }
+  if (Array.isArray(parsedBody)) return reply(400, "Send one JSON-RPC message per request");
   const server = createServer(catalog);
   const transport = new WebStandardStreamableHTTPServerTransport({
     sessionIdGenerator: undefined,

@@ -10,7 +10,7 @@ export default defineConfig({
     environment: "node",
     setupFiles: [resolve(__dirname, "./test/setup.ts")],
     coverage: {
-      include: ["packages/*/src/**"],
+      include: ["**/src/**"],
       exclude: ["**/*.stories.tsx"],
     },
   },

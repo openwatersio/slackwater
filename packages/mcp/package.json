@@ -29,7 +29,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
-    "@slackwater/database": "1.0.1-beta.20261107",
+    "@slackwater/database": "1.0.1-beta.20261103",
     "@slackwater/engine": "^1.0.0-beta.10",
     "slackwater": "^1.0.0-beta.6",
     "zod": "^4.3.6"

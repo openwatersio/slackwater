@@ -248,3 +248,27 @@ test("unspecified datum and absent current bearings stay unknown in results", as
   });
   expect(inspect.structuredContent).toHaveProperty("diagnostics.harmonic_constituents");
 });
+
+test("ordinary current requests omit diagnostic samples and model inputs", async () => {
+  const result = await executeTool(catalog(), "get_current_prediction", {
+    station_id: "test/gate",
+    start,
+    end,
+  });
+  expect(result.isError).not.toBe(true);
+  expect(result.structuredContent).not.toHaveProperty("timeline");
+  expect(result.structuredContent).not.toHaveProperty("diagnostics");
+});
+
+test("subordinate events shifted into either interval boundary are retained", async () => {
+  const db = await loadStations();
+  const sub = db.byId("noaa/8218361")!;
+  const ref = db.byId(sub.offsets!.reference)!;
+  const result = await executeTool(catalog([sub, ref]), "get_tide_prediction", {
+    station_id: sub.id,
+    start: "2026-10-06T00:00:00Z",
+    end: "2026-10-06T02:00:00Z",
+  });
+  expect(result.isError).not.toBe(true);
+  expect(result.structuredContent!.events).toMatchObject([{ time: "2026-10-06T00:19:54.353Z" }]);
+});

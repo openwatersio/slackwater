@@ -120,12 +120,23 @@ export function createTools(catalog: Catalog) {
           );
         const predictor = useStation(record);
         const options = { ...range, datum: args.datum, units: args.units };
-        const result = predictor.getExtremesPrediction(options);
+        const padding =
+          Math.max(
+            Math.abs(record.offsets?.time.high ?? 0),
+            Math.abs(record.offsets?.time.low ?? 0),
+          ) * 60000;
+        const result = predictor.getExtremesPrediction({
+          ...options,
+          start: new Date(range.start.getTime() - padding),
+          end: new Date(range.end.getTime() + padding),
+        });
         return {
           ...envelope(catalog, args.station_id, range),
           datum: result.datum ?? null,
           units: result.units,
-          events: inSpan(result.extremes, range),
+          events: inSpan(result.extremes, range).sort(
+            (a, b) => a.time.getTime() - b.time.getTime(),
+          ),
           ...(args.timeline
             ? {
                 timeline: predictor.getTimelinePrediction({ ...options, timeFidelity: 600 })
