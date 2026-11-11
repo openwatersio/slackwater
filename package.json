@@ -42,6 +42,7 @@
     "packages/slackwater",
     "packages/api",
     "packages/cli",
-    "packages/react"
+    "packages/react",
+    "packages/mcp"
   ]
 }
