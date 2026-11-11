@@ -10,17 +10,18 @@
     "directory": "packages/mcp"
   },
   "exports": {
-    ".": "./dist/index.js",
-    "./generate": "./dist/generate.js",
-    "./http": "./dist/http.js",
-    "./worker": "./dist/worker.js"
+    ".": "./dist/index.mjs",
+    "./generate": "./dist/generate.mjs",
+    "./http": "./dist/http.mjs",
+    "./worker": "./dist/worker.mjs"
   },
   "files": [
     "dist",
     "bin"
   ],
   "bin": {
-    "slackwater-mcp": "./bin/slackwater-mcp.js"
+    "slackwater-mcp": "./bin/slackwater-mcp.js",
+    "slackwater-mcp-generate": "./bin/generate-catalog.js"
   },
   "scripts": {
     "build": "tsc && tsdown",
@@ -28,11 +29,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.2",
-    "@slackwater/engine": "^1.0.0-beta.10",
-    "zod": "^4.3.6"
-  },
-  "devDependencies": {
     "@slackwater/database": "1.0.1-beta.20261107",
-    "slackwater": "^1.0.0-beta.6"
+    "@slackwater/engine": "^1.0.0-beta.10",
+    "slackwater": "^1.0.0-beta.6",
+    "zod": "^4.3.6"
   }
 }

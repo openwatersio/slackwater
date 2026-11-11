@@ -61,7 +61,8 @@ async function current(catalog: Catalog, id: string) {
 function envelope(catalog: Catalog, id: string, range?: { start: Date; end: Date }) {
   const info = catalog.station(id);
   const credits = [info.attribution];
-  if (info.reference) credits.push(catalog.station(info.reference).attribution);
+  const referenceCredit = catalog.index.stations.find((s) => s.id === info.reference)?.attribution;
+  if (referenceCredit) credits.push(referenceCredit);
   return {
     station: publicStation(info),
     interval: range,

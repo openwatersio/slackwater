@@ -208,3 +208,43 @@ test("model failures return safe errors without a stack or internal message", as
   });
   expect(JSON.stringify(result)).not.toContain("missing MSL");
 });
+
+test("missing-reference station inspection still returns its unavailability reason", async () => {
+  const gate = station("test/missing-reference", {
+    kind: "current",
+    harmonic_constituents: [],
+    current: { offsets: { reference: "test/absent" } },
+  });
+  const result = await executeTool(catalog([gate]), "get_station", { station_id: gate.id });
+  expect(result.isError).not.toBe(true);
+  expect(result.structuredContent!.station).toMatchObject({
+    predictions: false,
+    unavailable: { code: "reference_unavailable" },
+  });
+});
+
+test("unspecified datum and absent current bearings stay unknown in results", async () => {
+  const c = catalog([
+    station("test/unspecified", { chart_datum: undefined, datums: {} }),
+    station("test/no-bearings", { kind: "current" }),
+  ]);
+  const tide = await executeTool(c, "get_tide_prediction", {
+    station_id: "test/unspecified",
+    start,
+    end,
+  });
+  expect(tide.structuredContent!.datum).toBeNull();
+  const current = await executeTool(c, "get_current_prediction", {
+    station_id: "test/no-bearings",
+    start,
+    end,
+    diagnostics: true,
+  });
+  expect(current.isError).not.toBe(true);
+  expect(current.structuredContent!.diagnostics).toEqual({ offsets: null });
+  const inspect = await executeTool(c, "get_station", {
+    station_id: "test/no-bearings",
+    diagnostics: true,
+  });
+  expect(inspect.structuredContent).toHaveProperty("diagnostics.harmonic_constituents");
+});

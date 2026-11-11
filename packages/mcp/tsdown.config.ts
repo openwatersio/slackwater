@@ -3,6 +3,6 @@ export default defineConfig({
   entry: ["src/index.ts", "src/generate.ts", "src/http.ts", "src/worker.ts", "src/stdio.ts"],
   dts: true,
   format: ["esm"],
-  platform: "neutral",
+  platform: "node",
   target: "es2022",
 });
