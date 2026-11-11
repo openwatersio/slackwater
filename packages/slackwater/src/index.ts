@@ -273,7 +273,7 @@ export async function findStation(query: string): Promise<StationPredictor> {
 }
 
 /**
- * Get current events (slack, max flood, max ebb) using the nearest current
+ * Get current events (slack and flood/ebb maxima and minima) using the nearest current
  * station to the given position. Speeds are signed knots along the flood axis.
  *
  * @example

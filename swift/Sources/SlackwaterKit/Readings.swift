@@ -35,7 +35,7 @@ public struct CurrentVector: Sendable, Equatable {
 }
 
 /// The phase of the tide a current reading falls in.
-public enum CurrentState: Sendable, Equatable { case slack, maxFlood, maxEbb, flooding, ebbing }
+public enum CurrentState: Sendable, Equatable { case slack, maxFlood, maxEbb, minFlood, minEbb, flooding, ebbing }
 
 /// The lead reading at an instant: phase, signed major-axis speed, and the full vector.
 public struct CurrentReading: Sendable, Equatable {
@@ -119,7 +119,7 @@ extension Array where Element == CurrentPoint {
     }
 }
 
-/// The lead reading at `time`: slack or max within a second of an event, otherwise the flooding or ebbing phase.
+/// The lead reading at `time`: slack or extremum within a second of an event, otherwise the flooding or ebbing phase.
 public func readCurrent(at time: Date, timeline: [CurrentPoint], events: [CurrentEvent],
                         flood: Double?, ebb: Double?) -> CurrentReading? {
     guard let speed = timeline.speed(at: time),
@@ -127,8 +127,14 @@ public func readCurrent(at time: Date, timeline: [CurrentPoint], events: [Curren
     let state: CurrentState
     if events.contains(where: { $0.kind == .slack && withinOneSecond($0.time, time) }) {
         state = .slack
-    } else if let max = events.first(where: { $0.kind != .slack && withinOneSecond($0.time, time) }) {
-        state = max.kind == .maxFlood ? .maxFlood : .maxEbb
+    } else if let event = events.first(where: { $0.kind != .slack && withinOneSecond($0.time, time) }) {
+        switch event.kind {
+        case .maxFlood: state = .maxFlood
+        case .maxEbb: state = .maxEbb
+        case .minFlood: state = .minFlood
+        case .minEbb: state = .minEbb
+        case .slack: state = .slack
+        }
     } else {
         state = speed >= 0 ? .flooding : .ebbing
     }
@@ -137,7 +143,7 @@ public func readCurrent(at time: Date, timeline: [CurrentPoint], events: [Curren
 
 extension Array where Element == CurrentEvent {
     /// One kind's maxima as unsigned speeds, so floods rank against floods and ebbs against ebbs.
-    public func maxSpeeds(_ kind: CurrentEventKind) -> [Double] { filter { $0.kind == kind }.map { abs($0.speed) } }
+    public func maxSpeeds(_ kind: CurrentEventKind) -> [Double] { filter { $0.kind.isMaximum && $0.kind == kind }.map { abs($0.speed) } }
 }
 
 /// The default major-axis speed threshold for slack windows, in knots.

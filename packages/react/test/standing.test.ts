@@ -187,3 +187,12 @@ test("outlook ranks complete local days and leaves unloaded days empty", () => {
     undefined,
   ]);
 });
+
+test("Next max skips minima and leaves minima out of peak rankings", () => {
+  const minima = [event(1, 0.01, "minFlood"), event(2, -0.01, "minEbb")];
+  const maximum = event(3, 3, "maxFlood");
+  expect(nextMaxTile(minima, t0, minima, tz)).toBeUndefined();
+  expect(nextMaxTile([...minima, maximum], t0, [...minima, maximum], tz)).toEqual(
+    nextMaxTile([maximum], t0, [maximum], tz),
+  );
+});

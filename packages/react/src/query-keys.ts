@@ -1,3 +1,5 @@
+import { CURRENT_EVENT_REVISION } from "./client.js";
+
 function scoped<T extends readonly unknown[]>(key: T, source?: string) {
   return source === undefined ? key : ([...key, { source }] as const);
 }
@@ -18,7 +20,7 @@ export const queryKeys = {
   currentStation: (id: string | undefined, source?: string) =>
     scoped(["slackwater", "current-station", id] as const, source),
   currentEvents: (params: object, source?: string) =>
-    scoped(["slackwater", "current-events", params] as const, source),
+    scoped(["slackwater", "current-events", params, CURRENT_EVENT_REVISION] as const, source),
   currentTimeline: (params: object, source?: string) =>
     scoped(["slackwater", "current-timeline", params] as const, source),
 };

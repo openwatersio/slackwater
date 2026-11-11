@@ -8,7 +8,7 @@ import { bandCrossing } from "./readings/series.js";
 import type { HarmonicConstituent } from "./harmonics/index.js";
 import type { TimeSpan } from "./index.js";
 
-export type CurrentEventKind = "slack" | "maxFlood" | "maxEbb";
+export type CurrentEventKind = "slack" | "maxFlood" | "maxEbb" | "minFlood" | "minEbb";
 
 /**
  * One sample of signed major-axis velocity in knots: positive is flood,
@@ -64,7 +64,7 @@ export interface CurrentPredictor {
   ebbDirection?: number;
   /** Signed major-axis velocity in knots at regular intervals. */
   getTimelinePrediction: (input: CurrentTimelineInput) => CurrentPoint[];
-  /** Slack, max flood, and max ebb events in time order. */
+  /** Slack and flood/ebb maxima and minima in time order. */
   getEventsPrediction: (input: TimeSpan) => CurrentEvent[];
 }
 
@@ -155,9 +155,8 @@ export function createCurrentPredictor(
   }
 
   /**
-   * All events inside one search window. Maxima are velocity extrema
-   * (slope-zeros) classified by the SIGN of velocity, NOAA's convention: a
-   * relaxation extremum that never reverses stays flood or ebb per its sign.
+   * All events inside one search window. Velocity extrema are classified by slope and sign: same-sign lulls
+   * are minimum flood/ebb, while slacks remain velocity zero crossings.
    */
   function eventsInWindow(from: Date, to: Date): CurrentEvent[] {
     const { startMs, endHour, correctedParams } = windowParams(from, to);
@@ -173,10 +172,15 @@ export function createCurrentPredictor(
           start: dayStart,
           endHour: 24,
         })(),
-    }).map(({ time, level }): CurrentEvent =>
+    }).map(({ time, level, high }): CurrentEvent =>
       level >= 0
-        ? { time, speed: level, kind: "maxFlood", ...withDirection(floodDirection) }
-        : { time, speed: level, kind: "maxEbb", ...withDirection(ebbDirection) },
+        ? {
+            time,
+            speed: level,
+            kind: high ? "maxFlood" : "minFlood",
+            ...withDirection(floodDirection),
+          }
+        : { time, speed: level, kind: high ? "minEbb" : "maxEbb", ...withDirection(ebbDirection) },
     );
 
     const slacks = findSlacks(0, endHour, { startMs, getParams: correctedParams() }).map(
@@ -276,8 +280,8 @@ export interface SubordinateCurrentOptions {
 
 /**
  * NOAA's subordinate current reduction over reference events a caller already
- * holds: max flood and ebb are time-shifted and speed-scaled per phase; a
- * slack takes the offset of the phase it PRECEDES (its next non-slack event)
+ * holds: maxima and minima are time-shifted and speed-scaled per signed phase; a
+ * slack takes the offset of the phase it PRECEDES (its next true maximum)
  * and its speed becomes exactly zero. Sorted, since unequal offsets can
  * reorder neighbours.
  */
@@ -291,21 +295,25 @@ export function reduceCurrentEvents(
     .map((event, i): CurrentEvent => {
       switch (event.kind) {
         case "maxFlood":
+        case "minFlood":
           return {
             time: shift(event.time, offsets.floodTimeOffset),
             speed: event.speed * offsets.floodSpeedRatio,
-            kind: "maxFlood",
+            kind: event.kind,
             ...withDirection(offsets.floodDirection),
           };
         case "maxEbb":
+        case "minEbb":
           return {
             time: shift(event.time, offsets.ebbTimeOffset),
             speed: event.speed * offsets.ebbSpeedRatio,
-            kind: "maxEbb",
+            kind: event.kind,
             ...withDirection(offsets.ebbDirection),
           };
         case "slack": {
-          const next = refEvents.slice(i + 1).find((e) => e.kind !== "slack");
+          const next = refEvents
+            .slice(i + 1)
+            .find((e) => e.kind === "maxFlood" || e.kind === "maxEbb");
           const offset =
             next?.kind === "maxEbb" ? offsets.slackBeforeEbbOffset : offsets.slackBeforeFloodOffset;
           return { time: shift(event.time, offset), speed: 0, kind: "slack" };

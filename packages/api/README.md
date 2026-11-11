@@ -208,7 +208,7 @@ curl "http://localhost:3000/currents/events?latitude=48.406&longitude=-122.643&s
 }
 ```
 
-`station` is the full station record, shortened here. `kind` is `slack`, `maxFlood`, or `maxEbb`. `direction` is in degrees true and is absent for slack, and for stations that don't publish that direction. `distance` is in kilometers.
+`station` is the full station record, shortened here. With `eventRevision=minima-v1`, `kind` is `slack`, `maxFlood`, `maxEbb`, `minFlood`, or `minEbb`. The minimum kinds identify same-sign lulls; only the maximum kinds belong in peak rankings. `direction` is in degrees true and is absent for slack, and for stations that don't publish that direction. `distance` is in kilometers.
 
 ### GET /currents/timeline
 
@@ -245,6 +245,12 @@ An unknown bin returns 404 with the bins that exist. Keep the slash between sour
 Get events or a timeline for a specific station and bin. They take `start` and `end`.
 
 Canadian Hydrographic Service stations are listed so clients can show them, but CHS terms don't allow its predictions to be redistributed. Their prediction endpoints return **451** with a link to the official CHS predictions. `/currents/events` and `/currents/timeline` use the nearest station even when it is a CHS station, and return its 451 instead of answering for a station farther away. They skip stations with no model. A station with no harmonic constituents or subordinate offsets returns **404**.
+
+### Current-event contract compatibility
+
+All three current-event endpoints accept `eventRevision=minima-v1` to request minimum kinds and echo `eventRevision: "minima-v1"`. Without the query, minima use the legacy signed phase labels `maxFlood`/`maxEbb`, preserving older clients and client rollbacks. Unknown revisions return 400. The current React client requires the matching echo and rejects old-server or stale-cache responses rather than displaying legacy lulls as maxima.
+
+Deploy revision support before revised clients. If revisioned requests reached an older server, purge those HTTP/CDN entries or wait `SLACKWATER_API_MAX_AGE` (default 3,600 seconds) after upgrading before deploying the client. API-only rollback is incompatible with revised clients; restore or roll back the paired client and account for cached responses.
 
 ## Development
 

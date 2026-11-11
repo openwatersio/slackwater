@@ -98,7 +98,7 @@ export function nextMaxTile(
 ): TileContent | undefined {
   const e = events.find(
     (e): e is CurrentEvent & { kind: "maxFlood" | "maxEbb" } =>
-      e.kind !== "slack" && e.time.getTime() > time,
+      (e.kind === "maxFlood" || e.kind === "maxEbb") && e.time.getTime() > time,
   );
   if (!e) return undefined;
   const flood = e.kind === "maxFlood";

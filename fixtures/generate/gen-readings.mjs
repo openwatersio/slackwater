@@ -86,9 +86,15 @@ const scalarTimeline = [
   { time: at(0), speed: 0.3 },
   { time: at(1), speed: -0.3 },
   { time: at(2), speed: 0.3 },
+  { time: at(3), speed: 0.01 },
+  { time: at(4), speed: -0.01 },
 ];
-const scalarEvents = [{ time: at(0.5), speed: 0, kind: "slack" }];
-const scalarReadings = [0.4, 0.5, 0.6, 1].flatMap((h) => {
+const scalarEvents = [
+  { time: at(0.5), speed: 0, kind: "slack" },
+  { time: at(3), speed: 0.01, kind: "minFlood" },
+  { time: at(4), speed: -0.01, kind: "minEbb" },
+];
+const scalarReadings = [0.4, 0.5, 0.6, 1, 3, 4].flatMap((h) => {
   const reading = readCurrent(at(h), scalarTimeline, scalarEvents, scalarDirections);
   return reading ? [{ time: iso(at(h)), ...reading }] : [];
 });

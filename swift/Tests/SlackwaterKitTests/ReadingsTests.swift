@@ -272,8 +272,7 @@ private struct ReadingsFixture: Decodable {
     struct Event: Decodable {
         let time: String; let speed: Double; let kind: String
         var event: CurrentEvent {
-            CurrentEvent(time: parseISO(time), speed: speed,
-                         kind: kind == "slack" ? .slack : kind == "maxFlood" ? .maxFlood : .maxEbb)
+            get throws { CurrentEvent(time: parseISO(time), speed: speed, kind: try currentEventKind(kind)) }
         }
     }
     struct Reading: Decodable { let time: String; let state: String; let speed: Double; let magnitude: Double; let direction: Double? }
@@ -305,6 +304,8 @@ private func name(_ state: CurrentState) -> String {
     case .slack: "Slack"
     case .maxFlood: "Max flood"
     case .maxEbb: "Max ebb"
+    case .minFlood: "Minimum flood"
+    case .minEbb: "Minimum ebb"
     case .flooding: "Flooding"
     case .ebbing: "Ebbing"
     }
@@ -341,7 +342,7 @@ private func checkCurrent(_ expected: [ReadingsFixture.Reading], timeline: [Curr
     let timeline = v.timeline.map {
         CurrentPoint(time: parseISO($0.time), speed: $0.speed, magnitude: $0.magnitude, direction: $0.direction)
     }
-    let events = v.events.map(\.event)
+    let events = try v.events.map { try $0.event }
     #expect(v.readings.count == 79)
     try checkCurrent(v.readings, timeline: timeline, events: events, flood: v.floodDirection, ebb: v.ebbDirection)
     let windows = events.filter { $0.kind == .slack }.compactMap { e in
@@ -359,9 +360,9 @@ private func checkCurrent(_ expected: [ReadingsFixture.Reading], timeline: [Curr
     }
 
     let s = f.scalar
-    #expect(s.readings.count == 4)
+    #expect(s.readings.count == 6)
     try checkCurrent(s.readings, timeline: s.timeline.map { CurrentPoint(time: parseISO($0.time), speed: $0.speed) },
-                     events: s.events.map(\.event), flood: s.flood, ebb: s.ebb)
+                     events: try s.events.map { try $0.event }, flood: s.flood, ebb: s.ebb)
 
     let t = f.tide
     let heights = t.timeline.map { TidePoint(time: parseISO($0.time), height: $0.level) }
@@ -387,4 +388,22 @@ private func checkCurrent(_ expected: [ReadingsFixture.Reading], timeline: [Curr
     #expect(swings.count == t.swings.count)
     for (actual, expected) in zip(swings, t.swings) { #expect(abs(actual - expected) < 1e-6) }
     for r in t.ranks { #expect(near(swings.percentileRank(of: r.value), r.rank)) }
+}
+
+@Test func currentMinimaReadExplicitlyAndDoNotRankAsMaxima() throws {
+    for (kind, speed, state) in [(CurrentEventKind.minFlood, 0.03, CurrentState.minFlood), (.minEbb, -0.03, .minEbb)] {
+        let events = [CurrentEvent(time: t0, speed: speed, kind: kind)]
+        let reading = try #require(readCurrent(at: t0, timeline: [CurrentPoint(time: t0, speed: speed)], events: events, flood: 90, ebb: 270))
+        #expect(reading.state == state)
+        let timeline = [CurrentPoint(time: at(-2), speed: speed), CurrentPoint(time: at(2), speed: speed)]
+        for seconds in [-1.0, 1.0] {
+            #expect(readCurrent(at: at(seconds), timeline: timeline, events: events, flood: 90, ebb: 270)?.state == state)
+        }
+        #expect(readCurrent(at: at(1.001), timeline: timeline, events: events, flood: 90, ebb: 270)?.state == (speed > 0 ? .flooding : .ebbing))
+        #expect(events.maxSpeeds(kind).isEmpty)
+        #expect(!kind.isMaximum)
+        #expect(kind.isFlood == (speed > 0))
+    }
+    #expect(CurrentEventKind.maxFlood.isMaximum && CurrentEventKind.maxEbb.isMaximum)
+    #expect(!CurrentEventKind.slack.isMaximum && !CurrentEventKind.slack.isFlood)
 }

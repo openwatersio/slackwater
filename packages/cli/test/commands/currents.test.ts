@@ -12,7 +12,7 @@ const span = ["--start", "2026-06-01T00:00:00Z", "--end", "2026-06-02T00:00:00Z"
 interface Event {
   time: string;
   speed: number;
-  kind: "slack" | "maxFlood" | "maxEbb";
+  kind: "slack" | "maxFlood" | "maxEbb" | "minFlood" | "minEbb";
   direction?: number;
 }
 
@@ -23,6 +23,40 @@ async function json(args: string[]) {
 }
 
 describe("slackwater currents", () => {
+  test.each([2, -2])(
+    "prints and serializes same-sign minima with mean flow %s",
+    async (meanFlow) => {
+      const db = await loadStations();
+      const base = db.byId("noaa/PUG1701")!;
+      const station = base;
+      const constituents = vi
+        .spyOn(station, "harmonic_constituents", "get")
+        .mockReturnValue([{ name: "S2", amplitude: 1, phase: 0 }]);
+      const current = vi
+        .spyOn(station, "current", "get")
+        .mockReturnValue({ flood_direction: 90, ebb_direction: 270, mean_flow: meanFlow });
+      try {
+        const args = ["currents", "events", "--station", station.id, ...span];
+        const data = await json(args);
+        const kind = meanFlow > 0 ? "minFlood" : "minEbb";
+        const events: Event[] = data.events;
+        expect(new Set(events.map((e) => e.kind))).toEqual(
+          new Set([kind, meanFlow > 0 ? "maxFlood" : "maxEbb"]),
+        );
+        expect(events.find((e) => e.kind === kind)).toMatchObject({
+          direction: meanFlow > 0 ? 90 : 270,
+        });
+        const { stdout, error } = await run(args);
+        expect(error).toBeNull();
+        expect(stdout).toContain(meanFlow > 0 ? "Minimum flood" : "Minimum ebb");
+        expect(stdout).not.toContain("Axis slack");
+      } finally {
+        constituents.mockRestore();
+        current.mockRestore();
+      }
+    },
+  );
+
   test("lists its subcommands in help", async () => {
     const { stdout } = await run(["currents", "--help"]);
     for (const name of ["events", "timeline", "slack", "stations"]) {

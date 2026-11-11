@@ -46,7 +46,7 @@ class CurrentStation @JvmOverloads constructor(
         }
     }
     fun slacks(from: Instant, to: Instant) = events(from, to).filter { it.kind == CurrentEventKind.SLACK }
-    fun maxima(from: Instant, to: Instant) = events(from, to).filter { it.kind != CurrentEventKind.SLACK }
+    fun maxima(from: Instant, to: Instant) = events(from, to).filter { it.kind == CurrentEventKind.MAX_FLOOD || it.kind == CurrentEventKind.MAX_EBB }
 
     // Whole UTC days keep event filtering independent of the caller's window (packages/engine/src/currents.ts).
     fun events(from: Instant, to: Instant): List<CurrentEvent> {
@@ -73,7 +73,12 @@ class CurrentStation @JvmOverloads constructor(
         val end = shifted(start, endHour * 3600)
         val maxima = findExtremes(start, end, 0.01) { day -> ParamProvider(harmonic.constituents, offsetKnots, day, 24.0) }.map {
             val flood = it.level >= 0
-            CurrentEvent(it.time, it.level, if (flood) CurrentEventKind.MAX_FLOOD else CurrentEventKind.MAX_EBB,
+            val kind = if (it.high) {
+                if (flood) CurrentEventKind.MAX_FLOOD else CurrentEventKind.MIN_EBB
+            } else {
+                if (flood) CurrentEventKind.MIN_FLOOD else CurrentEventKind.MAX_EBB
+            }
+            CurrentEvent(it.time, it.level, kind,
                 if (flood) floodDirectionDegrees else ebbDirectionDegrees)
         }
         return maxima + findSlacks(endHour, provider())

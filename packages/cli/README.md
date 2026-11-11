@@ -119,7 +119,7 @@ Options:
 
 Current commands live under `slackwater currents`. Speeds are in knots along the station's flood axis: in JSON, positive is flood and negative is ebb. Directions are in degrees true. Times are shown in the station's time zone.
 
-Get axis slack, maximum flood, and maximum ebb (the default subcommand, so `slackwater currents` and `slackwater currents events` are the same):
+Get axis slack, maximum flood/ebb, and minimum flood/ebb lulls (the default subcommand, so `slackwater currents` and `slackwater currents events` are the same):
 
 ```sh
 slackwater currents --station noaa/PUG1701 --start 2026-06-01T07:00:00Z --end 2026-06-01T15:00:00Z

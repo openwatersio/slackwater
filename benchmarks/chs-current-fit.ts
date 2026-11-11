@@ -395,7 +395,12 @@ async function scoreGridPoint(
           start: new Date(weekStart - CONTEXT),
           end: new Date(weekEnd + CONTEXT),
         })
-        .map((e) => ({ time: e.time.getTime(), kind: e.kind, speed: e.speed }));
+        .map((e) => ({
+          time: e.time.getTime(),
+          // CHS extremum qualifiers describe signed phase, including same-sign lulls.
+          kind: e.kind === "minFlood" ? "maxFlood" : e.kind === "minEbb" ? "maxEbb" : e.kind,
+          speed: e.speed,
+        }));
       const score = scoreWeek({
         start: weekStart,
         end: weekEnd,

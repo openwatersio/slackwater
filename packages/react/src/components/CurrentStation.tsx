@@ -51,7 +51,7 @@ function provenance(station: CurrentStationInfo, reference: string | undefined) 
     " Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and axis windows use the flood/ebb component; crossing flow can remain at an axis zero. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.";
   if (station.type === "subordinate") {
     const whose = reference ? `${reference}'s ` : "";
-    return `NOAA subordinate station: ${whose}slacks and maxima, corrected by published offsets.${sets}${axis}`;
+    return `NOAA subordinate station: ${whose}slacks, maxima, and minima, corrected by published offsets.${sets}${axis}`;
   }
   if (station.id?.startsWith("noaa/")) {
     return `NOAA harmonic current prediction.${sets}${axis}`;
@@ -111,6 +111,8 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
         const time = e.time.getTime();
         if (e.kind === "slack") return { time, pill: "slack" };
         const value = `${formatSpeed(e.speed, locale)} kn axis`;
+        if (e.kind === "minFlood") return { time, pill: "minFlood", value, direction: flood };
+        if (e.kind === "minEbb") return { time, pill: "minEbb", value, direction: ebb };
         return e.kind === "maxFlood"
           ? { time, pill: "flood", value, direction: flood }
           : { time, pill: "ebb", value, direction: ebb };

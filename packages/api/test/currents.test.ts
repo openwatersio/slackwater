@@ -1,4 +1,4 @@
-import { describe, test, expect } from "vitest";
+import { describe, test, expect, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import { middleware as openApiValidator } from "express-openapi-validator";
@@ -35,6 +35,92 @@ type Event = { kind: string; speed: number; direction?: number };
 type Summary = { id: string; predictions: boolean; bins: { id: string; bin?: number }[] };
 
 describe("GET /currents/events", () => {
+  test.each([2, -2])(
+    "validates and serves same-sign minimum events with mean flow %s",
+    async (meanFlow) => {
+      const db = await loadStations();
+      const base = db.byId("noaa/PUG1701")!;
+      const station = base;
+      const constituents = vi
+        .spyOn(station, "harmonic_constituents", "get")
+        .mockReturnValue([{ name: "S2", amplitude: 1, phase: 0 }]);
+      const current = vi
+        .spyOn(station, "current", "get")
+        .mockReturnValue({ flood_direction: 90, ebb_direction: 270, mean_flow: meanFlow });
+      const unprefixed = db.byId("noaa-boundary-pass")!;
+      const unprefixedConstituents = vi
+        .spyOn(unprefixed, "harmonic_constituents", "get")
+        .mockReturnValue(station.harmonic_constituents);
+      const unprefixedCurrent = vi
+        .spyOn(unprefixed, "current", "get")
+        .mockReturnValue(station.current);
+      try {
+        const response = await request(app)
+          .get("/currents/stations/noaa/PUG1701/events")
+          .query({ ...span, eventRevision: "minima-v1" });
+        expect(response.status).toBe(200);
+        expect(response.body.eventRevision).toBe("minima-v1");
+        const events: Event[] = response.body.events;
+        const kind = meanFlow > 0 ? "minFlood" : "minEbb";
+        expect(new Set(events.map((e) => e.kind))).toEqual(
+          new Set([kind, meanFlow > 0 ? "maxFlood" : "maxEbb"]),
+        );
+        for (const event of events.filter((e) => e.kind === kind)) {
+          expect(event.speed).toBeCloseTo(Math.sign(meanFlow), 3);
+          expect(event.direction).toBe(meanFlow > 0 ? 90 : 270);
+        }
+        for (const path of [
+          "/currents/events",
+          "/currents/stations/noaa/PUG1701/events",
+          "/currents/stations/noaa-boundary-pass/events",
+        ]) {
+          const location = path === "/currents/events" ? deceptionPass : {};
+          const legacy = await request(app)
+            .get(path)
+            .query({ ...location, ...span });
+          expect(legacy.status).toBe(200);
+          expect(legacy.body).not.toHaveProperty("eventRevision");
+          expect(new Set(legacy.body.events.map((e: Event) => e.kind))).toEqual(
+            new Set([meanFlow > 0 ? "maxFlood" : "maxEbb"]),
+          );
+          const revised = await request(app)
+            .get(path)
+            .query({ ...location, ...span, eventRevision: "minima-v1" });
+          expect(revised.status).toBe(200);
+          expect(revised.body.eventRevision).toBe("minima-v1");
+          expect(revised.body.events.some((e: Event) => e.kind === kind)).toBe(true);
+        }
+      } finally {
+        constituents.mockRestore();
+        current.mockRestore();
+        unprefixedConstituents.mockRestore();
+        unprefixedCurrent.mockRestore();
+      }
+    },
+  );
+
+  test.each([
+    "/currents/events",
+    "/currents/stations/noaa/PUG1701/events",
+    "/currents/stations/noaa-boundary-pass/events",
+  ])("rejects unknown event revisions on %s", async (path) => {
+    for (const server of [app, createApp()]) {
+      const response = await request(server)
+        .get(path)
+        .query({
+          ...(path === "/currents/events" ? deceptionPass : {}),
+          ...span,
+          eventRevision: "future",
+        });
+      expect(response.status).toBe(400);
+      expect(
+        response.body.errors.some((error: { path: string }) =>
+          error.path.includes("eventRevision"),
+        ),
+      ).toBe(true);
+    }
+  });
+
   test("returns events for the nearest current station", async () => {
     const response = await request(app)
       .get("/currents/events")

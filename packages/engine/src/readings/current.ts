@@ -11,7 +11,8 @@ export interface Directions {
 }
 
 /** The phase of the tide a current reading falls in. */
-export type CurrentState = "Slack" | "Max flood" | "Max ebb" | "Flooding" | "Ebbing";
+export type CurrentState =
+  "Slack" | "Max flood" | "Max ebb" | "Minimum flood" | "Minimum ebb" | "Flooding" | "Ebbing";
 
 /** The full current vector at an instant. */
 export interface CurrentVector {
@@ -123,7 +124,7 @@ export function vectorAt(
   return { magnitude, ...(magnitude > 1e-9 && { direction }) };
 }
 
-/** The lead reading at `time`: Slack or Max within a second of an event, otherwise the flooding or ebbing phase. */
+/** The lead reading at `time`: Slack, maximum, or minimum within a second of an event, otherwise the flooding or ebbing phase. */
 export function readCurrent(
   time: Date,
   timeline: CurrentSample[],
@@ -141,7 +142,11 @@ export function readCurrent(
   const state: CurrentState = max
     ? max.kind === "maxFlood"
       ? "Max flood"
-      : "Max ebb"
+      : max.kind === "maxEbb"
+        ? "Max ebb"
+        : max.kind === "minFlood"
+          ? "Minimum flood"
+          : "Minimum ebb"
     : speed >= 0
       ? "Flooding"
       : "Ebbing";

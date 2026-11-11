@@ -180,12 +180,12 @@ const predictor = createCurrentPredictor(constituents, {
 // Samples: { time, hour, speed, magnitude, direction? }
 predictor.getTimelinePrediction({ start, end, timeFidelity: 600 });
 
-// Slack, max flood, and max ebb events in time order:
-// { time, speed, kind: "slack" | "maxFlood" | "maxEbb", direction? }
+// Slack and flood/ebb maxima and minima in time order:
+// { time, speed, kind: "slack" | "maxFlood" | "maxEbb" | "minFlood" | "minEbb", direction? }
 predictor.getEventsPrediction({ start, end });
 ```
 
-Max flood and ebb are velocity extrema classified by the sign of velocity (NOAA's convention), and slack is the value-zero of the velocity curve. Both directions are optional: leave one out when the station doesn't publish it, and events for that phase carry no `direction`. Events are extracted per UTC day with an 8-hour search margin, so an event list never depends on the requested window.
+Max flood is a positive local high and max ebb a negative local low. Same-sign lulls are `minFlood` (positive local low) or `minEbb` (negative local high). Slack requires a velocity zero crossing, regardless of rounded speed. Minima remain events and curve knots; only `maxFlood` and `maxEbb` belong in peak rankings. Both directions are optional: leave one out when the station doesn't publish it, and events for that phase carry no `direction`. Events are extracted per UTC day with an 8-hour search margin, so an event list never depends on the requested window.
 
 For two-dimensional predictions, pass `minorConstituents` (NOAA `minorAmplitude` and `minorPhaseGMT`), `minorMeanFlow` (NOAA `minorMeanSpeed`, default 0), and `azimuth` (NOAA `azi`, default `floodDirection`). Both axes use the selected nodal corrections. `speed` remains the signed major-axis component; `magnitude` is `hypot(u, v)` in knots and `direction` is the vector bearing in degrees true, normalized to `[0, 360)`. The positive minor axis is [90 degrees clockwise from the major axis](https://tidesandcurrents.noaa.gov/publications/techrpt21.pdf). A nonzero minor mean flow also enables vector prediction without minor harmonics.
 
@@ -200,7 +200,7 @@ const rotary = createCurrentPredictor(constituents, {
 const vectors = rotary.getTimelinePrediction({ start, end });
 ```
 
-Subordinate current stations have no constituents of their own; their events are a reference station's events shifted and scaled by NOAA Current-Tables offsets. Time adjustments are seconds here (NOAA publishes minutes — multiply by 60), and a slack takes the offset of the phase it precedes:
+Subordinate current stations have no constituents of their own; their events are a reference station's events shifted and scaled by NOAA Current-Tables offsets. Time adjustments are seconds here (NOAA publishes minutes — multiply by 60), minima use their signed phase’s flood/ebb time and speed adjustments, and a slack takes the offset of the next true maximum’s phase:
 
 ```ts
 import { createSubordinateCurrentPredictor } from "@slackwater/engine";
@@ -253,7 +253,7 @@ const now = readCurrent(new Date(), currentTimeline, currentEvents, {
 if (now?.direction !== undefined) console.log(now.state, compass16(now.direction));
 ```
 
-`state` is `"Slack"`, `"Max flood"` or `"Max ebb"` when an event falls within one second of the instant, and `"Flooding"` or `"Ebbing"` otherwise. A zero vector has no direction, so `direction` is absent at exact slack and when the bearing is unknown. `speedAt(timeline, time)` and `vectorAt(timeline, time, directions)` give the speed and the vector alone, interpolating vectors rather than bearings so a swing through north stays physical. `compass16` and `compassIndex` name a bearing as a 16-point compass abbreviation, and `COMPASS_POINTS` and `SPOKEN_COMPASS_POINTS` list the names.
+`state` is `"Slack"`, `"Max flood"`, `"Max ebb"`, `"Minimum flood"`, or `"Minimum ebb"` when an event falls within one second of the instant, and `"Flooding"` or `"Ebbing"` otherwise. A zero vector has no direction, so `direction` is absent at exact slack and when the bearing is unknown. `speedAt(timeline, time)` and `vectorAt(timeline, time, directions)` give the speed and the vector alone, interpolating vectors rather than bearings so a swing through north stays physical. `compass16` and `compassIndex` name a bearing as a 16-point compass abbreviation, and `COMPASS_POINTS` and `SPOKEN_COMPASS_POINTS` list the names.
 
 ### Tide
 

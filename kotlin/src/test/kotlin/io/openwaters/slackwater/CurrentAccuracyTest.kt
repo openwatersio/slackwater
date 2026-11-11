@@ -12,7 +12,15 @@ internal fun checkCurrentAccuracy(station: JsonObject, events: List<CurrentEvent
         if (e.string("kind") == "slack") continue
         if (abs(e.number("speed")) < threshold) { weak++; continue }
         val kind = currentKind(e.string("kind"))
-        val match = assertNotNull(events.filter { it.kind == kind }.minByOrNull { abs(secondsBetween(it.time, e.instant("time"))) })
+        val match = assertNotNull(events.filter {
+            // NOAA tables label non-reversing minima by phase; retain their observed labels.
+            val phase = when (it.kind) {
+                CurrentEventKind.MIN_FLOOD -> CurrentEventKind.MAX_FLOOD
+                CurrentEventKind.MIN_EBB -> CurrentEventKind.MAX_EBB
+                else -> it.kind
+            }
+            phase == kind
+        }.minByOrNull { abs(secondsBetween(it.time, e.instant("time"))) })
         assertTrue(abs(secondsBetween(match.time, e.instant("time"))) < timeMinutes * 60, "${e.string("kind")} ${e.string("time")}")
         assertTrue(abs(abs(match.speedKnots) - abs(e.number("speed"))) < knots)
         checked++

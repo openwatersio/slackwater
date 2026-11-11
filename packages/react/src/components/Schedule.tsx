@@ -42,6 +42,15 @@ const PILL =
   "inline-flex items-center gap-[3px] rounded-full px-2 py-1 font-(family-name:--sw-font-mono) text-[11px] leading-none font-medium uppercase tracking-[0.5px] text-(--sw-navy-deep)";
 
 function Pill({ entry, setFormat }: { entry: ScheduleEntry; setFormat: SetFormat }) {
+  const flood = entry.pill === "flood" || entry.pill === "minFlood";
+  const label =
+    entry.pill === "minFlood"
+      ? "Minimum flood"
+      : entry.pill === "minEbb"
+        ? "Minimum ebb"
+        : flood
+          ? "Flood"
+          : "Ebb";
   switch (entry.pill) {
     case "high":
     case "low":
@@ -63,14 +72,12 @@ function Pill({ entry, setFormat }: { entry: ScheduleEntry; setFormat: SetFormat
     default:
       return (
         <span
-          className={`${PILL} ${entry.pill === "flood" ? "bg-(--sw-flood)" : "bg-(--sw-ebb)"}`}
+          className={`${PILL} ${flood ? "bg-(--sw-flood)" : "bg-(--sw-ebb)"}`}
           role="img"
           aria-label={
             entry.direction === undefined
-              ? entry.pill === "flood"
-                ? "Flood"
-                : "Ebb"
-              : `Published ${entry.pill} bearing ${spokenBearing(entry.direction, setFormat)}`
+              ? label
+              : `Published ${label.toLowerCase()} bearing ${spokenBearing(entry.direction, setFormat)}`
           }
         >
           {entry.direction !== undefined && (
@@ -79,7 +86,7 @@ function Pill({ entry, setFormat }: { entry: ScheduleEntry; setFormat: SetFormat
               {formatSet(entry.direction, setFormat)}
             </>
           )}
-          <span className="opacity-90">{entry.pill === "flood" ? "Flood" : "Ebb"}</span>
+          <span className="opacity-90">{label}</span>
         </span>
       );
   }
