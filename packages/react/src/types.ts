@@ -131,7 +131,7 @@ export interface CurrentStationInfo extends CurrentStationSummary {
   };
 }
 
-export type CurrentEventKind = "slack" | "maxFlood" | "maxEbb";
+export type CurrentEventKind = "slack" | "maxFlood" | "maxEbb" | "minFlood" | "minEbb";
 
 export interface CurrentEvent {
   time: Date;

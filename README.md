@@ -232,7 +232,7 @@ const options = {
   end: new Date("2026-06-02T00:00:00Z"),
 };
 
-// Slack, max flood, and max ebb events in time order. Flood and ebb events
+// Slack and flood/ebb maximum and minimum events in time order. Turning events
 // carry the station's direction in degrees true when it publishes one.
 const { station, events } = await getCurrentEventsPrediction(options);
 // { time: Date, speed: -5.2, kind: "maxEbb", direction: 281.5 }

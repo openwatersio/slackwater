@@ -23,8 +23,9 @@ subordinate tests can drive many stations at once.
 ## Engine correctness — structural
 
 A current station is the same sum-of-cosines as a tide station; the result is signed
-major-axis velocity (knots). Max flood/ebb reuse the validated tide extremes finder
-(slope-zeros), classified by the **sign** of velocity (NOAA's convention). Slack is the one
+major-axis velocity (knots). Extrema reuse the validated tide extremes finder
+(slope-zeros); sign and high/low distinguish maximum flood/ebb from same-sign
+minimum flood/ebb. NOAA max_slack observations are matched by signed phase. Slack is the one
 new primitive — the velocity **value**-zero — checked against an analytic single-M2 current.
 
 ## Real-world accuracy — vs NOAA's own current predictions

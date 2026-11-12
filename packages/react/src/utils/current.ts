@@ -79,6 +79,8 @@ export function currentStops(
     }
     if (e.kind === "maxFlood") stops.push({ time: e.time.getTime(), label: "Max flood" });
     else if (e.kind === "maxEbb") stops.push({ time: e.time.getTime(), label: "Max ebb" });
+    else if (e.kind === "minFlood") stops.push({ time: e.time.getTime(), label: "Minimum flood" });
+    else if (e.kind === "minEbb") stops.push({ time: e.time.getTime(), label: "Minimum ebb" });
   }
   return stops.sort((a, b) => a.time - b.time);
 }

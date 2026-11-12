@@ -108,6 +108,8 @@ export type StopKind =
   | "Ebb"
   | "Max flood"
   | "Max ebb"
+  | "Minimum flood"
+  | "Minimum ebb"
   | "Sunrise"
   | "Sunset";
 
@@ -130,6 +132,8 @@ const SPOKEN: Record<StopKind, string> = {
   Ebb: "Ebb along the major axis",
   "Max flood": "Maximum flood along the major axis",
   "Max ebb": "Maximum ebb along the major axis",
+  "Minimum flood": "Minimum flood along the major axis",
+  "Minimum ebb": "Minimum ebb along the major axis",
   Sunrise: "Sunrise",
   Sunset: "Sunset",
 };

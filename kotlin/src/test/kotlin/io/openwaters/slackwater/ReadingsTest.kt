@@ -29,6 +29,23 @@ class ReadingsTest {
         CurrentPoint(at(hours * h), speed, magnitude, direction)
     private fun near(a: Double?, b: Double, tolerance: Double = 1e-6) = a != null && abs(a - b) < tolerance
 
+    @Test fun minimumReadingStatesRespectEventToleranceAndSlackPriority() {
+        for ((kind, state, speed) in listOf(
+            Triple(CurrentEventKind.MIN_FLOOD, CurrentState.MIN_FLOOD, 0.2),
+            Triple(CurrentEventKind.MIN_EBB, CurrentState.MIN_EBB, -0.2))) {
+            val flowing = if (speed > 0) CurrentState.FLOODING else CurrentState.EBBING
+            val event = CurrentEvent(at(10 * m), speed, kind)
+            val points = series(speed, speed, speed)
+            for (offset in listOf(-1.0, 0.0, 1.0)) {
+                assertEquals(state, readCurrent(at(10 * m + offset), points, listOf(event), 45.0, 225.0)?.state)
+            }
+            for (offset in listOf(-1.001, 1.001)) {
+                assertEquals(flowing, readCurrent(at(10 * m + offset), points, listOf(event), 45.0, 225.0)?.state)
+            }
+            assertEquals(CurrentState.SLACK, readCurrent(event.time, points, listOf(event, slackAt(event.time)), 45.0, 225.0)?.state)
+        }
+    }
+
     @Test fun interpolationReadsAtAndBetweenSamplesOnly() {
         val heights = listOf(0.0, 1.0, 2.0, 2.0).zip(listOf(0.0, 2.0, 2.0, 6.0)).map { (t, v) -> TidePoint(at(t * h), v) }
         assertEquals(0.5, heights.heightAt(at(0.25 * h)))
@@ -324,6 +341,8 @@ class ReadingsTest {
         "Slack" -> CurrentState.SLACK
         "Max flood" -> CurrentState.MAX_FLOOD
         "Max ebb" -> CurrentState.MAX_EBB
+        "Minimum flood" -> CurrentState.MIN_FLOOD
+        "Minimum ebb" -> CurrentState.MIN_EBB
         "Flooding" -> CurrentState.FLOODING
         "Ebbing" -> CurrentState.EBBING
         else -> error("Invalid fixture state: $name")
@@ -385,7 +404,7 @@ class ReadingsTest {
         }
 
         val s = f.getValue("scalar").obj()
-        assertEquals(4, s.array("readings").size)
+        assertEquals(6, s.array("readings").size)
         checkCurrent(s.array("readings"), s.array("timeline").map { CurrentPoint(it.obj().instant("time"), it.obj().number("speed")) },
             s.array("events").map { it.obj().event() }, s.number("flood"), s.number("ebb"))
 

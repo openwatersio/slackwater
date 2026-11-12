@@ -293,7 +293,7 @@ describe("CurrentStation", () => {
 
     expect(
       await screen.findByText(
-        /^NOAA subordinate station: .+'s slacks and maxima, corrected by published offsets\. Flood bearing 210°\. Bearings are measured from true north\. The reading shows full predicted speed and Set, the direction water flows toward\. The graph, maxima and axis windows use the flood\/ebb component; crossing flow can remain at an axis zero\. Schedule headings use published flood\/ebb bearings; Set uses them when rotation data is unavailable\.$/,
+        /^NOAA subordinate station: .+'s slacks, maxima, and minima, corrected by published offsets\. Flood bearing 210°\. Bearings are measured from true north\. The reading shows full predicted speed and Set, the direction water flows toward\. The graph, maxima and axis windows use the flood\/ebb component; crossing flow can remain at an axis zero\. Schedule headings use published flood\/ebb bearings; Set uses them when rotation data is unavailable\.$/,
         undefined,
         { timeout: 10000 },
       ),

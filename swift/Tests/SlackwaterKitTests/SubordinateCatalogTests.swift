@@ -18,7 +18,7 @@ private struct SubBatch: Decodable {
 }
 
 private func nearestSameKind(_ events: [CurrentEvent], _ kind: CurrentEventKind, to time: Date) -> CurrentEvent? {
-    events.filter { $0.kind == kind }.min {
+    events.filter { $0.kind != .slack && $0.kind.isFlood == kind.isFlood }.min {
         abs($0.time.timeIntervalSince1970 - time.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - time.timeIntervalSince1970)
     }
 }

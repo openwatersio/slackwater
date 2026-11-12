@@ -5,6 +5,18 @@ import kotlin.math.abs
 import kotlin.test.*
 
 class SubordinateCurrentTest {
+    @Test fun minimumEbbOffsetsMatchPublishedNosSubordinateTables() {
+        val f = fixture("current-minimum-offsets")
+        val subordinate = f.getValue("offsets").obj().subordinate(CurrentStation(emptyList()))
+        for (item in f.array("events")) {
+            val row = item.obj()
+            val reference = CurrentEvent(row.instant("referenceTime"), row.number("referenceSpeed"), currentKind(row.string("kind")))
+            val event = subordinate.reduce(listOf(reference)).single()
+            assertEquals(CurrentEventKind.MIN_EBB, event.kind)
+            assertEquals(row.instant("subordinateTime"), event.time)
+            assertTrue(abs(event.speedKnots - row.number("subordinateSpeed")) <= f.number("speedToleranceKnots"))
+        }
+    }
     @Test fun shortSlowCurrentCurvesUseSurroundingKnots() {
         val t = Instant.parse("2026-01-01T00:00:00Z")
         val ref = CurrentStation(listOf(HarmonicConstituent("Mf", 2.0, 0.0), HarmonicConstituent("Mm", 1.0, 0.0)))

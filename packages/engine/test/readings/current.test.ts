@@ -318,3 +318,17 @@ describe("maxSpeeds", () => {
     expect(maxSpeeds(maxima, "maxFlood")).toEqual([4.2]);
   });
 });
+
+test.each(["minFlood", "minEbb"] as const)("names %s without ranking it as a maximum", (kind) => {
+  const time = new Date(t0 + H);
+  const minima: CurrentEvent[] = [{ time, speed: kind === "minFlood" ? 0.01 : -0.01, kind }];
+  const samples = [
+    { time: new Date(t0), speed: minima[0].speed },
+    { time: new Date(t0 + 2 * H), speed: minima[0].speed },
+  ];
+  expect(readCurrent(time, samples, minima, {})?.state).toBe(
+    kind === "minFlood" ? "Minimum flood" : "Minimum ebb",
+  );
+  expect(maxSpeeds(minima, "maxFlood")).toEqual([]);
+  expect(maxSpeeds(minima, "maxEbb")).toEqual([]);
+});

@@ -24,6 +24,8 @@ internal fun currentKind(value: String) = when (value) {
     "slack" -> CurrentEventKind.SLACK
     "maxFlood" -> CurrentEventKind.MAX_FLOOD
     "maxEbb" -> CurrentEventKind.MAX_EBB
+    "minFlood" -> CurrentEventKind.MIN_FLOOD
+    "minEbb" -> CurrentEventKind.MIN_EBB
     else -> error("Invalid fixture kind: $value")
 }
 internal fun JsonObject.subordinate(reference: CurrentStation) = SubordinateCurrentStation(

@@ -474,7 +474,8 @@ describe("useCurrentStation", () => {
       });
       const { events } = floodOnly.getEventsPrediction({ start, end });
       for (const event of events) {
-        if (event.kind === "maxFlood") expect(event.direction).toBe(45);
+        if (event.kind === "maxFlood" || event.kind === "minFlood")
+          expect(event.direction).toBe(45);
         else expect(event).not.toHaveProperty("direction");
       }
     });
@@ -500,7 +501,11 @@ describe("useCurrentStation", () => {
         if (event.kind === "slack") continue;
         const time = Date.parse(event.time);
         const match = events
-          .filter((e) => e.kind === event.kind)
+          .filter(
+            (e) =>
+              (e.kind === "minFlood" ? "maxFlood" : e.kind === "minEbb" ? "maxEbb" : e.kind) ===
+              event.kind,
+          )
           .reduce((a, b) =>
             Math.abs(a.time.getTime() - time) < Math.abs(b.time.getTime() - time) ? a : b,
           );

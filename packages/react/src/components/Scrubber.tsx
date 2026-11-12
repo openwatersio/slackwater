@@ -276,7 +276,13 @@ export function StopIcon({ kind }: { kind: StopKind }) {
   if (kind === "Fastest rise" || kind === "Fastest fall")
     return <TideGlyph state={kind === "Fastest rise" ? "Rising" : "Falling"} />;
   if (kind === "High" || kind === "Low") return <UpDownArrow up={kind === "High"} />;
-  if (kind === "Max flood" || kind === "Max ebb") return null;
+  if (
+    kind === "Max flood" ||
+    kind === "Max ebb" ||
+    kind === "Minimum flood" ||
+    kind === "Minimum ebb"
+  )
+    return null;
   if (kind !== "Sunrise" && kind !== "Sunset") return <Arrow forward={kind === "Flood"} />;
   return (
     <svg width={16} height={12} viewBox="0 0 16 12" aria-hidden="true">

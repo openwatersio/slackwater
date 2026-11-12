@@ -1,0 +1,31 @@
+{
+  "source": "https://flaterco.com/xtide/mincurrents.html",
+  "description": "Hand-transcribed NOAA/NOS March 2007 tables archived in XTide Appendix B, Comparison with published tables (copied 2007-02-24). Each negative-speed lull lies between two stronger ebbs without intervening slack. NOS subordinate minimum times apply the ebb maximum offset (-59 minutes), not minimum-before-ebb (-18 minutes). Speeds are published to 0.1 knot; this is an event-table reduction oracle, not harmonic prediction. Both stations use the same Pacific time offset.",
+  "reference": "Admiralty Inlet",
+  "subordinate": "Agate Passage, north end",
+  "speedToleranceKnots": 0.05,
+  "offsets": {
+    "slackBeforeFloodOffset": -5280,
+    "slackBeforeEbbOffset": -1080,
+    "floodTimeOffset": -3600,
+    "ebbTimeOffset": -3540,
+    "floodSpeedRatio": 0.8,
+    "ebbSpeedRatio": 0.7
+  },
+  "events": [
+    {
+      "referenceTime": "2007-03-12T08:25:00-07:00",
+      "referenceSpeed": -0.1,
+      "kind": "minEbb",
+      "subordinateTime": "2007-03-12T07:26:00-07:00",
+      "subordinateSpeed": -0.1
+    },
+    {
+      "referenceTime": "2007-03-13T09:48:00-07:00",
+      "referenceSpeed": -0.2,
+      "kind": "minEbb",
+      "subordinateTime": "2007-03-13T08:49:00-07:00",
+      "subordinateSpeed": -0.1
+    }
+  ]
+}

@@ -1,6 +1,6 @@
-// Slackwater — MIT. Tidal current prediction: velocity, max flood/ebb, and slack.
-// Max flood/ebb are slope-zeros (reuses Extremes.findExtremes). Slack is the
-// value-zero of velocity — the one genuinely new finder here.
+// Slackwater — MIT. Tidal current prediction: velocity, maxima, minima, and slack.
+// Extrema reuse Extremes.findExtremes slope-zeros; sign and high/low distinguish
+// maximum flow from same-sign minima. Slack is a velocity zero crossing.
 import Foundation
 
 private let slackToleranceHours = 1.0 / 3600  // 1 second
@@ -77,7 +77,11 @@ private func axialDirection(_ speed: Double, flood: Double?, ebb: Double?) -> Do
     guard speed.isFinite, speed != 0, let bearing = speed > 0 ? flood : ebb, bearing.isFinite else { return nil }
     return currentBearing(bearing)
 }
-public enum CurrentEventKind: Sendable { case slack, maxFlood, maxEbb }
+public enum CurrentEventKind: Sendable {
+    case slack, maxFlood, maxEbb, minFlood, minEbb
+    public var isMaximum: Bool { self == .maxFlood || self == .maxEbb }
+    public var isFlood: Bool { self == .maxFlood || self == .minFlood }
+}
 public struct CurrentEvent: Sendable {
     public let time: Date; public let speed: Double; public let kind: CurrentEventKind
     public init(time: Date, speed: Double, kind: CurrentEventKind) {
@@ -162,10 +166,8 @@ public struct CurrentStation: Sendable {
         }
     }
 
-    /// Max flood / max ebb — velocity extrema (slope-zeros). Classified by the SIGN
-    /// of velocity, not slope high/low (NOAA's convention): a relaxation extremum
-    /// that never reverses stays flood or ebb per its sign. Matches NOAA max_slack.
-    public func maxima(from: Date, to: Date) -> [CurrentEvent] {
+    /// Velocity extrema (slope-zeros), including same-sign minima where flow weakens without reversing.
+    private func extrema(from: Date, to: Date) -> [CurrentEvent] {
         let step = 600.0
         let startSec = (from.timeIntervalSince1970 / step).rounded(.down) * step
         let endSec = (to.timeIntervalSince1970 / step).rounded(.up) * step
@@ -175,7 +177,12 @@ public struct CurrentStation: Sendable {
                           startMs: day.timeIntervalSince1970 * 1000, endHour: 24)
         }
         return raw.map { CurrentEvent(time: $0.time, speed: $0.level,
-                                      kind: $0.level >= 0 ? .maxFlood : .maxEbb) }
+                                      kind: $0.high ? ($0.level >= 0 ? .maxFlood : .minEbb) : ($0.level < 0 ? .maxEbb : .minFlood)) }
+    }
+
+    /// True maximum flood and ebb speeds; same-sign minima remain available in `events`.
+    public func maxima(from: Date, to: Date) -> [CurrentEvent] {
+        extrema(from: from, to: to).filter { $0.kind.isMaximum }
     }
 
     /// Slack water — velocity value-zeros.
@@ -185,9 +192,9 @@ public struct CurrentStation: Sendable {
             .map { CurrentEvent(time: $0.time, speed: $0.speed, kind: .slack) }
     }
 
-    /// Slacks + maxima merged in time order — the app-facing event list.
+    /// Slacks + all extrema merged in time order — the app-facing event list.
     public func events(from: Date, to: Date) -> [CurrentEvent] {
-        (slacks(from: from, to: to) + maxima(from: from, to: to))
+        (slacks(from: from, to: to) + extrema(from: from, to: to))
             .sorted { $0.time < $1.time }
     }
 }
@@ -268,11 +275,11 @@ public struct SubordinateStation: Sendable {
     public func reduce(_ refEvents: [CurrentEvent]) -> [CurrentEvent] {
         refEvents.enumerated().map { (i, e) -> CurrentEvent in
             switch e.kind {
-            case .maxFlood: return CurrentEvent(time: e.time.addingTimeInterval(floodTimeOffset), speed: e.speed * floodSpeedRatio, kind: .maxFlood)
-            case .maxEbb:   return CurrentEvent(time: e.time.addingTimeInterval(ebbTimeOffset), speed: e.speed * ebbSpeedRatio, kind: .maxEbb)
+            case .maxFlood, .minFlood: return CurrentEvent(time: e.time.addingTimeInterval(floodTimeOffset), speed: e.speed * floodSpeedRatio, kind: e.kind)
+            case .maxEbb, .minEbb:   return CurrentEvent(time: e.time.addingTimeInterval(ebbTimeOffset), speed: e.speed * ebbSpeedRatio, kind: e.kind)
             case .slack:
-                // Slack takes the offset for the phase it precedes: the next non-slack event.
-                let next = refEvents[(i + 1)...].first { $0.kind != .slack }
+                // Slack takes the offset for the phase of the next true maximum.
+                let next = refEvents[(i + 1)...].first { $0.kind.isMaximum }
                 let off = next?.kind == .maxEbb ? slackBeforeEbbOffset : slackBeforeFloodOffset
                 return CurrentEvent(time: e.time.addingTimeInterval(off), speed: 0, kind: .slack)
             }

@@ -57,7 +57,10 @@ function nearestSameKind(
   kind: CurrentEventKind,
   time: Date,
 ): CurrentEvent {
-  const candidates = computed.filter((e) => e.kind === kind);
+  // NOAA tables label extrema by signed phase, including same-sign minima.
+  const candidates = computed.filter(
+    (e) => (e.kind === "minFlood" ? "maxFlood" : e.kind === "minEbb" ? "maxEbb" : e.kind) === kind,
+  );
   expect(candidates.length).toBeGreaterThan(0);
   return candidates.reduce((a, b) =>
     Math.abs(a.time.getTime() - time.getTime()) < Math.abs(b.time.getTime() - time.getTime())
@@ -149,6 +152,28 @@ test("harmonic current matches NOAA (PUG1741)", () => {
       event.kind === "maxFlood" ? v > 0 : v < 0,
       `${event.kind} at ${event.time}: modelled velocity ${v} kn has the wrong sign`,
     ).toBe(true);
+  }
+});
+
+test("PUG1741 distinguishes its weak ebb lull from the surrounding ebb maxima", () => {
+  const fx = loadFixture<HarmonicGolden>("currents-golden-harmonic");
+  const station = createCurrentPredictor(fx.constituents, {
+    floodDirection: fx.floodDirection,
+    ebbDirection: fx.ebbDirection,
+    meanFlow: fx.offset,
+  });
+  const events = station.getEventsPrediction(eventSpan(fx.events));
+  for (const [at, kind] of [
+    ["2026-06-01T06:03:00Z", "maxEbb"],
+    ["2026-06-01T11:11:00Z", "minEbb"],
+    ["2026-06-01T16:12:00Z", "maxEbb"],
+  ] as const) {
+    const time = Date.parse(at);
+    const nearest = events.reduce((a, b) =>
+      Math.abs(+a.time - time) < Math.abs(+b.time - time) ? a : b,
+    );
+    expect(Math.abs(+nearest.time - time)).toBeLessThan(20 * 60_000);
+    expect(nearest.kind).toBe(kind);
   }
 });
 

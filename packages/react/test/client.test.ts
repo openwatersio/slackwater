@@ -268,7 +268,9 @@ describe("current stations", () => {
   });
 
   test("fetchCurrentStationEvents parses event times and sends the range", async () => {
-    mockFetch({ events: [{ time: "2026-10-10T03:00:00Z", speed: 3, kind: "maxFlood" }] });
+    mockFetch({
+      events: [{ time: "2026-10-10T03:00:00Z", speed: 3, kind: "maxFlood" }],
+    });
 
     const res = await fetchCurrentStationEvents(BASE_URL, {
       id: "noaa/PUG1701",

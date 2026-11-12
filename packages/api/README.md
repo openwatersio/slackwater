@@ -208,7 +208,7 @@ curl "http://localhost:3000/currents/events?latitude=48.406&longitude=-122.643&s
 }
 ```
 
-`station` is the full station record, shortened here. `kind` is `slack`, `maxFlood`, or `maxEbb`. `direction` is in degrees true and is absent for slack, and for stations that don't publish that direction. `distance` is in kilometers.
+`station` is the full station record, shortened here. `kind` is `slack`, `maxFlood`, `maxEbb`, `minFlood`, or `minEbb`. The minimum kinds identify same-sign lulls; only the maximum kinds belong in peak rankings. `direction` is in degrees true and is absent for slack, and for stations that don't publish that direction. `distance` is in kilometers.
 
 ### GET /currents/timeline
 

@@ -2,19 +2,10 @@ import Foundation
 import Testing
 @testable import SlackwaterKit
 
-/// Nearest computed event of the SAME KIND as the golden event.
-///
-/// Matching by time alone against a list that includes slacks conflates timing
-/// error with direction error: at a station running late, the nearest event to a
-/// golden ebb is often a computed slack or flood, and the old `m.kind == kind`
-/// assertion reported that as a label flip. That pattern false-quarantined
-/// Tillicum Bridge and Calamity Point (0/19 and 0/24 wrong by a direct sign
-/// test) — see planning/docs/currents-audit-2026-07-20.md Q3. Same-kind matching
-/// also keeps the timing gate honest for direction: a genuinely reversed axis
-/// puts the nearest same-kind event ~half a cycle away, which fails the ±20/30
-/// min tolerance at every extremum instead of "flipping" a few labels.
+/// NOAA max_slack labels extrema by signed phase, including same-sign minima.
+/// Matching the phase keeps the timing check sensitive to a reversed axis.
 private func nearestSameKind(_ computed: [CurrentEvent], _ kind: CurrentEventKind, to t: Date) -> CurrentEvent? {
-    computed.filter { $0.kind == kind }
+    computed.filter { $0.kind != .slack && $0.kind.isFlood == kind.isFlood }
         .min { abs($0.time.timeIntervalSince1970 - t.timeIntervalSince1970) < abs($1.time.timeIntervalSince1970 - t.timeIntervalSince1970) }
 }
 
@@ -246,5 +237,26 @@ private struct HomeBatch: Decodable {
         let sampled = sub.speeds(from: t, to: t.addingTimeInterval(1), step: 1).first!.speed
         // Along the untrimmed list: `speed(at:)` needs an event either side of `t`.
         #expect(abs(SubordinateStation.speed(at: t, along: sub.reduce(wide)) - sampled) < 1e-3, "hour \(hour)")
+    }
+}
+
+@Test func trialIslandRetainsRaceRocksEbbLulls() throws {
+    let batch = try loadFixture("currents-golden-home", as: HomeBatch.self)
+    let race = try #require(batch.stations.first { $0.id == "PUG1640" })
+    let reference = CurrentStation(constituents: race.constituents.map {
+        HarmonicConstituent(name: $0.name, amplitude: $0.amplitude, phase: $0.phase)
+    }, offset: race.offset)
+    let trial = SubordinateStation(reference: reference, slackBeforeFloodOffset: 0, slackBeforeEbbOffset: 4080,
+        floodTimeOffset: 1800, ebbTimeOffset: 3480, floodSpeedRatio: 1.06, ebbSpeedRatio: 0.72)
+    let start = parseISO("2026-06-01T00:00:00Z"), end = parseISO("2026-07-01T00:00:00Z")
+    let minima = reference.eventsByDay(from: start, to: end).filter { $0.kind == .minEbb }
+    #expect(!minima.isEmpty)
+    for minimum in minima {
+        let reduced = try #require(trial.reduce([minimum]).first)
+        #expect(reduced.kind == .minEbb && reduced.speed < 0)
+        #expect(reduced.time.timeIntervalSince(minimum.time) == 3480)
+        #expect(abs(reduced.speed - minimum.speed * 0.72) < 1e-9)
+        let points = reference.speeds(from: minimum.time.addingTimeInterval(-60), to: minimum.time.addingTimeInterval(60), step: 60)
+        #expect(points.allSatisfy { $0.speed < 0 })
     }
 }

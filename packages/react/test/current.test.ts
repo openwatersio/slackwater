@@ -248,3 +248,13 @@ test("Slack axis names ordinary openings, each zero in continuous windows, and b
     t0 + 20 * H,
   ]);
 });
+
+test("minima remain labeled navigation destinations", () => {
+  const minima: CurrentEvent[] = [
+    { time: new Date(t0 + H), speed: 0.01, kind: "minFlood" },
+    { time: new Date(t0 + 2 * H), speed: -0.01, kind: "minEbb" },
+  ];
+  const stops = currentStops(timeline, minima, []);
+  expect(stops.map((s) => s.label)).toEqual(["Minimum flood", "Minimum ebb"]);
+  expect(snapTargets(stops, minima, [], t0, t0 + 3 * H)).toEqual([t0 + H, t0 + 2 * H]);
+});

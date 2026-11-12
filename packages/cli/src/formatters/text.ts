@@ -7,6 +7,8 @@ const EVENT_LABELS = {
   slack: chalk.green("Axis slack"),
   maxFlood: chalk.blue("Max flood"),
   maxEbb: chalk.yellow("Max ebb"),
+  minFlood: chalk.blue("Minimum flood"),
+  minEbb: chalk.yellow("Minimum ebb"),
 };
 
 export default function text(): Formatter {

@@ -86,6 +86,10 @@ Return `Date` objects in prediction responses, heights in the requested units, a
 
 `createApiDataSource(baseUrl, { cacheKey? })` creates the HTTP adapter used by the `baseUrl` prop. Its default cache identity is a SHA-256 digest of the normalized URL, stable across server and browser without putting the URL text into the cache. If server prefetch uses an internal address and the browser uses a public address for the same dataset and access policy, construct an adapter on each side with the same explicit key, for example `createApiDataSource(apiUrl, { cacheKey: "public-catalog:v3" })`, and pass it to prefetch and the provider. Explicit keys and URL digests appear in dehydrated caches. A digest is an identifier, not encryption; use an explicit nonsecret key for private URLs. Different datasets or permissions must keep different keys. The URL-derived default does not detect catalog revisions or cookie/session policy changes; use explicit keys that change with those values. `useSlackwaterConfig().dataSource` is always present; its `baseUrl` is optional when a source is injected.
 
+## Current minima
+
+Current events include `minFlood` and `minEbb` lulls; their readings are “Minimum flood” and “Minimum ebb”. They remain schedule and scrubber destinations, while Next max and peak rankings use only true maxima. Deploy an API that returns the minimum kinds before this client; an older API labels lulls as maxima and this client shows them that way.
+
 ## Components
 
 ### `<TideStation>`
@@ -118,7 +122,7 @@ With two-component predictions, Set follows the rotating current; without them, 
 
 The graph, maximum flood/ebb events and axis windows use signed major-axis speed. Axis slack is a zero of that component; crossing flow can remain. The window threshold does not limit full speed, and axis zeros are not rotary-current minimum-speed predictions. Instantaneous readings do not infer a Slack state from these events.
 
-A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb above the Moon and Sun tiles, the week's axis zeros and maxima with their phase bearings, where the predictions come from, the station's details, and the nearest stations. Main and nearby station credits appear once in the Data sources disclosure at the end of the nearby section. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. Use the API beta from the same release as these components. It must include attribution and license fields on station listings, tide availability flags, and direct lookups for unprefixed CHS records; the published API 1.0.0-beta.4 does not include those additions.
+A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb above the Moon and Sun tiles, the week's axis zeros, maxima, and minima with their phase bearings, where the predictions come from, the station's details, and the nearest stations. Main and nearby station credits appear once in the Data sources disclosure at the end of the nearby section. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. Use the API beta from the same release as these components. It must include attribution and license fields on station listings, tide availability flags, and direct lookups for unprefixed CHS records; the published API 1.0.0-beta.4 does not include those additions.
 
 ```tsx
 <CurrentStation id="noaa/PUG1701" />
@@ -181,7 +185,7 @@ The current timeline: full predicted speed and Set at the selected moment above 
 | Prop         | Type                     | Default                    | Description                                                                                                                |
 | ------------ | ------------------------ | -------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `timeline`   | `CurrentTimelineEntry[]` | —                          | Signed major-axis speeds in knots, with magnitude and direction when known, flood positive; fewer than two shows a message |
-| `events`     | `CurrentEvent[]`         | —                          | Slack, max flood, and max ebb events                                                                                       |
+| `events`     | `CurrentEvent[]`         | —                          | Slack and flood/ebb maxima and minima                                                                                      |
 | `timezone`   | `string`                 | —                          | Station IANA time zone for clocks, dates, and days                                                                         |
 | `latitude`   | `number`                 | —                          | Station latitude, for sunrise and sunset                                                                                   |
 | `longitude`  | `number`                 | —                          | Station longitude, for sunrise and sunset                                                                                  |
@@ -340,7 +344,7 @@ All hooks must be used within a `<SlackwaterProvider>`.
 - `useExtremes({ id, start?, end?, units? }, options?)` — fetch highs and lows
 - `useCurrentStation(id)` — fetch a current station
 - `useCurrentStations({ query?, bbox?, latitude?, longitude? })` — search or list current stations
-- `useCurrentEvents(id, { start, end })` — fetch slack, max flood, and max ebb events
+- `useCurrentEvents(id, { start, end })` — fetch slack and flood/ebb maxima and minima
 - `useCurrentTimeline(id, { start, end })` — fetch the signed current speed timeline
 - `useCurrentLevel(timeline)` — the water level now, interpolated and updated each minute
 - `useThemeColors()` — the map's colors, resolved from the theme variables

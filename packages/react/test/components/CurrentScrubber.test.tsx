@@ -868,3 +868,15 @@ test("native bounded scrolling reaches a quarter-hour endpoint at a fractional p
   slider.scrollLeft = slider.scrollWidth;
   await waitFor(() => expect(value(slider)).toBe(end));
 });
+
+test.each(["minFlood", "minEbb"] as const)("%s speed labels hang into the local turn", (kind) => {
+  reduceMotion();
+  const { container } = renderScrubber({
+    events: [{ time: new Date(t0 + 3 * H), speed: kind === "minFlood" ? 0.1 : -0.1, kind }],
+    now: t0 + H,
+    bounded: true,
+  });
+  const label = container.querySelector('text[font-size="18"]')!;
+  expect(label.textContent).toBe("0.1");
+  expect(label.getAttribute("y")).toBe(kind === "minFlood" ? "-7" : "7");
+});

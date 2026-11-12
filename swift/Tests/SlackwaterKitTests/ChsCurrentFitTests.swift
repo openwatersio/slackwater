@@ -80,7 +80,7 @@ private struct Golden: Decodable {
 /// `seconds`, and each extremum's speed within 1e-3 kn, with the same counts
 /// and kinds.
 private func expectGoldenWindow(_ station: CurrentStation, _ w: GoldenWindow, over events: GoldenSpan,
-                                seconds: TimeInterval) {
+                                seconds: TimeInterval) throws {
     let label = "\(w.days) d"
     let from = parseISO(events.start), to = parseISO(events.end)
     let inSpan = { (t: Date) in t >= from && t < to }
@@ -97,8 +97,8 @@ private func expectGoldenWindow(_ station: CurrentStation, _ w: GoldenWindow, ov
         #expect(abs(a.timeIntervalSince(e)) < seconds, "\(label) slack near \(e)")
     }
 
-    let extrema = station.maxima(from: from, to: to).filter { inSpan($0.time) }
-    let kinds = w.extrema.map { $0.kind == "maxFlood" ? CurrentEventKind.maxFlood : .maxEbb }
+    let extrema = station.events(from: from, to: to).filter { $0.kind != .slack && inSpan($0.time) }
+    let kinds = try w.extrema.map { try currentEventKind($0.kind) }
     #expect(extrema.map(\.kind) == kinds, "\(label) extremum kinds")
     for (a, e) in zip(extrema, w.extrema) {
         #expect(abs(a.time.timeIntervalSince(parseISO(e.time))) < seconds, "\(label) extremum near \(e.time)")
@@ -119,7 +119,7 @@ private func expectGoldenWindow(_ station: CurrentStation, _ w: GoldenWindow, ov
         }
         let station = CurrentStation(constituents: constituents, floodDirection: flood,
                                      ebbDirection: ebb, offset: w.offset)
-        expectGoldenWindow(station, w, over: g.events, seconds: 1)
+        try expectGoldenWindow(station, w, over: g.events, seconds: 1)
     }
 }
 
@@ -155,7 +155,7 @@ private func expectGoldenWindow(_ station: CurrentStation, _ w: GoldenWindow, ov
         let result = try fit(samples: samples.filter { $0.time >= cut }, constituents: ChsCurrentFit.basis)
         let station = CurrentStation(constituents: result.constituents, floodDirection: flood,
                                      ebbDirection: ebb, offset: result.offset)
-        expectGoldenWindow(station, w, over: g.events, seconds: 30)
+        try expectGoldenWindow(station, w, over: g.events, seconds: 30)
     }
 }
 #endif

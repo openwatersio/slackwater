@@ -47,6 +47,30 @@ describe("findSlacks", () => {
 });
 
 describe("createCurrentPredictor", () => {
+  test.each([2, -2])("distinguishes same-sign minima with mean flow %s", (meanFlow) => {
+    const station = createCurrentPredictor([{ name: "S2", amplitude: 1, phase: 0 }], {
+      meanFlow,
+      floodDirection: 90,
+      ebbDirection: 270,
+    });
+    const events = station.getEventsPrediction({
+      start: new Date("2026-03-01Z"),
+      end: new Date("2026-03-01T23:59:59Z"),
+    });
+    expect(events.some((e) => e.kind === "slack")).toBe(false);
+    const minimum = meanFlow > 0 ? "minFlood" : "minEbb";
+    const maximum = meanFlow > 0 ? "maxFlood" : "maxEbb";
+    expect(events.filter((e) => e.kind === minimum)).toHaveLength(2);
+    expect(events.filter((e) => e.kind === maximum)).toHaveLength(2);
+    for (const e of events) {
+      expect(e.speed).toBeCloseTo(
+        e.kind === minimum ? Math.sign(meanFlow) : 3 * Math.sign(meanFlow),
+        3,
+      );
+      expect(e.direction).toBe(meanFlow > 0 ? 90 : 270);
+    }
+  });
+
   // A reversing current from a couple of constituents. Assert only structural
   // invariants true for any correct reversing current — no external oracle.
   test("event structure is consistent", () => {
@@ -257,6 +281,30 @@ describe("reduceCurrentEvents", () => {
     ebbDirection: 290,
   };
   const at = (h: number) => new Date(hours(h));
+
+  test("minima use signed phase adjustments and do not choose a slack offset", () => {
+    const events: CurrentEvent[] = [
+      { time: at(0), speed: 0, kind: "slack" },
+      { time: at(2), speed: 0.4, kind: "minFlood" },
+      { time: at(4), speed: -0.3, kind: "minEbb" },
+      { time: at(6), speed: -2, kind: "maxEbb" },
+    ];
+    const reduced = reduceCurrentEvents(events, offsets);
+    expect(reduced[0].time).toEqual(new Date(-900_000));
+    expect(reduced[1]).toEqual({
+      time: new Date(hours(2) - 1800_000),
+      speed: 0.4 * 1.5,
+      kind: "minFlood",
+      direction: 110,
+    });
+    expect(reduced[2]).toEqual({
+      time: new Date(hours(4) + 1200_000),
+      speed: -0.3 * 0.8,
+      kind: "minEbb",
+      direction: 290,
+    });
+    expect(currentSpeedAt(reduced, reduced[1].time)).toBeCloseTo(reduced[1].speed);
+  });
 
   test("a slack takes the offset of the phase it precedes", () => {
     const reduced = reduceCurrentEvents(

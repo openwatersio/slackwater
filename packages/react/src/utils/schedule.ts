@@ -14,7 +14,7 @@ export function stationWindow(anchor: number): { start: string; end: string } {
   };
 }
 
-export type SchedulePill = "high" | "low" | "flood" | "ebb" | "slack";
+export type SchedulePill = "high" | "low" | "flood" | "ebb" | "slack" | "minFlood" | "minEbb";
 
 export interface ScheduleEntry {
   time: number;

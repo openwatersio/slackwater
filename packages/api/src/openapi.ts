@@ -764,7 +764,7 @@ function createSpecs(datums: string[]) {
         get: {
           summary: "Get current events for a location",
           description:
-            "Returns slack water, maximum flood, and maximum ebb between start and end for the nearest current station, skipping stations with no model. When that station's source forbids redistributing its predictions the request is refused with 451 rather than answered from a station farther away. end must be within 366 days of start.",
+            "Returns slack water and flood/ebb maxima and minima between start and end for the nearest current station, skipping stations with no model. When that station's source forbids redistributing its predictions the request is refused with 451 rather than answered from a station farther away. end must be within 366 days of start.",
           parameters: [
             { $ref: "#/components/parameters/latitude" },
             { $ref: "#/components/parameters/longitude" },
@@ -1159,9 +1159,9 @@ function createSpecs(datums: string[]) {
             speed: {
               type: "number",
               description:
-                "Signed knots along the flood axis: positive flood, negative ebb. Slack carries the near-zero residual.",
+                "Signed knots along the flood axis: positive flood, negative ebb, including same-sign minima. Slack carries the near-zero crossing residual.",
             },
-            kind: { type: "string", enum: ["slack", "maxFlood", "maxEbb"] },
+            kind: { type: "string", enum: ["slack", "maxFlood", "maxEbb", "minFlood", "minEbb"] },
             direction: {
               type: "number",
               description:

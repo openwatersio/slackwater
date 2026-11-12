@@ -252,8 +252,8 @@ function drawCurrent(
       </g>
 
       {maxima.map((e) => {
-        // Hangs toward the zero line: the set arrow nearest the peak, the speed beyond it.
-        const toward = e.speed >= 0 ? 1 : -1;
+        // Hang into the turn: below a local high, above a local low.
+        const toward = e.kind === "maxFlood" || e.kind === "minEbb" ? 1 : -1;
         const at = y(e.speed) + toward * 23;
         return (
           <g

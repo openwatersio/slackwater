@@ -129,7 +129,7 @@ export function StationCardGraph({
         .map((e) => ({
           time: e.time.getTime(),
           value: e.speed,
-          high: e.kind === "maxFlood",
+          high: e.kind === "maxFlood" || e.kind === "minEbb",
           valueText: formatSpeed(e.speed, locale),
           spokenText: `${formatSpeed(e.speed, locale)} knots along the major axis`,
           ...(e.direction !== undefined && { direction: e.direction }),

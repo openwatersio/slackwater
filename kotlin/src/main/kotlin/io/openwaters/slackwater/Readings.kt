@@ -126,7 +126,7 @@ fun List<CurrentPoint>.vectorAt(time: Instant, floodDirectionDegrees: Double?, e
 }
 
 /** The phase of the tide a current reading falls in. */
-enum class CurrentState { SLACK, MAX_FLOOD, MAX_EBB, FLOODING, EBBING }
+enum class CurrentState { SLACK, MAX_FLOOD, MAX_EBB, MIN_FLOOD, MIN_EBB, FLOODING, EBBING }
 
 /** The lead reading at an instant: phase, signed major-axis speed, and the full vector. */
 data class CurrentReading(
@@ -137,15 +137,20 @@ data class CurrentReading(
     val directionDegrees: Double?,
 )
 
-/** The lead reading at `time`: slack or max within a second of an event, otherwise the flooding or ebbing phase. */
+/** The lead reading at `time`: slack, maximum or minimum within a second of an event, otherwise the flooding or ebbing phase. */
 fun readCurrent(time: Instant, timeline: List<CurrentPoint>, events: List<CurrentEvent>,
     floodDirectionDegrees: Double?, ebbDirectionDegrees: Double?): CurrentReading? {
     val speed = timeline.speedAt(time) ?: return null
     val vector = timeline.vectorAt(time, floodDirectionDegrees, ebbDirectionDegrees) ?: return null
-    val max = events.firstOrNull { it.kind != CurrentEventKind.SLACK && withinOneSecond(it.time, time) }
+    val event = events.firstOrNull { it.kind != CurrentEventKind.SLACK && withinOneSecond(it.time, time) }
     val state = when {
         events.any { it.kind == CurrentEventKind.SLACK && withinOneSecond(it.time, time) } -> CurrentState.SLACK
-        max != null -> if (max.kind == CurrentEventKind.MAX_FLOOD) CurrentState.MAX_FLOOD else CurrentState.MAX_EBB
+        event != null -> when (event.kind) {
+            CurrentEventKind.MAX_FLOOD -> CurrentState.MAX_FLOOD
+            CurrentEventKind.MAX_EBB -> CurrentState.MAX_EBB
+            CurrentEventKind.MIN_FLOOD -> CurrentState.MIN_FLOOD
+            else -> CurrentState.MIN_EBB
+        }
         speed >= 0 -> CurrentState.FLOODING
         else -> CurrentState.EBBING
     }
@@ -177,7 +182,7 @@ fun compassIndex(degrees: Double): Int {
 fun compassPoint(degrees: Double): String = COMPASS_POINTS[compassIndex(degrees)]
 
 /** One kind's maxima as unsigned speeds, so floods rank against floods and ebbs against ebbs. */
-fun List<CurrentEvent>.maxSpeeds(kind: CurrentEventKind): List<Double> = filter { it.kind == kind }.map { abs(it.speedKnots) }
+fun List<CurrentEvent>.maxSpeeds(kind: CurrentEventKind): List<Double> = filter { it.kind == kind && (kind == CurrentEventKind.MAX_FLOOD || kind == CurrentEventKind.MAX_EBB) }.map { abs(it.speedKnots) }
 
 /** The default major-axis speed threshold for slack windows, in knots. */
 const val DEFAULT_SLACK_THRESHOLD_KNOTS = 0.5

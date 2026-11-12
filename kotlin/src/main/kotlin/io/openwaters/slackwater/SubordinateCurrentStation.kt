@@ -28,10 +28,10 @@ class SubordinateCurrentStation(
     }
     internal fun reduce(referenceEvents: List<CurrentEvent>): List<CurrentEvent> = referenceEvents.mapIndexed { index, e ->
         when (e.kind) {
-            CurrentEventKind.MAX_FLOOD -> CurrentEvent(shifted(e.time, floodTimeOffsetSeconds), e.speedKnots * floodSpeedRatio, e.kind, floodDirectionDegrees)
-            CurrentEventKind.MAX_EBB -> CurrentEvent(shifted(e.time, ebbTimeOffsetSeconds), e.speedKnots * ebbSpeedRatio, e.kind, ebbDirectionDegrees)
+            CurrentEventKind.MAX_FLOOD, CurrentEventKind.MIN_FLOOD -> CurrentEvent(shifted(e.time, floodTimeOffsetSeconds), e.speedKnots * floodSpeedRatio, e.kind, floodDirectionDegrees)
+            CurrentEventKind.MAX_EBB, CurrentEventKind.MIN_EBB -> CurrentEvent(shifted(e.time, ebbTimeOffsetSeconds), e.speedKnots * ebbSpeedRatio, e.kind, ebbDirectionDegrees)
             CurrentEventKind.SLACK -> {
-                val next = referenceEvents.drop(index + 1).firstOrNull { it.kind != CurrentEventKind.SLACK }
+                val next = referenceEvents.drop(index + 1).firstOrNull { it.kind == CurrentEventKind.MAX_FLOOD || it.kind == CurrentEventKind.MAX_EBB }
                 val offset = if (next?.kind == CurrentEventKind.MAX_EBB) slackBeforeEbbOffsetSeconds else slackBeforeFloodOffsetSeconds
                 CurrentEvent(shifted(e.time, offset), 0.0, e.kind)
             }
@@ -44,9 +44,9 @@ class SubordinateCurrentStation(
         val limit = pad + reference.phaseSearchLimitSeconds
         while (true) {
             val events = reference.events(shifted(from, -pad), shifted(to, lookAhead))
-            val lastMaximum = events.indexOfLast { it.kind != CurrentEventKind.SLACK }
+            val lastMaximum = events.indexOfLast { it.kind == CurrentEventKind.MAX_FLOOD || it.kind == CurrentEventKind.MAX_EBB }
             val needsPhase = slackBeforeFloodOffsetSeconds != slackBeforeEbbOffsetSeconds &&
-                events.drop(lastMaximum + 1).any { e ->
+                events.drop(lastMaximum + 1).filter { it.kind == CurrentEventKind.SLACK }.any { e ->
                     listOf(slackBeforeFloodOffsetSeconds, slackBeforeEbbOffsetSeconds).any { offset ->
                         val time = shifted(e.time, offset)
                         time >= from && time <= to

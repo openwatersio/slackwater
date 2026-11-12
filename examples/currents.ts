@@ -7,7 +7,7 @@ const options = {
   end: new Date("2026-06-02T00:00:00Z"),
 };
 
-// Slack, max flood, and max ebb events. Speeds are signed knots along the
+// Slack and flood/ebb maxima and minima. Speeds are signed knots along the
 // flood axis: positive is flood, negative is ebb.
 const { station, events } = await getCurrentEventsPrediction(options);
 console.log(station.name);
