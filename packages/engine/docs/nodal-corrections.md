@@ -26,7 +26,7 @@ Small errors in these constants and a NaN at exactly J2000 are tracked in [#362]
 
 ## Equilibrium arguments and speeds
 
-Each constituent in `data.json` carries Doodson coefficients on `[τ, s, h, p, N′, p′, 90°]` with N′ = −N. The seventh is in Schureman's phase convention, which NOAA's published phases use. An IHO extended Doodson number (XDO) converts by taking 5 from D₂ to D₆ and replacing D₇ with 5 − D₇; [#241](https://github.com/openwatersio/slackwater/issues/241) tracks moving to IHO's convention. `V0` is the dot product of the coefficients with the arguments at the prediction's start time.
+Each constituent in `data.json` carries Doodson coefficients on `[τ, s, h, p, N′, p′, 90°]` with N′ = −N. τ is measured from noon. An IHO extended Doodson number (XDO) converts by taking 5 from D₂ to D₆ and replacing D₇ with 5 − D₇. That gives Schureman's equilibrium arguments, which NOAA's published phases use, for every line except M3, S3 and M7, which are 180° off ([#241](https://github.com/openwatersio/slackwater/issues/241)). `V0` is the dot product of the coefficients with the arguments at the prediction's start time.
 
 The phase constants were spot-checked against Schureman's Table 2. That covered K1 (T + h − 90°), O1 (T − 2s + h + 90°), P1, Q1, 2Q1, J1, OO1, L2 (2T − s + 2h − p + 180°), M3, MK3, T2 and R2, and all of them match.
 

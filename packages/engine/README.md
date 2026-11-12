@@ -372,7 +372,7 @@ The engine's catalog defines each constituent name: its speed, its astronomical 
 
 - `name` - **string** - The name the station's constants use.
 - `speed` - **float** - Degrees per hour. It has to match the rate of the argument the coefficients or members give, to within 1e-5 °/h, so that extremes, which restart the argument each midnight, stay on the timeline.
-- `coefficients` - **int[7] | null** - Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90° in the phase, in Schureman's convention: IHO's extended Doodson number with D₂ to D₆ less 5 and D₇ as 5 − D₇. `null` for a compound whose argument is the sum of its members' arguments.
+- `coefficients` - **int[7] | null** - Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90° in the phase, with τ from noon: IHO's extended Doodson number with D₂ to D₆ less 5 and D₇ as 5 − D₇. That matches Schureman's equilibrium arguments except for M3, S3 and M7, which are 180° off ([#241](https://github.com/openwatersio/slackwater/issues/241)). `null` for a compound whose argument is the sum of its members' arguments.
 - `aliases` - **string[]** - Optional other names.
 - `members` - **[string, number][]** - Optional constituents whose nodal corrections combine into this one's, with factors. A member can be another definition or a catalog constituent, but members can't form a cycle. A definition whose name or alias has its own node-correction formula (M2, K1, O1 and the others in the selected set) takes that formula and ignores its members. A definition that replaces a catalog entry takes on all of that entry's names, so one named `MF` replaces `Mf` and keeps Mf's formula. Otherwise, leave `members` out for no nodal correction.
 
@@ -422,7 +422,7 @@ Detailed notes on the internal constituent and node correction systems. For high
 
 Constituents are loaded from [src/constituents/data.json](src/constituents/data.json), derived from the [IHO TWCWG Constituent List](../../docs/TWCWG_Constituent_list.md). Each entry is a [catalog definition](#catalog-definitions): `name`, `speed`, `coefficients`, `aliases` and `members`.
 
-The IHO list encodes each constituent as an extended Doodson number and a letter code for its nodal correction, and leaves some compounds to be decomposed from their names (Annex B). `data.json` stores the result instead: Doodson coefficients in Schureman's convention, and every compound's members. What the engine predicts is what the file says, and a change to any constituent shows up as a change to its entry.
+The IHO list encodes each constituent as an extended Doodson number and a letter code for its nodal correction, and leaves some compounds to be decomposed from their names (Annex B). `data.json` stores the result instead: Doodson coefficients and every compound's members. What the engine predicts is what the file says, and a change to any constituent shows up as a change to its entry.
 
 ### How constituents are built
 
