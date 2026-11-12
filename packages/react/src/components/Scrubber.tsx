@@ -564,6 +564,8 @@ export function Scrubber({
   /** A requested instant the loaded data doesn't reach yet. */
   const pending = useRef<number | undefined>(undefined);
   const opening = useRef<number | undefined>(undefined);
+  /** The opening glide hasn't come to rest, and nothing has stopped it. */
+  const [arriving, setArriving] = useState(false);
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const nowRef = useRef(now);
@@ -588,6 +590,7 @@ export function Scrubber({
   const stopOpening = () => {
     if (opening.current !== undefined) cancelAnimationFrame(opening.current);
     opening.current = undefined;
+    setArriving(false);
   };
 
   // Every rest reads this so the timer never calls a stale closure.
@@ -633,6 +636,7 @@ export function Scrubber({
   onRestRef.current = () => {
     // A busy page delays the opening's frames past the rest delay; it rests once it lands.
     if (opening.current !== undefined) return restSoon(() => onRestRef.current());
+    setArriving(false);
     const landing = target.current;
     target.current = undefined;
     if (landing !== undefined && Math.abs(centerTime() - landing) < UNIT_MS) {
@@ -685,6 +689,7 @@ export function Scrubber({
       return;
     }
     const from = reachable(now - OPEN_FROM_MS, g.start, g.end, viewport(), bounded);
+    setArriving(true);
     el.scrollLeft = leftFor(from);
     setSelected(from);
     const began = performance.now();
@@ -750,14 +755,24 @@ export function Scrubber({
   useEffect(
     () => () => {
       clearTimeout(restTimer.current);
-      if (opening.current !== undefined) cancelAnimationFrame(opening.current);
+      if (opening.current !== undefined) {
+        cancelAnimationFrame(opening.current);
+        // Effects torn down mid-opening (StrictMode, a hidden Activity) play it again when they rerun.
+        opening.current = undefined;
+        opened.current = false;
+      }
     },
     [],
   );
 
+  const reported = useRef(false);
   useEffect(() => {
-    onSelect?.(selected);
-  }, [onSelect, selected]);
+    // The opening only shows the strip arriving, so readers get where it lands, never the earlier hours it passes.
+    // The first report runs before the opening's state lands, so it reads the landing the opening just set.
+    const landing = arriving || opening.current !== undefined || !reported.current;
+    reported.current = true;
+    onSelect?.(landing ? (target.current ?? selected) : selected);
+  }, [onSelect, selected, arriving]);
   useEffect(() => {
     onView?.(selected, span);
   }, [onView, selected, span]);
