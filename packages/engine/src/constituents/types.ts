@@ -12,7 +12,8 @@ export interface ConstituentDefinition {
   speed: number;
   /**
    * Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90° in
-   * the phase, in Schureman's convention: IHO's XDO D₇ negated. Null for a
+   * the phase, in Schureman's convention: IHO's XDO with D₂ to D₆ less 5 and
+   * D₇ as 5 − D₇. Null for a
    * compound whose argument is the sum of its members' arguments.
    */
   coefficients: Coefficients | null;
@@ -20,8 +21,8 @@ export interface ConstituentDefinition {
   /**
    * Constituents whose nodal corrections combine into this one's, as
    * [name, factor]: u = Σ factor × u, f = Π f^|factor|. Omit for no
-   * correction. A constituent named in the node-correction formulas
-   * (M2, K1, O1, …) takes its correction from there instead.
+   * correction. A constituent whose name or alias is in the node-correction
+   * formulas (M2, K1, O1, …) takes its correction from there instead.
    */
   members?: [string, number][];
 }

@@ -27,8 +27,14 @@ export function defineConstituents(
       if (built.has(registry[key])) throw new RangeError(`duplicateConstituent: ${key}`);
       replaced.add(registry[key]);
     }
+    if (replaced.size > 1) {
+      throw new RangeError(`invalidDefinition: ${constituent.name} (names two constituents)`);
+    }
     for (const key of Object.keys(registry)) {
-      if (replaced.has(registry[key])) registry[key] = constituent;
+      if (!replaced.has(registry[key])) continue;
+      registry[key] = constituent;
+      // Known by the replaced entry's names, so "MF" still finds Mf's correction formula.
+      if (!keys.has(key)) constituent.aliases.push(key);
     }
     for (const key of keys) registry[key] = constituent;
     built.add(constituent);
@@ -109,7 +115,7 @@ function defineConstituent({
   const constituent: Constituent = {
     name,
     speed,
-    aliases,
+    aliases: [...aliases],
     coefficients,
     members: [],
 
@@ -127,6 +133,9 @@ function defineConstituent({
     correction(astro: AstroData, fundamentals: Fundamentals = iho): NodalCorrection {
       // Fundamentals have their own correction formula
       if (Object.hasOwn(fundamentals, name)) return fundamentals[name](astro);
+      for (const alias of constituent.aliases) {
+        if (Object.hasOwn(fundamentals, alias)) return fundamentals[alias](astro);
+      }
 
       // Start with UNITY
       let f = 1;

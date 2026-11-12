@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  astro,
   constituents,
   createCurrentPredictor,
   createTidePredictor,
@@ -70,6 +71,22 @@ describe("defineConstituents", () => {
     expect(models["ν2"]).toBe(models.nu2);
     expect(models.nu2).not.toBe(constituents.nu2);
     expect(defineConstituents([asDefinition("NU2")], constituents).nu2.name).toBe("NU2");
+  });
+
+  it("keeps a replaced entry's correction formula under its other names", () => {
+    const mf = constituents.Mf;
+    const definition = { name: "MF", speed: mf.speed, coefficients: mf.coefficients };
+    const models = defineConstituents([definition], constituents);
+    const state = astro(new Date("2026-01-01"));
+    expect(models.Mf).toBe(models.MF);
+    expect(models.MF.correction(state)).toEqual(mf.correction(state));
+    expect(definition).not.toHaveProperty("aliases");
+  });
+
+  it("rejects a definition that names two catalog entries", () => {
+    expect(() =>
+      defineConstituents([{ ...asDefinition("X"), aliases: ["M2", "N2"] }], constituents),
+    ).toThrow("invalidDefinition: X (names two constituents)");
   });
 
   it("rejects member cycles", () => {
