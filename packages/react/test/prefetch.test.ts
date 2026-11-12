@@ -1,6 +1,6 @@
-import { describe, test, expect, inject, vi } from "vitest";
+import { afterEach, describe, test, expect, inject, vi } from "vitest";
 import { createElement } from "react";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { prefetchTideStation, prefetchNearbyStations } from "../src/prefetch.js";
 import { NearbyStations } from "../src/components/NearbyStations.js";
@@ -11,6 +11,11 @@ import { queryKeys } from "../src/query-keys.js";
 import { createTestWrapper } from "./helpers.js";
 
 const STATION_ID = "noaa/8443970";
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("prefetchTideStation", () => {
   test("populates the station, its week, its outlook, the fortnight of extremes, and both Nearby lists", async () => {
@@ -47,9 +52,33 @@ describe("prefetchTideStation", () => {
       // Nearby cards load their own stations' predictions; the page's lists and predictions are all prefetched.
       const urls = fetch.mock.calls.map(([url]) => String(url));
       expect(urls.filter((u) => u.includes(id) || /\/stations\?/.test(u))).toEqual([]);
-      fetch.mockRestore();
     },
   );
+
+  test("fills every list and prediction TideStation reads just after the station's midnight", async () => {
+    // Half past midnight in Boston, when the strip's opening starts on the day before.
+    vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+    vi.setSystemTime(new Date("2026-11-10T05:30:00Z"));
+    const queryClient = createQueryClient();
+    await prefetchTideStation(queryClient, inject("apiBaseUrl"), STATION_ID, { locale: "en-US" });
+    const fetch = vi.spyOn(window, "fetch");
+
+    render(createElement(TideStation, { id: STATION_ID }), {
+      wrapper: createTestWrapper({ queryClient, units: "feet" }),
+    });
+
+    const slider = await screen.findByRole("slider", undefined, { timeout: 10000 });
+    const nearby = await screen.findByRole("region", { name: "Nearby" });
+    expect(await within(nearby).findByRole("list")).toBeDefined();
+    // The strip's pill becomes reachable once the opening has come to rest.
+    const pill = () =>
+      within(slider.parentElement!)
+        .getAllByRole("button")
+        .find((b) => !/now/i.test(b.ariaLabel ?? ""));
+    await waitFor(() => expect(pill()?.tabIndex).toBe(0), { timeout: 4000 });
+    const urls = fetch.mock.calls.map(([url]) => String(url));
+    expect(urls.filter((u) => u.includes(STATION_ID) || /\/stations\?/.test(u))).toEqual([]);
+  });
 
   test("resolves for an unknown station, leaving its query in error", async () => {
     const queryClient = new QueryClient();
@@ -100,6 +129,5 @@ describe("prefetchNearbyStations", () => {
     expect(await screen.findByRole("list")).toBeDefined();
     const urls = fetch.mock.calls.map(([url]) => String(url));
     expect(urls.filter((u) => /\/stations\?/.test(u))).toEqual([]);
-    fetch.mockRestore();
   });
 });

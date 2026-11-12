@@ -79,6 +79,15 @@ describe("TideScrubber", () => {
     expect(container.querySelector(".sr-only")!.textContent).toBe(text(slider));
   });
 
+  test("reports now while it opens, never the hours it glides in from", async () => {
+    const selected: number[] = [];
+    const { slider } = renderScrubber({ onSelect: (time) => selected.push(time) });
+
+    await restsOn(slider, NOW);
+    expect(selected.length).toBeGreaterThan(0);
+    expect(new Set(selected)).toEqual(new Set([NOW]));
+  });
+
   test("reads High at a turn with the turn's height, in the station's units", async () => {
     const { slider } = renderScrubber({ units: "feet" });
     await restsOn(slider, NOW);
@@ -237,6 +246,18 @@ describe("TideScrubber", () => {
     const { slider } = renderScrubber({ now: t0 + 30 * 24 * H });
     await waitFor(() => expect(value(slider)).toBeGreaterThan(t0 + 80 * H), { timeout: 4000 });
     expect(text(slider)).toMatch(/^(Rising|Falling) /);
+  });
+
+  test("reports only the edge it opens on when the data doesn't reach now", async () => {
+    const selected: number[] = [];
+    const { slider } = renderScrubber({
+      now: t0 + 30 * 24 * H,
+      onSelect: (time) => selected.push(time),
+    });
+    await waitFor(() => expect(value(slider)).toBeGreaterThan(t0 + 80 * H), { timeout: 4000 });
+    await waitFor(() => expect(selected.at(-1)).toBe(value(slider)), { timeout: 4000 });
+
+    expect(new Set(selected)).toEqual(new Set([value(slider)]));
   });
 
   test("shows a message when there is too little data to draw", () => {

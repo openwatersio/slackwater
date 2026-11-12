@@ -1,5 +1,6 @@
 import { createTestWrapper } from "../helpers.js";
 import { G } from "../../src/components/Scrubber.js";
+import { Activity, StrictMode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import {
@@ -12,6 +13,8 @@ import type { CurrentEvent } from "../../src/types.js";
 const H = 3_600_000;
 const M = 60_000;
 const PX_PER_HOUR = 18;
+/** One pixel of the strip. */
+const UNIT_PX_MS = H / PX_PER_HOUR;
 const WIDTH = 360;
 const t0 = Date.UTC(2026, 9, 10);
 const NOW = t0 + 25 * H;
@@ -352,6 +355,59 @@ describe("CurrentScrubber", () => {
     // The tap is handled in the event, so a date that moved the strip would have moved it already.
     tap(slider, t0 + 36 * H, G.dayY + 20);
     await restsOn(slider, sunrise);
+  });
+
+  test("a day-row tap that stops the opening reports where the strip stopped", async () => {
+    const selected: number[] = [];
+    const { slider } = renderScrubber({ onSelect: (time) => selected.push(time) });
+    await waitFor(() => expect(value(slider)).toBeGreaterThan(NOW - 2 * H + 10 * M));
+
+    tap(slider, t0 + 36 * H, G.dayY + 20);
+    expect(selected.at(-1)).toBe(value(slider));
+    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
+    expect(value(slider)).toBeLessThan(NOW);
+    expect(selected.at(-1)).toBe(value(slider));
+  });
+
+  test("opens onto now when StrictMode reruns its effects mid-opening", async () => {
+    const selected: number[] = [];
+    render(<StrictMode>{scrubber({ onSelect: (time) => selected.push(time) })}</StrictMode>);
+    const slider = screen.getByRole("slider", { name: "Current timeline" });
+
+    await restsOn(slider, NOW);
+    expect(selected.at(-1)).toBe(NOW);
+  });
+
+  test("an opening hidden after its last frame, before it rests, plays again when shown", async () => {
+    const selected: number[] = [];
+    const onSelect = (time: number) => selected.push(time);
+    const view = (mode: "visible" | "hidden") => (
+      <Activity mode={mode}>{scrubber({ onSelect })}</Activity>
+    );
+    const { rerender } = render(view("visible"));
+    const slider = screen.getByRole("slider", { name: "Current timeline" });
+    // The glide has landed within a pixel of now, and the strip hasn't come to rest.
+    await waitFor(() => expect(NOW - value(slider)).toBeLessThanOrEqual(UNIT_PX_MS));
+    expect(commentaryPill().tabIndex).toBe(-1);
+
+    rerender(view("hidden"));
+    rerender(view("visible"));
+    await restsOn(slider, NOW);
+    expect(selected.at(-1)).toBe(NOW);
+  });
+
+  test("new data that stops the opening reports where the strip stopped", async () => {
+    const selected: number[] = [];
+    const onSelect = (time: number) => selected.push(time);
+    const { slider, rerender } = renderScrubber({ onSelect });
+    await waitFor(() => expect(value(slider)).toBeGreaterThan(NOW - 2 * H + 10 * M));
+
+    // An earlier end changes the span without moving the start, so the strip stays put.
+    rerender(scrubber({ onSelect, timeline: fixture(t0).timeline.slice(0, -6) }));
+    expect(selected.at(-1)).toBe(value(slider));
+    await waitFor(() => expect(commentaryPill().tabIndex).toBe(0), { timeout: 4000 });
+    expect(value(slider)).toBeLessThan(NOW);
+    expect(selected.at(-1)).toBe(value(slider));
   });
 
   test("a scroll comes to rest on a stop within the magnet's reach", async () => {
