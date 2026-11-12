@@ -28,35 +28,43 @@ test("unpublished phase bearings keep their flood and ebb labels without inventi
   expect(screen.getByRole("img", { name: "Ebb" }).textContent).toBe("Ebb");
 });
 
-test("minimum pills name the lull and keep the signed phase's bearing and color", () => {
-  const anchor = Date.UTC(2026, 10, 3);
-  render(
-    <Schedule
-      days={[
-        {
-          start: anchor,
-          entries: [
-            { time: anchor + 9 * 3600000, pill: "minFlood", value: "0.1 kn axis" },
-            { time: anchor + 15 * 3600000, pill: "minEbb", value: "0.0 kn axis", direction: 225 },
-          ],
-        },
-      ]}
-      timezone="UTC"
-      latitude={48.5}
-      longitude={-122.65}
-      anchor={anchor}
-      now={anchor}
-      onSelect={() => {}}
-      onPick={() => {}}
-    />,
-  );
-  const minFlood = screen.getByRole("img", { name: "Minimum flood" });
-  expect(minFlood.textContent).toBe("Minimum flood");
-  expect(minFlood.className).toContain("bg-(--sw-flood)");
-  const minEbb = screen.getByRole("img", { name: /^Published minimum ebb bearing / });
-  expect(minEbb.textContent).toBe("SWMinimum ebb");
-  expect(minEbb.className).toContain("bg-(--sw-ebb)");
-});
+test.each([
+  ["minFlood", "Minimum flood", "bg-(--sw-flood)", 45, "NE"],
+  ["minEbb", "Minimum ebb", "bg-(--sw-ebb)", 225, "SW"],
+] as const)(
+  "%s pills name the lull and keep the signed phase's color and bearing",
+  (pill, label, color, direction, point) => {
+    const anchor = Date.UTC(2026, 10, 3);
+    render(
+      <Schedule
+        days={[
+          {
+            start: anchor,
+            entries: [
+              { time: anchor + 9 * 3600000, pill, value: "0.1 kn axis" },
+              { time: anchor + 15 * 3600000, pill, value: "0.0 kn axis", direction },
+            ],
+          },
+        ]}
+        timezone="UTC"
+        latitude={48.5}
+        longitude={-122.65}
+        anchor={anchor}
+        now={anchor}
+        onSelect={() => {}}
+        onPick={() => {}}
+      />,
+    );
+    const unpublished = screen.getByRole("img", { name: label });
+    expect(unpublished.textContent).toBe(label);
+    expect(unpublished.className).toContain(color);
+    const published = screen.getByRole("img", {
+      name: new RegExp(`^Published ${label.toLowerCase()} bearing `),
+    });
+    expect(published.textContent).toBe(`${point}${label}`);
+    expect(published.className).toContain(color);
+  },
+);
 
 test.each([
   [360, "system-ui"],
