@@ -74,6 +74,7 @@ private func span(_ entry: JSON) -> (Date, Date, Double) {
     }
 }
 
+#if canImport(Accelerate)
 @Test func definitionsFitLikeTheEngine() throws {
     let fixture = try loadDefinitionsFixture()
     let entry = fixture["fit"] as! JSON // swiftlint:disable:this force_cast
@@ -89,6 +90,7 @@ private func span(_ entry: JSON) -> (Date, Date, Double) {
         #expect(angularDiff(got.phase, want.phase) < 1e-3, "\(want.name) phase")
     }
 }
+#endif
 
 @Test func definitionsRejectWhatTheEngineRejects() throws {
     let fixture = try loadDefinitionsFixture()
