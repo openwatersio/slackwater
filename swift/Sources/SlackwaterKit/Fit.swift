@@ -38,7 +38,10 @@ public enum HarmonicFitError: Error, Equatable {
 /// Values may be heights or signed velocities; fitted amplitudes retain those units.
 /// Evaluates equilibrium arguments and nodal corrections at every sample time.
 /// No trend or automatic constituent selection is applied.
-public func fit(samples: [HarmonicSample], constituents names: [String]) throws -> HarmonicFit {
+/// `definitions` add constituents to the catalog, or replace catalog entries of the same name;
+/// an invalid one throws `ConstituentDefinitionError`.
+public func fit(samples: [HarmonicSample], constituents names: [String],
+                definitions: [ConstituentDefinition] = []) throws -> HarmonicFit {
     let width = 1 + 2 * names.count
     guard samples.count >= max(2, width), samples.count <= Int(Int32.max),
           samples.allSatisfy({ $0.value.isFinite && $0.time.timeIntervalSince1970.isFinite }),
@@ -46,10 +49,10 @@ public func fit(samples: [HarmonicSample], constituents names: [String]) throws 
           zip(samples, samples.dropFirst()).allSatisfy({ $0.time <= $1.time }) else {
         throw HarmonicFitError.invalidSamples
     }
-    let catalog = Catalog.shared
+    let catalog = definitions.isEmpty ? Catalog.shared : try Catalog.shared.with(definitions)
     var seen: Set<String> = []
     for name in names {
-        guard catalog.entry(name) != nil else { throw HarmonicFitError.unknownConstituent(name) }
+        guard catalog.contains(name) else { throw HarmonicFitError.unknownConstituent(name) }
         guard seen.insert(catalog.canonical(name)).inserted else {
             throw HarmonicFitError.duplicateConstituent(name)
         }

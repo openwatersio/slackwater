@@ -112,15 +112,33 @@ public struct CurrentStation: Sendable {
                 floodDirection: Double? = nil, ebbDirection: Double? = nil, offset: Double = 0,
                 minorConstituents: [HarmonicConstituent]? = nil, minorMeanFlow: Double = 0,
                 azimuth: Double? = nil) {
+        self.init(constituents: inputs, floodDirection: floodDirection, ebbDirection: ebbDirection,
+                  offset: offset, minorConstituents: minorConstituents, minorMeanFlow: minorMeanFlow,
+                  azimuth: azimuth, catalog: .shared)
+    }
+
+    /// Predicts with `definitions` added to the catalog, or replacing catalog entries of
+    /// the same name. Throws `ConstituentDefinitionError` for an invalid definition.
+    public init(constituents inputs: [HarmonicConstituent],
+                floodDirection: Double? = nil, ebbDirection: Double? = nil, offset: Double = 0,
+                minorConstituents: [HarmonicConstituent]? = nil, minorMeanFlow: Double = 0,
+                azimuth: Double? = nil, definitions: [ConstituentDefinition]) throws {
+        self.init(constituents: inputs, floodDirection: floodDirection, ebbDirection: ebbDirection,
+                  offset: offset, minorConstituents: minorConstituents, minorMeanFlow: minorMeanFlow,
+                  azimuth: azimuth, catalog: try Catalog.shared.with(definitions))
+    }
+
+    init(constituents inputs: [HarmonicConstituent], floodDirection: Double?, ebbDirection: Double?,
+         offset: Double, minorConstituents: [HarmonicConstituent]?, minorMeanFlow: Double,
+         azimuth: Double?, catalog cat: Catalog) {
         let d2r = Double.pi / 180
-        let cat = Catalog.shared
         self.catalog = cat
         self.floodBearing = floodDirection
         self.ebbBearing = ebbDirection
         self.azimuth = azimuth ?? floodDirection
         func prepare(_ inputs: [HarmonicConstituent], mean: Double) -> [StationConstituent] {
             var cs = inputs
-                .filter { cat.entry($0.name) != nil }
+                .filter { cat.contains($0.name) }
                 .map { StationConstituent(name: $0.name, amplitude: $0.amplitude, phase: d2r * $0.phase) }
             if mean != 0 { cs.append(StationConstituent(name: "Z0", amplitude: mean, phase: 0)) }
             return cs

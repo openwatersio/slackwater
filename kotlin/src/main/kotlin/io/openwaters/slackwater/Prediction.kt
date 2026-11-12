@@ -45,8 +45,8 @@ internal fun evalHPrime(hour: Double, params: List<PreparedParam>) = params.sumO
 internal fun evalHDoublePrime(hour: Double, params: List<PreparedParam>) = params.sumOf { -it.amplitude * it.speedRadiansPerHour.pow(2) * cos(it.speedRadiansPerHour * hour + it.phaseRadians) }
 
 // Per-day midpoint corrections match swift/Sources/SlackwaterKit/Prediction.swift.
-internal class ParamProvider(constituents: List<HarmonicConstituent>, offset: Double, val start: Instant, private val endHour: Double) {
-    private val inputs = constituents.filter { it.amplitude != 0.0 && Catalog.speed(it.name) != null } +
+internal class ParamProvider(private val catalog: Catalog, constituents: List<HarmonicConstituent>, offset: Double, val start: Instant, private val endHour: Double) {
+    private val inputs = constituents.filter { it.amplitude != 0.0 && catalog.speed(it.name) != null } +
         if (offset != 0.0) listOf(HarmonicConstituent("Z0", offset, 0.0)) else emptyList()
     private val base = astro(start)
     private var chunk = 0.0
@@ -65,9 +65,9 @@ internal class ParamProvider(constituents: List<HarmonicConstituent>, offset: Do
     private fun prepare(beginHour: Double): List<PreparedParam> {
         val a = astro(shifted(start, (beginHour + min(beginHour + 24, endHour)) / 2 * 3600))
         return inputs.map { c ->
-            val correction = Catalog.correction(c.name, a)
-            PreparedParam(c.amplitude * correction.f, Catalog.speed(c.name)!! * D2R,
-                (Catalog.v0(c.name, base) + correction.uDegrees - c.phaseDegrees) * D2R)
+            val correction = catalog.correction(c.name, a)
+            PreparedParam(c.amplitude * correction.f, catalog.speed(c.name)!! * D2R,
+                (catalog.v0(c.name, base) + correction.uDegrees - c.phaseDegrees) * D2R)
         }
     }
 }

@@ -75,17 +75,18 @@ Kotlin subordinate tide and current curves expand their event context until corr
 
 These gates compare Swift and Kotlin results with fixtures generated from the TypeScript workspace package.
 
-| Area             | Comparison                      | Tolerance                                                                           |
-| ---------------- | ------------------------------- | ----------------------------------------------------------------------------------- |
-| Astronomy        | Mean longitudes and node angles | `< 1e-6°` circular difference                                                       |
-| Node corrections | IHO `f` and `u`                 | `< 1e-6` for `f`; `< 1e-6°` for `u`                                                 |
-| Constituents     | `V0`, compound `f`, and `u`     | `< 1e-6`                                                                            |
-| Tide timeline    | Timestamp and height            | `< 0.5 s`; maximum height error `< 1e-6 m`                                          |
-| Current timeline | Timestamp and signed speed      | `< 0.5 s`; maximum speed error `< 1e-6 kn`                                          |
-| Current vector   | Magnitude and direction         | `< 1e-6 kn`; `< 1e-5°` circular difference                                          |
-| Current events   | Count, kind, time, and speed    | Count and kind exact; `< 60 s`; `< 0.02 kn`                                         |
-| Tide extremes    | Count, kind, time, and height   | Count and kind exact; `< 60 s`; `< 0.02 m`                                          |
-| Readings         | `fixtures/readings.json`        | Times `< 0.5 s`; speeds, heights, and rates `< 1e-6`; directions `< 1e-5°` circular |
+| Area             | Comparison                              | Tolerance                                                                                                     |
+| ---------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Astronomy        | Mean longitudes and node angles         | `< 1e-6°` circular difference                                                                                 |
+| Node corrections | IHO `f` and `u`                         | `< 1e-6` for `f`; `< 1e-6°` for `u`                                                                           |
+| Constituents     | `V0`, compound `f`, and `u`             | `< 1e-6`                                                                                                      |
+| Tide timeline    | Timestamp and height                    | `< 0.5 s`; maximum height error `< 1e-6 m`                                                                    |
+| Current timeline | Timestamp and signed speed              | `< 0.5 s`; maximum speed error `< 1e-6 kn`                                                                    |
+| Current vector   | Magnitude and direction                 | `< 1e-6 kn`; `< 1e-5°` circular difference                                                                    |
+| Current events   | Count, kind, time, and speed            | Count and kind exact; `< 60 s`; `< 0.02 kn`                                                                   |
+| Tide extremes    | Count, kind, time, and height           | Count and kind exact; `< 60 s`; `< 0.02 m`                                                                    |
+| Readings         | `fixtures/readings.json`                | Times `< 0.5 s`; speeds, heights, and rates `< 1e-6`; directions `< 1e-5°` circular                           |
+| Definitions      | `fixtures/constituent-definitions.json` | Heights and speeds `< 1e-6`; fitted amplitudes `< 1e-6`, phases `< 1e-3°`; rejected definitions by error code |
 
 ## Physical accuracy
 

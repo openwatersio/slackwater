@@ -44,11 +44,21 @@ public struct Station: Sendable {
     ///   - offset: constant datum offset (metres), added as a Z0 term so it applies
     ///     uniformly to heights and extremes (the Slackwater convention).
     public init(constituents inputs: [HarmonicConstituent], offset: Double = 0) {
+        self.init(constituents: inputs, offset: offset, catalog: .shared)
+    }
+
+    /// Predicts with `definitions` added to the catalog, or replacing catalog entries of
+    /// the same name. Throws `ConstituentDefinitionError` for an invalid definition.
+    public init(constituents inputs: [HarmonicConstituent], offset: Double = 0,
+                definitions: [ConstituentDefinition]) throws {
+        self.init(constituents: inputs, offset: offset, catalog: try Catalog.shared.with(definitions))
+    }
+
+    init(constituents inputs: [HarmonicConstituent], offset: Double, catalog cat: Catalog) {
         let d2r = Double.pi / 180
-        let cat = Catalog.shared
         self.catalog = cat
         var cs = inputs
-            .filter { cat.entry($0.name) != nil }
+            .filter { cat.contains($0.name) }
             .map { StationConstituent(name: $0.name, amplitude: $0.amplitude, phase: d2r * $0.phase) }
         if offset != 0 { cs.append(StationConstituent(name: "Z0", amplitude: offset, phase: 0)) }
         self.constituents = cs

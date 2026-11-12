@@ -9,7 +9,7 @@
     "build": "npm run build --workspaces --if-present && tsc && tsc -p benchmarks",
     "lint": "oxlint && prettier --check .",
     "format": "prettier --write .",
-    "fixtures:check": "npm run build --workspace @slackwater/engine && node --test fixtures/generate/write.test.mjs fixtures/generate/gen-catalog.test.mjs && node fixtures/generate/gen-golden.mjs --check && node fixtures/generate/gen-catalog.mjs --check && node fixtures/generate/gen-realworld.mjs --check && node fixtures/generate/gen-subordinates.mjs --check && node fixtures/generate/gen-currents.mjs --check && node fixtures/generate/gen-fit.mjs --check && node fixtures/generate/gen-chs-current-golden.mjs --check && node fixtures/generate/gen-readings.mjs --check",
+    "fixtures:check": "npm run build --workspace @slackwater/engine && node --test fixtures/generate/write.test.mjs fixtures/generate/gen-catalog.test.mjs && node fixtures/generate/gen-golden.mjs --check && node fixtures/generate/gen-catalog.mjs --check && node fixtures/generate/gen-definitions.mjs --check && node fixtures/generate/gen-realworld.mjs --check && node fixtures/generate/gen-subordinates.mjs --check && node fixtures/generate/gen-currents.mjs --check && node fixtures/generate/gen-fit.mjs --check && node fixtures/generate/gen-chs-current-golden.mjs --check && node fixtures/generate/gen-readings.mjs --check",
     "benchmarks": "run-s --continue-on-error \"benchmarks:*\"",
     "benchmarks:noaa": "node benchmarks/noaa.ts",
     "benchmarks:chs": "node benchmarks/chs.ts",

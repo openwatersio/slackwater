@@ -384,7 +384,7 @@ const predictor = createTidePredictor([{ name: "SA_X", amplitude: 0.12, phase: 2
 });
 ```
 
-`defineConstituents(definitions, base?)` builds the same models the predictors use, keyed by name and alias, with members resolved against `definitions` and then `base`. Catalog compounds keep their own members, so replacing `M2` doesn't change `MS4`. `useStation` and `useCurrentStation` don't take definitions yet; call the predictors directly. Invalid definitions throw a `RangeError` beginning with `invalidDefinition` (a malformed field, a speed that doesn't match the argument, or names that belong to two catalog entries), `duplicateConstituent` (a name defined twice, or two definitions for one catalog entry), `unknownConstituent` (an unresolved member) or `cyclicConstituent`.
+`defineConstituents(definitions, base?)` builds the same models the predictors use, keyed by name and alias, with members resolved against `definitions` and then `base`. Catalog compounds keep their own members, so replacing `M2` doesn't change `MS4`. `useStation` and `useCurrentStation` don't take definitions yet; call the predictors directly. The Swift and Kotlin engines take the same definitions, checked against `fixtures/constituent-definitions.json`. Invalid definitions throw a `RangeError` beginning with `invalidDefinition` (a malformed field, a speed that doesn't match the argument, or names that belong to two catalog entries), `duplicateConstituent` (a name defined twice, or two definitions for one catalog entry), `unknownConstituent` (an unresolved member) or `cyclicConstituent`.
 
 ### <a name="subordinate-station"></a>Subordinate station definitions
 

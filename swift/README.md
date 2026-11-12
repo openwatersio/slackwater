@@ -135,6 +135,18 @@ Samples are `HarmonicSample(time:value:)`, finite and ordered by time, with at l
 
 The synthetic inputs in `fixtures/harmonic-fit.json` cover 60- and 210-day windows and retain the frozen CHS fitter outputs for historical comparison. The current shared oracle is `fixtures/harmonic-fit-parity.json`, generated independently with SVD and per-sample astronomy by `node fixtures/generate/gen-fit.mjs`. Swift, [`@slackwater/engine`](../packages/engine#harmonic-fitting) and the [Kotlin engine](../kotlin/README.md#fit) check coefficients, offset, RMS, Rayleigh warnings, and the same invalid-input fixtures. No CHS observations are included.
 
+### Constituent definitions
+
+A harmonic constant only means something under the definition it was analyzed with. To predict or fit a line the catalog doesn't have, or defines differently, pass `ConstituentDefinition`s to `Station(constituents:offset:definitions:)`, `CurrentStation(constituents:…:definitions:)` or `fit(samples:constituents:definitions:)`. They have the same shape and rules as [`@slackwater/engine`'s catalog definitions](../packages/engine/README.md#catalog-definitions).
+
+```swift
+let station = try Station(
+    constituents: [HarmonicConstituent(name: "SA_X", amplitude: 0.12, phase: 210)],
+    definitions: [ConstituentDefinition(name: "SA_X", speed: 0.0410686, coefficients: [0, 0, 1, 0, 0, 0, -1])])
+```
+
+A definition that shares a name or alias with a catalog entry replaces that entry under all of the entry's names, and catalog compounds keep their own members. An invalid set throws `ConstituentDefinitionError`. `fixtures/constituent-definitions.json`, generated from the TypeScript engine by `node fixtures/generate/gen-definitions.mjs`, holds predictions, a fit and rejected definitions that all three engines check.
+
 ## Develop
 
 ```sh

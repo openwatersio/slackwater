@@ -37,17 +37,21 @@ sealed class HarmonicFitException(message: String) : IllegalArgumentException(me
  * Values may be heights or signed velocities; fitted amplitudes keep those units.
  * Equilibrium arguments and nodal corrections are evaluated at every sample time.
  * No trend or automatic constituent selection is applied.
+ * [definitions] add constituents to the catalog, or replace catalog entries of the same name;
+ * an invalid one throws [ConstituentDefinitionException].
  */
-fun fit(samples: List<HarmonicSample>, constituents: List<String>): HarmonicFit {
+@JvmOverloads
+fun fit(samples: List<HarmonicSample>, constituents: List<String>, definitions: List<ConstituentDefinition> = emptyList()): HarmonicFit {
     val width = 1 + 2 * constituents.size
     val count = samples.size
     if (count < max(2, width) || samples.any { !it.value.isFinite() } ||
         (1 until count).any { samples[it].time < samples[it - 1].time } || samples[count - 1].time <= samples[0].time
     ) throw HarmonicFitException.InvalidSamples()
+    val catalog = Catalog.shared.with(definitions)
     val seen = HashSet<String>()
     val speeds = constituents.map { name ->
-        val speed = Catalog.speed(name) ?: throw HarmonicFitException.UnknownConstituent(name)
-        if (!seen.add(Catalog.canonical(name))) throw HarmonicFitException.DuplicateConstituent(name)
+        val speed = catalog.speed(name) ?: throw HarmonicFitException.UnknownConstituent(name)
+        if (!seen.add(catalog.canonical(name))) throw HarmonicFitException.DuplicateConstituent(name)
         speed
     }
     val first = samples[0].time
@@ -67,8 +71,8 @@ fun fit(samples: List<HarmonicSample>, constituents: List<String>): HarmonicFit 
     for (sample in samples) {
         val state = astro(sample.time)
         for ((j, name) in constituents.withIndex()) {
-            val correction = Catalog.correction(name, state)
-            val theta = (Catalog.v0(name, state) + correction.uDegrees) * D2R
+            val correction = catalog.correction(name, state)
+            val theta = (catalog.v0(name, state) + correction.uDegrees) * D2R
             row[1 + 2 * j] = correction.f * cos(theta)
             row[2 + 2 * j] = correction.f * sin(theta)
         }

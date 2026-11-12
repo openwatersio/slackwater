@@ -11,7 +11,7 @@ private struct ConstituentFixture: Decodable {
 @Test func constituentV0AndCorrectionsMatchSlackwater() throws {
     let fixture = try loadFixture("constituents", as: ConstituentFixture.self)
     let catalog = Catalog.shared
-    #expect(catalog.byName.count >= 300)
+    #expect(catalog.entries.count >= 300)
     for entry in fixture.entries {
         let a = astro(parseISO(entry.time))
         for (name, expected) in entry.constituents {
