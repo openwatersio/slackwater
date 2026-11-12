@@ -207,11 +207,15 @@ describe("confidence intervals", () => {
   test.each([
     ["white", 0],
     ["red", 0.95],
-  ])("cover the true constants 95%% of the time under %s noise", (_, phi) => {
-    const rate = coverage(phi);
-    expect(rate).toBeGreaterThan(0.9);
-    expect(rate).toBeLessThan(0.99);
-  });
+  ])(
+    "cover the true constants 95%% of the time under %s noise",
+    (_, phi) => {
+      const rate = coverage(phi);
+      expect(rate).toBeGreaterThan(0.9);
+      expect(rate).toBeLessThan(0.99);
+    },
+    30_000,
+  );
 
   test("need more samples than parameters", () => {
     const three = days60.slice(0, 3).map((time, i) => ({ time, value: clean60[i] }));

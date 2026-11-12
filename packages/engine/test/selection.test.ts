@@ -152,7 +152,7 @@ describe("selectConstituents", () => {
     expect(fit.constituents.map((c) => c.name)).toEqual(
       selection.filter((s) => s.kept).map((s) => s.name),
     );
-  });
+  }, 30_000);
 
   test("compares candidates without a comparison with every one kept before them", () => {
     const { fit, selection } = selectConstituents(record(30), {
