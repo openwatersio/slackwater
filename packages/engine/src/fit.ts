@@ -1,5 +1,6 @@
 import astro from "./astronomy/index.js";
-import constituents from "./constituents/index.js";
+import { constituentModels } from "./constituents/index.js";
+import type { ConstituentDefinition } from "./constituents/types.js";
 import type { HarmonicConstituent } from "./harmonics/index.js";
 
 export interface HarmonicSample {
@@ -14,8 +15,17 @@ export interface HarmonicFit {
   unseparable: { constituents: [string, string]; requiredDays: number }[];
 }
 
+export interface FitOptions {
+  /** Constituents to add to the catalog, or to replace catalog entries of the same name. */
+  definitions?: readonly ConstituentDefinition[];
+}
+
 /** Fit an offset and caller-selected harmonics using per-sample IHO astronomy. */
-export function fit(samples: readonly HarmonicSample[], names: readonly string[]): HarmonicFit {
+export function fit(
+  samples: readonly HarmonicSample[],
+  names: readonly string[],
+  { definitions }: FitOptions = {},
+): HarmonicFit {
   const width = 1 + 2 * names.length;
   const count = samples.length;
   if (
@@ -31,6 +41,7 @@ export function fit(samples: readonly HarmonicSample[], names: readonly string[]
   )
     throw new RangeError("invalidSamples");
 
+  const constituents = constituentModels(definitions);
   const seen = new Set<string>();
   const models = names.map((name) => {
     const model = Object.hasOwn(constituents, name) ? constituents[name] : undefined;

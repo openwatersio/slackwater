@@ -37,7 +37,7 @@ createTidePredictor(constituents, { nodeCorrections: "iho" }); // default
 createTidePredictor(constituents, { nodeCorrections: "schureman" });
 ```
 
-For detailed internals (XDO conversion, letter code dispatch, compound decomposition), see [packages/engine/README.md](packages/engine/README.md#architecture-internals).
+For detailed internals (catalog definitions, nodal corrections, compound members), see [packages/engine/README.md](packages/engine/README.md#architecture-internals).
 
 ### Current Stations
 

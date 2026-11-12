@@ -123,7 +123,7 @@ describe("Base constituent definitions", () => {
     expect(constituents.S3.speed).toBeCloseTo(45.0, 2);
   });
 
-  // Null-XDO compound constituents derive V₀ from structural decomposition
+  // Compounds without coefficients derive V₀ from their members
   it("derives V₀ for MS4 (M2+S2) from structural members", () => {
     const expected = constituents.M2.value(testAstro) + constituents.S2.value(testAstro);
     expect(constituents.MS4.value(testAstro)).toBeCloseTo(expected, 4);

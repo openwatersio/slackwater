@@ -1,12 +1,15 @@
-import { constituents, defineConstituent } from "./definition.js";
-import { DefineConstituentOptions } from "./types.js";
+import { defineConstituents } from "./definition.js";
+import type { ConstituentDefinition } from "./types.js";
 import data from "./data.json" with { type: "json" };
 
 export type * from "./types.js";
+export { defineConstituents };
 
-// Define constituents from data file
-for (const entry of data) {
-  defineConstituent(entry as DefineConstituentOptions);
+const constituents = defineConstituents(data as ConstituentDefinition[]);
+
+/** Catalog constituents plus `definitions`, which replace catalog entries of the same name. */
+export function constituentModels(definitions?: readonly ConstituentDefinition[]) {
+  return definitions ? defineConstituents(definitions, constituents) : constituents;
 }
 
 export default constituents;

@@ -1,5 +1,6 @@
 import { d2r } from "./astronomy/constants.js";
-import defaultConstituentModels from "./constituents/index.js";
+import { constituentModels } from "./constituents/index.js";
+import type { Constituent, ConstituentDefinition } from "./constituents/types.js";
 import { resolveFundamentals } from "./node-corrections/index.js";
 import { findExtremes, findSlacks, evalH } from "./harmonics/extremes.js";
 import { createParamsFactory } from "./harmonics/params.js";
@@ -52,6 +53,8 @@ export interface CurrentPredictionOptions {
   azimuth?: number;
   /** Nodal correction fundamentals. Defaults to 'iho'. */
   nodeCorrections?: "iho" | "schureman";
+  /** Constituents to add to the catalog, or to replace catalog entries of the same name. */
+  definitions?: readonly ConstituentDefinition[];
 }
 
 export interface CurrentTimelineInput extends TimeSpan {
@@ -100,9 +103,13 @@ function axialVector(speed: number, floodDirection?: number, ebbDirection?: numb
   };
 }
 
-function prepareConstituents(inputs: HarmonicConstituent[], mean: number) {
+function prepareConstituents(
+  inputs: HarmonicConstituent[],
+  mean: number,
+  models: Record<string, Constituent>,
+) {
   const constituents = inputs
-    .filter((c) => defaultConstituentModels[c.name] !== undefined)
+    .filter((c) => models[c.name] !== undefined)
     .map((c) => ({ ...c, phase: d2r * c.phase }));
   if (mean !== 0) constituents.push({ name: "Z0", amplitude: mean, phase: 0 });
   return constituents;
@@ -130,11 +137,13 @@ export function createCurrentPredictor(
     minorConstituents,
     minorMeanFlow = 0,
     azimuth = floodDirection,
+    definitions,
   }: CurrentPredictionOptions,
 ): CurrentPredictor {
   const fundamentals = resolveFundamentals(nodeCorrections);
-  const constituents = prepareConstituents(inputs, meanFlow);
-  const minor = prepareConstituents(minorConstituents ?? [], minorMeanFlow);
+  const models = constituentModels(definitions);
+  const constituents = prepareConstituents(inputs, meanFlow, models);
+  const minor = prepareConstituents(minorConstituents ?? [], minorMeanFlow, models);
   const hasMinor = minor.some((c) => c.amplitude !== 0);
 
   /** Root-search setup over [from, to], snapped outward to the provider grid. */
@@ -146,7 +155,7 @@ export function createCurrentPredictor(
     const endHour = (endSec - startSec) / 3600;
     const correctedParams = createParamsFactory({
       constituents,
-      constituentModels: defaultConstituentModels,
+      constituentModels: models,
       fundamentals,
       start,
       endHour,
@@ -167,7 +176,7 @@ export function createCurrentPredictor(
       paramsFrom: (dayStart) =>
         createParamsFactory({
           constituents,
-          constituentModels: defaultConstituentModels,
+          constituentModels: models,
           fundamentals,
           start: dayStart,
           endHour: 24,
@@ -199,7 +208,7 @@ export function createCurrentPredictor(
       const timeline = getTimeline(start, end, timeFidelity);
       const getParams = createParamsFactory({
         constituents,
-        constituentModels: defaultConstituentModels,
+        constituentModels: models,
         fundamentals,
         start: timeline.items[0],
         endHour: timeline.hours[timeline.hours.length - 1],
@@ -207,7 +216,7 @@ export function createCurrentPredictor(
       const getMinorParams = hasMinor
         ? createParamsFactory({
             constituents: minor,
-            constituentModels: defaultConstituentModels,
+            constituentModels: models,
             fundamentals,
             start: timeline.items[0],
             endHour: timeline.hours[timeline.hours.length - 1],

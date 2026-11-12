@@ -1,6 +1,5 @@
 // Emit the constituent catalog as data (Sources/SlackwaterKit/Resources/catalog.json).
-// The IHO Annex-B name decomposition + sign resolution runs HERE, in Slackwater, at build
-// time; Swift consumes the resolved members and never needs the parser.
+// Members resolve by name here, at build time; Swift and Kotlin consume them resolved.
 // Each entry: { name, speed, coefficients: [7 ints]|null, members: [[name, factor]]|null }.
 import { constituents } from '@slackwater/engine';
 import { fileURLToPath } from 'node:url';

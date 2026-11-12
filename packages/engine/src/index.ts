@@ -1,12 +1,14 @@
 import harmonics from "./harmonics/index.js";
 import { resolveFundamentals } from "./node-corrections/index.js";
+import { constituentModels } from "./constituents/index.js";
+import type { ConstituentDefinition } from "./constituents/types.js";
 import type { HarmonicConstituent } from "./harmonics/index.js";
 import type { TimelinePoint, Extreme, ExtremeOffsets } from "./harmonics/prediction.js";
 
 export { default as astro } from "./astronomy/index.js";
-export { fit, type HarmonicSample, type HarmonicFit } from "./fit.js";
+export { fit, type HarmonicSample, type HarmonicFit, type FitOptions } from "./fit.js";
 export { chsCurrentFit, chsTideFit, projectChsCurrent } from "./chs.js";
-export { default as constituents } from "./constituents/index.js";
+export { default as constituents, defineConstituents } from "./constituents/index.js";
 export type * from "./astronomy/index.js";
 export type * from "./constituents/index.js";
 export type * from "./harmonics/index.js";
@@ -16,6 +18,8 @@ export interface TidePredictionOptions {
   offset?: number | false;
   nodeCorrections?: "iho" | "schureman";
   prominenceThreshold?: number;
+  /** Constituents to add to the catalog, or to replace catalog entries of the same name. */
+  definitions?: readonly ConstituentDefinition[];
 }
 
 export interface TimeSpan {
@@ -46,9 +50,10 @@ export function createTidePredictor(
   constituents: HarmonicConstituent[],
   options: TidePredictionOptions = {},
 ): TidePrediction {
-  const { nodeCorrections, ...harmonicsOpts } = options;
+  const { nodeCorrections, definitions, ...harmonicsOpts } = options;
   const harmonicsOptions = {
     harmonicConstituents: constituents,
+    constituentModels: constituentModels(definitions),
     fundamentals: resolveFundamentals(nodeCorrections),
     offset: false as number | false,
     ...harmonicsOpts,

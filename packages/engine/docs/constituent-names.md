@@ -1,11 +1,11 @@
 # Constituent names
 
-A station's harmonic constants are labeled with constituent names. The engine looks each name up in [`src/constituents/data.json`](../src/constituents/data.json) to find the definition behind it: a speed, an extended Doodson number (XDO), and an IHO nodal correction code. The XDO fixes both the astronomical argument and its phase constant. A name only means what its publisher meant by it, and two publishers can use the same name for different lines. This page covers how names from each source map to definitions, and how a disputed name is tested against raw records.
+A station's harmonic constants are labeled with constituent names. The engine looks each name up in [`src/constituents/data.json`](../src/constituents/data.json) to find the definition behind it: a speed, Doodson coefficients, and the members its nodal correction comes from. The coefficients fix both the astronomical argument and its phase constant. A caller can pass definitions of its own to predict names the catalog lacks or defines differently (see [Catalog definitions](../README.md#catalog-definitions)). A name only means what its publisher meant by it, and two publishers can use the same name for different lines. This page covers how names from each source map to definitions, and how a disputed name is tested against raw records.
 
 ## Sources
 
-- The IHO TWCWG constituent list is the base of `data.json`, with names, speeds, XDO numbers and nodal codes. The copy in this repo is [docs/TWCWG_Constituent_list.md](../../../docs/TWCWG_Constituent_list.md), converted from the [PDF](../../../docs/TWCWG_Constituent_list.pdf).
-- NOAA CO-OPS publishes harmonic constants per station through its metadata API, for example `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9413450/harcon.json`. Its phases follow the Schureman sign convention, and so does the engine's argument (see [XDO to Doodson conversion](../README.md#xdo-to-doodson-conversion)).
+- The IHO TWCWG constituent list is the base of `data.json`, with names, speeds, XDO numbers and nodal codes, which `data.json` stores as coefficients and members. The copy in this repo is [docs/TWCWG_Constituent_list.md](../../../docs/TWCWG_Constituent_list.md), converted from the [PDF](../../../docs/TWCWG_Constituent_list.pdf).
+- NOAA CO-OPS publishes harmonic constants per station through its metadata API, for example `https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/9413450/harcon.json`. Its phases follow the Schureman sign convention, and so does the engine's argument (see [Catalog definitions](../README.md#catalog-definitions)).
 - TICON-4 is a global set of constants fitted to GESLA-4 tide gauge records, published at <https://www.seanoe.org/data/00980/109129/>. The [user manual](https://www.seanoe.org/data/00980/109129/data/122852.pdf) lists every name with a Doodson number and speed in Table 1. Names are written without super- or subscripts.
 - Kartverket's own variants of standard constituents carry a `_KV` suffix, such as `SA_KV`.
 
@@ -113,7 +113,7 @@ To find a phase constant, add 0°, 15°, and so on up to 345° to the candidate 
 
 ## The 3N2 nodal correction
 
-3N2 lists N2 as its only member in `data.json`, so it takes N2's `f` and `u`, which are M2's. The member is explicit because the name parser would read the leading 3 as a multiplier; it reaches N2 only through its single-letter fallback, which ignores the multiplier. 3L2 has no explicit member and reaches L2 through that same fallback. TICON doesn't document its nodal treatment, and a degree-3 line's true nodal modulation differs from N2's. Scores with N2's correction and with none agree, so the choice doesn't change which line TICON's constants describe.
+3N2 lists N2 as its only member in `data.json`, so it takes N2's `f` and `u`, which are M2's. 3L2 likewise lists L2. TICON doesn't document its nodal treatment, and a degree-3 line's true nodal modulation differs from N2's. Scores with N2's correction and with none agree, so the choice doesn't change which line TICON's constants describe.
 
 ## Open phase gaps
 
