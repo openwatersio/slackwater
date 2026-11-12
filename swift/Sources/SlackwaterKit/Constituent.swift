@@ -70,12 +70,15 @@ struct Catalog: Sendable {
         let file = try! JSONDecoder().decode(File.self, from: Data(contentsOf: url))
         var index: [String: Int] = [:]
         for (i, c) in file.constituents.enumerated() { index[c.name] = i }
-        let entries = file.constituents.map { c in
+        var entries = file.constituents.map { c in
             Entry(name: c.name, speed: c.speed, coefficients: c.coefficients,
                   members: (c.members ?? []).map { Link(index: index[$0.name]!, factor: $0.factor) },
                   formulaNames: [c.name])
         }
-        for (alias, canonical) in file.aliases { index[alias] = index[canonical]! }
+        for (alias, canonical) in file.aliases.sorted(by: { $0.key < $1.key }) {
+            index[alias] = index[canonical]!
+            entries[index[canonical]!].formulaNames.append(alias)
+        }
         return Catalog(entries: entries, index: index, argumentRates: file.argumentRates)
     }()
 

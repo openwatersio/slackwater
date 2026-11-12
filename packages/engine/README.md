@@ -429,7 +429,7 @@ The IHO list encodes each constituent as an extended Doodson number and a letter
 [src/constituents/index.ts](src/constituents/index.ts) passes `data.json` to `defineConstituents()` in [definition.ts](src/constituents/definition.ts), which for each entry:
 
 1. Attaches a `value()` function that computes V₀, the dot product of `coefficients` with `[τ, s, h, p, −N, p', 90°]`, or the factor-weighted sum of its members' V₀ when `coefficients` is null
-2. Attaches a `correction()` function that computes nodal corrections (f, u): from the node-correction formulas when the name is a fundamental there, otherwise u = Σ factor × u and f = Π f^|factor| over its members
+2. Attaches a `correction()` function that computes nodal corrections (f, u): from the node-correction formulas when its name or one of its aliases has one there, otherwise u = Σ factor × u and f = Π f^|factor| over its members
 3. Registers the constituent under its canonical name and all aliases
 4. Resolves `members` by name, once every entry is registered
 

@@ -13,6 +13,8 @@ export function defineConstituents(
   definitions: readonly ConstituentDefinition[],
   base: Readonly<Record<string, Constituent>> = {},
 ): Record<string, Constituent> {
+  if (!Array.isArray(definitions as unknown))
+    throw new RangeError("invalidDefinition: definitions must be an array");
   // No prototype, so names such as "constructor" or "__proto__" are plain keys.
   const registry: Record<string, Constituent> = Object.assign(Object.create(null), base);
   // Predictors add datum offsets and mean flows as a Z0 term, so Z0 must stay a constant.

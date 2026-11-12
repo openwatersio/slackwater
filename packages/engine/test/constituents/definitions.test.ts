@@ -144,6 +144,15 @@ describe("defineConstituents", () => {
     ).toThrow(`invalidDefinition: ${name} (Z0 carries offsets)`);
   });
 
+  it("rejects definitions that aren't a list", () => {
+    expect(() => defineConstituents({} as unknown as ConstituentDefinition[])).toThrow(
+      "invalidDefinition: definitions must be an array",
+    );
+    expect(levels([{ name: "M2", amplitude: 1, phase: 30 }], { definitions: null })).toEqual(
+      levels([{ name: "M2", amplitude: 1, phase: 30 }]),
+    );
+  });
+
   it("rejects a name defined twice", () => {
     expect(() => defineConstituents([asDefinition("A"), asDefinition("A")], constituents)).toThrow(
       "duplicateConstituent: A",

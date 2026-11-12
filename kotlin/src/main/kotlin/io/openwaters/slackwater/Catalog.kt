@@ -63,10 +63,14 @@ internal class Catalog private constructor(private val entries: List<Entry>, pri
         val shared: Catalog = run {
             val index = HashMap<String, Int>()
             catalogEntries.forEachIndexed { i, entry -> index[entry.name] = i }
-            val entries = catalogEntries.map { e ->
-                Entry(e.name, e.speed, e.coefficients, e.members.map { Link(index.getValue(it.name), it.factor) }, listOf(e.name))
+            val formulaNames = catalogEntries.associate { it.name to mutableListOf(it.name) }
+            for ((alias, canonical) in catalogAliases) {
+                index[alias] = index.getValue(canonical)
+                formulaNames.getValue(canonical) += alias
             }
-            for ((alias, canonical) in catalogAliases) index[alias] = index.getValue(canonical)
+            val entries = catalogEntries.map { e ->
+                Entry(e.name, e.speed, e.coefficients, e.members.map { Link(index.getValue(it.name), it.factor) }, formulaNames.getValue(e.name))
+            }
             Catalog(entries, index)
         }
 
