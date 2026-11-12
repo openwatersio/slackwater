@@ -1,5 +1,4 @@
 import { queryKeys } from "../src/query-keys.js";
-import { QueryClient } from "@tanstack/react-query";
 import { afterEach, expect, test, vi } from "vitest";
 import {
   createApiDataSource,
@@ -119,31 +118,10 @@ test("a custom API identity is validated and does not expose a private URL", () 
   expect(() => createApiDataSource("https://api.example", { cacheKey: " " })).toThrow(/cacheKey/);
 });
 
-test("custom source keys cannot hydrate legacy current events into the revised query", async () => {
-  const source = localSource("public-catalog:v3");
-  const params = { id: "local/channel@11" };
-  const legacy = { events: [{ kind: "maxEbb", speed: -0.03 }] };
-  const client = new QueryClient();
-  client.setQueryData(
-    ["slackwater", "current-events", params, { source: source.cacheKey }],
-    legacy,
-  );
-  try {
-    const result = await client.fetchQuery({
-      ...currentEventsQuery(source, params.id),
-      staleTime: Infinity,
-    });
-    expect(source.getCurrentEvents).toHaveBeenCalledOnce();
-    expect(result).not.toBe(legacy);
-  } finally {
-    client.clear();
-  }
-});
-
 test("default API cache identities do not publish URL text and keep credentials isolated", () => {
   const a = createApiDataSource("https://user:secret@internal.example/private-path/");
   const b = createApiDataSource("https://user:other@internal.example/private-path/");
-  expect(a.cacheKey).toMatch(/^api:minima-v1:[a-f0-9]{64}$/);
+  expect(a.cacheKey).toMatch(/^api:[a-f0-9]{64}$/);
   expect(
     JSON.stringify(
       timelineQuery({ dataSource: a, units: "feet" }, { id: "noaa/9447130" }).queryKey,

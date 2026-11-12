@@ -766,7 +766,6 @@ function createSpecs(datums: string[]) {
           description:
             "Returns slack water and flood/ebb maxima and minima between start and end for the nearest current station, skipping stations with no model. When that station's source forbids redistributing its predictions the request is refused with 451 rather than answered from a station farther away. end must be within 366 days of start.",
           parameters: [
-            { $ref: "#/components/parameters/eventRevision" },
             { $ref: "#/components/parameters/latitude" },
             { $ref: "#/components/parameters/longitude" },
             { $ref: "#/components/parameters/start" },
@@ -909,7 +908,6 @@ function createSpecs(datums: string[]) {
         get: {
           summary: "Get current events for a specific station",
           parameters: [
-            { $ref: "#/components/parameters/eventRevision" },
             { $ref: "#/components/parameters/stationSource" },
             { $ref: "#/components/parameters/currentStationId" },
             { $ref: "#/components/parameters/start" },
@@ -944,7 +942,6 @@ function createSpecs(datums: string[]) {
         get: {
           summary: "Get current events for a specific station",
           parameters: [
-            { $ref: "#/components/parameters/eventRevision" },
             { $ref: "#/components/parameters/unprefixedCurrentStationId" },
             { $ref: "#/components/parameters/start" },
             { $ref: "#/components/parameters/end" },
@@ -1044,14 +1041,6 @@ function createSpecs(datums: string[]) {
     },
     components: {
       parameters: {
-        eventRevision: {
-          name: "eventRevision",
-          in: "query",
-          required: false,
-          description:
-            "Request minima-v1 to receive minimum event kinds. Without it, minima retain legacy maxFlood/maxEbb phase labels.",
-          schema: { type: "string", enum: ["minima-v1"] },
-        },
         ...tides.components.parameters,
         currentStationId: {
           name: "id",
@@ -1229,7 +1218,6 @@ function createSpecs(datums: string[]) {
             {
               type: "object",
               properties: {
-                eventRevision: { type: "string", enum: ["minima-v1"] },
                 events: { type: "array", items: { $ref: "#/components/schemas/CurrentEvent" } },
               },
               required: ["events"],

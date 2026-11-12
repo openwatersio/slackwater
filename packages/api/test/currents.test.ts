@@ -57,9 +57,8 @@ describe("GET /currents/events", () => {
       try {
         const response = await request(app)
           .get("/currents/stations/noaa/PUG1701/events")
-          .query({ ...span, eventRevision: "minima-v1" });
+          .query(span);
         expect(response.status).toBe(200);
-        expect(response.body.eventRevision).toBe("minima-v1");
         const events: Event[] = response.body.events;
         const kind = meanFlow > 0 ? "minFlood" : "minEbb";
         expect(new Set(events.map((e) => e.kind))).toEqual(
@@ -75,20 +74,11 @@ describe("GET /currents/events", () => {
           "/currents/stations/noaa-boundary-pass/events",
         ]) {
           const location = path === "/currents/events" ? deceptionPass : {};
-          const legacy = await request(app)
+          const byPath = await request(app)
             .get(path)
             .query({ ...location, ...span });
-          expect(legacy.status).toBe(200);
-          expect(legacy.body).not.toHaveProperty("eventRevision");
-          expect(new Set(legacy.body.events.map((e: Event) => e.kind))).toEqual(
-            new Set([meanFlow > 0 ? "maxFlood" : "maxEbb"]),
-          );
-          const revised = await request(app)
-            .get(path)
-            .query({ ...location, ...span, eventRevision: "minima-v1" });
-          expect(revised.status).toBe(200);
-          expect(revised.body.eventRevision).toBe("minima-v1");
-          expect(revised.body.events.some((e: Event) => e.kind === kind)).toBe(true);
+          expect(byPath.status).toBe(200);
+          expect(byPath.body.events.some((e: Event) => e.kind === kind)).toBe(true);
         }
       } finally {
         constituents.mockRestore();
@@ -98,28 +88,6 @@ describe("GET /currents/events", () => {
       }
     },
   );
-
-  test.each([
-    "/currents/events",
-    "/currents/stations/noaa/PUG1701/events",
-    "/currents/stations/noaa-boundary-pass/events",
-  ])("rejects unknown event revisions on %s", async (path) => {
-    for (const server of [app, createApp()]) {
-      const response = await request(server)
-        .get(path)
-        .query({
-          ...(path === "/currents/events" ? deceptionPass : {}),
-          ...span,
-          eventRevision: "future",
-        });
-      expect(response.status).toBe(400);
-      expect(
-        response.body.errors.some((error: { path: string }) =>
-          error.path.includes("eventRevision"),
-        ),
-      ).toBe(true);
-    }
-  });
 
   test("returns events for the nearest current station", async () => {
     const response = await request(app)

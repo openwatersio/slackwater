@@ -181,48 +181,15 @@ function directions(station: StationFields) {
   };
 }
 
-const EVENT_REVISION = "minima-v1";
-
-function eventRevision(req: Request) {
-  const revision = req.query.eventRevision;
-  if (revision !== undefined && revision !== EVENT_REVISION) {
-    throw new validate.ValidationError([
-      { path: "eventRevision", message: `eventRevision must be ${EVENT_REVISION}` },
-    ]);
-  }
-  return revision;
-}
-
-function events(
-  catalog: Catalog,
-  predictor: Predictor,
-  span: Span,
-  revision: string | undefined,
-  distance?: number,
-) {
+function events(catalog: Catalog, predictor: Predictor, span: Span, distance?: number) {
   const { station, events } = predictor.getEventsPrediction(span);
   return {
     units: UNITS,
     ...directions(station),
     station: { ...station, ...describe(catalog, station) },
     ...(distance !== undefined && { distance }),
-    ...(revision !== undefined && { eventRevision: revision }),
     // Harmonic stations return every event in each UTC day the span touches.
-    events: events
-      .filter(({ time }) => time >= span.start && time <= span.end)
-      .map((event) =>
-        revision === EVENT_REVISION
-          ? event
-          : {
-              ...event,
-              kind:
-                event.kind === "minFlood"
-                  ? "maxFlood"
-                  : event.kind === "minEbb"
-                    ? "maxEbb"
-                    : event.kind,
-            },
-      ),
+    events: events.filter(({ time }) => time >= span.start && time <= span.end),
   };
 }
 
@@ -241,11 +208,10 @@ function timeline(catalog: Catalog, predictor: Predictor, span: Span, distance?:
 export function createCurrentRoutes(options: RouterOptions = {}) {
   return createApiRouter(loadCurrentsOpenapi, options, (router) => {
     router.get("/events", async (req: Request, res: Response) => {
-      const revision = eventRevision(req);
       const span = spanOptions(req);
       const catalog = await loadCatalog();
       const { predictor, distance } = await nearest(catalog, req);
-      res.json(events(catalog, predictor, span, revision, distance));
+      res.json(events(catalog, predictor, span, distance));
     });
 
     router.get("/timeline", async (req: Request, res: Response) => {
@@ -303,12 +269,11 @@ export function createCurrentRoutes(options: RouterOptions = {}) {
       res.json({ ...station, ...describe(catalog, station) });
     };
     const showEvents: RequestHandler = async (req, res) => {
-      const revision = eventRevision(req);
       const span = spanOptions(req);
       const catalog = await loadCatalog();
       const station = await find(catalog, req);
       assertPredictable(catalog, station);
-      res.json(events(catalog, station, span, revision));
+      res.json(events(catalog, station, span));
     };
     const showTimeline: RequestHandler = async (req, res) => {
       const span = spanOptions(req);

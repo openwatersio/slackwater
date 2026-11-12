@@ -153,8 +153,6 @@ export interface CurrentTimelineEntry {
 }
 
 export interface CurrentEventsResponse {
-  /** Echoed by HTTP APIs; custom data sources may omit it. */
-  eventRevision?: string;
   units: "knots";
   station: CurrentStationInfo;
   events: CurrentEvent[];

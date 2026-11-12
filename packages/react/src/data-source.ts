@@ -1,7 +1,6 @@
 import { sha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils.js";
 import {
-  CURRENT_EVENT_REVISION,
   fetchStation,
   fetchStations,
   fetchTimeline,
@@ -53,7 +52,7 @@ function apiCacheKey(baseUrl: string): string {
   } catch {
     // Invalid URLs belong to the query's error state, just like other HTTP failures.
   }
-  return `api:${CURRENT_EVENT_REVISION}:${bytesToHex(sha256(utf8ToBytes(base)))}`;
+  return `api:${bytesToHex(sha256(utf8ToBytes(base)))}`;
 }
 
 function validateCacheKey(cacheKey: string) {

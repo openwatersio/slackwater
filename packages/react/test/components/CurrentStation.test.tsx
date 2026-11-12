@@ -170,8 +170,7 @@ describe("CurrentStation", () => {
     vi.spyOn(window, "fetch").mockImplementation(async (url) => {
       const path = new URL(String(url)).pathname;
       if (path.endsWith("/timeline")) return Response.json({ station, timeline: [] });
-      if (path.endsWith("/events"))
-        return Response.json({ station, events: [], eventRevision: "minima-v1" });
+      if (path.endsWith("/events")) return Response.json({ station, events: [] });
       return Response.json(station);
     });
     render(<CurrentStation id="noaa/DRY" />, { wrapper: createTestWrapper() });
@@ -325,8 +324,7 @@ describe("CurrentStation", () => {
           timeline: [-2, 2].map((h) => ({ time: new Date(t + h * 3_600_000), speed: 1 })),
         });
       }
-      if (path.endsWith("/events"))
-        return Response.json({ station, events: [], eventRevision: "minima-v1" });
+      if (path.endsWith("/events")) return Response.json({ station, events: [] });
       return Response.json(station);
     });
     render(<CurrentStation id="test/STILL" />, { wrapper: createTestWrapper() });

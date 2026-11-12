@@ -269,7 +269,6 @@ describe("current stations", () => {
 
   test("fetchCurrentStationEvents parses event times and sends the range", async () => {
     mockFetch({
-      eventRevision: "minima-v1",
       events: [{ time: "2026-10-10T03:00:00Z", speed: 3, kind: "maxFlood" }],
     });
 
@@ -280,7 +279,6 @@ describe("current stations", () => {
 
     const url = new URL((fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string);
     expect(url.pathname).toBe("/currents/stations/noaa/PUG1701/events");
-    expect(url.searchParams.get("eventRevision")).toBe("minima-v1");
     expect(url.searchParams.get("start")).toBe("2026-10-10T00:00:00Z");
     expect(url.searchParams.has("id")).toBe(false);
     expect(res.events[0].time).toEqual(new Date("2026-10-10T03:00:00Z"));
@@ -303,7 +301,7 @@ describe("current stations", () => {
   );
 
   test("the current fetchers encode each segment and serve a bare id's predictions", async () => {
-    mockFetch({ eventRevision: "minima-v1", events: [], timeline: [] });
+    mockFetch({ events: [], timeline: [] });
 
     await fetchCurrentStation(BASE_URL, "noaa/a#b");
     await fetchCurrentStationEvents(BASE_URL, { id: "chs-active-pass" });
@@ -312,7 +310,7 @@ describe("current stations", () => {
     const urls = (fetch as ReturnType<typeof vi.fn>).mock.calls.map(([url]) => url);
     expect(urls).toEqual([
       "https://api.example.com/currents/stations/noaa/a%23b",
-      "https://api.example.com/currents/stations/chs-active-pass/events?eventRevision=minima-v1",
+      "https://api.example.com/currents/stations/chs-active-pass/events",
       "https://api.example.com/currents/stations/x%3Fy/timeline",
     ]);
   });
@@ -331,16 +329,3 @@ describe("current stations", () => {
     expect(res.timeline[0].direction).toBe(215);
   });
 });
-
-test.each([undefined, "legacy", "future"])(
-  "rejects stale or rolled-back current event contract %s",
-  async (eventRevision) => {
-    mockFetch({
-      eventRevision,
-      events: [{ time: "2026-10-10T03:00:00Z", speed: 0.3, kind: "maxFlood" }],
-    });
-    await expect(fetchCurrentStationEvents(BASE_URL, { id: "noaa/PUG1701" })).rejects.toThrow(
-      /Current-event contract mismatch/,
-    );
-  },
-);

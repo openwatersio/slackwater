@@ -10,8 +10,6 @@ import type {
   CurrentTimelineResponse,
 } from "./types.js";
 
-export const CURRENT_EVENT_REVISION = "minima-v1";
-
 export interface PredictionParams {
   start?: string;
   end?: string;
@@ -177,16 +175,8 @@ export async function fetchCurrentStationEvents(
   { id, ...params }: CurrentPredictionParams,
 ): Promise<CurrentEventsResponse> {
   const data = await fetchJSON<JSONResponse<CurrentEventsResponse>>(
-    buildURL(baseUrl, `/currents/stations/${stationPath(id, true)}/events`, {
-      ...params,
-      eventRevision: CURRENT_EVENT_REVISION,
-    }),
+    buildURL(baseUrl, `/currents/stations/${stationPath(id, true)}/events`, params),
   );
-  if (data.eventRevision !== CURRENT_EVENT_REVISION) {
-    throw new Error(
-      `Current-event contract mismatch: expected ${CURRENT_EVENT_REVISION}; received ${data.eventRevision ?? "legacy"}. Upgrade the API or clear stale HTTP responses.`,
-    );
-  }
   return { ...data, events: data.events.map((e) => ({ ...e, time: new Date(e.time) })) };
 }
 
