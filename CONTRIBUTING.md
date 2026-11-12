@@ -10,6 +10,7 @@ Slackwater is a TypeScript tide and current prediction engine split into multipl
 2. **`slackwater`** - User-facing API that wraps the predictor and integrates with `@slackwater/database` for station lookups
 3. **`@slackwater/api`** - HTTP JSON API server built with Express, provides REST endpoints for tide and tidal current predictions with OpenAPI validation
 4. **`@slackwater/cli`** - Command line interface built with Commander, distributed as npm package, Homebrew formula, and standalone SEA binaries
+5. **`@slackwater/mcp`** - Read-only assistant tools, catalog generation, stateless HTTP and local stdio adapters
 
 ## Critical Architecture Patterns
 
@@ -100,6 +101,12 @@ React current cards and scrubber leads show full predicted speed and Set, the di
 Current event kinds distinguish same-direction lulls (`minFlood` and `minEbb`) from maximum flow. A minimum remains a curve knot, chart mark, schedule row, and commentary stop, but never a next maximum or a maximum used for rankings. The event type comes from signed turning direction, independently of display rounding. Subordinate minima use their signed phase's maximum time and speed adjustments, matching NOAA's published tables; [XTide's comparison](https://flaterco.com/xtide/mincurrents.html#b4) documents the distinction from XTide's minimum-time adjustment rule. Keep the TypeScript, Swift, and Kotlin kinds and their consumers in agreement.
 
 `SlackwaterProvider` supplies a `SlackwaterDataSource` to every hook, map query, and prefetch helper. `data-source.ts` defines the contract and wraps the HTTP client for `baseUrl` consumers; hosts can inject local or precomputed predictions, which still come from the host's data source: React depends on `@slackwater/engine` for its readings but not on the station database or a prediction catalogue. Query keys include the source's stable dataset/revision/access-policy key. Changing that key remounts provider children to discard old placeholders and component-held predictions. Server prefetch and hydration must agree on source identity, units, and Date serialization. The source owns availability and license filtering for listings and direct requests.
+
+### @slackwater/mcp Architecture
+
+`packages/mcp` exposes five tools over the official MCP SDK. Its generator applies acceptance, replacement, source, model and explicit commercial-permission rules at build time. Metadata stays discoverable for unavailable stations; their prediction models are omitted. Models live in content-addressed asset directories with an atomically replaced manifest. The Worker caches the manifest and reads individual model assets through its private `ASSETS` binding, without importing the database bundle or fuzzy index. The stdio adapter reads the same generated format from disk. Keep Node-only generation/file code out of the Worker module graph. Generated assets and scratch review reports are not committed or packaged for npm.
+
+The tools preserve engine event semantics and unrounded signed current speeds. Slack windows use `slackRuns` around the engine's slack events; threshold zero means exact instants, and non-reversing lulls are excluded. Requests name exact canonical station IDs and at most three days of RFC3339 time bounds. Tests must cover refused models and references, missing bins, datum changes on replacement, interval clipping, vector versus signed speeds, diagnostic output permissions, and transport byte limits. Coverage include globs are relative to each Vitest project; use `**/src/**` to include package sources across the workspace.
 
 ### @slackwater/cli Architecture
 

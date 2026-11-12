@@ -6,3 +6,5 @@ swift/
 fixtures/
 .changeset/pre.json
 .superpowers/
+
+/packages/mcp/generated/
