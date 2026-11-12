@@ -4,18 +4,31 @@ import type { Constituent, ConstituentDefinition, Coefficients } from "./types.j
 
 /**
  * Build constituents from definitions, keyed by name and alias. Members
- * resolve against `definitions` first, then `base`. A definition replaces a
- * `base` entry of the same name or alias for lookups, but `base` compounds
- * keep the members they already have.
+ * resolve against `definitions` first, then `base`. A definition that shares
+ * a name or alias with a `base` entry replaces that entry under all of the
+ * entry's names, but `base` compounds keep the members they already have.
  */
 export function defineConstituents(
   definitions: readonly ConstituentDefinition[],
   base: Readonly<Record<string, Constituent>> = {},
 ): Record<string, Constituent> {
-  const registry: Record<string, Constituent> = { ...base };
+  // No prototype, so names such as "constructor" or "__proto__" are plain keys.
+  const registry: Record<string, Constituent> = Object.assign(Object.create(null), base);
+  const defined = new Set<string>();
   const built = definitions.map((definition) => {
+    validate(definition);
     const constituent = defineConstituent(definition);
-    for (const key of [constituent.name, ...constituent.aliases]) registry[key] = constituent;
+    const keys = [constituent.name, ...constituent.aliases];
+    const replaced = new Set<Constituent>();
+    for (const key of keys) {
+      if (defined.has(key)) throw new RangeError(`duplicateConstituent: ${key}`);
+      defined.add(key);
+      if (Object.hasOwn(registry, key)) replaced.add(registry[key]);
+    }
+    for (const key of Object.keys(registry)) {
+      if (replaced.has(registry[key])) registry[key] = constituent;
+    }
+    for (const key of keys) registry[key] = constituent;
     return constituent;
   });
   // Second pass, so members can name definitions later in the list.
@@ -27,7 +40,35 @@ export function defineConstituents(
       return { constituent: registry[member], factor };
     });
   });
+  // value() and correction() recurse through members, so a cycle would overflow the stack.
+  const done = new Set<Constituent>();
+  const visit = (c: Constituent, path: Set<Constituent>) => {
+    if (path.has(c)) throw new RangeError(`cyclicConstituent: ${c.name}`);
+    if (done.has(c)) return;
+    path.add(c);
+    for (const { constituent } of c.members) visit(constituent, path);
+    path.delete(c);
+    done.add(c);
+  };
+  for (const c of built) visit(c, new Set());
   return registry;
+}
+
+function validate({
+  name,
+  speed,
+  coefficients,
+  aliases = [],
+  members = [],
+}: ConstituentDefinition) {
+  const valid =
+    typeof name === "string" &&
+    Number.isFinite(speed) &&
+    (coefficients === null ||
+      (coefficients.length === 7 && coefficients.every(Number.isInteger))) &&
+    aliases.every((alias) => typeof alias === "string") &&
+    members.every(([member, factor]) => typeof member === "string" && Number.isFinite(factor));
+  if (!valid) throw new RangeError(`invalidDefinition: ${name}`);
 }
 
 /** A constituent with no members yet; `defineConstituents` resolves them. */
@@ -57,8 +98,7 @@ function defineConstituent({
 
     correction(astro: AstroData, fundamentals: Fundamentals = iho): NodalCorrection {
       // Fundamentals have their own correction formula
-      const fundamental = fundamentals[name];
-      if (fundamental) return fundamental(astro);
+      if (Object.hasOwn(fundamentals, name)) return fundamentals[name](astro);
 
       // Start with UNITY
       let f = 1;

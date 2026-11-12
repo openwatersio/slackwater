@@ -47,11 +47,7 @@ for (const key of Object.keys(constituents)) {
   if (!c || !c.name) continue;
   if (key !== c.name) aliases[key] = c.name;
   if (seen.has(c.name)) continue;
-  let members = null;
-  try {
-    const m = c.members;
-    if (m && m.length) members = m.map((x) => ({ name: x.constituent.name, factor: x.factor }));
-  } catch { members = null; }
+  const members = c.members.length ? c.members.map((x) => ({ name: x.constituent.name, factor: x.factor })) : null;
   seen.set(c.name, {
     name: c.name,
     speed: c.speed,

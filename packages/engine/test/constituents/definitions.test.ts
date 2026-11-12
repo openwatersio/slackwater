@@ -9,11 +9,18 @@ import {
 } from "../../src/index.js";
 
 const M2 = constituents.M2;
+// M2's line under another name, taking M2's nodal correction.
 const asDefinition = (name: string): ConstituentDefinition => ({
   name,
   speed: M2.speed,
   coefficients: M2.coefficients,
   members: [["M2", 1]],
+});
+// M2's own definition; the node-correction formulas supply its correction.
+const m2 = (coefficients = M2.coefficients): ConstituentDefinition => ({
+  name: "M2",
+  speed: M2.speed,
+  coefficients,
 });
 const span = { start: new Date("2026-01-01"), end: new Date("2026-01-03"), timeFidelity: 3600 };
 const levels = (c: { name: string; amplitude: number; phase: number }[], opts = {}) =>
@@ -46,8 +53,56 @@ describe("defineConstituents", () => {
   });
 
   it("leaves the catalog alone", () => {
-    defineConstituents([asDefinition("M2")], constituents);
+    defineConstituents([m2()], constituents);
     expect(constituents.M2).toBe(M2);
+  });
+
+  it("replaces a catalog entry under all its names", () => {
+    const nu2 = { ...asDefinition("nu2"), aliases: ["NU2"] };
+    const models = defineConstituents([nu2], constituents);
+    expect(models.NU2).toBe(models.nu2);
+    expect(models["ν2"]).toBe(models.nu2);
+    expect(models.nu2).not.toBe(constituents.nu2);
+    expect(defineConstituents([asDefinition("NU2")], constituents).nu2.name).toBe("NU2");
+  });
+
+  it("rejects member cycles", () => {
+    expect(() =>
+      defineConstituents([{ name: "X", speed: 1, coefficients: null, members: [["X", 1]] }]),
+    ).toThrow("cyclicConstituent: X");
+    expect(() =>
+      defineConstituents([
+        { name: "A", speed: 1, coefficients: null, members: [["B", 1]] },
+        { name: "B", speed: 1, coefficients: [0, 0, 1, 0, 0, 0, 0], members: [["A", 1]] },
+      ]),
+    ).toThrow("cyclicConstituent");
+    expect(() => defineConstituents([asDefinition("N2")], constituents)).not.toThrow();
+    expect(() =>
+      defineConstituents([{ ...asDefinition("N2"), members: [["N2", 1]] }], constituents),
+    ).toThrow("cyclicConstituent: N2");
+  });
+
+  it.each([
+    { name: "A", speed: Number.NaN, coefficients: null },
+    { name: "A", speed: 1, coefficients: [2, 0, 0, 0, 0, 0] },
+    { name: "A", speed: 1, coefficients: [2, 0, 0, 0, 0, 0, 0.5] },
+    { name: "A", speed: 1, coefficients: null, members: [["M2", Infinity]] },
+  ])("rejects an invalid definition %#", (definition) => {
+    expect(() => defineConstituents([definition as ConstituentDefinition], constituents)).toThrow(
+      "invalidDefinition: A",
+    );
+  });
+
+  it("rejects a name defined twice", () => {
+    expect(() => defineConstituents([asDefinition("A"), asDefinition("A")], constituents)).toThrow(
+      "duplicateConstituent: A",
+    );
+  });
+
+  it.each(["constructor", "toString", "__proto__"])("predicts a constituent named %s", (name) => {
+    expect(
+      levels([{ name, amplitude: 1, phase: 30 }], { definitions: [asDefinition(name)] }),
+    ).toEqual(levels([{ name: "M2", amplitude: 1, phase: 30 }]));
   });
 });
 
@@ -64,9 +119,7 @@ describe("definitions option", () => {
   it("replaces a catalog entry without moving catalog compounds", () => {
     // One more 90° in the argument is the same line at a phase 90° earlier.
     const [d1, d2, d3, d4, d5, d6, d7] = M2.coefficients!;
-    const definitions: ConstituentDefinition[] = [
-      { ...asDefinition("M2"), coefficients: [d1, d2, d3, d4, d5, d6, d7 + 1] },
-    ];
+    const definitions = [m2([d1, d2, d3, d4, d5, d6, d7 + 1])];
     const expected = levels([{ name: "M2", amplitude: 1, phase: -60 }]);
     levels([{ name: "M2", amplitude: 1, phase: 30 }], { definitions }).forEach((l, i) =>
       expect(l).toBeCloseTo(expected[i], 12),

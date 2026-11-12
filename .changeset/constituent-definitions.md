@@ -1,7 +1,5 @@
 ---
-"@slackwater/engine": major
+"@slackwater/engine": minor
 ---
 
-Store each constituent's Doodson coefficients and compound members in the catalog, and predict from definitions the caller supplies. `createTidePredictor`, `createCurrentPredictor` and `fit` take a `definitions` option that adds constituents to the catalog or replaces catalog entries of the same name, and `defineConstituents` builds the same models directly. Predictions are unchanged.
-
-Breaking change for TypeScript consumers of the catalog's types: `DefineConstituentOptions` is now `ConstituentDefinition`, with `coefficients` in place of `xdo` and no `nodalCorrection`, and the `XDO` and `NodalCorrectionCode` types are gone.
+Predict and fit constituents the catalog doesn't have, or defines differently. `createTidePredictor`, `createCurrentPredictor` and `fit` take a `definitions` option with each constituent's speed, Doodson coefficients and nodal-correction members, and `defineConstituents` builds the same models directly.

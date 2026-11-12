@@ -3,8 +3,8 @@
 // (src/constituents/definition.ts). Members are pre-resolved in the catalog.
 import Foundation
 
-/// One catalog constituent. `members` are pre-resolved (IHO Annex-B decomposition
-/// done at codegen time) so no name parser is needed at runtime.
+/// One catalog constituent, generated from the engine's catalog with `members`
+/// resolved by name at codegen time.
 struct CatalogEntry: Decodable, Sendable {
     let name: String
     let speed: Double

@@ -270,3 +270,64 @@ describe("equilibrium arguments", () => {
     expect(drifting).toEqual([]);
   });
 });
+
+describe("Compound members", () => {
+  // Members only lend these a nodal correction, so their speeds don't add up.
+  // N2 takes M2's, OO1 takes KQ1's, and the MA and MB variants take M2's, as IHO's list says.
+  const borrowed = [
+    "MSf",
+    "MSo",
+    "Mfm",
+    "2SM",
+    "MSqm",
+    "Mqm",
+    "2Q1",
+    "nuJ1",
+    "sigma1",
+    "Q1",
+    "rho1",
+    "MP1",
+    "tau1",
+    "chi1",
+    "phi1",
+    "theta1",
+    "OO1",
+    "eps2",
+    "2N2",
+    "mu2",
+    "3N2",
+    "N2",
+    "nu2",
+    "M(SK)2",
+    "M(KS)2",
+    "lambda2",
+    "3L2",
+    "T3",
+    "MA4",
+    "2NKMS5",
+    "MB5",
+    "NSK5",
+    "MA6",
+    "MA8",
+    "4MSN8",
+    "MA9",
+    "5MSN10",
+    "4M2SN10",
+    "3N2MS12",
+    "MA12",
+  ];
+
+  it("reproduce each compound's speed, except where they only lend a correction", () => {
+    const mismatched = [...new Set(Object.values(constituents))]
+      .filter(({ members, speed }) => {
+        if (!members.length) return false;
+        const sum = members.reduce(
+          (t, { constituent, factor }) => t + factor * constituent.speed,
+          0,
+        );
+        return Math.abs(sum - speed) > 1e-3;
+      })
+      .map(({ name }) => name);
+    expect(mismatched.sort()).toEqual([...borrowed].sort());
+  });
+});

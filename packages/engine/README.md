@@ -48,7 +48,7 @@ Calling `createTidePredictor` will generate a new tide prediction object. It acc
 - `options` - An object with one of:
   - `offset` - A value to add to **all** values predicted. This is useful if you want to, for example, offset tides by mean high water, etc.
   - `nodeCorrections` - The nodal correction convention: `"iho"` (default) or `"schureman"`.
-  - `definitions` - An array of [catalog definitions](#catalog-definitions) to predict alongside the built-in catalog. A definition replaces a catalog entry of the same name or alias.
+  - `definitions` - An array of [catalog definitions](#catalog-definitions) to predict alongside the built-in catalog. A definition that shares a name or alias with a catalog entry replaces that entry under all of the entry's names.
 
 Use `"iho"` unless the harmonic constants were derived with the Schureman convention. Keep the convention consistent between fitting and prediction; switching conventions can change some nodal amplitude factors by about 7% for J1 and 5.5% for Mf. Slackwater's harmonic fitter uses IHO corrections.
 
@@ -374,7 +374,7 @@ The engine's catalog defines each constituent name: its speed, its astronomical 
 - `speed` - **float** - Degrees per hour.
 - `coefficients` - **int[7] | null** - Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90° in the phase, in Schureman's convention: IHO's extended Doodson number with D₂ to D₆ less 5 and D₇ as 5 − D₇. `null` for a compound whose argument is the sum of its members' arguments.
 - `aliases` - **string[]** - Optional other names.
-- `members` - **[string, number][]** - Optional constituents whose nodal corrections combine into this one's, with factors. A member can be another definition or a catalog constituent. Leave out for no nodal correction.
+- `members` - **[string, number][]** - Optional constituents whose nodal corrections combine into this one's, with factors. A member can be another definition or a catalog constituent, but members can't form a cycle. A definition named after a constituent with its own node-correction formula (M2, K1, O1 and the others in the selected set) takes that formula and ignores its members. Otherwise, leave `members` out for no nodal correction.
 
 ```ts
 import { createTidePredictor } from "@slackwater/engine";
@@ -384,7 +384,7 @@ const predictor = createTidePredictor([{ name: "SA_X", amplitude: 0.12, phase: 2
 });
 ```
 
-`defineConstituents(definitions, base?)` builds the same models the predictors use, keyed by name and alias, with members resolved against `definitions` and then `base`. An unresolved member throws a `RangeError` beginning with `unknownConstituent`.
+`defineConstituents(definitions, base?)` builds the same models the predictors use, keyed by name and alias, with members resolved against `definitions` and then `base`. Catalog compounds keep their own members, so replacing `M2` doesn't change `MS4`. Invalid definitions throw a `RangeError` beginning with `invalidDefinition`, `duplicateConstituent` (a name or alias defined twice), `unknownConstituent` (an unresolved member) or `cyclicConstituent`.
 
 ### <a name="subordinate-station"></a>Subordinate station definitions
 
