@@ -61,17 +61,20 @@ const predictions = [
       { name: "b", amplitude: 0.5, phase: 70 },
     ],
   },
-].map((entry) => ({
-  ...entry,
-  ...span,
-  heights: createTidePredictor(entry.constituents, { definitions: entry.definitions })
-    .getTimelinePrediction({
-      start: new Date(span.start),
-      end: new Date(span.end),
-      timeFidelity: span.step,
-    })
-    .map((point) => point.level),
-}));
+].map((entry) => {
+  const predictor = createTidePredictor(entry.constituents, { definitions: entry.definitions });
+  const [start, end] = [new Date(span.start), new Date(span.end)];
+  return {
+    ...entry,
+    ...span,
+    heights: predictor
+      .getTimelinePrediction({ start, end, timeFidelity: span.step })
+      .map((point) => point.level),
+    extremes: predictor
+      .getExtremesPrediction({ start, end })
+      .map(({ time, level, high }) => ({ time: time.toISOString(), level, high })),
+  };
+});
 
 const truth = predictions[0];
 const samples = Array.from({ length: 24 * 30 }, (_, h) => {
@@ -93,6 +96,16 @@ const errors = [
   { name: "six coefficients", definitions: [definition("A", "M2", { coefficients: [2, 0, 0, 0, 0, 0] })] },
   { name: "a fractional coefficient", definitions: [definition("A", "M2", { coefficients: [2, 0, 0, 0, 0, 0, 0.5] })] },
   { name: "a speed off its argument", definitions: [definition("A", "M2", { speed: 28.9 })] },
+  {
+    name: "a negative speed",
+    definitions: [
+      definition("A", "M2", {
+        speed: -constituents.M2.speed,
+        coefficients: constituents.M2.coefficients.map((k) => -k),
+      }),
+    ],
+  },
+  { name: "a replacement for Z0", definitions: [{ name: "Z0", speed: 0, coefficients: [0, 0, 0, 0, 0, 0, 1] }] },
   { name: "no coefficients or members", definitions: [{ name: "A", speed: 1, coefficients: null }] },
   { name: "names two catalog entries", definitions: [definition("X", "M2", { aliases: ["M2", "N2"] })] },
   { name: "a name defined twice", definitions: [definition("A", "M2"), definition("A", "M2")] },

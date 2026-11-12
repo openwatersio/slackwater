@@ -112,6 +112,11 @@ describe("defineConstituents", () => {
     { name: "A", speed: 1, coefficients: null, members: [null] },
     { name: "A", speed: 28.9, coefficients: M2.coefficients },
     { name: "A", speed: 1, coefficients: null },
+    {
+      name: "A",
+      speed: -M2.speed,
+      coefficients: M2.coefficients!.map((k) => -k),
+    },
     { name: "A", speed: 1, coefficients: [2, 0, 0, 0, 0, 0] },
     { name: "A", speed: 1, coefficients: [2, 0, 0, 0, 0, 0, 0.5] },
     { name: "A", speed: 1, coefficients: null, members: [["M2", Infinity]] },
@@ -131,6 +136,12 @@ describe("defineConstituents", () => {
     expect(() => defineConstituents([null as unknown as ConstituentDefinition])).toThrow(
       "invalidDefinition: undefined",
     );
+  });
+
+  it.each(["Z0", "Zo"])("rejects a replacement for %s, which carries offsets", (name) => {
+    expect(() =>
+      defineConstituents([{ name, speed: 0, coefficients: [0, 0, 0, 0, 0, 0, 1] }], constituents),
+    ).toThrow(`invalidDefinition: ${name} (Z0 carries offsets)`);
   });
 
   it("rejects a name defined twice", () => {

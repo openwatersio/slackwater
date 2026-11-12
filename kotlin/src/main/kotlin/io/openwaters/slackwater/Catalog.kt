@@ -27,7 +27,10 @@ data class ConstituentDefinition @JvmOverloads constructor(
 
 /** Why a set of constituent definitions was rejected; [name] is the name at fault. */
 sealed class ConstituentDefinitionException(code: String, val name: String) : IllegalArgumentException("$code: $name") {
-    /** A malformed field, a speed that doesn't match the argument, or names that belong to two constituents. */
+    /**
+     * A malformed field, a negative speed or one that doesn't match the argument, names that belong
+     * to two constituents, or a replacement for Z0, which carries datum offsets.
+     */
     class InvalidDefinition(name: String) : ConstituentDefinitionException("invalidDefinition", name)
     /** A name defined twice, or two definitions for one catalog entry. */
     class DuplicateConstituent(name: String) : ConstituentDefinitionException("duplicateConstituent", name)
@@ -68,7 +71,8 @@ internal class Catalog private constructor(private val entries: List<Entry>, pri
         }
 
         private fun validate(d: ConstituentDefinition) {
-            val valid = d.name.isNotEmpty() && d.speed.isFinite() && (d.coefficients?.size ?: 7) == 7 &&
+            // Extremes and slack search assume every line turns forward.
+            val valid = d.name.isNotEmpty() && d.speed.isFinite() && d.speed >= 0 && (d.coefficients?.size ?: 7) == 7 &&
                 d.aliases.all { it.isNotEmpty() } && d.members.all { it.factor.isFinite() }
             if (!valid) throw ConstituentDefinitionException.InvalidDefinition(d.name)
         }
@@ -81,6 +85,8 @@ internal class Catalog private constructor(private val entries: List<Entry>, pri
         val index = HashMap(index)
         val first = entries.size
         val built = HashSet<Int>()
+        // Stations add datum offsets and mean flows as a Z0 term, so Z0 must stay a constant.
+        val offset = index["Z0"]
         for (definition in definitions) {
             validate(definition)
             val keys = (listOf(definition.name) + definition.aliases).distinct()
@@ -91,6 +97,7 @@ internal class Catalog private constructor(private val entries: List<Entry>, pri
                 replaced += i
             }
             if (replaced.size > 1) throw ConstituentDefinitionException.InvalidDefinition(definition.name)
+            if (offset != null && offset in replaced) throw ConstituentDefinitionException.InvalidDefinition(definition.name)
             val added = entries.size
             val formulaNames = keys.toMutableList()
             for ((key, i) in index.entries.sortedBy { it.key }) {

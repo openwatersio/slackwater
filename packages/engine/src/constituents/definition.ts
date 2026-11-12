@@ -15,6 +15,8 @@ export function defineConstituents(
 ): Record<string, Constituent> {
   // No prototype, so names such as "constructor" or "__proto__" are plain keys.
   const registry: Record<string, Constituent> = Object.assign(Object.create(null), base);
+  // Predictors add datum offsets and mean flows as a Z0 term, so Z0 must stay a constant.
+  const offset = Object.hasOwn(registry, "Z0") ? registry.Z0 : undefined;
   const built = new Set<Constituent>();
   const constituents = definitions.map((definition) => {
     validate(definition);
@@ -29,6 +31,9 @@ export function defineConstituents(
     }
     if (replaced.size > 1) {
       throw new RangeError(`invalidDefinition: ${constituent.name} (names two constituents)`);
+    }
+    if (offset && replaced.has(offset)) {
+      throw new RangeError(`invalidDefinition: ${constituent.name} (Z0 carries offsets)`);
     }
     for (const key of Object.keys(registry)) {
       if (!replaced.has(registry[key])) continue;
@@ -91,6 +96,8 @@ function validate(definition: ConstituentDefinition) {
     typeof name === "string" &&
     name !== "" &&
     Number.isFinite(speed) &&
+    // Extremes and slack search assume every line turns forward.
+    speed >= 0 &&
     (coefficients === null ||
       (Array.isArray(coefficients) &&
         coefficients.length === 7 &&

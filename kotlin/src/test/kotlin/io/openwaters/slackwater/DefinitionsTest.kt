@@ -26,11 +26,19 @@ class DefinitionsTest {
     @Test fun predictsLikeTheEngine() {
         for (case in fixture.array("predictions").map { it.obj() }) {
             val name = case.string("name")
-            val heights = Station(case.constituents(), 0.0, case.definitions())
-                .heights(case.instant("start"), case.instant("end"), case.number("step"))
+            val station = Station(case.constituents(), 0.0, case.definitions())
+            val heights = station.heights(case.instant("start"), case.instant("end"), case.number("step"))
             val expected = case.array("heights").map { it.jsonPrimitive.double }
             assertEquals(expected.size, heights.size, name)
             expected.zip(heights).forEach { (want, got) -> assertEquals(want, got.heightMetres, 1e-6, name) }
+            val extremes = station.extremes(case.instant("start"), case.instant("end"))
+            val wanted = case.array("extremes").map { it.obj() }
+            assertEquals(wanted.size, extremes.size, "$name extremes")
+            for ((want, got) in wanted.zip(extremes)) {
+                assertEquals(if (want.getValue("high").jsonPrimitive.boolean) ExtremeKind.HIGH else ExtremeKind.LOW, got.kind, name)
+                assertTrue(kotlin.math.abs(secondsBetween(want.instant("time"), got.time)) < 60, "$name extreme time")
+                assertEquals(want.number("level"), got.heightMetres, 0.02, "$name extreme level")
+            }
         }
     }
 
@@ -39,6 +47,7 @@ class DefinitionsTest {
         val speeds = CurrentStation(case.constituents(), definitions = case.definitions())
             .speeds(case.instant("start"), case.instant("end"), case.number("step"))
         val expected = case.array("heights").map { it.jsonPrimitive.double }
+        assertEquals(expected.size, speeds.size)
         expected.zip(speeds).forEach { (want, got) -> assertEquals(want, got.speedKnots, 1e-6) }
     }
 
@@ -50,6 +59,7 @@ class DefinitionsTest {
         }
         val result = fit(samples, case.array("basis").map { it.jsonPrimitive.content }, case.definitions())
         val expected = case.getValue("expected").obj().constituents()
+        assertEquals(expected.size, result.constituents.size)
         for ((got, want) in result.constituents.zip(expected)) {
             assertEquals(want.name, got.name)
             assertEquals(want.amplitude, got.amplitude, 1e-6, want.name)

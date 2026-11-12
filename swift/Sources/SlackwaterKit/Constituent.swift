@@ -33,7 +33,8 @@ public struct ConstituentDefinition: Sendable, Equatable {
 
 /// Why a set of constituent definitions was rejected; each case carries the name at fault.
 public enum ConstituentDefinitionError: Error, Equatable {
-    /// A malformed field, a speed that doesn't match the argument, or names that belong to two constituents.
+    /// A malformed field, a negative speed or one that doesn't match the argument, names that belong
+    /// to two constituents, or a replacement for Z0, which carries datum offsets.
     case invalidDefinition(String)
     /// A name defined twice, or two definitions for one catalog entry.
     case duplicateConstituent(String)
@@ -90,6 +91,8 @@ struct Catalog: Sendable {
     func with(_ definitions: [ConstituentDefinition]) throws -> Catalog {
         var catalog = self
         var built = Set<Int>()
+        // Stations add datum offsets and mean flows as a Z0 term, so Z0 must stay a constant.
+        let offset = index["Z0"]
         for definition in definitions {
             try Self.validate(definition)
             var keys: [String] = []
@@ -101,6 +104,7 @@ struct Catalog: Sendable {
                 replaced.insert(i)
             }
             if replaced.count > 1 { throw ConstituentDefinitionError.invalidDefinition(definition.name) }
+            if let offset, replaced.contains(offset) { throw ConstituentDefinitionError.invalidDefinition(definition.name) }
             let added = catalog.entries.count
             var formulaNames = keys
             for (key, i) in catalog.index.sorted(by: { $0.key < $1.key }) where replaced.contains(i) {
@@ -143,7 +147,8 @@ struct Catalog: Sendable {
     }
 
     private static func validate(_ d: ConstituentDefinition) throws {
-        let valid = !d.name.isEmpty && d.speed.isFinite && (d.coefficients.map { $0.count == 7 } ?? true) &&
+        // Extremes and slack search assume every line turns forward.
+        let valid = !d.name.isEmpty && d.speed.isFinite && d.speed >= 0 && (d.coefficients.map { $0.count == 7 } ?? true) &&
             d.aliases.allSatisfy { !$0.isEmpty } && d.members.allSatisfy { $0.factor.isFinite }
         if !valid { throw ConstituentDefinitionError.invalidDefinition(d.name) }
     }

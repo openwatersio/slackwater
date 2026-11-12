@@ -44,12 +44,20 @@ private func span(_ entry: JSON) -> (Date, Date, Double) {
     for case let entry as JSON in fixture["predictions"] as! [Any] { // swiftlint:disable:this force_cast
         let name = entry["name"] as! String // swiftlint:disable:this force_cast
         let (start, end, step) = span(entry)
-        let heights = try Station(constituents: constituents(entry), definitions: definitions(entry)!)
-            .heights(from: start, to: end, step: step)
+        let station = try Station(constituents: constituents(entry), definitions: definitions(entry)!)
+        let heights = station.heights(from: start, to: end, step: step)
         let expected = entry["heights"] as! [Double] // swiftlint:disable:this force_cast
         #expect(heights.count == expected.count, "\(name)")
         for (got, want) in zip(heights, expected) {
             #expect(abs(got.height - want) < 1e-6, "\(name): got \(got.height), want \(want)")
+        }
+        let extremes = station.extremes(from: start, to: end)
+        let wanted = entry["extremes"] as! [JSON] // swiftlint:disable:this force_cast
+        #expect(extremes.count == wanted.count, "\(name) extremes")
+        for (got, want) in zip(extremes, wanted) {
+            #expect(got.kind == (want["high"] as! Bool ? .high : .low), "\(name) extreme kind") // swiftlint:disable:this force_cast
+            #expect(abs(got.time.timeIntervalSince(parseISO(want["time"] as! String))) < 60, "\(name) extreme time") // swiftlint:disable:this force_cast
+            #expect(abs(got.height - (want["level"] as! Double)) < 0.02, "\(name) extreme level") // swiftlint:disable:this force_cast
         }
     }
 }
@@ -60,6 +68,7 @@ private func span(_ entry: JSON) -> (Date, Date, Double) {
     let (start, end, step) = span(entry)
     let speeds = try CurrentStation(constituents: constituents(entry), definitions: definitions(entry)!)
         .speeds(from: start, to: end, step: step)
+    #expect(speeds.count == (entry["heights"] as! [Double]).count) // swiftlint:disable:this force_cast
     for (got, want) in zip(speeds, entry["heights"] as! [Double]) { // swiftlint:disable:this force_cast
         #expect(abs(got.speed - want) < 1e-6)
     }
