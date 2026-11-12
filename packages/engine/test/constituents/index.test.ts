@@ -272,6 +272,8 @@ describe("equilibrium arguments", () => {
 });
 
 describe("Compound members", () => {
+  // Members whose speeds don't add up because the Annex B decomposition is wrong (#361).
+  const defects = ["M(SK)2", "M(KS)2", "2NKMS5", "NSK5", "4MSN8", "5MSN10", "4M2SN10", "3N2MS12"];
   // Members only lend these a nodal correction, so their speeds don't add up.
   // N2 takes M2's, OO1 takes KQ1's, and the MA and MB variants take M2's, as IHO's list says.
   const borrowed = [
@@ -298,22 +300,14 @@ describe("Compound members", () => {
     "3N2",
     "N2",
     "nu2",
-    "M(SK)2",
-    "M(KS)2",
     "lambda2",
     "3L2",
     "T3",
     "MA4",
-    "2NKMS5",
     "MB5",
-    "NSK5",
     "MA6",
     "MA8",
-    "4MSN8",
     "MA9",
-    "5MSN10",
-    "4M2SN10",
-    "3N2MS12",
     "MA12",
   ];
 
@@ -328,6 +322,6 @@ describe("Compound members", () => {
         return Math.abs(sum - speed) > 1e-3;
       })
       .map(({ name }) => name);
-    expect(mismatched.sort()).toEqual([...borrowed].sort());
+    expect(mismatched.sort()).toEqual([...borrowed, ...defects].sort());
   });
 });

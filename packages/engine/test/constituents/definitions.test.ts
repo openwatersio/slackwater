@@ -32,8 +32,14 @@ describe("defineConstituents", () => {
   it("resolves members against later definitions and the base", () => {
     const models = defineConstituents(
       [
-        { name: "A", speed: 1, coefficients: null, members: [["B", 2]] },
-        { name: "B", speed: 0.5, coefficients: null, aliases: ["b"], members: [["M2", 1]] },
+        { name: "A", speed: 2 * M2.speed, coefficients: null, members: [["B", 2]] },
+        {
+          name: "B",
+          speed: M2.speed,
+          coefficients: null,
+          aliases: ["B", "b"],
+          members: [["M2", 1]],
+        },
       ],
       constituents,
     );
@@ -84,12 +90,29 @@ describe("defineConstituents", () => {
 
   it.each([
     { name: "A", speed: Number.NaN, coefficients: null },
+    { name: "A", speed: 1 },
+    { name: "A", speed: 1, coefficients: null, aliases: "B" },
+    { name: "A", speed: 1, coefficients: null, members: [null] },
+    { name: "A", speed: 28.9, coefficients: M2.coefficients },
+    { name: "A", speed: 1, coefficients: null },
     { name: "A", speed: 1, coefficients: [2, 0, 0, 0, 0, 0] },
     { name: "A", speed: 1, coefficients: [2, 0, 0, 0, 0, 0, 0.5] },
     { name: "A", speed: 1, coefficients: null, members: [["M2", Infinity]] },
   ])("rejects an invalid definition %#", (definition) => {
     expect(() => defineConstituents([definition as ConstituentDefinition], constituents)).toThrow(
       "invalidDefinition: A",
+    );
+  });
+
+  it("rejects two definitions for one catalog entry", () => {
+    expect(() =>
+      defineConstituents([asDefinition("NU2"), asDefinition("nu2")], constituents),
+    ).toThrow("duplicateConstituent: nu2");
+  });
+
+  it("rejects a definition that isn't an object", () => {
+    expect(() => defineConstituents([null as unknown as ConstituentDefinition])).toThrow(
+      "invalidDefinition: undefined",
     );
   });
 

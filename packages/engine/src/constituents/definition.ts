@@ -1,4 +1,4 @@
-import type { AstroData } from "../astronomy/index.js";
+import astro, { type AstroData } from "../astronomy/index.js";
 import { iho, type Fundamentals, type NodalCorrection } from "../node-corrections/index.js";
 import type { Constituent, ConstituentDefinition, Coefficients } from "./types.js";
 
@@ -7,6 +7,7 @@ import type { Constituent, ConstituentDefinition, Coefficients } from "./types.j
  * resolve against `definitions` first, then `base`. A definition that shares
  * a name or alias with a `base` entry replaces that entry under all of the
  * entry's names, but `base` compounds keep the members they already have.
+ * Throws a `RangeError` for an invalid definition.
  */
 export function defineConstituents(
   definitions: readonly ConstituentDefinition[],
@@ -14,26 +15,28 @@ export function defineConstituents(
 ): Record<string, Constituent> {
   // No prototype, so names such as "constructor" or "__proto__" are plain keys.
   const registry: Record<string, Constituent> = Object.assign(Object.create(null), base);
-  const defined = new Set<string>();
-  const built = definitions.map((definition) => {
+  const built = new Set<Constituent>();
+  const constituents = definitions.map((definition) => {
     validate(definition);
     const constituent = defineConstituent(definition);
-    const keys = [constituent.name, ...constituent.aliases];
+    const keys = new Set([constituent.name, ...constituent.aliases]);
     const replaced = new Set<Constituent>();
     for (const key of keys) {
-      if (defined.has(key)) throw new RangeError(`duplicateConstituent: ${key}`);
-      defined.add(key);
-      if (Object.hasOwn(registry, key)) replaced.add(registry[key]);
+      if (!Object.hasOwn(registry, key)) continue;
+      // Two definitions for one name, or for two names of one catalog entry.
+      if (built.has(registry[key])) throw new RangeError(`duplicateConstituent: ${key}`);
+      replaced.add(registry[key]);
     }
     for (const key of Object.keys(registry)) {
       if (replaced.has(registry[key])) registry[key] = constituent;
     }
     for (const key of keys) registry[key] = constituent;
+    built.add(constituent);
     return constituent;
   });
   // Second pass, so members can name definitions later in the list.
   definitions.forEach(({ name, members = [] }, i) => {
-    built[i].members = members.map(([member, factor]) => {
+    constituents[i].members = members.map(([member, factor]) => {
       if (!Object.hasOwn(registry, member)) {
         throw new RangeError(`unknownConstituent: ${member} (member of ${name})`);
       }
@@ -50,25 +53,50 @@ export function defineConstituents(
     path.delete(c);
     done.add(c);
   };
-  for (const c of built) visit(c, new Set());
+  for (const c of constituents) visit(c, new Set());
+  // Prediction advances V₀ at `speed` from its start, and extremes restart it each midnight,
+  // so an argument that moves at another rate puts extremes off the timeline.
+  for (const c of constituents) {
+    if (!(Math.abs(argumentRate(c) - c.speed) <= 1e-5)) {
+      throw new RangeError(`invalidDefinition: ${c.name} (speed doesn't match its argument)`);
+    }
+  }
   return registry;
 }
 
-function validate({
-  name,
-  speed,
-  coefficients,
-  aliases = [],
-  members = [],
-}: ConstituentDefinition) {
+const rates = (() => {
+  const a = astro(new Date("2026-01-01T00:00:00Z"));
+  return [a["T+h-s"].speed, a.s.speed, a.h.speed, a.p.speed, -a.N.speed, a.pp.speed, 0];
+})();
+
+/** Degrees per hour at which `value()` advances. */
+function argumentRate({ coefficients, members }: Constituent): number {
+  if (coefficients) return coefficients.reduce((sum, k, i) => sum + k * rates[i], 0);
+  if (!members.length) return Number.NaN;
+  return members.reduce(
+    (sum, { constituent, factor }) => sum + factor * argumentRate(constituent),
+    0,
+  );
+}
+
+function validate(definition: ConstituentDefinition) {
+  const { name, speed, coefficients, aliases = [], members = [] } = definition ?? {};
   const valid =
     typeof name === "string" &&
+    name !== "" &&
     Number.isFinite(speed) &&
     (coefficients === null ||
-      (coefficients.length === 7 && coefficients.every(Number.isInteger))) &&
-    aliases.every((alias) => typeof alias === "string") &&
-    members.every(([member, factor]) => typeof member === "string" && Number.isFinite(factor));
-  if (!valid) throw new RangeError(`invalidDefinition: ${name}`);
+      (Array.isArray(coefficients) &&
+        coefficients.length === 7 &&
+        coefficients.every(Number.isInteger))) &&
+    Array.isArray(aliases) &&
+    aliases.every((alias) => typeof alias === "string" && alias !== "") &&
+    Array.isArray(members) &&
+    members.every(
+      (member) =>
+        Array.isArray(member) && typeof member[0] === "string" && Number.isFinite(member[1]),
+    );
+  if (!valid) throw new RangeError(`invalidDefinition: ${String(name)}`);
 }
 
 /** A constituent with no members yet; `defineConstituents` resolves them. */

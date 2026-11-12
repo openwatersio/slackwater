@@ -371,7 +371,7 @@ Tidal constituents should be an array of objects with at least:
 The engine's catalog defines each constituent name: its speed, its astronomical argument, and its nodal correction. A harmonic constant only means something under the definition it was analyzed with, so a caller whose constants use a line the catalog doesn't have, or defines differently, passes its own definitions. They have the same shape as the entries in [data.json](src/constituents/data.json):
 
 - `name` - **string** - The name the station's constants use.
-- `speed` - **float** - Degrees per hour.
+- `speed` - **float** - Degrees per hour. It has to match the rate of the argument the coefficients or members give, to within 1e-5 °/h, so that extremes, which restart the argument each midnight, stay on the timeline.
 - `coefficients` - **int[7] | null** - Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90° in the phase, in Schureman's convention: IHO's extended Doodson number with D₂ to D₆ less 5 and D₇ as 5 − D₇. `null` for a compound whose argument is the sum of its members' arguments.
 - `aliases` - **string[]** - Optional other names.
 - `members` - **[string, number][]** - Optional constituents whose nodal corrections combine into this one's, with factors. A member can be another definition or a catalog constituent, but members can't form a cycle. A definition named after a constituent with its own node-correction formula (M2, K1, O1 and the others in the selected set) takes that formula and ignores its members. Otherwise, leave `members` out for no nodal correction.
@@ -384,7 +384,7 @@ const predictor = createTidePredictor([{ name: "SA_X", amplitude: 0.12, phase: 2
 });
 ```
 
-`defineConstituents(definitions, base?)` builds the same models the predictors use, keyed by name and alias, with members resolved against `definitions` and then `base`. Catalog compounds keep their own members, so replacing `M2` doesn't change `MS4`. Invalid definitions throw a `RangeError` beginning with `invalidDefinition`, `duplicateConstituent` (a name or alias defined twice), `unknownConstituent` (an unresolved member) or `cyclicConstituent`.
+`defineConstituents(definitions, base?)` builds the same models the predictors use, keyed by name and alias, with members resolved against `definitions` and then `base`. Catalog compounds keep their own members, so replacing `M2` doesn't change `MS4`. Invalid definitions throw a `RangeError` beginning with `invalidDefinition` (a malformed field, or a speed that doesn't match the argument), `duplicateConstituent` (a name defined twice, or two definitions for one catalog entry), `unknownConstituent` (an unresolved member) or `cyclicConstituent`.
 
 ### <a name="subordinate-station"></a>Subordinate station definitions
 
