@@ -12,11 +12,14 @@ data class ConstituentAstronomy(
     val nodalFactor: Double
 )
 
-/** Per-instant fitting basis; null means the constituent has no usable equilibrium definition. */
+/**
+ * Per-instant fitting basis from the bundled catalog, without caller definitions; null means the
+ * constituent has no usable equilibrium definition.
+ */
 fun constituentAstronomy(name: String, time: Instant): ConstituentAstronomy? {
-    if (!Catalog.hasEquilibrium(name)) return null
+    if (!Catalog.shared.hasEquilibrium(name)) return null
     val a = astro(time)
-    val c = Catalog.correction(name, a)
-    val v0 = Catalog.v0(name, a)
-    return ConstituentAstronomy(Catalog.canonical(name), Catalog.speed(name)!!, v0, c.uDegrees, wrap(v0 + c.uDegrees), c.f)
+    val c = Catalog.shared.correction(name, a)
+    val v0 = Catalog.shared.v0(name, a)
+    return ConstituentAstronomy(Catalog.shared.canonical(name), Catalog.shared.speed(name)!!, v0, c.uDegrees, wrap(v0 + c.uDegrees), c.f)
 }

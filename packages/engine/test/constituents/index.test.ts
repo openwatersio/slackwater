@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import constituents from "../../src/constituents/index.js";
 import astro from "../../src/astronomy/index.js";
+import { iho } from "../../src/node-corrections/index.js";
 
 const sampleTime = new Date("2019-10-04T10:15:40.010Z");
 const testAstro = astro(sampleTime);
@@ -123,7 +124,7 @@ describe("Base constituent definitions", () => {
     expect(constituents.S3.speed).toBeCloseTo(45.0, 2);
   });
 
-  // Null-XDO compound constituents derive V₀ from structural decomposition
+  // Compounds without coefficients derive V₀ from their members
   it("derives V₀ for MS4 (M2+S2) from structural members", () => {
     const expected = constituents.M2.value(testAstro) + constituents.S2.value(testAstro);
     expect(constituents.MS4.value(testAstro)).toBeCloseTo(expected, 4);
@@ -268,5 +269,109 @@ describe("equilibrium arguments", () => {
       }
     }
     expect(drifting).toEqual([]);
+  });
+});
+
+describe("Compound members", () => {
+  // Members whose speeds don't add up because the Annex B decomposition is wrong (#361).
+  const defects = ["M(SK)2", "M(KS)2", "2NKMS5", "NSK5", "4MSN8", "5MSN10", "4M2SN10", "3N2MS12"];
+  // Members only lend these a nodal correction, so their speeds don't add up.
+  // N2 takes M2's, OO1 takes KQ1's, and the MA and MB variants take M2's, as IHO's list says.
+  const borrowed = [
+    "MSf",
+    "MSo",
+    "Mfm",
+    "2SM",
+    "MSqm",
+    "Mqm",
+    "2Q1",
+    "nuJ1",
+    "sigma1",
+    "Q1",
+    "rho1",
+    "MP1",
+    "tau1",
+    "chi1",
+    "phi1",
+    "theta1",
+    "OO1",
+    "eps2",
+    "2N2",
+    "mu2",
+    "3N2",
+    "N2",
+    "nu2",
+    "lambda2",
+    "3L2",
+    "T3",
+    "MA4",
+    "MB5",
+    "MA6",
+    "MA8",
+    "MA9",
+    "MA12",
+  ];
+
+  it("reproduce each compound's speed, except where they only lend a correction", () => {
+    const mismatched = [...new Set(Object.values(constituents))]
+      .filter(({ members, speed }) => {
+        if (!members.length) return false;
+        const sum = members.reduce(
+          (t, { constituent, factor }) => t + factor * constituent.speed,
+          0,
+        );
+        return Math.abs(sum - speed) > 1e-3;
+      })
+      .map(({ name }) => name);
+    expect(mismatched.sort()).toEqual([...borrowed, ...defects].sort());
+  });
+
+  it("leave only these constituents without a nodal correction", () => {
+    // IHO's list gives these unity (codes z and f).
+    const unity = [
+      "Zo",
+      "SA_KV",
+      "Sa",
+      "Ssa",
+      "ALP1",
+      "BET1",
+      "pi1",
+      "P1",
+      "S1",
+      "S1_KV",
+      "psi1",
+      "OQ2_KV",
+      "T2",
+      "S2",
+      "R2",
+      "NA2",
+      "NB2",
+      "NA2*",
+      "MA2",
+      "MB2",
+      "MA2*",
+    ];
+    // IHO's list decomposes these from their names (code x), which Annex B parsing couldn't do (#361).
+    const undecomposed = [
+      "Snu2",
+      "MS1",
+      "3MS2",
+      "MPS2",
+      "MSP2",
+      "3(SM)N2",
+      "2MS3",
+      "MS3",
+      "4MS4",
+      "3MS5",
+      "2MS5",
+      "(SK)K5",
+      "2MNO6",
+      "4ML12",
+      "5MSN12",
+    ];
+    const uncorrected = [...new Set(Object.values(constituents))]
+      .filter((c) => !c.members.length && !Object.hasOwn(iho, c.name))
+      .map(({ name }) => name);
+    expect(uncorrected.sort()).toEqual([...unity, ...undecomposed].sort());
   });
 });

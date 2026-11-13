@@ -46,8 +46,8 @@ class FitTest {
             val time = Instant.ofEpochSecond(1_262_304_000L + (i / 2) * 37L * 3600)
             val state = astro(time)
             HarmonicSample(time, truth.fold(-2.3456789) { sum, c ->
-                val correction = Catalog.correction(c.name, state)
-                sum + c.amplitude * correction.f * cos((Catalog.v0(c.name, state) + correction.uDegrees - c.phaseDegrees) * PI / 180)
+                val correction = Catalog.shared.correction(c.name, state)
+                sum + c.amplitude * correction.f * cos((Catalog.shared.v0(c.name, state) + correction.uDegrees - c.phaseDegrees) * PI / 180)
             })
         }
         val result = fit(samples, truth.map { it.name })
@@ -87,8 +87,8 @@ class FitTest {
     private fun residualRms(samples: List<HarmonicSample>, result: HarmonicFit) = sqrt(samples.sumOf { s ->
         val state = astro(s.time)
         val model = result.constituents.fold(result.offset) { sum, c ->
-            val correction = Catalog.correction(c.name, state)
-            sum + c.amplitude * correction.f * cos((Catalog.v0(c.name, state) + correction.uDegrees - c.phaseDegrees) * PI / 180)
+            val correction = Catalog.shared.correction(c.name, state)
+            sum + c.amplitude * correction.f * cos((Catalog.shared.v0(c.name, state) + correction.uDegrees - c.phaseDegrees) * PI / 180)
         }
         (model - s.value) * (model - s.value)
     } / samples.size)

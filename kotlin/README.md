@@ -117,6 +117,19 @@ Samples are `HarmonicSample(time, value)`, finite and ordered by time, with at l
 
 `FitTest` holds the fit to `fixtures/harmonic-fit-parity.json`, the SVD oracle Swift and [`@slackwater/engine`](../packages/engine#harmonic-fitting) also check, at the same tolerances, and to the shared invalid inputs in `fixtures/harmonic-fit-invalid.json`.
 
+## Constituent definitions
+
+A harmonic constant only means something under the definition it was analyzed with. To predict or fit a line the catalog doesn't have, or defines differently, pass `ConstituentDefinition`s to `Station`, `CurrentStation` or `fit` as `definitions`. They have the same shape and rules as [`@slackwater/engine`'s catalog definitions](../packages/engine/README.md#catalog-definitions).
+
+```kotlin
+val station = Station(
+    listOf(HarmonicConstituent("SA_X", 0.12, 210.0)),
+    definitions = listOf(ConstituentDefinition("SA_X", 0.0410686, listOf(0, 0, 1, 0, 0, 0, -1))),
+)
+```
+
+A definition that shares a name or alias with a catalog entry replaces that entry under all of the entry's names, and catalog compounds keep their own members. An invalid set throws a `ConstituentDefinitionException`: `InvalidDefinition`, `DuplicateConstituent`, `UnknownConstituent` or `CyclicConstituent`. `DefinitionsTest` checks predictions, a fit and rejected definitions against `fixtures/constituent-definitions.json`, which the TypeScript engine generates and Swift checks too.
+
 ## Readings
 
 A reading names what the water is doing at one instant, from a series and its events. These port the readings in [`@slackwater/engine`](../packages/engine), and `fixtures/readings.json` holds them to the same answers as TypeScript and Swift. Continuing from the predictions above:

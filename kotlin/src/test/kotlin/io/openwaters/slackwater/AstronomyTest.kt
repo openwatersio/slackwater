@@ -19,7 +19,7 @@ class AstronomyTest {
             val state = astro(entry.instant("time"))
             for ((name, value) in entry.getValue("corrections").obj()) {
                 val expected = value.obj()
-                val actual = Catalog.correction(name, state)
+                val actual = Catalog.shared.correction(name, state)
                 assertTrue(abs(actual.f - expected.number("f")) < 1e-6, name)
                 assertTrue(angularDiff(actual.uDegrees, expected.number("u")) < 1e-6, name)
             }

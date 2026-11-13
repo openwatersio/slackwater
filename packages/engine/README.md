@@ -48,6 +48,7 @@ Calling `createTidePredictor` will generate a new tide prediction object. It acc
 - `options` - An object with one of:
   - `offset` - A value to add to **all** values predicted. This is useful if you want to, for example, offset tides by mean high water, etc.
   - `nodeCorrections` - The nodal correction convention: `"iho"` (default) or `"schureman"`.
+  - `definitions` - An array of [catalog definitions](#catalog-definitions) to predict alongside the built-in catalog. A definition that shares a name or alias with a catalog entry replaces that entry under all of the entry's names.
 
 Use `"iho"` unless the harmonic constants were derived with the Schureman convention. Keep the convention consistent between fitting and prediction; switching conventions can change some nodal amplitude factors by about 7% for J1 and 5.5% for Mf. Slackwater's harmonic fitter uses IHO corrections.
 
@@ -189,6 +190,8 @@ Max flood is a positive local high and max ebb a negative local low. Same-sign l
 
 For two-dimensional predictions, pass `minorConstituents` (NOAA `minorAmplitude` and `minorPhaseGMT`), `minorMeanFlow` (NOAA `minorMeanSpeed`, default 0), and `azimuth` (NOAA `azi`, default `floodDirection`). Both axes use the selected nodal corrections. `speed` remains the signed major-axis component; `magnitude` is `hypot(u, v)` in knots and `direction` is the vector bearing in degrees true, normalized to `[0, 360)`. The positive minor axis is [90 degrees clockwise from the major axis](https://tidesandcurrents.noaa.gov/publications/techrpt21.pdf). A nonzero minor mean flow also enables vector prediction without minor harmonics.
 
+`createCurrentPredictor` also takes `nodeCorrections` and `definitions`, as `createTidePredictor` does.
+
 Empty minor arrays, unknown constituent names, and zero minor amplitudes without mean cross-flow use the one-axis fallback. Without minor-axis data, every timeline point has `magnitude: abs(speed)` and the published flood or ebb direction for its sign. Subordinates use their own phase directions. A zero vector has no direction; a vector whose azimuth is unknown also has no direction. In a rotary current, a major-axis slack can have nonzero magnitude and a direction. Events and `slackWindows` always use the major axis. The `CurrentPoint` type permits caller-synthesized points without `magnitude`; engine timelines always supply it.
 
 ```ts
@@ -316,7 +319,7 @@ const result = fit(samples, ["M2", "S2", "K1", "O1"]);
 const predictor = createTidePredictor(result.constituents, { offset: result.offset });
 ```
 
-Each sample is `{ time: Date, value: number }`. Values and times must be finite, ordered by time, and span a positive duration. At least `max(2, 1 + 2 * names.length)` samples are required. Repeated timestamps keep their weight. Names and aliases follow the predictor catalog; unknown names and duplicate aliases are rejected, not silently dropped.
+Each sample is `{ time: Date, value: number }`. Values and times must be finite, ordered by time, and span a positive duration. At least `max(2, 1 + 2 * names.length)` samples are required. Repeated timestamps keep their weight. Names and aliases follow the predictor catalog; unknown names and duplicate aliases are rejected, not silently dropped. `fit(samples, names, { definitions })` also resolves names against [catalog definitions](#catalog-definitions) the caller supplies, so a fit can use lines the catalog doesn't have.
 
 The result contains unrounded `constituents` (amplitude in input units, Greenwich phase in degrees), `offset`, training residual `rms`, and `unseparable` Rayleigh warnings. Warnings do not remove constituents. An empty basis fits only the offset. No trend, rounding, automatic constituent selection, parsing, or database-specific frequency filtering is applied.
 
@@ -363,6 +366,26 @@ Tidal constituents should be an array of objects with at least:
 ]
 ```
 
+### <a name="catalog-definitions"></a>Catalog definitions
+
+The engine's catalog defines each constituent name: its speed, its astronomical argument, and its nodal correction. A harmonic constant only means something under the definition it was analyzed with, so a caller whose constants use a line the catalog doesn't have, or defines differently, passes its own definitions. They have the same shape as the entries in [data.json](src/constituents/data.json):
+
+- `name` - **string** - The name the station's constants use.
+- `speed` - **float** - Degrees per hour. It has to match the rate of the argument the coefficients or members give, to within 1e-5 °/h, so that extremes, which restart the argument each midnight, stay on the timeline.
+- `coefficients` - **int[7] | null** - Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90° in the phase, with τ from noon: IHO's extended Doodson number with D₂ to D₆ less 5 and D₇ as 5 − D₇. That matches Schureman's equilibrium arguments except for M3, S3 and M7, which are 180° off ([#241](https://github.com/openwatersio/slackwater/issues/241)). `null` for a compound whose argument is the sum of its members' arguments.
+- `aliases` - **string[]** - Optional other names.
+- `members` - **[string, number][]** - Optional constituents whose nodal corrections combine into this one's, with factors. A member can be another definition or a catalog constituent, but members can't form a cycle. A definition whose name or alias has its own node-correction formula (M2, K1, O1 and the others in the selected set) takes that formula and ignores its members. A definition that replaces a catalog entry takes on all of that entry's names, so one named `MF` replaces `Mf` and keeps Mf's formula. Otherwise, leave `members` out for no nodal correction.
+
+```ts
+import { createTidePredictor } from "@slackwater/engine";
+
+const predictor = createTidePredictor([{ name: "SA_X", amplitude: 0.12, phase: 210 }], {
+  definitions: [{ name: "SA_X", speed: 0.0410686, coefficients: [0, 0, 1, 0, 0, 0, -1] }],
+});
+```
+
+`defineConstituents(definitions, base?)` builds the same models the predictors use, keyed by name and alias, with members resolved against `definitions` and then `base`. Catalog compounds keep their own members, so replacing `M2` doesn't change `MS4`. `useStation` and `useCurrentStation` don't take definitions yet; call the predictors directly. The Swift and Kotlin engines take the same definitions, checked against `fixtures/constituent-definitions.json`. Invalid definitions throw a `RangeError` beginning with `invalidDefinition` (a malformed field, a negative speed or one that doesn't match the argument, names that belong to two catalog entries, or a replacement for `Z0`, which carries datum offsets and mean flows), `duplicateConstituent` (a name defined twice, or two definitions for one catalog entry), `unknownConstituent` (an unresolved member) or `cyclicConstituent`.
+
 ### <a name="subordinate-station"></a>Subordinate station definitions
 
 Some stations do not have defined harmonic data, but do have published offsets and a reference station. These include the offsets in time or amplitude of the high and low tides. Subordinate station offset objects include:
@@ -397,35 +420,18 @@ Detailed notes on the internal constituent and node correction systems. For high
 
 ## Tidal Constituent System
 
-Constituents are loaded from [src/constituents/data.json](src/constituents/data.json), derived from the [IHO TWCWG Constituent List](../../docs/TWCWG_Constituent_list.md).
+Constituents are loaded from [src/constituents/data.json](src/constituents/data.json), derived from the [IHO TWCWG Constituent List](../../docs/TWCWG_Constituent_list.md). Each entry is a [catalog definition](#catalog-definitions): `name`, `speed`, `coefficients`, `aliases` and `members`.
 
-Each entry has:
-
-- `name` — canonical name (e.g. "M2")
-- `speed` — tidal frequency in degrees/hour
-- `xdo` — 7-digit IHO Extended Doodson Number (array of ints, or null for compound constituents)
-- `nodalCorrection` — IHO letter code dispatching how f/u are computed
-- `aliases` — alternate names (Unicode Greek variants, NOAA conventions)
-- `members` — optional explicit compound member references (array of `[name, factor]` pairs)
+The IHO list encodes each constituent as an extended Doodson number and a letter code for its nodal correction, and leaves some compounds to be decomposed from their names (Annex B). `data.json` stores the result instead: Doodson coefficients and every compound's members. What the engine predicts is what the file says, and a change to any constituent shows up as a change to its entry.
 
 ### How constituents are built
 
-[src/constituents/index.ts](src/constituents/index.ts) imports `data.json` and calls `defineConstituent()` from [definition.ts](src/constituents/definition.ts) for each entry. This:
+[src/constituents/index.ts](src/constituents/index.ts) passes `data.json` to `defineConstituents()` in [definition.ts](src/constituents/definition.ts), which for each entry:
 
-1. Converts XDO digits to Doodson coefficients via `xdoToCoefficients()`
-2. Resolves compound members from the IHO letter code via `resolveMembers()`
-3. Attaches a `value()` function that computes V₀ (astronomical argument)
-4. Attaches a `correction()` function that computes nodal corrections (f, u)
-5. Registers the constituent under its canonical name and all aliases
-
-### XDO to Doodson conversion
-
-`xdoToCoefficients()` in [definition.ts](src/constituents/definition.ts):
-
-- D₁ (τ coefficient) is used directly (not offset)
-- D₂–D₆ are offset by −5 (IHO encodes 0 as 5)
-- D₇ (90° phase) is negated (`5 - xdo[6]`) to convert from IHO to the Schureman/NOAA sign convention
-- V₀ is computed as the dot product of coefficients with astronomical arguments `[τ, s, h, p, −N, p', 90°]`
+1. Attaches a `value()` function that computes V₀, the dot product of `coefficients` with `[τ, s, h, p, −N, p', 90°]`, or the factor-weighted sum of its members' V₀ when `coefficients` is null
+2. Attaches a `correction()` function that computes nodal corrections (f, u): from the node-correction formulas when its name or one of its aliases has one there, otherwise u = Σ factor × u and f = Π f^|factor| over its members
+3. Registers the constituent under its canonical name and all aliases
+4. Resolves `members` by name, once every entry is registered
 
 ### Node corrections
 
@@ -435,14 +441,6 @@ Both the IHO and Schureman systems compute the same two values per constituent (
 - [src/node-corrections/iho.ts](src/node-corrections/iho.ts) — IHO TWCWG Annex A simplified Fourier series formulas (uses only N, p, p' from astro data). **This is the default.**
 - [src/node-corrections/schureman.ts](src/node-corrections/schureman.ts) — Schureman (1940) exact spherical geometry formulas (uses I, ξ, ν, ν', ν'' from astro data). Kept for backward compatibility.
 - [src/node-corrections/index.ts](src/node-corrections/index.ts) — `resolveFundamentals(name?)` selects IHO (default) or Schureman at runtime
-
-### Nodal correction dispatch
-
-The IHO letter codes from `data.json` are resolved at constituent definition time in `resolveMembers()` within [definition.ts](src/constituents/definition.ts). Each code maps to structural member constituents (e.g., code `m` → M2, code `x` → compound decomposition). At prediction time, `constituent.correction()` recursively computes f/u from these members.
-
-### Compound constituent decomposition
-
-[src/constituents/compound.ts](src/constituents/compound.ts) implements the IHO Annex B algorithm: parses compound names like "MS4" into component letters, resolves signs using a progressive right-to-left algorithm, and maps each to its fundamental constituent.
 
 ## Design notes
 

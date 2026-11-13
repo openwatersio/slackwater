@@ -19,11 +19,14 @@ class CurrentStation @JvmOverloads constructor(
     val offsetKnots: Double = 0.0,
     minorConstituents: List<HarmonicConstituent>? = null,
     minorOffsetKnots: Double = 0.0,
-    azimuthDegrees: Double? = null
+    azimuthDegrees: Double? = null,
+    /** Constituents to add to the catalog, or to replace catalog entries of the same name. */
+    definitions: List<ConstituentDefinition> = emptyList(),
 ) {
-    private val harmonic = Station(constituents, offsetKnots)
-    private val minor = if (minorOffsetKnots != 0.0 || minorConstituents.orEmpty().any { it.amplitude != 0.0 && Catalog.speed(it.name) != null })
-        Station(minorConstituents.orEmpty(), minorOffsetKnots) else null
+    private val catalog = Catalog.shared.with(definitions)
+    private val harmonic = Station(constituents, offsetKnots, catalog)
+    private val minor = if (minorOffsetKnots != 0.0 || minorConstituents.orEmpty().any { it.amplitude != 0.0 && catalog.speed(it.name) != null })
+        Station(minorConstituents.orEmpty(), minorOffsetKnots, catalog) else null
     val floodDirectionDegrees = direction(floodDirectionDegrees)
     val ebbDirectionDegrees = direction(ebbDirectionDegrees)
     private val azimuth = direction(azimuthDegrees) ?: this.floodDirectionDegrees
@@ -69,9 +72,9 @@ class CurrentStation @JvmOverloads constructor(
     private fun inWindow(from: Instant, to: Instant): List<CurrentEvent> {
         val start = instant(floor(epochSeconds(from) / 600) * 600)
         val endHour = (ceil(epochSeconds(to) / 600) * 600 - epochSeconds(start)) / 3600
-        fun provider() = ParamProvider(harmonic.constituents, offsetKnots, start, endHour)
+        fun provider() = ParamProvider(catalog, harmonic.constituents, offsetKnots, start, endHour)
         val end = shifted(start, endHour * 3600)
-        val maxima = findExtremes(start, end, 0.01) { day -> ParamProvider(harmonic.constituents, offsetKnots, day, 24.0) }.map {
+        val maxima = findExtremes(start, end, 0.01) { day -> ParamProvider(catalog, harmonic.constituents, offsetKnots, day, 24.0) }.map {
             val flood = it.level >= 0
             val kind = if (it.high) {
                 if (flood) CurrentEventKind.MAX_FLOOD else CurrentEventKind.MIN_EBB

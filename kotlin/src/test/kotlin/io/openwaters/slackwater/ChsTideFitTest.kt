@@ -9,6 +9,6 @@ class ChsTideFitTest {
         assertEquals(recipe.array("basis").map { it.jsonPrimitive.content }, ChsTideFit.basis)
         assertEquals(recipe.number("days").toInt(), ChsTideFit.DAYS)
         assertEquals(recipe.number("sampleMinutes").toInt(), ChsTideFit.SAMPLE_MINUTES)
-        for (name in ChsTideFit.basis) assertNotNull(Catalog.speed(name), name)
+        for (name in ChsTideFit.basis) assertNotNull(Catalog.shared.speed(name), name)
     }
 }

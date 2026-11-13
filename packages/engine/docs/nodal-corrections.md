@@ -26,15 +26,15 @@ Small errors in these constants and a NaN at exactly J2000 are tracked in [#362]
 
 ## Equilibrium arguments and speeds
 
-Each constituent in `data.json` carries an IHO extended Doodson number (`xdo`). `xdoToCoefficients` turns it into coefficients on `[τ, s, h, p, N′, p′, 90°]` with N′ = −N, and negates the seventh digit to move from the IHO phase convention to Schureman's, which NOAA's published phases use. `V0` is the dot product of those coefficients with the arguments at the prediction's start time.
+Each constituent in `data.json` carries Doodson coefficients on `[τ, s, h, p, N′, p′, 90°]` with N′ = −N. τ is measured from noon. An IHO extended Doodson number (XDO) converts by taking 5 from D₂ to D₆ and replacing D₇ with 5 − D₇. That gives Schureman's equilibrium arguments, which NOAA's published phases use, for every line except M3, S3 and M7, which are 180° off ([#241](https://github.com/openwatersio/slackwater/issues/241)). `V0` is the dot product of the coefficients with the arguments at the prediction's start time.
 
 The phase constants were spot-checked against Schureman's Table 2. That covered K1 (T + h − 90°), O1 (T − 2s + h + 90°), P1, Q1, 2Q1, J1, OO1, L2 (2T − s + 2h − p + 180°), M3, MK3, T2 and R2, and all of them match.
 
 Prediction evaluates `V0` once at the start and advances it at the tabulated `speed`. Fitting evaluates `V` at every sample. The two agree as long as each tabulated speed matches its Doodson number. The speeds come from the IHO table, and they match the Doodson rates to within 8e-6 °/h; the worst case is M(KS)2, which drifts 0.07° a year.
 
-A constituent with no `xdo` gets `V0` from its compound members. If the members' speeds didn't add up to the tabulated speed, `V0` and `ω` would describe different frequencies, and the constituent's phase would depend on when the prediction starts. Extremes, found from each day's own midnight, would then drift away from a timeline started months earlier. A test checks that every constituent's `V0` advances at its tabulated speed to within 1e-5 °/h.
+A constituent with null `coefficients` gets `V0` from its compound members. If the members' speeds didn't add up to the tabulated speed, `V0` and `ω` would describe different frequencies, and the constituent's phase would depend on when the prediction starts. Extremes, found from each day's own midnight, would then drift away from a timeline started months earlier. A test checks that every constituent's `V0` advances at its tabulated speed to within 1e-5 °/h.
 
-The IHO list gives eight constituents an alphabetical XDO but no numerical one, because some of their digits fall outside 0–9: 3(SM)N2, (SK)K5, 5MSN10, 4M2SN10, 3N2MS12, MA12, 4ML12 and 5MSN12. `data.json` carries their alphabetical codes in numerical form. After the first letter, which is the species (A = 1), Z is 5, each letter from A onwards adds one (A = 6, E = 10), and each letter from Y backwards subtracts one (Y = 4, T = −1). For seven of them the code reproduces the tabulated speed. 3N2MS12's code (L YZA YZZ) gives N′ a coefficient of −1, but its tabulated speed of 173.362457 °/h needs +1, so `data.json` follows the speed: published constants are fitted at the tabulated speed.
+The IHO list gives eight constituents an alphabetical XDO but no numerical one, because some of their digits fall outside 0–9: 3(SM)N2, (SK)K5, 5MSN10, 4M2SN10, 3N2MS12, MA12, 4ML12 and 5MSN12. `data.json` takes their coefficients from the alphabetical codes, read as numerical XDO digits and converted like any other. After the first letter, which is the species (A = 1), Z is 5, each letter from A onwards adds one (A = 6, E = 10), and each letter from Y backwards subtracts one (Y = 4, T = −1). For seven of them the code reproduces the tabulated speed. 3N2MS12's code (L YZA YZZ) gives N′ a coefficient of −1, but its tabulated speed of 173.362457 °/h needs +1, so `data.json` follows the speed: published constants are fitted at the tabulated speed.
 
 ## Nodal corrections
 
@@ -44,19 +44,19 @@ The IHO set (`iho.ts`) is the default, and it is the only set in the Swift port.
 
 The Schureman set (`schureman.ts`) uses the exact formulas from Schureman's _Manual of Harmonic Analysis and Prediction of Tides_ (Special Publication 98, 1958 reprint of the 1940 revision, [PDF](https://tidesandcurrents.noaa.gov/publications/SpecialPubNo98.pdf)). Each function cites its equation numbers. It covers Mm, Mf, O1, K1, J1, OO1, M2, K2, L2, M1 and M3. The README notes how far the two sets differ for J1 and Mf. Keep the set consistent between fitting and prediction; `fit` uses IHO.
 
-All other constituents take their corrections from members, using the IHO letter code in `data.json`:
+All other constituents take their corrections from the `members` listed in `data.json`. The IHO list gives each a letter code instead, and the members are what those codes resolve to:
 
-| Code                    | Meaning in the IHO list                              | Engine                                  |
-| ----------------------- | ---------------------------------------------------- | --------------------------------------- |
-| `z`                     | f = 1, u = 0                                         | unity                                   |
-| `f`                     | same as M2, though unity causes no significant error | unity                                   |
-| `y`                     | its own Annex A formula                              | looked up by name in the correction set |
-| `a`, `m`, `o`, `k`, `j` | same as Mm, M2, O1, K1, J1                           | that member                             |
-| `b`                     | u = −u(M2), f = f(M2)                                | M2 with factor −1                       |
-| `c`                     | u = −2u(M2), f = f(M2)²                              | M2 with factor −2                       |
-| `g`                     | u = −S·1.07 sin N, f = (√f(M2))^S for species S      | M2 with factor S/2                      |
-| `p`, `d`, `q`           | same as 2MN2, KQ1 (K2 − Q1), NKM2                    | that compound's members                 |
-| `x`                     | derived from the compound name (Annex B)             | `decomposeCompound`                     |
+| Code                    | Meaning in the IHO list                              | Members in `data.json`                |
+| ----------------------- | ---------------------------------------------------- | ------------------------------------- |
+| `z`                     | f = 1, u = 0                                         | none                                  |
+| `f`                     | same as M2, though unity causes no significant error | none                                  |
+| `y`                     | its own Annex A formula                              | none; looked up by name in the set    |
+| `a`, `m`, `o`, `k`, `j` | same as Mm, M2, O1, K1, J1                           | that constituent                      |
+| `b`                     | u = −u(M2), f = f(M2)                                | M2 with factor −1                     |
+| `c`                     | u = −2u(M2), f = f(M2)²                              | M2 with factor −2                     |
+| `g`                     | u = −S·1.07 sin N, f = (√f(M2))^S for species S      | M2 with factor S/2                    |
+| `p`, `d`, `q`           | same as 2MN2, KQ1 (K2 − Q1), NKM2                    | that compound's members               |
+| `x`                     | derived from the compound name (Annex B)             | the decomposition, as described below |
 
 A compound's `u` is the factor-weighted sum of its members' `u`. Its `f` is the product of its members' `f` raised to the absolute value of each factor, which matches Annex B's rule that f always combines by multiplication.
 
@@ -70,15 +70,15 @@ Schureman (§126) also notes that the M1 node factors in general use leave out a
 
 ## Compound constituents
 
-`compound.ts` implements IHO Annex B:
+Compound members in `data.json` follow IHO Annex B:
 
 1. Parse the name into letters with multipliers, distributing a parenthesised multiplier over the group.
-2. Map each letter to its species: M, S, N, T, R, L, ν and λ are semidiurnal; O, P, Q and J are diurnal; K is tried as K2 first and then K1.
+2. Map each letter to its species: M, S, N, T, R, L, ν and λ are semidiurnal; O, P, Q and J are diurnal; K is K2 or K1.
 3. Flip signs from right to left until the species add up to the trailing number.
 
-MA and MB annual variants decompose as their base M constituent, as Annex B says. Long-period names that don't fit the pattern, such as MSm and KOo, list explicit `members` in `data.json`.
+MA and MB annual variants take their base M constituent's members, as Annex B says. Long-period names that don't fit the pattern, such as MSm and KOo, have members chosen by hand. The engine doesn't parse names, so a constituent predicts with exactly the members its entry lists, and fixing a decomposition is an edit to that entry.
 
-This algorithm can't express everything the IHO table names. Some names it can't parse, some decompose into members whose speeds don't match the table, and some need S1, P1 or M1 rather than the semidiurnal letter. [#361](https://github.com/openwatersio/slackwater/issues/361) lists them. The members only supply nodal corrections, except for constituents with no `xdo`, where they also supply `V0`.
+Annex B can't express everything the IHO table names. Some names it can't parse, some decompose into members whose speeds don't match the table, and some need S1, P1 or M1 rather than the semidiurnal letter. [#361](https://github.com/openwatersio/slackwater/issues/361) lists them. The members only supply nodal corrections, except for constituents with null `coefficients`, where they also supply `V0`.
 
 The IHO table sets each compound's phase digit directly, and for some compounds it differs from the sum of the members' digits by 90° or 180°. That only matters for station phases produced by software that sums member arguments ([#362](https://github.com/openwatersio/slackwater/issues/362)).
 
@@ -100,7 +100,7 @@ for (const c of new Set(Object.values(constituents))) {
 }
 ```
 
-**Member speeds.** A compound's members should reproduce its speed: the sum of `factor × member.speed` should equal `speed`. Check constituents with code `x` and those that list `members` in `data.json`, including every compound with no `xdo`, whose members also supply `V0`. Skip the other letter codes, whose members only lend a nodal correction (N2 lists M2 but runs at its own speed). A few `x` and listed members are chosen for their correction the same way: the MA and MB variants borrow M2's, as Annex B says, 3N2 and 3L2 borrow N2's and L2's, and T3 borrows T2's. Any other mismatch means the nodal correction comes from the wrong lines, and for a compound with no `xdo` it also means `V0` and `ω` describe different frequencies. A constituent whose code isn't `z`, `f` or `y` but has no members gets no nodal correction at all.
+**Member speeds.** A compound's members should reproduce its speed: the sum of `factor × member.speed` should equal `speed`. Otherwise the nodal correction comes from the wrong lines, and for a compound with null `coefficients`, `V0` and `ω` also describe different frequencies. Constituents whose members only lend a nodal correction are exempt: the single-member IHO codes (N2 lists M2 but runs at its own speed), `p`, `d` and `q` entries such as OO1, the MA and MB variants, 3N2, 3L2 and T3. The "Compound members" test in `test/constituents/index.test.ts` checks every entry. It lists those exemptions, and separately the compounds whose Annex B decompositions don't add up ([#361](https://github.com/openwatersio/slackwater/issues/361)), so any new mismatch fails it. A constituent the IHO list gives a correction but `data.json` gives no members gets no nodal correction at all. The same test file lists every constituent without one: those IHO gives unity, and fifteen code `x` compounds, such as MS1, MPS2 and 2MNO6, whose names Annex B parsing couldn't decompose.
 
 **Against the sources.** Compare `iho.ts` coefficient by coefficient with Annex A in the [PDF](../../../docs/TWCWG_Constituent_list.pdf). Text extracted from the PDF drops the radicals in M3 and code `g`; the `.md` transcription keeps them. Compare `schureman.ts` with the equations its comments cite. Where Schureman gives a mean-I approximation, such as equation 197, evaluating the exact formula at mean I (about 23.45°) should reproduce his coefficients.
 
