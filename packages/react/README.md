@@ -201,7 +201,7 @@ Set `bounded` on either scrubber for a finite window supplied by your applicatio
 
 When no following high or low is supplied, the scrubber, station card, and widget derive their trend from the samples. A flat series defaults to rising.
 
-Both scrubbers also take `onSelect(time)`, called as the selected moment changes (while the strip glides open it reports where it lands, now or the nearest moment it can show, not the hours it passes), `moveTo`, an object whose `time` the strip moves to each time a new object is passed, and `onNow(now)`, called when the reader returns to now.
+Both scrubbers also take `onSelect(time)`, called once for each new selected moment and again with the current one when a new `onSelect` function is passed, so a stable callback (one from `useCallback`) hears each moment once (while the strip glides open it reports where it lands, now or the nearest moment it can show, not the hours it passes), `moveTo`, an object whose `time` the strip moves to each time a new object is passed, and `onNow(now)`, called when the reader returns to now.
 
 ### `<TideConditions>`
 
