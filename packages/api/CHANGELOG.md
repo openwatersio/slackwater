@@ -1,5 +1,18 @@
 # @neaps/api
 
+## 1.0.0-beta.7
+
+### Major Changes
+
+- [`ebc6e6a`](https://github.com/openwatersio/slackwater/commit/ebc6e6a74fadf8d024680e28485a0acaadbc49ce) Thanks [@clarkbw](https://github.com/clarkbw)! - Distinguish minimum flood and ebb currents from maximum flow when the current weakens without reversing. Keep these lulls on the chart and in the schedule, and skip them when showing the next maximum.
+
+  Breaking change for every consumer of current events: event kinds include `minFlood` and `minEbb`, and current reading states include `Minimum flood` and `Minimum ebb`. The HTTP API, the CLI JSON output, the engine, and the Swift and Kotlin packages all return the new kinds unconditionally; update exhaustive event and state handling. Swift and Kotlin `maxima()` return only true maxima; use `events()` to retain minimum curve knots. Deploy the API before the React client so lulls are not shown as maxima.
+
+### Patch Changes
+
+- Updated dependencies [[`ebc6e6a`](https://github.com/openwatersio/slackwater/commit/ebc6e6a74fadf8d024680e28485a0acaadbc49ce)]:
+  - slackwater@1.0.0-beta.7
+
 ## 1.0.0-beta.6
 
 ### Patch Changes
