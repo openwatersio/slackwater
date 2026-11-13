@@ -372,7 +372,7 @@ The engine's catalog defines each constituent name: its speed, its astronomical 
 
 - `name` - **string** - The name the station's constants use.
 - `speed` - **float** - Degrees per hour. It has to match the rate of the argument the coefficients or members give, to within 1e-5 °/h, so that extremes, which restart the argument each midnight, stay on the timeline.
-- `coefficients` - **int[7] | null** - Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90° in the phase, with τ from noon, so V₀ is Schureman's equilibrium argument, the one NOAA's published phases use. `null` for a compound whose argument is the sum of its members' arguments.
+- `coefficients` - **int[7] | null** - Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90° in the phase, with τ from noon, the convention of Schureman's equilibrium arguments, which NOAA's published phases use. Catalog entries follow Schureman except for 19 lines whose phase is unsettled ([#241](https://github.com/openwatersio/slackwater/issues/241)). `null` for a compound whose argument is the sum of its members' arguments.
 - `aliases` - **string[]** - Optional other names.
 - `members` - **[string, number][]** - Optional constituents whose nodal corrections combine into this one's, with factors. A member can be another definition or a catalog constituent, but members can't form a cycle. A definition whose name or alias has its own node-correction formula (M2, K1, O1 and the others in the selected set) takes that formula and ignores its members. A definition that replaces a catalog entry takes on all of that entry's names, so one named `MF` replaces `Mf` and keeps Mf's formula. Otherwise, leave `members` out for no nodal correction.
 
