@@ -10,11 +10,10 @@ import kotlin.math.pow
  *
  * [speed] is degrees per hour and must match the rate of the argument the coefficients or members
  * give. [coefficients] are Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90°,
- * with τ from noon (IHO's XDO with D₂ to D₆ less 5 and D₇ as 5 − D₇, which matches Schureman except
- * for M3, S3 and M7, 180° off), or null for a compound whose argument is the sum of its members'
- * arguments. [members] are the constituents whose nodal
- * corrections combine into this one's; empty for no correction, unless the name or an alias has
- * its own correction formula.
+ * with τ from noon, or null for a compound whose argument is the sum of its members' arguments.
+ * Catalog arguments are Schureman's except for 19 lines whose phase is unsettled (slackwater#241).
+ * [members] are the constituents whose nodal corrections combine into this one's; empty for no
+ * correction, unless the name or an alias has its own correction formula.
  */
 data class ConstituentDefinition @JvmOverloads constructor(
     val name: String,

@@ -1,0 +1,191 @@
+{
+  "station": "noaa/8516990",
+  "note": "Harmonic constants for Willets Point, NY from the slackwater-database station data, copied so a database update cannot move the low of 2026-06-04 off midnight.",
+  "constituents": [
+    {
+      "name": "M2",
+      "amplitude": 1.103,
+      "phase": 116.2
+    },
+    {
+      "name": "S2",
+      "amplitude": 0.183,
+      "phase": 142.2
+    },
+    {
+      "name": "N2",
+      "amplitude": 0.224,
+      "phase": 94.3
+    },
+    {
+      "name": "K1",
+      "amplitude": 0.099,
+      "phase": 193.1
+    },
+    {
+      "name": "M4",
+      "amplitude": 0.036,
+      "phase": 147.3
+    },
+    {
+      "name": "O1",
+      "amplitude": 0.064,
+      "phase": 220.7
+    },
+    {
+      "name": "M6",
+      "amplitude": 0.077,
+      "phase": 160
+    },
+    {
+      "name": "MK3",
+      "amplitude": 0.011,
+      "phase": 207.6
+    },
+    {
+      "name": "S4",
+      "amplitude": 0.004,
+      "phase": 146.3
+    },
+    {
+      "name": "MN4",
+      "amplitude": 0.021,
+      "phase": 121.9
+    },
+    {
+      "name": "NU2",
+      "amplitude": 0.05,
+      "phase": 95
+    },
+    {
+      "name": "S6",
+      "amplitude": 0,
+      "phase": 0
+    },
+    {
+      "name": "MU2",
+      "amplitude": 0.004,
+      "phase": 96.1
+    },
+    {
+      "name": "2N2",
+      "amplitude": 0.027,
+      "phase": 72.9
+    },
+    {
+      "name": "OO1",
+      "amplitude": 0.006,
+      "phase": 232.3
+    },
+    {
+      "name": "LAM2",
+      "amplitude": 0.023,
+      "phase": 139.5
+    },
+    {
+      "name": "S1",
+      "amplitude": 0.008,
+      "phase": 116.2
+    },
+    {
+      "name": "M1",
+      "amplitude": 0.007,
+      "phase": 263.1
+    },
+    {
+      "name": "J1",
+      "amplitude": 0.006,
+      "phase": 235.8
+    },
+    {
+      "name": "MM",
+      "amplitude": 0,
+      "phase": 0
+    },
+    {
+      "name": "SSA",
+      "amplitude": 0.024,
+      "phase": 60.1
+    },
+    {
+      "name": "SA",
+      "amplitude": 0.065,
+      "phase": 135.5
+    },
+    {
+      "name": "MSF",
+      "amplitude": 0,
+      "phase": 0
+    },
+    {
+      "name": "MF",
+      "amplitude": 0,
+      "phase": 0
+    },
+    {
+      "name": "RHO",
+      "amplitude": 0.004,
+      "phase": 254.8
+    },
+    {
+      "name": "Q1",
+      "amplitude": 0.018,
+      "phase": 206.2
+    },
+    {
+      "name": "T2",
+      "amplitude": 0.018,
+      "phase": 117
+    },
+    {
+      "name": "R2",
+      "amplitude": 0.002,
+      "phase": 143.3
+    },
+    {
+      "name": "2Q1",
+      "amplitude": 0.004,
+      "phase": 224.2
+    },
+    {
+      "name": "P1",
+      "amplitude": 0.029,
+      "phase": 206.1
+    },
+    {
+      "name": "2SM2",
+      "amplitude": 0,
+      "phase": 0
+    },
+    {
+      "name": "M3",
+      "amplitude": 0.005,
+      "phase": 216.7
+    },
+    {
+      "name": "L2",
+      "amplitude": 0.052,
+      "phase": 140.9
+    },
+    {
+      "name": "2MK3",
+      "amplitude": 0.008,
+      "phase": 215.6
+    },
+    {
+      "name": "K2",
+      "amplitude": 0.054,
+      "phase": 141.3
+    },
+    {
+      "name": "M8",
+      "amplitude": 0.007,
+      "phase": 150.3
+    },
+    {
+      "name": "MS4",
+      "amplitude": 0.008,
+      "phase": 160.7
+    }
+  ]
+}

@@ -127,24 +127,24 @@ describe("a subordinate of a reference whose kept extremes are days apart", () =
 });
 
 describe("a turn on UTC midnight", () => {
-  // Cambridge, MD: each day's parameters put the low of 26 July on the other side of
-  // midnight, a second apart, so neither day's own search sees it change sign.
-  const cambridge = createTidePredictor(midnight.constituents);
+  // Willets Point, NY: each day's parameters put the low of 4 June on the other side of
+  // midnight, so neither day's own search sees it change sign.
+  const willets = createTidePredictor(midnight.constituents);
   const start = new Date(midnight.start);
   const end = new Date(midnight.end);
 
   it("is found once, and the high before it is kept", () => {
-    const found = cambridge.getExtremesPrediction({ start, end }).map(key);
+    const found = willets.getExtremesPrediction({ start, end }).map(key);
     const near = (iso: string, kind: "H" | "L") =>
       found.filter(
         (k) => k.endsWith(kind) && Math.abs(Number(k.split(":")[0]) - Date.parse(iso)) < 5 * 60_000,
       );
-    expect(near("2026-07-26T00:00:00Z", "L")).toHaveLength(1);
-    expect(near("2026-07-25T17:50:00Z", "H")).toHaveLength(1);
+    expect(near("2026-06-04T00:00:00Z", "L")).toHaveLength(1);
+    expect(near("2026-06-03T18:10:00Z", "H")).toHaveLength(1);
   });
 
   it("matches every turn of the curve sampled each minute", () => {
-    const levels = cambridge.getTimelinePrediction({ start, end, timeFidelity: 60 });
+    const levels = willets.getTimelinePrediction({ start, end, timeFidelity: 60 });
     let turns = 0;
     for (let i = 2; i < levels.length; i++) {
       const before = levels[i - 1].level - levels[i - 2].level;
@@ -152,7 +152,7 @@ describe("a turn on UTC midnight", () => {
       if (before * after < 0) turns++;
     }
     // Every turn here clears the 1 cm threshold.
-    expect(cambridge.getExtremesPrediction({ start, end })).toHaveLength(turns);
+    expect(willets.getExtremesPrediction({ start, end })).toHaveLength(turns);
   });
 });
 

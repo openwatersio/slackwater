@@ -32,6 +32,18 @@ describe("Base constituent definitions", () => {
     expect(constituents.M2.value(testAstro)).toBeCloseTo(537.008790781, 4);
   });
 
+  // Schureman's arguments for these are multiples of M2's and S2's, with no
+  // extra phase: M3 = 3T − 3s + 3h, and NOAA publishes M3 against it.
+  it.each([
+    ["M3", "M2", 1.5],
+    ["M7", "M2", 3.5],
+    ["S3", "S2", 1.5],
+  ] as const)("puts %s at %s's argument times %d", (name, base, factor) => {
+    const turns =
+      (constituents[name].value(testAstro) - factor * constituents[base].value(testAstro)) / 360;
+    expect(turns - Math.round(turns)).toBeCloseTo(0, 9);
+  });
+
   it("computes IHO nodal corrections for M2", () => {
     const correction = constituents.M2.correction(testAstro);
     expect(correction.u).toBeCloseTo(-2.085704074, 4);
