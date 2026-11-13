@@ -12,10 +12,8 @@ export interface ConstituentDefinition {
   speed: number;
   /**
    * Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90° in
-   * the phase, with τ from noon: IHO's XDO with D₂ to D₆ less 5 and D₇ as
-   * 5 − D₇. That matches Schureman except for M3, S3 and M7, which are 180°
-   * off (#241). Null for a compound whose argument is the sum of its members'
-   * arguments.
+   * the phase, with τ from noon, so the argument is Schureman's. Null for a
+   * compound whose argument is the sum of its members' arguments.
    */
   coefficients: Coefficients | null;
   aliases?: string[];

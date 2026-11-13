@@ -56,10 +56,11 @@ export const chsTideFit = {
  * 5 minutes, was measured at or below `provisionalSlackMaxMinutes`.
  *
  * `stamp` identifies this recipe. `fixtures/generate/gen-chs-current-golden.mjs`
- * derives it from the recipe's data and what the recipe predicts for a fixed
- * synthetic gate, so it changes when a change moves the golden gate's predicted
- * velocity by 1e-4 kn or more, a slack or peak by 30 seconds or more, or a
- * peak's speed by 0.001 kn or more. Validation results and fitted models record
+ * derives it from the recipe's data, each basis line's catalog definition and
+ * what the recipe predicts for a fixed synthetic gate. So it changes when a
+ * basis line's speed, argument or nodal members change, or when a change moves
+ * the golden gate's predicted velocity by 1e-4 kn or more, a slack or peak by
+ * 30 seconds or more, or a peak's speed by 0.001 kn or more. Validation results and fitted models record
  * the stamp they were measured or fitted on.
  */
 export const chsCurrentFit = {
@@ -69,7 +70,7 @@ export const chsCurrentFit = {
   days: [60, 210],
   sampleMinutes: 15,
   provisionalSlackMaxMinutes: 45,
-  stamp: "8f85912ce223",
+  stamp: "bb3c78ac6991",
 } as const satisfies {
   speedSeries: string;
   directionSeries: string;

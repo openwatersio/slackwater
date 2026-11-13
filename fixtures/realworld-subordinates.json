@@ -7,7 +7,7 @@
       "station": "noaa/TEC4635",
       "name": "Nurse Channel",
       "reference": "noaa/9710441",
-      "offset": 0.4460000000000015,
+      "offset": 0.446,
       "constituents": [
         {
           "name": "M2",
@@ -274,7 +274,7 @@
       "station": "noaa/1613077",
       "name": "Kamalo Harbor",
       "reference": "noaa/1612340",
-      "offset": 0.2509999999999999,
+      "offset": 0.251,
       "constituents": [
         {
           "name": "M2",

@@ -121,7 +121,6 @@ TICON's phases for these constituents match the engine's line but not its argume
 
 | Name         | Offset | Gauges scored                               |
 | ------------ | ------ | ------------------------------------------- |
-| M3           | 180°   | Thevenard                                   |
 | sigma1 (SGM) | 180°   | Anchorage, Keling, Port Pirie               |
 | T3           | 180°   | Ashland Avenue (NY), Thevenard              |
 | R3           | −90°   | Ashland Avenue (NY), Anchorage, Thevenard   |
@@ -129,4 +128,4 @@ TICON's phases for these constituents match the engine's line but not its argume
 | 2MK5         | −90°   | Anchorage, Puerto Madryn                    |
 | 2MO5         | +90°   | Puerto Madryn, Anchorage                    |
 
-Each scores close to +1 at its offset and close to −3 or −1 without it. M3, sigma1, 2MK5 and 2MO5 keep their IHO definitions because other sources publish them too, such as NOAA's M3. For those four the fix is a per-name phase conversion when slackwater-database imports TICON, not a change to `data.json`. This is tracked in [openwatersio/slackwater-database#239](https://github.com/openwatersio/slackwater-database/issues/239). S1, P1, T2, R2, S3 and S4 gave inconsistent scores between gauges; they are radiational or noisy constituents and remain unsettled.
+Each scores close to +1 at its offset and close to −3 or −1 without it. slackwater-database converts these phases when it imports TICON ([openwatersio/slackwater-database#239](https://github.com/openwatersio/slackwater-database/issues/239)). TICON's raw M3 and S3 phases match the engine's arguments, which are Schureman's, as NOAA's M3 is, so they need no conversion.

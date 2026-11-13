@@ -1294,7 +1294,7 @@
   {
     "name": "M3",
     "speed": 43.4761564,
-    "coefficients": [3, 0, 0, 0, 0, 0, -2],
+    "coefficients": [3, 0, 0, 0, 0, 0, 0],
     "aliases": [],
     "members": [["M2", 1.5]]
   },
@@ -1385,7 +1385,7 @@
   {
     "name": "S3",
     "speed": 45,
-    "coefficients": [3, 3, -3, 0, 0, 0, -2],
+    "coefficients": [3, 3, -3, 0, 0, 0, 0],
     "aliases": [],
     "members": [["S2", 1.5]]
   },
@@ -2662,7 +2662,7 @@
   {
     "name": "M7",
     "speed": 101.4443667,
-    "coefficients": [7, 0, 0, 0, 0, 0, -2],
+    "coefficients": [7, 0, 0, 0, 0, 0, 0],
     "aliases": [],
     "members": [["M2", 3.5]]
   },
