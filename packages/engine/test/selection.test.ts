@@ -189,6 +189,11 @@ describe("selectConstituents", () => {
     expect(entry("M3")).not.toMatchObject({ reason: "nyquist" });
   });
 
+  test("ignores repeated timestamps when judging the sampling interval", () => {
+    const { selection } = selectConstituents(record(60, 4).flatMap((s) => [s, s]));
+    expect(selection.find((s) => s.name === "M8")).toMatchObject({ reason: "nyquist" });
+  });
+
   test("measures the record by the samples it weights", () => {
     const samples = record(60);
     const weights = samples.map((_, i) => (i < 15 * 24 ? 1 : 0));

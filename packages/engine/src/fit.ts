@@ -210,7 +210,8 @@ export function checkWeights(weights: readonly number[] | undefined, count: numb
   if (
     weights &&
     (weights.length !== count ||
-      weights.some((w) => !(w >= 0 && w < Infinity)) ||
+      // Array.from turns holes in a sparse array into undefined, which fails the check.
+      Array.from(weights).some((w) => !(w >= 0 && w < Infinity)) ||
       !weights.some((w) => w > 0))
   )
     throw new RangeError("invalidWeights");

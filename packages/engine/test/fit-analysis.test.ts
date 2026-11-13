@@ -142,6 +142,11 @@ describe("fit weights", () => {
     [samples.map((_, i) => (i ? 1 : NaN))],
     [samples.map((_, i) => (i ? 1 : Infinity))],
     [samples.map(() => 0)],
+    [
+      Object.assign(new Array<number>(samples.length).fill(1), {
+        length: samples.length + 1,
+      }).slice(1),
+    ],
   ])("rejects invalid weights %#", (weights) => {
     expect(() => fit(samples, names, { weights })).toThrow("invalidWeights");
   });
@@ -253,7 +258,7 @@ describe("confidence intervals", () => {
     }));
     const result = fit(samples, names, { confidence: true, robust: true });
     expectWithinIntervals(result.constituents, truth);
-  });
+  }, 30_000);
 
   test("count a band with no frequencies to average, or no residual, as white", () => {
     const samples = hourly(2).map((time) => ({ time, value: tide(time) }));

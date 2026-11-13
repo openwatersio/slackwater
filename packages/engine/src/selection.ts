@@ -147,7 +147,10 @@ export function selectConstituents(
   const steps = Float64Array.from(
     active.slice(1),
     (s, i) => s.time.getTime() - active[i].time.getTime(),
-  ).sort();
+  )
+    // Repeated timestamps, as from merged sensors, don't shorten the sampling interval.
+    .filter((step) => step > 0)
+    .sort();
   // Degrees per hour at the Nyquist frequency of the typical sampling interval.
   const nyquist = (180 * 3600000) / steps[steps.length >> 1];
 
@@ -184,18 +187,21 @@ export function selectConstituents(
   const all = fit(samples, kept, { ...options, dropDependent: true, confidence: true });
   const snr = new Map(all.constituents.map((c) => [c.name, c.snr!]));
   for (const entry of selection) {
-    if (!entry.kept) continue;
-    if (all.dropped.includes(entry.name))
-      Object.assign(entry, { kept: false, reason: "rankDeficient" });
-    else {
-      entry.snr = snr.get(entry.name);
-      if (!(entry.snr! >= minSnr)) Object.assign(entry, { kept: false, reason: "snr" });
-    }
+    if (!entry.kept || all.dropped.includes(entry.name)) continue;
+    entry.snr = snr.get(entry.name);
+    if (!(entry.snr! >= minSnr)) Object.assign(entry, { kept: false, reason: "snr" });
   }
-  const names = selection.filter((entry) => entry.kept).map((entry) => entry.name);
-  if (names.length === all.constituents.length) return { fit: all, selection };
-  const final = fit(samples, names, { ...options, confidence: true });
-  // The refit moves each SNR a little; report the one the returned constants carry.
-  final.constituents.forEach((c) => (selection.find((s) => s.name === c.name)!.snr = c.snr));
-  return { fit: { ...final, dropped: all.dropped }, selection };
+  const entry = (name: string) => selection.find((s) => s.name === name)!;
+  const names = kept.filter((name) => entry(name).kept && !all.dropped.includes(name));
+  let result = all;
+  if (names.length !== all.constituents.length) {
+    // Robust weights shift in the refit, so a column that was independent can stop being so.
+    const final = fit(samples, names, { ...options, dropDependent: true, confidence: true });
+    // The refit moves each SNR a little; report the one the returned constants carry.
+    final.constituents.forEach((c) => (entry(c.name).snr = c.snr));
+    result = { ...final, dropped: [...all.dropped, ...final.dropped] };
+  }
+  for (const name of result.dropped)
+    Object.assign(entry(name), { kept: false, reason: "rankDeficient" });
+  return { fit: result, selection };
 }
