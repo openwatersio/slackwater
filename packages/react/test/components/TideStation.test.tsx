@@ -7,12 +7,18 @@ import { createTestWrapper, holdRequests } from "../helpers.js";
 const SEATTLE = "noaa/9447130";
 const TZ = "America/Los_Angeles";
 
+// Midday in Seattle, so the turn nearest now is always one of Today's rows.
+const MIDDAY = Date.parse("2026-11-12T20:00:00Z");
+
 // The strip's moves land directly, so a busy page can't stall a glide past the rest delay.
 beforeEach(() => {
   vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
+  vi.useFakeTimers({ toFake: ["Date"], shouldAdvanceTime: true });
+  vi.setSystemTime(MIDDAY);
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -53,6 +59,19 @@ describe("TideStation", () => {
     expect(screen.getByText(SEATTLE)).toBeDefined();
     expect(screen.getByText(TZ)).toBeDefined();
     expect(screen.getByText(/^47\.\d{3}°N, 122\.\d{3}°W$/)).toBeDefined();
+  });
+
+  test("late in the evening, the highlight is tomorrow's first turn, in its own day", async () => {
+    // 22:24 in Seattle, when the turn nearest now is just after midnight.
+    vi.setSystemTime(Date.parse("2026-11-13T06:24:51Z"));
+    const { container } = await renderStation();
+
+    expect(screen.getByRole("button", { name: /^Today/ }).getAttribute("aria-expanded")).toBe(
+      "true",
+    );
+    expect(container.querySelectorAll("[aria-current='true']").length).toBe(0);
+    fireEvent.click(screen.getByRole("button", { name: /^Tomorrow/ }));
+    expect(container.querySelectorAll("[aria-current='true']").length).toBe(1);
   });
 
   test("asks for the API's default datum, whatever an older release saved", async () => {
