@@ -571,7 +571,13 @@ export function Scrubber({
   const pending = useRef<number | undefined>(undefined);
   const opening = useRef<number | undefined>(undefined);
   /** The opening glide hasn't come to rest, and nothing has stopped it. */
-  const [arriving, setArriving] = useState(false);
+  const [arriving, setArrivingState] = useState(false);
+  // Teardown reads this, and a hidden Activity can defer the render that would carry the state.
+  const arrivingRef = useRef(false);
+  const setArriving = (value: boolean) => {
+    arrivingRef.current = value;
+    setArrivingState(value);
+  };
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
   const nowRef = useRef(now);
@@ -761,9 +767,9 @@ export function Scrubber({
   useEffect(
     () => () => {
       clearTimeout(restTimer.current);
-      if (opening.current !== undefined) {
-        cancelAnimationFrame(opening.current);
-        // Effects torn down mid-opening (StrictMode, a hidden Activity) play it again when they rerun.
+      if (opening.current !== undefined) cancelAnimationFrame(opening.current);
+      // Effects torn down before the opening rests (StrictMode, a hidden Activity) play it again when they rerun.
+      if (opening.current !== undefined || arrivingRef.current) {
         opening.current = undefined;
         opened.current = false;
       }
