@@ -375,7 +375,7 @@ describe("CurrentScrubber", () => {
     const slider = screen.getByRole("slider", { name: "Current timeline" });
 
     await restsOn(slider, NOW);
-    expect(selected.at(-1)).toBe(NOW);
+    expect(selected).toEqual([NOW]);
   });
 
   test("an opening hidden after its last frame, before it rests, plays again when shown", async () => {
@@ -398,7 +398,7 @@ describe("CurrentScrubber", () => {
     rerender(view("hidden"));
     rerender(view("visible"));
     await restsOn(slider, NOW);
-    expect(selected.at(-1)).toBe(NOW);
+    expect(selected).toEqual([NOW]);
   });
 
   test("a strip hidden before it rests under Reduce Motion rests when shown", async () => {

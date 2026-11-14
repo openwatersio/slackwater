@@ -154,7 +154,7 @@ export interface ScrubberProps {
   locale?: string;
   now?: number;
   className?: string;
-  /** Called with every change to the time under the center line. */
+  /** Called once with each new time under the center line, and with the current time when `onSelect` itself changes. */
   onSelect?: (time: number) => void;
   /** A new object moves the selection to `time`, once data covers it. */
   moveTo?: { time: number };
@@ -777,13 +777,16 @@ export function Scrubber({
     [],
   );
 
-  const reported = useRef(false);
+  const reported = useRef<{ time: number; to: typeof onSelect }>(undefined);
   useEffect(() => {
     // The opening only shows the strip arriving, so readers get where it lands, never the earlier hours it passes.
     // The first report runs before the opening's state lands, so it reads the landing the opening just set.
-    const landing = arriving || opening.current !== undefined || !reported.current;
-    reported.current = true;
-    onSelect?.(landing ? (target.current ?? selected) : selected);
+    const landing = arriving || opening.current !== undefined || reported.current === undefined;
+    const time = landing ? (target.current ?? selected) : selected;
+    // Every scroll event of the opening lands on the same instant; a reader hears it once.
+    if (reported.current?.time === time && reported.current.to === onSelect) return;
+    reported.current = { time, to: onSelect };
+    onSelect?.(time);
   }, [onSelect, selected, arriving]);
   useEffect(() => {
     onView?.(selected, span);
