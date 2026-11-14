@@ -93,16 +93,17 @@ write('extremes-victoria.json', {
 });
 
 // ---- Task 5b: a turn on UTC midnight ----
-// Cambridge, MD (noaa/8571892) puts the low of 26 July 2026 within a second of 00:00 UTC, where
-// each day's search hands over to the next day's parameters. Its constants are a copy, so a
-// database update can't move the low off midnight.
-const cambridge = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'cambridge-md.json'), 'utf8'));
-const midnightSet = cambridge.constituents;
-const midnightStart = new Date('2026-07-25T12:00:00Z');
-const midnightEnd = new Date('2026-07-27T12:00:00Z');
+// Willets Point, NY (noaa/8516990) puts the low of 4 June 2026 on 00:00 UTC, where each day's
+// search hands over to the next day's parameters: the outgoing day's put it after midnight and
+// the incoming day's before, so neither day's own search sees h' change sign. Its constants are
+// a copy, so a database update can't move the low off midnight.
+const willets = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'willets-point-ny.json'), 'utf8'));
+const midnightSet = willets.constituents;
+const midnightStart = new Date('2026-06-03T12:00:00Z');
+const midnightEnd = new Date('2026-06-05T12:00:00Z');
 write('extremes-midnight.json', {
-  note: 'Slackwater getExtremesPrediction for noaa/8571892, whose low of 2026-07-26 falls on 00:00 UTC. Heights metres, times ISO.',
-  station: cambridge.station,
+  note: 'Slackwater getExtremesPrediction for noaa/8516990, whose low of 2026-06-04 falls on 00:00 UTC. Heights metres, times ISO.',
+  station: willets.station,
   constituents: midnightSet,
   start: iso(midnightStart), end: iso(midnightEnd),
   extremes: createTidePredictor(midnightSet).getExtremesPrediction({ start: midnightStart, end: midnightEnd })

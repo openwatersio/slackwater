@@ -16,8 +16,8 @@ class ExtremesTest {
             assertTrue(abs(a.heightMetres - e.number("height")) < 0.02)
         }
     }
-    // Cambridge, MD puts the low of 26 July 2026 on 00:00 UTC, a second apart under each day's
-    // parameters: it is found once, and the high before it is kept.
+    // Willets Point, NY puts the low of 4 June 2026 on 00:00 UTC, on either side of it under each
+    // day's parameters: it is found once, and the high before it is kept.
     @Test fun aTurnOnUtcMidnightIsFoundOnce() {
         val f = fixture("extremes-midnight")
         val actual = Station(f.constituents()).extremes(f.instant("start"), f.instant("end"))

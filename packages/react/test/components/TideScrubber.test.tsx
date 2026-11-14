@@ -84,8 +84,44 @@ describe("TideScrubber", () => {
     const { slider } = renderScrubber({ onSelect: (time) => selected.push(time) });
 
     await restsOn(slider, NOW);
-    expect(selected.length).toBeGreaterThan(0);
-    expect(new Set(selected)).toEqual(new Set([NOW]));
+    expect(selected).toEqual([NOW]);
+  });
+
+  test("hears a moment again after the strip leaves it and comes back", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({ matches: query.includes("reduce") }));
+    const selected: number[] = [];
+    const { slider } = renderScrubber({ onSelect: (time) => selected.push(time) });
+    await restsOn(slider, NOW);
+
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    await restsOn(slider, NOW + 5 * 60_000);
+    fireEvent.keyDown(slider, { key: "ArrowLeft" });
+    await restsOn(slider, NOW);
+    expect(selected).toEqual([NOW, NOW + 5 * 60_000, NOW]);
+  });
+
+  test("a new onSelect hears the current selection once", async () => {
+    const first: number[] = [];
+    const { slider, rerender } = renderScrubber({ onSelect: (time) => first.push(time) });
+    await restsOn(slider, NOW);
+
+    const next: number[] = [];
+    rerender(
+      <div style={{ width: 360 }}>
+        <TideScrubber
+          {...fixture()}
+          timezone="UTC"
+          latitude={50}
+          longitude={0}
+          units="meters"
+          locale="en-US"
+          now={NOW}
+          onSelect={(time) => next.push(time)}
+        />
+      </div>,
+    );
+    expect(next).toEqual([NOW]);
+    expect(first).toEqual([NOW]);
   });
 
   test("reads High at a turn with the turn's height, in the station's units", async () => {
@@ -257,7 +293,7 @@ describe("TideScrubber", () => {
     await waitFor(() => expect(value(slider)).toBeGreaterThan(t0 + 80 * H), { timeout: 4000 });
     await waitFor(() => expect(selected.at(-1)).toBe(value(slider)), { timeout: 4000 });
 
-    expect(new Set(selected)).toEqual(new Set([value(slider)]));
+    expect(selected).toEqual([value(slider)]);
   });
 
   test("shows a message when there is too little data to draw", () => {

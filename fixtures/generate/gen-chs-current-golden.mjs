@@ -1,14 +1,17 @@
 // Generate the CHS current recipe's golden fit and stamp
 // (fixtures/chs-current-golden.json) from the @slackwater/engine reference.
-// The stamp hashes the recipe's data with a fingerprint of what the recipe
-// predicts for a fixed synthetic gate over one held-out week: each window's
+// The stamp hashes the recipe's data, the catalog definition of each basis
+// line, and a fingerprint of what the recipe predicts for a fixed synthetic
+// gate over one held-out week: each window's
 // signed velocity every 10 minutes, its slack times, and its max flood and max
 // ebb times and signed speeds. A change to the basis, windows, sample step,
 // projection, `fit` or `createCurrentPredictor` that moves a golden velocity by
 // VELOCITY_TOLERANCE_KN (0.0001 kn) or more, a slack or peak by TIME_TOLERANCE_MS
 // (30 seconds) or more, or a peak's speed by SPEED_TOLERANCE_KN (0.001 kn) or
 // more changes the stamp, and every engine's `ChsCurrentFit` stamp must change
-// with it. Validation results and fitted models record the stamp, so a model
+// with it. So does any change to a basis line's speed, argument or nodal
+// members, since a saved fit's phases are only right against the arguments it
+// was fitted with. Validation results and fitted models record the stamp, so a model
 // never borrows the evidence of another recipe. The velocities catch a uniform
 // speed scaling, which moves no slack, and the extrema catch a change to the
 // current-extrema finder.
@@ -37,7 +40,13 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
-import { chsCurrentFit, createCurrentPredictor, fit, projectChsCurrent } from "@slackwater/engine";
+import {
+  chsCurrentFit,
+  constituents,
+  createCurrentPredictor,
+  fit,
+  projectChsCurrent,
+} from "@slackwater/engine";
 import { writeJSON } from "./write.mjs";
 
 const HOUR = 3_600_000;
@@ -127,6 +136,28 @@ const windows = chsCurrentFit.days.map((days) => {
 
 // `provisionalSlackMaxMinutes` is left out on purpose: it is a publication
 // threshold, not a fit input, so changing it changes no fitted model.
+// A basis line's argument: its own coefficients, or its members' summed.
+const argumentOf = (constituent) =>
+  constituent.coefficients ??
+  constituent.members.reduce(
+    (sum, { constituent: member, factor }) =>
+      sum.map((value, i) => value + factor * argumentOf(member)[i]),
+    [0, 0, 0, 0, 0, 0, 0],
+  );
+
+// Each basis line's catalog definition. A saved fit's phases are lags against
+// these arguments, so a change to one makes every saved fit stale, even when a
+// fresh fit predicts exactly what the old one did.
+const basisDefinitions = chsCurrentFit.basis.map((name) => {
+  const constituent = constituents[name];
+  return {
+    name,
+    speed: constituent.speed,
+    argument: argumentOf(constituent),
+    members: constituent.members.map(({ constituent: member, factor }) => [member.name, factor]),
+  };
+});
+
 const stampOf = (golden) =>
   createHash("sha256")
     .update(
@@ -134,6 +165,7 @@ const stampOf = (golden) =>
         speedSeries: chsCurrentFit.speedSeries,
         directionSeries: chsCurrentFit.directionSeries,
         basis: chsCurrentFit.basis,
+        basisDefinitions,
         days: chsCurrentFit.days,
         sampleMinutes: chsCurrentFit.sampleMinutes,
         windows: golden.map(({ days, velocities, slacks, extrema }) => ({ days, velocities, slacks, extrema })),

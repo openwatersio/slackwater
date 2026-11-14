@@ -1,5 +1,20 @@
 # @neaps/cli
 
+## 1.0.0-beta.8
+
+### Major Changes
+
+- [`ebc6e6a`](https://github.com/openwatersio/slackwater/commit/ebc6e6a74fadf8d024680e28485a0acaadbc49ce) Thanks [@clarkbw](https://github.com/clarkbw)! - Distinguish minimum flood and ebb currents from maximum flow when the current weakens without reversing. Keep these lulls on the chart and in the schedule, and skip them when showing the next maximum.
+
+  Breaking change for every consumer of current events: event kinds include `minFlood` and `minEbb`, and current reading states include `Minimum flood` and `Minimum ebb`. The HTTP API, the CLI JSON output, the engine, and the Swift and Kotlin packages all return the new kinds unconditionally; update exhaustive event and state handling. Swift and Kotlin `maxima()` return only true maxima; use `events()` to retain minimum curve knots. Deploy the API before the React client so lulls are not shown as maxima.
+
+### Patch Changes
+
+- [#515](https://github.com/openwatersio/slackwater/pull/515) [`0c5a9cf`](https://github.com/openwatersio/slackwater/commit/0c5a9cf134879a6eedb588601428b669b40f9fdc) Thanks [@tstotzer](https://github.com/tstotzer)! - Report when a tide station has no local prediction model instead of directing `currents` users to tide commands that cannot predict it.
+- Updated dependencies [[`ebc6e6a`](https://github.com/openwatersio/slackwater/commit/ebc6e6a74fadf8d024680e28485a0acaadbc49ce)]:
+  - slackwater@1.0.0-beta.7
+  - @slackwater/api@1.0.0-beta.7
+
 ## 1.0.0-beta.7
 
 ### Patch Changes

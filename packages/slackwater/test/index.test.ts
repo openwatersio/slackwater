@@ -34,7 +34,7 @@ describe("getExtremesPrediction", () => {
 
     const { extremes } = prediction;
     expect(extremes.length).toBe(4);
-    expect(extremes[0].time).toEqual(new Date("2025-12-18T05:28:19.477Z"));
+    expect(extremes[0].time).toEqual(new Date("2025-12-18T05:29:57.481Z"));
     expect(extremes[0].level).toBeCloseTo(0.02, 2);
     expect(extremes[0].high).toBe(false);
     expect(extremes[0].low).toBe(true);
@@ -46,7 +46,7 @@ describe("getExtremesPrediction", () => {
     const prediction = await getExtremesPrediction({ ...options, units: "feet" });
     expect(prediction.units).toBe("feet");
     expect(prediction.extremes[0].level).toBeCloseTo(0.07, 2);
-    expect(prediction.extremes[1].level).toBeCloseTo(2.99, 2);
+    expect(prediction.extremes[1].level).toBeCloseTo(3.01, 2);
   });
 });
 
@@ -74,7 +74,7 @@ describe("getTimelinePrediction", () => {
       units: "feet",
     });
     expect(prediction.units).toBe("feet");
-    expect(prediction.timeline[0].level).toBeCloseTo(0.24, 2);
+    expect(prediction.timeline[0].level).toBeCloseTo(0.25, 2);
   });
 });
 
@@ -102,7 +102,7 @@ describe("getWaterLevelAtTime", () => {
       units: "feet",
     });
     expect(prediction.units).toBe("feet");
-    expect(prediction.level).toBeCloseTo(-1.43, 2);
+    expect(prediction.level).toBeCloseTo(-1.42, 2);
   });
 
   test("with unknown units", async () => {
@@ -135,7 +135,7 @@ describe("for a specific station", async () => {
       });
 
       expect(predictions.length).toBe(4);
-      expect(predictions[0].time).toEqual(new Date("2025-12-17T11:22:51.248Z"));
+      expect(predictions[0].time).toEqual(new Date("2025-12-17T11:22:20.482Z"));
       expect(predictions[0].level).toBeCloseTo(0.9, 1);
       expect(predictions[0].high).toBe(true);
       expect(predictions[0].low).toBe(false);

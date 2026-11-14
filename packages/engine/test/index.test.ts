@@ -31,9 +31,9 @@ describe("Tidal station", () => {
       end: endDate,
     });
     expect(results.length).toBe(37);
-    expect(results[0].level).toBeCloseTo(-1.46903456, 3);
+    expect(results[0].level).toBeCloseTo(-1.4779895, 3);
     const lastResult = results.pop();
-    expect(lastResult?.level).toBeCloseTo(2.83490872, 3);
+    expect(lastResult?.level).toBeCloseTo(2.8542999, 3);
   });
 
   it("it predicts the tides in a timeline with time fidelity", () => {
@@ -43,9 +43,9 @@ describe("Tidal station", () => {
       timeFidelity: 60,
     });
     expect(results.length).toBe(361);
-    expect(results[0].level).toBeCloseTo(-1.46903456, 3);
+    expect(results[0].level).toBeCloseTo(-1.4779895, 3);
     const lastResult = results.pop();
-    expect(lastResult?.level).toBeCloseTo(2.83490872, 3);
+    expect(lastResult?.level).toBeCloseTo(2.8542999, 3);
   });
 
   it("it predicts the tidal extremes", () => {
@@ -53,14 +53,14 @@ describe("Tidal station", () => {
       start: startDate,
       end: endDate,
     });
-    expect(results[0].level).toBeCloseTo(-1.67283933, 4);
+    expect(results[0].level).toBeCloseTo(-1.69091569, 4);
   });
 
   it("it fetches a single water level", () => {
     const result = createTidePredictor(mockConstituents).getWaterLevelAtTime({
       time: startDate,
     });
-    expect(result.level).toBeCloseTo(-1.46903456, 4);
+    expect(result.level).toBeCloseTo(-1.4779906, 4);
   });
 
   describe("water level between timeline steps", () => {
@@ -99,7 +99,7 @@ describe("Tidal station", () => {
       offset: 3,
     }).getExtremesPrediction({ start: startDate, end: endDate });
 
-    expect(results[0].level).toBeCloseTo(1.32716067, 4);
+    expect(results[0].level).toBeCloseTo(1.30908431, 4);
   });
 
   it("equivalent instants in different timezones yield identical extremes", () => {

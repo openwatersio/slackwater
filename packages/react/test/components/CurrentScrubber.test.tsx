@@ -375,7 +375,7 @@ describe("CurrentScrubber", () => {
     const slider = screen.getByRole("slider", { name: "Current timeline" });
 
     await restsOn(slider, NOW);
-    expect(selected.at(-1)).toBe(NOW);
+    expect(selected).toEqual([NOW]);
   });
 
   test("an opening hidden after its last frame, before it rests, plays again when shown", async () => {
@@ -384,6 +384,11 @@ describe("CurrentScrubber", () => {
     const view = (mode: "visible" | "hidden") => (
       <Activity mode={mode}>{scrubber({ onSelect })}</Activity>
     );
+    // The glide lands on its first frame, so the hide always falls between the last frame and the rest.
+    vi.stubGlobal("requestAnimationFrame", (frame: FrameRequestCallback) =>
+      setTimeout(() => frame(performance.now() + 60_000), 0),
+    );
+    vi.stubGlobal("cancelAnimationFrame", clearTimeout);
     const { rerender } = render(view("visible"));
     const slider = screen.getByRole("slider", { name: "Current timeline" });
     // The glide has landed within a pixel of now, and the strip hasn't come to rest.
@@ -393,7 +398,31 @@ describe("CurrentScrubber", () => {
     rerender(view("hidden"));
     rerender(view("visible"));
     await restsOn(slider, NOW);
-    expect(selected.at(-1)).toBe(NOW);
+    expect(selected).toEqual([NOW]);
+  });
+
+  test("a strip hidden before it rests under Reduce Motion rests when shown", async () => {
+    reduceMotion();
+    const view = (mode: "visible" | "hidden") => <Activity mode={mode}>{scrubber()}</Activity>;
+    const { rerender } = render(view("visible"));
+    const slider = screen.getByRole("slider", { name: "Current timeline" });
+    expect(commentaryPill().tabIndex).toBe(-1);
+
+    rerender(view("hidden"));
+    rerender(view("visible"));
+    await restsOn(slider, NOW);
+  });
+
+  test("a strip that has rested stays put when hidden and shown", async () => {
+    const view = (mode: "visible" | "hidden") => <Activity mode={mode}>{scrubber()}</Activity>;
+    const { rerender } = render(view("visible"));
+    const slider = screen.getByRole("slider", { name: "Current timeline" });
+    await restsOn(slider, NOW);
+
+    rerender(view("hidden"));
+    rerender(view("visible"));
+    expect(value(slider)).toBe(NOW);
+    await restsOn(slider, NOW);
   });
 
   test("new data that stops the opening reports where the strip stopped", async () => {
