@@ -1,5 +1,15 @@
 # @neaps/react
 
+## 1.0.0-beta.6
+
+### Patch Changes
+
+- [#534](https://github.com/openwatersio/slackwater/pull/534) [`13b063b`](https://github.com/openwatersio/slackwater/commit/13b063b46339f25974ec6b805af2222fee6f0650) Thanks [@clarkbw](https://github.com/clarkbw)! - A scrubber hidden by `<Activity>` after its opening glide lands but before the strip comes to rest plays the opening again when shown, instead of never coming to rest.
+
+- [#538](https://github.com/openwatersio/slackwater/pull/538) [`d3f80ab`](https://github.com/openwatersio/slackwater/commit/d3f80ab1c45eaa9e4a08902dc0b5c304e8b5f2e2) Thanks [@clarkbw](https://github.com/clarkbw)! - `<TideScrubber>` and `<CurrentScrubber>` call `onSelect` once for each new moment, so the opening glide reports where it lands once instead of on every frame. A new `onSelect` is called once with the current moment.
+- Updated dependencies [[`461f7ba`](https://github.com/openwatersio/slackwater/commit/461f7baad0e7bda045b68262080c8ad4f57d89a6), [`c63b56a`](https://github.com/openwatersio/slackwater/commit/c63b56a9b8415dfb333de8b9b04df4641ddc707b), [`58b2d19`](https://github.com/openwatersio/slackwater/commit/58b2d19dff256b88cabf97d4fb4ca6b6e8615f0b), [`461f7ba`](https://github.com/openwatersio/slackwater/commit/461f7baad0e7bda045b68262080c8ad4f57d89a6)]:
+  - @slackwater/engine@1.0.0-beta.12
+
 ## 1.0.0-beta.5
 
 ### Major Changes

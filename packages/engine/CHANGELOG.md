@@ -1,5 +1,21 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.12
+
+### Major Changes
+
+- [#531](https://github.com/openwatersio/slackwater/pull/531) [`c63b56a`](https://github.com/openwatersio/slackwater/commit/c63b56a9b8415dfb333de8b9b04df4641ddc707b) Thanks [@bkeepers](https://github.com/bkeepers)! - Breaking change for code that imports the catalog's types or calls methods on the `constituents` map: `DefineConstituentOptions` is now `ConstituentDefinition`, with Doodson `coefficients` in place of `xdo` and explicit `members` in place of `nodalCorrection`, and the `XDO` and `NodalCorrectionCode` types are gone. The exported `constituents` map has no prototype, so use `Object.hasOwn(constituents, name)` rather than `constituents.hasOwnProperty(name)`. Predictions are unchanged.
+
+### Minor Changes
+
+- [#531](https://github.com/openwatersio/slackwater/pull/531) [`58b2d19`](https://github.com/openwatersio/slackwater/commit/58b2d19dff256b88cabf97d4fb4ca6b6e8615f0b) Thanks [@bkeepers](https://github.com/bkeepers)! - Predict and fit constituents the catalog doesn't have, or defines differently. `createTidePredictor`, `createCurrentPredictor` and `fit` take a `definitions` option with each constituent's speed, Doodson coefficients and nodal-correction members, and `defineConstituents` builds the same models directly.
+
+### Patch Changes
+
+- [#537](https://github.com/openwatersio/slackwater/pull/537) [`461f7ba`](https://github.com/openwatersio/slackwater/commit/461f7baad0e7bda045b68262080c8ad4f57d89a6) Thanks [@bkeepers](https://github.com/bkeepers)! - `chsCurrentFit.stamp` also changes when the catalog changes a basis line's speed, argument or nodal members, and this release changes it because M3 is in the basis. Treat CHS current fits saved under an earlier stamp as unfitted and fit them again; an M3 phase from the old argument would be predicted 180° off.
+
+- [#537](https://github.com/openwatersio/slackwater/pull/537) [`461f7ba`](https://github.com/openwatersio/slackwater/commit/461f7baad0e7bda045b68262080c8ad4f57d89a6) Thanks [@bkeepers](https://github.com/bkeepers)! - Predict M3, S3 and M7 at Schureman's phase, 1.5 times M2's or S2's argument and 3.5 times M2's. They were 180° off, which put up to twice their amplitude into predictions. NOAA publishes M3 at this phase, and so do XTide and the IOS package. Stored phases for these lines that were fitted with an earlier engine, or converted to match it, need turning by 180°: this includes TICON's M3 and S3 in `@slackwater/database` builds made for an earlier engine. CHS tide fits from `chsTideFit` have no stamp to mark them stale, so fit any saved one again.
+
 ## 1.0.0-beta.11
 
 ### Major Changes
