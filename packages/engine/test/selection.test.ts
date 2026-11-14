@@ -189,6 +189,16 @@ describe("selectConstituents", () => {
     expect(entry("M3")).not.toMatchObject({ reason: "nyquist" });
   });
 
+  test("takes the median of an even number of sampling intervals", () => {
+    // Alternating 1 h and 4 h steps, as many of each: the median is 2.5 h, so M4 resolves and M6 doesn't.
+    const samples = record(60)
+      .filter((_, i) => i % 5 < 2)
+      .slice(0, 575);
+    const { selection } = selectConstituents(samples);
+    expect(selection.find((s) => s.name === "M4")).not.toMatchObject({ reason: "nyquist" });
+    expect(selection.find((s) => s.name === "M6")).toMatchObject({ reason: "nyquist" });
+  });
+
   test("ignores repeated timestamps when judging the sampling interval", () => {
     const { selection } = selectConstituents(record(60, 4).flatMap((s) => [s, s]));
     expect(selection.find((s) => s.name === "M8")).toMatchObject({ reason: "nyquist" });

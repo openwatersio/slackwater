@@ -2,6 +2,7 @@ import { constituentModels } from "./constituents/index.js";
 import {
   checkWeights,
   fit,
+  median,
   type FitOptions,
   type HarmonicFit,
   type HarmonicSample,
@@ -149,10 +150,9 @@ export function selectConstituents(
     (s, i) => s.time.getTime() - active[i].time.getTime(),
   )
     // Repeated timestamps, as from merged sensors, don't shorten the sampling interval.
-    .filter((step) => step > 0)
-    .sort();
+    .filter((step) => step > 0);
   // Degrees per hour at the Nyquist frequency of the typical sampling interval.
-  const nyquist = (180 * 3600000) / steps[steps.length >> 1];
+  const nyquist = (180 * 3600000) / median(steps);
 
   const comparisons = new Map(candidates.map((c) => [c.name, c.comparison]));
   const selection: ConstituentSelection[] = [];

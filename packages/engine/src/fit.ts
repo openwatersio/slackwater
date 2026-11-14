@@ -219,7 +219,7 @@ export function checkWeights(weights: readonly number[] | undefined, count: numb
 
 const sum = (values: Float64Array) => values.reduce((total, x) => total + x, 0);
 
-const median = (values: Float64Array) => {
+export const median = (values: Float64Array) => {
   const sorted = values.slice().sort();
   const middle = sorted.length >> 1;
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
