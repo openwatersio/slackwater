@@ -51,7 +51,7 @@
     "@types/express": "^5.0.6",
     "@types/supertest": "^7.2.0",
     "express-openapi-validator": "^5.1.6",
-    "supertest": "^7.2.2"
+    "supertest": "^7.3.2"
   },
   "inlinedDependencies": {
     "@types/express-serve-static-core": "5.1.3"
