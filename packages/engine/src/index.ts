@@ -6,7 +6,21 @@ import type { HarmonicConstituent } from "./harmonics/index.js";
 import type { TimelinePoint, Extreme, ExtremeOffsets } from "./harmonics/prediction.js";
 
 export { default as astro } from "./astronomy/index.js";
-export { fit, type HarmonicSample, type HarmonicFit, type FitOptions } from "./fit.js";
+export {
+  fit,
+  type HarmonicSample,
+  type HarmonicFit,
+  type FitOptions,
+  type FittedConstituent,
+} from "./fit.js";
+export {
+  foremanCandidates,
+  selectConstituents,
+  type Candidate,
+  type ConstituentSelection,
+  type SelectionOptions,
+  type SelectionResult,
+} from "./selection.js";
 export { chsCurrentFit, chsTideFit, projectChsCurrent } from "./chs.js";
 export { default as constituents, defineConstituents } from "./constituents/index.js";
 export type * from "./astronomy/index.js";
