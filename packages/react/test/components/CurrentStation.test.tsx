@@ -67,6 +67,15 @@ describe("CurrentStation", () => {
     expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/9448614", kind: "tide" });
   });
 
+  test("lists the nearest stations without a map when showMap is false", async () => {
+    render(<CurrentStation id="noaa/PUG1701" showMap={false} />, { wrapper: createTestWrapper() });
+
+    const nearby = await screen.findByRole("region", { name: "Nearby" }, { timeout: 10000 });
+    const items = await within(nearby).findAllByRole("listitem", undefined, { timeout: 10000 });
+    expect(items.length).toBe(3);
+    expect(within(nearby).queryByRole("region", { name: "Nearby stations map" })).toBeNull();
+  });
+
   test("Nearby filters the three shared-list cards by tide or current", async () => {
     const onStationSelect = vi.fn();
     render(<CurrentStation id="noaa/PUG1701" onStationSelect={onStationSelect} />, {
