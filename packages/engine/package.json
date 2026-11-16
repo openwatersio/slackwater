@@ -31,7 +31,7 @@
     "dist"
   ],
   "devDependencies": {
-    "@slackwater/database": "^1.0.1-beta.20261103"
+    "@slackwater/database": "^1.0.1-beta.20261107"
   },
   "scripts": {
     "build": "tsdown",
