@@ -1,6 +1,6 @@
 {
   "name": "@slackwater/react",
-  "version": "1.0.0-beta.6",
+  "version": "1.0.0-beta.7",
   "description": "React components for tide predictions",
   "keywords": [
     "slackwater",
@@ -57,7 +57,7 @@
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",
-    "@slackwater/engine": "^1.0.0-beta.12",
+    "@slackwater/engine": "^1.0.0-beta.13",
     "@tanstack/react-query": "^5.107.1",
     "astronomy-engine": "^2.1.19"
   },

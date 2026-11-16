@@ -1,5 +1,22 @@
 # @neaps/react
 
+## 1.0.0-beta.7
+
+### Major Changes
+
+- [#544](https://github.com/openwatersio/slackwater/pull/544) [`44e1fbc`](https://github.com/openwatersio/slackwater/commit/44e1fbc96c88d7cdf03cc1c5c4d7626d4b80c87d) Thanks [@clarkbw](https://github.com/clarkbw)! - Import `StationsMap` and `StationsMapProps` from `@slackwater/react/map`. The root entry no longer exports them, so it no longer imports `react-map-gl` or MapLibre's stylesheet up front. Station pages and `<NearbyStations>` load the map, its stylesheet and MapLibre only when they draw it, from a chunk your bundler still emits.
+
+  Breaking change: replace `import { StationsMap } from "@slackwater/react"` with `import { StationsMap } from "@slackwater/react/map"`.
+
+### Minor Changes
+
+- [#544](https://github.com/openwatersio/slackwater/pull/544) [`44e1fbc`](https://github.com/openwatersio/slackwater/commit/44e1fbc96c88d7cdf03cc1c5c4d7626d4b80c87d) Thanks [@clarkbw](https://github.com/clarkbw)! - `<TideStation>` and `<CurrentStation>` take `showMap={false}` to list the nearest stations without the map below them, for apps that draw their own map. MapLibre is then never loaded.
+
+### Patch Changes
+
+- Updated dependencies [[`e8295c7`](https://github.com/openwatersio/slackwater/commit/e8295c7ce1dc72922764340b1640dad547d8cc0e), [`e8295c7`](https://github.com/openwatersio/slackwater/commit/e8295c7ce1dc72922764340b1640dad547d8cc0e)]:
+  - @slackwater/engine@1.0.0-beta.13
+
 ## 1.0.0-beta.6
 
 ### Patch Changes
