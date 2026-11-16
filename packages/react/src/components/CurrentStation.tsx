@@ -38,6 +38,8 @@ export interface CurrentStationProps {
   threshold?: number;
   /** Called when a nearby station is picked; its `kind` says which page it belongs on. */
   onStationSelect?: (station: CardStation) => void;
+  /** Draw the map below the nearby stations; `false` leaves it out and never loads MapLibre. */
+  showMap?: boolean;
   className?: string;
 }
 
@@ -90,7 +92,13 @@ export function CurrentStation(props: CurrentStationProps) {
   return <CurrentPage key={props.id} {...props} />;
 }
 
-function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStationProps) {
+function CurrentPage({
+  id,
+  threshold,
+  onStationSelect,
+  showMap = true,
+  className,
+}: CurrentStationProps) {
   const { locale, setFormat } = useSlackwaterConfig();
   const station = useCurrentStation(id);
   const s = station.data;
@@ -214,6 +222,7 @@ function CurrentPage({ id, threshold, onStationSelect, className }: CurrentStati
             attribution={s.attribution}
             kind="current"
             onStationSelect={onStationSelect}
+            showMap={showMap}
           />
         </>
       )}

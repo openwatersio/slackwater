@@ -278,6 +278,15 @@ describe("TideStation", () => {
     expect(onStationSelect.mock.calls[0][0]).toMatchObject({ id: "noaa/PUG1701", kind: "current" });
   });
 
+  test("lists the nearest stations without a map when showMap is false", async () => {
+    render(<TideStation id={SEATTLE} showMap={false} />, { wrapper: createTestWrapper() });
+
+    const nearby = await screen.findByRole("region", { name: "Nearby" }, { timeout: 10000 });
+    const items = await within(nearby).findAllByRole("listitem", undefined, { timeout: 10000 });
+    expect(items.length).toBe(3);
+    expect(within(nearby).queryByRole("region", { name: "Nearby stations map" })).toBeNull();
+  });
+
   test("explains a station whose predictions can't be served, without asking for them", async () => {
     const fetch = vi.spyOn(window, "fetch");
     render(<TideStation id="chs-campbell-river" />, { wrapper: createTestWrapper() });

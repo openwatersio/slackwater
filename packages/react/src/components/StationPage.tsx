@@ -270,11 +270,13 @@ export function StationNearby({
   kind,
   attribution,
   onStationSelect,
+  showMap,
 }: {
   id: string;
   kind: StationSummary["kind"];
   attribution?: string;
   onStationSelect?: (station: CardStation) => void;
+  showMap: boolean;
 }) {
   const [filter, setFilter] = useState<StationFilter>();
   return (
@@ -290,7 +292,7 @@ export function StationNearby({
         kind={kind}
         attribution={attribution}
         maxResults={PAGE_NEARBY_RESULTS}
-        showMap
+        showMap={showMap}
         filter={filter}
         onStationSelect={onStationSelect}
       />

@@ -16,6 +16,8 @@ npm install react react-dom
 npm install maplibre-gl react-map-gl
 ```
 
+`<StationsMap>` comes from its own entry, `@slackwater/react/map`, so the root entry doesn't import `react-map-gl` or MapLibre's stylesheet up front. Station pages and `<NearbyStations>` load the map, its stylesheet and MapLibre only when they draw it; `showMap={false}` leaves it out. Your bundler still resolves both packages and emits that chunk.
+
 The components are styled with [Tailwind CSS v4](https://tailwindcss.com), which your app must also use. See [Styling](#styling).
 
 ## Quick Start
@@ -100,7 +102,7 @@ A tide station's page, after the app's tide detail screen:
 - a full-width water tile above paired Moon and Sun cards (all three share a row in panes at least 700 px wide). **Range** is the height between the turn behind it and the turn ahead, captioned "low to high" or "high to low". When that swing is in the top tenth of every swing in the fifteen days either side of the day the page opened, the caption says "beyond normal here", or "the fortnight's biggest" when no swing in that window is bigger. **Moon** names the phase and the tide the Moon is driving: spring or neap, perigean or apogean within two days of perigee or apogee, or how much of it is lit. Sun names the next sunrise or sunset and the selected day's daylight duration. Range includes seven daily swing bars from a complete week of extremes, highlighting the selected day;
 - a schedule card with the week's highs and lows, a day at a time with sunrise, solar noon, and sunset. The row nearest the selection is highlighted, and choosing a row moves the scrubber there. The week bar opens a date picker;
 - where the predictions come from and the station's disclaimers, and a "Station details" disclosure with its datum, ID, position, time zone, and reference station;
-- the three nearest tide and current stations in the same list layout as search, with All, Tides and Currents filters and a 220 px map below. The map frames the page's station and the listed stations; tapping a pin selects it directly. A collapsed Data sources disclosure below combines the page station’s credit with those of the nearby stations.
+- the three nearest tide and current stations in the same list layout as search, with All, Tides and Currents filters and a 220 px map below, unless `showMap` is `false`. The map frames the page's station and the listed stations; tapping a pin selects it directly. A collapsed Data sources disclosure below combines the page station’s credit with those of the nearby stations.
 
 Heights are above the station's chart datum, which the page names. A station whose `datums` don't include its chart datum, such as `noaa/8519024`, reads about mean sea level, so the page names no datum and marks nothing at 0. The page loads a window from 96 hours before to 180 hours after the start of the week in the station's time zone, and moves it when a date is picked, when Now is chosen, or when the page is shown again two or more days later. Stations whose predictions can't be served, such as the CHS ports, show the reason instead.
 
@@ -112,6 +114,7 @@ Heights are above the station's chart datum, which the page names. A station who
 | ----------------- | ------------------- | ------- | ---------------------------------------------- |
 | `id`              | `string`            | —       | Station ID (e.g. `"noaa/9447130"`)             |
 | `onStationSelect` | `(station) => void` | —       | Called with a nearby station when it is picked |
+| `showMap`         | `boolean`           | `true`  | Draw the map below the nearby stations         |
 | `className`       | `string`            | —       | Extra classes for the outer element            |
 
 ### `<CurrentStation>`
@@ -134,6 +137,7 @@ A tidal current station's page, with the same layout as `<TideStation>`: a `<Cur
 | `id`              | `string`            | —       | Station ID, optionally with a depth bin (e.g. `"noaa/EPT0003@11"`) |
 | `threshold`       | `number`            | `0.5`   | Major-axis speed in knots that sizes the axis windows              |
 | `onStationSelect` | `(station) => void` | —       | Called with a nearby station when it is picked                     |
+| `showMap`         | `boolean`           | `true`  | Draw the map below the nearby stations                             |
 | `className`       | `string`            | —       | Extra classes for the outer element                                |
 
 A nearby station's `kind` (`"tide"` or `"current"`) says which page it belongs on.
@@ -287,10 +291,12 @@ The app's stations map: every tide and current station in view as a live pin on 
 A tap picks the nearest pin and shows its `<StationCard>` in a panel along the bottom, above the unit legend; tapping the card calls `onStationSelect`, and tapping the water closes it. The bottom legend pairs a dot with Tides and the provider's height unit, an arrow with Currents and kn, and “Not for navigation.” beneath them. Framed Nearby maps use `showLegend={false}` and keep units beside each reading. The map’s attribution initially shows credits for five seconds before folding to ⓘ and credits the basemap, the selected station, and every station in view whose predictions color its pin. The locate button centers the map on the reader at zoom 10.5. Requires `maplibre-gl` and `react-map-gl`, also needed for the embedded maps on station pages.
 
 ```tsx
+import { StationsMap } from "@slackwater/react/map";
+
 <StationsMap
   initialViewState={{ longitude: -122.45, latitude: 47.65, zoom: 10 }}
   onStationSelect={(station) => navigate(`/stations/${station.kind}/${station.id}`)}
-/>
+/>;
 ```
 
 | Prop              | Type                | Default           | Description                                                                |

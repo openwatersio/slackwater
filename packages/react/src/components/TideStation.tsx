@@ -37,6 +37,8 @@ export interface TideStationProps {
   id: string;
   /** Called when a nearby station is picked; its `kind` says which page it belongs on. */
   onStationSelect?: (station: CardStation) => void;
+  /** Draw the map below the nearby stations; `false` leaves it out and never loads MapLibre. */
+  showMap?: boolean;
   className?: string;
 }
 
@@ -97,7 +99,7 @@ export function TideStation(props: TideStationProps) {
   return <TidePage key={props.id} {...props} />;
 }
 
-function TidePage({ id, onStationSelect, className }: TideStationProps) {
+function TidePage({ id, onStationSelect, showMap = true, className }: TideStationProps) {
   const { locale, units: preferred } = useSlackwaterConfig();
   const station = useStation(id);
   const s = station.data;
@@ -229,6 +231,7 @@ function TidePage({ id, onStationSelect, className }: TideStationProps) {
             attribution={s.attribution}
             kind="tide"
             onStationSelect={onStationSelect}
+            showMap={showMap}
           />
         </>
       )}
