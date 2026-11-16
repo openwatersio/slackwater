@@ -81,6 +81,7 @@ test("dayLabel", () => {
   expect(dayLabel(nextDay(today, LA), now, LA)).toBe("Tomorrow");
   expect(dayLabel(startOfDay(today - H, LA), now, LA)).toBe("Yesterday");
   expect(dayLabel(nextDay(nextDay(today, LA), LA), now, LA, "en-US")).toBe("Mon");
+  expect(dayLabel(today, undefined, LA, "en-US")).toBe("Sat");
 });
 
 describe("days", () => {

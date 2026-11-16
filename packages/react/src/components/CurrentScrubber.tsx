@@ -17,7 +17,7 @@ import {
   type Directions,
   type SlackWindow,
 } from "../utils/current.js";
-import { awayFromEdges, thinLabels } from "../utils/scrubber.js";
+import { EDGE_MS, awayFromEdges, thinLabels } from "../utils/scrubber.js";
 import { leadTime } from "../utils/time.js";
 import {
   C,
@@ -27,6 +27,7 @@ import {
   SET_ARROW_PATH,
   Scrubber,
   geometry,
+  samplesIn,
   type ScrubberProps,
   type StripKit,
   type Track,
@@ -41,7 +42,7 @@ export type { Directions };
 
 export interface CurrentScrubberProps extends Pick<
   ScrubberProps,
-  "onSelect" | "moveTo" | "onNow" | "bounded"
+  "onSelect" | "moveTo" | "onNow" | "bounded" | "selected"
 > {
   timeline: CurrentTimelineEntry[];
   events: CurrentEvent[];
@@ -54,7 +55,7 @@ export interface CurrentScrubberProps extends Pick<
   threshold?: number;
   /** BCP 47 locale for clocks and dates; defaults to the reader's. */
   locale?: string;
-  /** The current instant; defaults to the clock. Pass it to render deterministically (prerendering). */
+  /** The current instant; defaults to the clock, read on mount. Pass it to render deterministically (prerendering). */
   now?: number;
   className?: string;
 }
@@ -85,7 +86,7 @@ function speedY(timeline: CurrentTimelineEntry[]) {
 }
 
 function drawCurrent(
-  { id, g, bounded, now, past, pastMask, shade, eventTimes, dayChrome }: StripKit,
+  { id, g, bounded, now, view, shows, past, pastMask, shade, eventTimes, dayChrome }: StripKit,
   timeline: CurrentTimelineEntry[],
   events: CurrentEvent[],
   runs: SlackWindow[],
@@ -93,9 +94,10 @@ function drawCurrent(
   locale?: string,
 ) {
   const height = G.height + (events.some((e) => e.kind !== "slack") ? 20 : 0);
-  const curve = timeline
+  const curve = samplesIn(timeline, view)
     .map((p, i) => `${i ? "L" : "M"}${g.x(p.time.getTime()).toFixed(1)} ${y(p.speed).toFixed(1)}`)
     .join("");
+  const overlaps = (w: SlackWindow) => w.end.getTime() >= view.from && w.start.getTime() <= view.to;
   // Window edges use the curve's interpolation so their strokes join it.
   const run = (w: SlackWindow) => {
     const a = w.start.getTime();
@@ -109,15 +111,21 @@ function drawCurrent(
       .join("");
   };
   const area = `${curve}L${g.width} ${ZERO_Y}L0 ${ZERO_Y}Z`;
+  // Stepped across the whole strip, so a stretch keeps the stops the whole strip has there.
   const step = Math.max(1, Math.floor(timeline.length / 600));
-  const threadStops = timeline.filter((_, i) => i % step === 0);
+  const threadStops = samplesIn(
+    timeline.filter((_, i) => i % step === 0),
+    view,
+  );
 
   const strokes = runs.filter((w) => !isDotRun(w));
+  const drawnStrokes = strokes.filter(overlaps);
   // Runs draw to the edges; only marks and labels keep clear of them.
   const zeros = events.filter(
     (e) => e.kind === "slack" && e.time.getTime() >= g.start && e.time.getTime() <= g.end,
   );
-  const cores = zeros.map((e) => ({
+  const drawnZeros = zeros.filter((e) => shows(e.time.getTime(), 600_000));
+  const cores = drawnZeros.map((e) => ({
     start: new Date(Math.max(g.start, e.time.getTime() - 600_000)),
     end: new Date(Math.min(g.end, e.time.getTime() + 600_000)),
   }));
@@ -127,6 +135,7 @@ function drawCurrent(
     g.end,
     bounded,
   );
+  const marks = maxima.filter((e) => shows(e.time, EDGE_MS));
   const axisTimes = slackAxisTimes(
     strokes,
     zeros.map((e) => e.time.getTime()),
@@ -140,7 +149,10 @@ function drawCurrent(
     ),
   ).map((l) => l.time);
 
-  const nowSpeed = now >= g.start && now <= g.end ? speedAt(timeline, new Date(now)) : undefined;
+  const nowSpeed =
+    now !== undefined && now >= g.start && now <= g.end
+      ? speedAt(timeline, new Date(now))
+      : undefined;
 
   return (
     <>
@@ -181,7 +193,7 @@ function drawCurrent(
             around its round end caps only, so the gap follows the curve. */}
         <mask id={`${id}track`} maskUnits="userSpaceOnUse" fill="none">
           <rect width={g.width} height={height} fill="#fff" />
-          {[...strokes, ...cores].map((w, i) => (
+          {[...drawnStrokes, ...cores].map((w, i) => (
             <g key={`${i}:${w.start.getTime()}`}>
               <path
                 d={run(w)}
@@ -203,7 +215,7 @@ function drawCurrent(
         <mask id={`${id}halo`} maskUnits="userSpaceOnUse">
           <rect width={g.width} height={height} fill="#fff" />
           {nowSpeed !== undefined && (
-            <circle cx={g.x(now)} cy={y(nowSpeed)} r={3.5 + HALO_GAP} fill="#000" />
+            <circle cx={g.x(now!)} cy={y(nowSpeed)} r={3.5 + HALO_GAP} fill="#000" />
           )}
         </mask>
       </defs>
@@ -228,7 +240,7 @@ function drawCurrent(
             <path d={curve} stroke={speedColor(0)} strokeWidth={2.5} />
             <path d={curve} stroke={`url(#${id}thread)`} strokeWidth={2} />
           </g>
-          {strokes.map((w) => (
+          {drawnStrokes.map((w) => (
             <path key={w.start.getTime()} d={run(w)} stroke={C.line} strokeWidth={SLACK_WIDTH} />
           ))}
         </g>
@@ -247,11 +259,16 @@ function drawCurrent(
 
       <g mask={pastMask} fill="none" strokeLinecap="round">
         {cores.map((w, i) => (
-          <path key={zeros[i].time.getTime()} d={run(w)} stroke={C.go} strokeWidth={SLACK_WIDTH} />
+          <path
+            key={drawnZeros[i].time.getTime()}
+            d={run(w)}
+            stroke={C.go}
+            strokeWidth={SLACK_WIDTH}
+          />
         ))}
       </g>
 
-      {maxima.map((e) => {
+      {marks.map((e) => {
         // Hang into the turn: below a local high, above a local low.
         const toward = e.kind === "maxFlood" || e.kind === "minEbb" ? 1 : -1;
         const at = y(e.speed) + toward * 23;
@@ -292,7 +309,7 @@ function drawCurrent(
 
       {dayChrome}
 
-      {nowSpeed !== undefined && <circle cx={g.x(now)} cy={y(nowSpeed)} r={3.5} fill={C.paper} />}
+      {nowSpeed !== undefined && <circle cx={g.x(now!)} cy={y(nowSpeed)} r={3.5} fill={C.paper} />}
     </>
   );
 }
@@ -321,6 +338,7 @@ function CurrentStrip({
   threshold = DEFAULT_SLACK_THRESHOLD,
   locale,
   now,
+  selected,
   className,
   bounded,
   onSelect,
@@ -396,6 +414,7 @@ function CurrentStrip({
       longitude={longitude}
       locale={locale}
       now={now}
+      selected={selected}
       className={className}
       onSelect={onSelect}
       moveTo={moveTo}

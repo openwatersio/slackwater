@@ -167,7 +167,8 @@ A tide timeline that scrolls under a fixed reading line. The lead reads the heig
 | `units`      | `Units`           | —               | The units of `timeline` and `extremes`                                                             |
 | `chartDatum` | `boolean`         | `true`          | `false` when the heights aren't above a chart datum (a response without `datum`), so 0 is unmarked |
 | `locale`     | `string`          | reader's locale | BCP 47 locale for clocks and dates                                                                 |
-| `now`        | `number`          | the clock       | The current instant in ms; pass it to render deterministically                                     |
+| `now`        | `number`          | the clock       | The current instant in ms; pass it to render deterministically, or the browser reads it on mount   |
+| `selected`   | `number`          | now             | The moment in ms the strip opens on, server render included; later changes are ignored             |
 | `bounded`    | `boolean`         | `false`         | Pad both ends so every supplied sample can reach the fixed reading line                            |
 | `className`  | `string`          | —               | Extra classes for the outer element                                                                |
 
@@ -197,7 +198,8 @@ The current timeline: full predicted speed and Set at the selected moment above 
 | `directions` | `{ flood?, ebb? }`       | `{}`                       | Flood and ebb set in degrees true                                                                                          |
 | `threshold`  | `number`                 | `0.5`                      | Major-axis speed in knots that sizes the axis windows                                                                      |
 | `locale`     | `string`                 | reader's locale            | BCP 47 locale for clocks and dates                                                                                         |
-| `now`        | `number`                 | the clock                  | The current instant in ms; pass it to render deterministically                                                             |
+| `now`        | `number`                 | the clock                  | The current instant in ms; pass it to render deterministically, or the browser reads it on mount                           |
+| `selected`   | `number`                 | now                        | The moment in ms the strip opens on, server render included; later changes are ignored                                     |
 | `bounded`    | `boolean`                | `false`                    | Pad both ends so every supplied sample can reach the fixed reading line                                                    |
 | `className`  | `string`                 | —                          | Extra classes for the outer element                                                                                        |
 
@@ -206,6 +208,8 @@ Set `bounded` on either scrubber for a finite window supplied by your applicatio
 When no following high or low is supplied, the scrubber, station card, and widget derive their trend from the samples. A flat series defaults to rising.
 
 Both scrubbers also take `onSelect(time)`, called once for each new selected moment and again with the current one when a new `onSelect` function is passed, so a stable callback (one from `useCallback`) hears each moment once (while the strip glides open it reports where it lands, now or the nearest moment it can show, not the hours it passes), `moveTo`, an object whose `time` the strip moves to each time a new object is passed, and `onNow(now)`, called when the reader returns to now.
+
+Both scrubbers render on the server. `selected` gives the moment a shared link points at: the server render and the browser both open on it, with its reading, its pills, and no glide in from now, and `onSelect` hears it once. A moment outside the data opens on its nearest end, and one too close to an end of an unbounded strip moves in the browser to the nearest moment that strip can center; a value that isn't a finite number is ignored. Without `now`, the server render claims no present: it draws no now dot, no dimmed past, no Today, Tomorrow, or Yesterday, and no Now pill, and the browser adds them once it reads its own clock. With neither `now` nor `selected`, the server render draws the middle of the supplied data with no reading, and the browser opens on now. Pass `locale` as well, since clocks and dates otherwise follow each runtime's default locale and the server's can differ from the reader's. The server render draws only the stretch around its moment that a strip 720 pixels wide shows, and the browser draws the rest as it mounts, so a week of predictions prerenders in a fraction of the HTML; a wider strip shows empty canvas at its sides until then.
 
 ### `<TideConditions>`
 
@@ -364,6 +368,8 @@ Every hook scopes its query key by the source's `cacheKey`. When seeding caches 
 ## Server rendering
 
 `prefetchTideStation(queryClient, baseUrlOrSource, id, { units?, locale?, now? })` fills the station, prediction windows, and Nearby lists for `<TideStation>`. A subordinate station's reference metadata loads separately. `prefetchNearbyStations` fills the lists for `<NearbyStations>`. Pass `dehydrate(queryClient)` to the client and render inside a `<HydrationBoundary>`; both are re-exported from TanStack Query. Both prefetch helpers accept a URL or a `SlackwaterDataSource`; render with an equivalent source and matching units on the client.
+
+A server-rendered `<TideStation>` or `<CurrentStation>` draws its strip at the middle of the week it loads, with no reading, and opens on now in the browser. The page's week, schedule, and tiles still follow the server's clock until the browser renders them. To prerender a reading at a chosen moment, render `<TideScrubber>` or `<CurrentScrubber>` with `selected`.
 
 The hydrated cache contains data, not the source's methods. Reconstruct the source on the client with the same `cacheKey`. If your framework serializes the cache, use a serializer that preserves `Date` values or revive them before hydration. Plain JSON turns dates into strings and is insufficient for these responses.
 

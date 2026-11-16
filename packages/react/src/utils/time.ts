@@ -83,10 +83,17 @@ export function leadTime(time: number, timeZone: string, locale?: string): strin
   return `${shortDate(time, timeZone, locale)} · ${padded}`;
 }
 
-/** "Today", "Tomorrow", "Yesterday", or the short weekday. */
-export function dayLabel(dayStart: number, now: number, timeZone: string, locale?: string): string {
-  const today = startOfDay(now, timeZone);
-  const days = Math.round((dayStart - today) / (24 * HOUR));
+/** "Today", "Tomorrow", "Yesterday", or the short weekday, which is all a render without `now` says. */
+export function dayLabel(
+  dayStart: number,
+  now: number | undefined,
+  timeZone: string,
+  locale?: string,
+): string {
+  const days =
+    now === undefined
+      ? undefined
+      : Math.round((dayStart - startOfDay(now, timeZone)) / (24 * HOUR));
   if (days === 0) return "Today";
   if (days === 1) return "Tomorrow";
   if (days === -1) return "Yesterday";
