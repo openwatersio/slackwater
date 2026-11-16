@@ -1,5 +1,13 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.13
+
+### Minor Changes
+
+- [#532](https://github.com/openwatersio/slackwater/pull/532) [`e8295c7`](https://github.com/openwatersio/slackwater/commit/e8295c7ce1dc72922764340b1640dad547d8cc0e) Thanks [@bkeepers](https://github.com/bkeepers)! - `selectConstituents` chooses which constituents a record can resolve, from Foreman's standard list by the Rayleigh criterion and a signal-to-noise cut, fits them, and says why each candidate was left out.
+
+- [#532](https://github.com/openwatersio/slackwater/pull/532) [`e8295c7`](https://github.com/openwatersio/slackwater/commit/e8295c7ce1dc72922764340b1640dad547d8cc0e) Thanks [@bkeepers](https://github.com/bkeepers)! - `fit` takes per-sample `weights`, fits robustly with `robust: true`, drops constituents the record can't separate with `dropDependent: true` instead of failing, and gives each constituent a 95% confidence interval and signal-to-noise ratio with `confidence: true`. `HarmonicFit` gains a required `dropped` list, so code that builds a `HarmonicFit` by hand must add it.
+
 ## 1.0.0-beta.12
 
 ### Major Changes
