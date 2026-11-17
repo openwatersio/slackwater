@@ -1,0 +1,10 @@
+{
+  "name": "slackwater-mcp",
+  "main": "dist/worker.mjs",
+  "compatibility_date": "2026-11-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "directory": "./generated", "binding": "ASSETS", "run_worker_first": true },
+  "workers_dev": false,
+  "limits": { "cpu_ms": 100 },
+  "observability": { "enabled": true },
+}

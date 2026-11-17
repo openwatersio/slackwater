@@ -1,0 +1,37 @@
+{
+  "name": "@slackwater/mcp",
+  "version": "1.0.0-beta.0",
+  "description": "Read-only tide and current tools for MCP assistants",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openwatersio/slackwater.git",
+    "directory": "packages/mcp"
+  },
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./generate": "./dist/generate.mjs",
+    "./http": "./dist/http.mjs",
+    "./worker": "./dist/worker.mjs"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "bin": {
+    "slackwater-mcp": "./bin/slackwater-mcp.js",
+    "slackwater-mcp-generate": "./bin/generate-catalog.js"
+  },
+  "scripts": {
+    "build": "tsc && tsdown",
+    "prepack": "npm run build"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@slackwater/database": "1.0.1-beta.20261103",
+    "@slackwater/engine": "^1.0.0-beta.10",
+    "slackwater": "^1.0.0-beta.6",
+    "zod": "^4.3.6"
+  }
+}
