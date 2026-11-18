@@ -51,7 +51,7 @@ export interface CurrentScrubberProps extends Pick<
   longitude: number;
   directions?: Directions;
   setFormat?: SetFormat;
-  /** Major-axis speed threshold for axis windows, in knots. */
+  /** Major-axis speed threshold for slack windows, in knots. */
   threshold?: number;
   /** BCP 47 locale for clocks and dates; defaults to the reader's. */
   locale?: string;

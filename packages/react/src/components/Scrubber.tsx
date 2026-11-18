@@ -328,13 +328,12 @@ export function nextStopComment(t: number, stops: Stop[], locale?: string): Comm
     c && {
       content: (
         <>
-          {c.stop.label === "Slack"
-            ? "Axis slack"
-            : c.stop.label === "Slack window" || c.stop.label === "Slack window closes"
-              ? "Axis window"
-              : c.stop.label}
-          <StopIcon kind={c.stop.label} />
-          {c.duration}
+          {/* Spans, not bare text: two adjacent text nodes are one flex item, so the
+              capsule's gap would vanish between a label and a countdown with no icon.
+              The space between them draws nothing in a flex row but keeps the copied
+              text "Max flood 2h 14m". */}
+          <span>{c.stop.label === "Slack window closes" ? "Slack window" : c.stop.label}</span>
+          <StopIcon kind={c.stop.label} /> <span>{c.duration}</span>
         </>
       ),
       spoken: c.spoken,

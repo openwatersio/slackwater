@@ -10,8 +10,8 @@ test("unpublished phase bearings keep their flood and ebb labels without inventi
         {
           start: anchor,
           entries: [
-            { time: anchor + 12 * 3600000, pill: "flood", value: "1.2 kn axis" },
-            { time: anchor + 18 * 3600000, pill: "ebb", value: "0.8 kn axis" },
+            { time: anchor + 12 * 3600000, pill: "flood", value: "1.2 kn" },
+            { time: anchor + 18 * 3600000, pill: "ebb", value: "0.8 kn" },
           ],
         },
       ]}
@@ -41,8 +41,8 @@ test.each([
           {
             start: anchor,
             entries: [
-              { time: anchor + 9 * 3600000, pill, value: "0.1 kn axis" },
-              { time: anchor + 15 * 3600000, pill, value: "0.0 kn axis", direction },
+              { time: anchor + 9 * 3600000, pill, value: "0.1 kn" },
+              { time: anchor + 15 * 3600000, pill, value: "0.0 kn", direction },
             ],
           },
         ]}
@@ -83,13 +83,13 @@ test.each([
               {
                 time: anchor + 12 * 3600000,
                 pill: "flood",
-                value: "12.7 kn axis",
+                value: "12.7 kn",
                 direction: 31,
               },
               {
                 time: anchor + 18 * 3600000,
                 pill: "ebb",
-                value: "8.1 kn axis",
+                value: "8.1 kn",
                 direction: 225,
               },
               { time: anchor + 21 * 3600000, pill: "slack" },
@@ -108,7 +108,7 @@ test.each([
     </div>,
   );
   expect(screen.getByRole("button", { name: /Published flood bearing 31 degrees/ })).toBeDefined();
-  const value = screen.getByText("12.7 kn axis");
+  const value = screen.getByText("12.7 kn");
   const row = value.closest("button")!;
   if (width === 360) expect(row.getBoundingClientRect().height).toBeLessThan(50);
   const pill = row.lastElementChild!.firstElementChild!;
@@ -121,7 +121,7 @@ test.each([
   expect(pill.getBoundingClientRect().right).toBeLessThanOrEqual(
     row.closest(".sw-card")!.getBoundingClientRect().right,
   );
-  expect(screen.getByText("8.1 kn axis").getBoundingClientRect().right).toBe(
+  expect(screen.getByText("8.1 kn").getBoundingClientRect().right).toBe(
     value.getBoundingClientRect().right,
   );
   expect(screen.getByText("—").getBoundingClientRect().right).toBe(

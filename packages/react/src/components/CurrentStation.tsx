@@ -34,7 +34,7 @@ import { SummaryTiles } from "./SummaryTiles.js";
 export interface CurrentStationProps {
   /** "source/id", optionally with a depth bin: "noaa/PUG1701", "noaa/EPT0003@11". */
   id: string;
-  /** Major-axis speed threshold for axis windows, in knots. */
+  /** Major-axis speed threshold for slack windows, in knots. */
   threshold?: number;
   /** Called when a nearby station is picked; its `kind` says which page it belongs on. */
   onStationSelect?: (station: CardStation) => void;
@@ -50,7 +50,7 @@ function provenance(station: CurrentStationInfo, reference: string | undefined) 
   const flood = station.current?.flood_direction;
   const sets = flood === undefined ? "" : ` Flood bearing ${degrees(flood)}.`;
   const axis =
-    " Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and axis windows use the flood/ebb component; crossing flow can remain at an axis zero. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.";
+    " Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and slack windows follow the flood/ebb direction; crossing flow can remain at slack. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.";
   if (station.type === "subordinate") {
     const whose = reference ? `${reference}'s ` : "";
     return `NOAA subordinate station: ${whose}slacks, maxima, and minima, corrected by published offsets.${sets}${axis}`;
@@ -118,7 +118,7 @@ function CurrentPage({
       events.data?.events.map((e): ScheduleEntry => {
         const time = e.time.getTime();
         if (e.kind === "slack") return { time, pill: "slack" };
-        const value = `${formatSpeed(e.speed, locale)} kn axis`;
+        const value = `${formatSpeed(e.speed, locale)} kn`;
         if (e.kind === "minFlood") return { time, pill: "minFlood", value, direction: flood };
         if (e.kind === "minEbb") return { time, pill: "minEbb", value, direction: ebb };
         return e.kind === "maxFlood"
@@ -200,11 +200,11 @@ function CurrentPage({
               {s.type !== "subordinate" && meanFlow !== undefined && (
                 <>
                   <DetailRow
-                    label="Major-axis mean flow"
+                    label="Mean flow"
                     value={
                       Math.abs(meanFlow) < 0.05
                         ? "None measured"
-                        : `${formatSpeed(meanFlow, locale)} kn axis toward ${meanFlow > 0 ? "flood" : "ebb"}`
+                        : `${formatSpeed(meanFlow, locale)} kn toward ${meanFlow > 0 ? "flood" : "ebb"}`
                     }
                   />
                   <DetailNote>

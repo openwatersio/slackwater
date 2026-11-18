@@ -219,16 +219,14 @@ describe("commentary", () => {
     expect(commentary(t0, stops, "en-US")).toEqual({
       stop: stops[0],
       duration: "1h 28m",
-      spoken: "Maximum flood along the major axis in 1 hour, 28 minutes",
+      spoken: "Maximum flood current in 1 hour, 28 minutes",
     });
   });
   test("speaks whole hours and minutes alone", () => {
     expect(commentary(t0 + 28 * 60_000, stops, "en-US")?.spoken).toBe(
-      "Maximum flood along the major axis in 1 hour",
+      "Maximum flood current in 1 hour",
     );
-    expect(commentary(t0 + H, stops, "en-US")?.spoken).toBe(
-      "Maximum flood along the major axis in 28 minutes",
-    );
+    expect(commentary(t0 + H, stops, "en-US")?.spoken).toBe("Maximum flood current in 28 minutes");
   });
   test("one cutoff: the first stop more than a second after the selection", () => {
     expect(commentary(stops[0].time - 1000, stops)).toBeUndefined();

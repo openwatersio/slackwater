@@ -111,7 +111,7 @@ export function nextMaxTile(
     : `${rank >= 1 ? "Hardest" : "Strong"} ${flood ? "flood" : "ebb"} · ${at}`;
   return {
     label: "Next max",
-    value: `${formatSpeed(e.speed, locale)} kn axis`,
+    value: `${formatSpeed(e.speed, locale)} kn`,
     caption,
     marked,
   };

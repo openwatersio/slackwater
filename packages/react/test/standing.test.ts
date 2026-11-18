@@ -99,12 +99,12 @@ describe("nextMaxTile", () => {
   test("the first maximum after the selection, with its direction and time", () => {
     expect(nextMaxTile(events, t0 + H, undefined, tz, "en-US")).toEqual({
       label: "Next max",
-      value: "4.2 kn axis",
+      value: "4.2 kn",
       caption: "Flood at 8:00 PM",
       marked: false,
     });
     expect(nextMaxTile(events, t0 + 3 * H, undefined, tz, "en-US")).toMatchObject({
-      value: "6.4 kn axis",
+      value: "6.4 kn",
       caption: "Ebb at 2:00 AM",
     });
   });
