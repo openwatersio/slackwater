@@ -1,5 +1,21 @@
 # @neaps/react
 
+## 1.0.0-beta.8
+
+### Minor Changes
+
+- [#545](https://github.com/openwatersio/slackwater/pull/545) [`5e3c50f`](https://github.com/openwatersio/slackwater/commit/5e3c50f02d19b17cf4bb74bf4e3991dbfac6c950) Thanks [@clarkbw](https://github.com/clarkbw)! - `<TideScrubber>` and `<CurrentScrubber>` take `selected`, the moment the strip opens on. A server render shows that moment's reading and pills, so a page for a shared moment prerenders its own reading, and in the browser the strip opens there without gliding in from now. `onSelect` hears the moment once. `moveTo` still moves the strip later.
+
+- [#545](https://github.com/openwatersio/slackwater/pull/545) [`5e3c50f`](https://github.com/openwatersio/slackwater/commit/5e3c50f02d19b17cf4bb74bf4e3991dbfac6c950) Thanks [@clarkbw](https://github.com/clarkbw)! - Without `now`, a server render of `<TideScrubber>` or `<CurrentScrubber>` no longer shows the build machine's time as now. It draws no now dot, no dimmed past, no Today or Tomorrow, and no Now pill, and the browser adds them once it reads the reader's clock, so the page hydrates without a mismatch when the server and browser share a `locale`. With neither `now` nor `selected`, the server render draws the middle of the supplied data with no reading, and the browser opens on now as before.
+
+- [#545](https://github.com/openwatersio/slackwater/pull/545) [`5e3c50f`](https://github.com/openwatersio/slackwater/commit/5e3c50f02d19b17cf4bb74bf4e3991dbfac6c950) Thanks [@clarkbw](https://github.com/clarkbw)! - A server render of `<TideScrubber>` or `<CurrentScrubber>` draws only the stretch around its moment that a strip 720 pixels wide shows, and the browser draws the rest as it loads. A week of Seattle tides now prerenders in under 50 KB of HTML instead of 290 KB.
+
+### Patch Changes
+
+- [#545](https://github.com/openwatersio/slackwater/pull/545) [`9524b92`](https://github.com/openwatersio/slackwater/commit/9524b926b0d0ddd8e0128c405ebba4a501570fb0) Thanks [@clarkbw](https://github.com/clarkbw)! - Current readings drop the word "axis", as the Slackwater app does. The next-event pill says Slack and Slack window instead of Axis slack and Axis window, and the schedule's pill says Slack. Speeds read `1.2 kn` instead of `1.2 kn axis` in the schedule, the Next max tile and map pins, the map legend says Currents kn, and station details say Mean flow. Screen readers hear "Slack current", "Maximum flood current" and plain knots on card graphs.
+
+- [#545](https://github.com/openwatersio/slackwater/pull/545) [`9524b92`](https://github.com/openwatersio/slackwater/commit/9524b926b0d0ddd8e0128c405ebba4a501570fb0) Thanks [@clarkbw](https://github.com/clarkbw)! - The next-event pill keeps a space between its label and countdown when it has no symbol, so it reads "Max flood 2h 14m" instead of "Max flood2h 14m".
+
 ## 1.0.0-beta.7
 
 ### Major Changes

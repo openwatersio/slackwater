@@ -1,5 +1,15 @@
 # @neaps/cli
 
+## 1.0.0-beta.9
+
+### Minor Changes
+
+- [#545](https://github.com/openwatersio/slackwater/pull/545) [`8584547`](https://github.com/openwatersio/slackwater/commit/85845479d092dab60c6a3b8e6bbcc199da636aa8) Thanks [@clarkbw](https://github.com/clarkbw)! - `slackwater currents timeline` adds Full speed and Set columns at stations whose predictions carry crossing flow, so a Slack row shows the water still moving beside it. Speed stays the flood/ebb speed, as in the events table. The station decides, so it prints the same columns for any window. Stations without crossing-flow data, such as subordinate stations, keep the four-column table.
+
+### Patch Changes
+
+- [#545](https://github.com/openwatersio/slackwater/pull/545) [`8584547`](https://github.com/openwatersio/slackwater/commit/85845479d092dab60c6a3b8e6bbcc199da636aa8) Thanks [@clarkbw](https://github.com/clarkbw)! - `slackwater currents` text output drops the word "axis", as the Slackwater app does. Events and timeline rows say Slack instead of Axis slack, and the header no longer ends in "major-axis speed". `currents slack` says "slack windows: flood/ebb speed below 0.5 kn", and the help for `events`, `slack` and `--threshold` follows. JSON output is unchanged.
+
 ## 1.0.0-beta.8
 
 ### Major Changes
