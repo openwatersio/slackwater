@@ -2,7 +2,7 @@ import { flowPeaks, levelAt, levelRange, readTide, tideRates } from "@slackwater
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 
 import type { Extreme, TimelineEntry, Units } from "../types.js";
-import { awayFromEdges, targetsWithin, thinLabels } from "../utils/scrubber.js";
+import { EDGE_MS, awayFromEdges, targetsWithin, thinLabels } from "../utils/scrubber.js";
 import { leadTime } from "../utils/time.js";
 import {
   EMPTY_TIDE_MESSAGE,
@@ -31,10 +31,14 @@ import {
   TideGlyph,
   geometry,
   prefersReducedMotion,
+  openingMoment,
+  samplesIn,
   type ScrubberProps,
+  type Stretch,
   type StripKit,
   type Track,
   toBarPath,
+  useIsomorphicLayoutEffect,
 } from "./Scrubber.js";
 
 const HOUR = 3_600_000;
@@ -43,7 +47,7 @@ const GLIDE_MS = 300;
 
 export interface TideScrubberProps extends Pick<
   ScrubberProps,
-  "onSelect" | "moveTo" | "onNow" | "bounded"
+  "onSelect" | "moveTo" | "onNow" | "bounded" | "selected"
 > {
   timeline: TimelineEntry[];
   extremes: Extreme[];
@@ -56,21 +60,21 @@ export interface TideScrubberProps extends Pick<
   chartDatum?: boolean;
   /** BCP 47 locale for clocks and dates; defaults to the reader's. */
   locale?: string;
-  /** The current instant; defaults to the clock. Pass it to render deterministically (prerendering). */
+  /** The current instant; defaults to the clock, read on mount. Pass it to render deterministically (prerendering). */
   now?: number;
   className?: string;
 }
 
-/** The fit that opens the strip: the two days either side of now, as the app first builds them. */
-function openingScale(timeline: TimelineEntry[], now: number): TideScale {
+/** The fit that opens the strip: the two days either side of its moment, as the app first builds them. */
+function openingScale(timeline: TimelineEntry[], at: number): TideScale {
   const r =
-    levelRange(timeline, new Date(now - 48 * HOUR), new Date(now + 48 * HOUR)) ??
+    levelRange(timeline, new Date(at - 48 * HOUR), new Date(at + 48 * HOUR)) ??
     levelRange(timeline, timeline[0].time, timeline[timeline.length - 1].time)!;
   return fitScale(r.min, r.max);
 }
 
 function drawTide(
-  { g, bounded, now, past, pastMask, shade, eventTimes, dayChrome }: StripKit,
+  { g, bounded, now, view, shows, past, pastMask, shade, eventTimes, dayChrome }: StripKit,
   id: string,
   lineGradient: ReactNode,
   timeline: TimelineEntry[],
@@ -82,7 +86,7 @@ function drawTide(
 ) {
   const y = (h: number) =>
     G.plotTop + (1 - (h - (scale.mid - scale.span)) / (2 * scale.span)) * PLOT_DEPTH;
-  const curve = timeline
+  const curve = samplesIn(timeline, view)
     .map((p, i) => `${i ? "L" : "M"}${g.x(p.time.getTime()).toFixed(1)} ${y(p.level).toFixed(1)}`)
     .join("");
   const datumY = y(0);
@@ -93,8 +97,13 @@ function drawTide(
     g.end,
     bounded,
   );
+  // Thinned across the whole strip, so a stretch keeps the labels the whole strip shows there.
   const times = thinLabels(turns);
-  const nowLevel = now >= g.start && now <= g.end ? levelAt(timeline, new Date(now)) : undefined;
+  const marks = turns.filter((e) => shows(e.time, EDGE_MS));
+  const nowLevel =
+    now !== undefined && now >= g.start && now <= g.end
+      ? levelAt(timeline, new Date(now))
+      : undefined;
 
   return (
     <>
@@ -118,11 +127,11 @@ function drawTide(
         {/* Dots punch through everything drawn beneath them to the ground. */}
         <mask id={`${id}halo`} maskUnits="userSpaceOnUse">
           <rect width={g.width} height={G.height} fill="#fff" />
-          {turns.map((e) => (
+          {marks.map((e) => (
             <circle key={e.time} cx={g.x(e.time)} cy={y(e.level)} r={2.5 + HALO_GAP} fill="#000" />
           ))}
           {nowLevel !== undefined && (
-            <circle cx={g.x(now)} cy={y(nowLevel)} r={3.5 + HALO_GAP} fill="#000" />
+            <circle cx={g.x(now!)} cy={y(nowLevel)} r={3.5 + HALO_GAP} fill="#000" />
           )}
         </mask>
       </defs>
@@ -162,7 +171,7 @@ function drawTide(
         </g>
       </g>
 
-      {turns.map((e) => {
+      {marks.map((e) => {
         // Hangs toward the plot middle: the to-bar glyph nearest the turn, the height beyond it.
         const toward = e.high ? 1 : -1;
         const tint = e.high ? C.high : C.low;
@@ -212,7 +221,7 @@ function drawTide(
         },
       )}
 
-      {nowLevel !== undefined && <circle cx={g.x(now)} cy={y(nowLevel)} r={3.5} fill={C.paper} />}
+      {nowLevel !== undefined && <circle cx={g.x(now!)} cy={y(nowLevel)} r={3.5} fill={C.paper} />}
 
       {dayChrome}
     </>
@@ -242,6 +251,7 @@ function TideStrip({
   chartDatum = true,
   locale,
   now,
+  selected,
   className,
   bounded,
   onSelect,
@@ -252,11 +262,25 @@ function TideStrip({
   const rates = useMemo(() => tideRates(timeline, units), [timeline, units]);
   const peaks = useMemo(() => flowPeaks(rates, FAST_RATE), [rates]);
 
-  // The drawn scale, and the governor's target it glides toward.
-  const [scale, setScale] = useState(() => openingScale(timeline, now ?? Date.now()));
+  // The drawn scale, and the governor's target it glides toward. Without a moment the
+  // server fits the strip's middle, where it draws, and the client refits around the clock on mount.
+  const start = timeline[0].time.getTime();
+  const end = timeline[timeline.length - 1].time.getTime();
+  const [moment] = useState(() => openingMoment(selected, start, end));
+  const [scale, setScale] = useState(() =>
+    openingScale(timeline, moment ?? now ?? (start + end) / 2),
+  );
   const shown = useRef(scale);
   shown.current = scale;
   const held = useRef(scale);
+  /** The opening fit waits for the clock; an Activity shown again keeps the governed scale. */
+  const opensOnClock = useRef(moment === undefined && now === undefined);
+  useIsomorphicLayoutEffect(() => {
+    if (!opensOnClock.current) return;
+    opensOnClock.current = false;
+    held.current = openingScale(timeline, Date.now());
+    setScale(held.current);
+  }, []);
   const glide = useRef<number | undefined>(undefined);
   useEffect(() => () => cancelAnimationFrame(glide.current!), []);
 
@@ -285,32 +309,34 @@ function TideStrip({
     [timeline],
   );
 
+  const lineGradient = useCallback(
+    (view: Stretch) => {
+      const g = geometry(start, end);
+      return (
+        <linearGradient
+          id={`${id}line`}
+          gradientUnits="userSpaceOnUse"
+          x1="0"
+          x2={g.width}
+          y1="0"
+          y2="0"
+        >
+          {samplesIn(rates, view).map((p: RatePoint) => (
+            <stop
+              key={p.time.getTime()}
+              offset={g.x(p.time.getTime()) / g.width}
+              stopColor={rateColor(p.rate) ?? C.line}
+            />
+          ))}
+        </linearGradient>
+      );
+    },
+    [id, start, end, rates],
+  );
   // The rate colors depend on time alone, so a rescale doesn't rebuild a stop per sample.
-  const lineGradient = useMemo(() => {
-    const g = geometry(timeline[0].time.getTime(), timeline[timeline.length - 1].time.getTime());
-    return (
-      <linearGradient
-        id={`${id}line`}
-        gradientUnits="userSpaceOnUse"
-        x1="0"
-        x2={g.width}
-        y1="0"
-        y2="0"
-      >
-        {rates.map((p: RatePoint) => (
-          <stop
-            key={p.time.getTime()}
-            offset={g.x(p.time.getTime()) / g.width}
-            stopColor={rateColor(p.rate) ?? C.line}
-          />
-        ))}
-      </linearGradient>
-    );
-  }, [id, timeline, rates]);
+  const wholeGradient = useMemo(() => lineGradient({ from: start, to: end }), [lineGradient]);
 
   const track = useMemo((): Track => {
-    const start = timeline[0].time.getTime();
-    const end = timeline[timeline.length - 1].time.getTime();
     const y = (h: number) =>
       G.plotTop + (1 - (h - (scale.mid - scale.span)) / (2 * scale.span)) * PLOT_DEPTH;
     const unit = heightUnit(units);
@@ -376,11 +402,24 @@ function TideStrip({
         };
       },
       draw: (kit) =>
-        drawTide(kit, id, lineGradient, timeline, extremes, scale, units, chartDatum, locale),
+        drawTide(
+          kit,
+          id,
+          kit.view.from === start && kit.view.to === end ? wholeGradient : lineGradient(kit.view),
+          timeline,
+          extremes,
+          scale,
+          units,
+          chartDatum,
+          locale,
+        ),
     };
   }, [
     id,
     lineGradient,
+    wholeGradient,
+    start,
+    end,
     timeline,
     extremes,
     rates,
@@ -401,6 +440,7 @@ function TideStrip({
       longitude={longitude}
       locale={locale}
       now={now}
+      selected={selected}
       className={className}
       onSelect={onSelect}
       moveTo={moveTo}

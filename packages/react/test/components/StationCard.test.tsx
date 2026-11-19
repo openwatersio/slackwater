@@ -154,7 +154,7 @@ describe("StationCard", () => {
     });
     await curve();
     expect(screen.getByText(/^\d+\.\d knots, set [a-z-]+$/)).toBeDefined();
-    expect(screen.queryByText("Axis slack")).toBeNull();
+    expect(screen.queryByText("Slack")).toBeNull();
   });
 
   test("keeps a flood/ebb zero in the graph without calling the full flow slack", async () => {
@@ -168,7 +168,7 @@ describe("StationCard", () => {
 
     await curve();
     expect(screen.getByText(/^\d+\.\d knots(?:, set [a-z-]+)?$/)).toBeDefined();
-    expect(screen.queryByText("Axis slack")).toBeNull();
+    expect(screen.queryByText("Slack")).toBeNull();
   });
 
   test("shows a nearby list's distance in nautical miles", () => {

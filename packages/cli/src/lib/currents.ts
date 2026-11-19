@@ -225,6 +225,23 @@ export function currentSlackWindows(
   };
 }
 
+/**
+ * Whether the engine predicts crossing flow here. `useCurrentStation` predicts a station
+ * from its own harmonic constituents when it has them, and `createCurrentPredictor` then
+ * takes the vector path when a minor-axis constituent or the minor mean flow is non-zero.
+ * The engine also drops constituent names it has no model for; a test checks this rule
+ * against the engine's own output at every bundled station. A subordinate station, or one
+ * without minor-axis data, has full speed equal to its flood/ebb speed.
+ */
+export function hasCrossingFlow(station: StationFields): boolean {
+  const current = station.current;
+  return (
+    station.harmonic_constituents.length > 0 &&
+    ((current?.minor_mean_flow ?? 0) !== 0 ||
+      (current?.minor_constituents ?? []).some((c) => c.amplitude !== 0))
+  );
+}
+
 export type CurrentEventsResult = ReturnType<typeof currentEvents>;
 export type CurrentTimelineResult = ReturnType<typeof currentTimeline>;
 export type CurrentSlackWindowsResult = ReturnType<typeof currentSlackWindows>;

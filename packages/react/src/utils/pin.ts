@@ -128,7 +128,7 @@ export function currentPinState(
   if (!detailed) return { shape: "dot", tone };
   const bearing = speed >= 0 ? directions.flood : directions.ebb;
   const reading = formatSpeed(speed, locale);
-  const unit = "kn axis";
+  const unit = "kn";
   return bearing === undefined
     ? { shape: "dot", tone, reading, unit }
     : { shape: "arrow", tone, bearing, reading, unit };

@@ -14,6 +14,7 @@ import {
 } from "react";
 
 import {
+  EDGE_MS,
   NEAR_NOW_MS,
   PX_PER_HOUR,
   UNIT_MS,
@@ -34,14 +35,20 @@ import {
   dayLabel,
   days,
   shortDate,
+  spokenTime,
   sunBands,
   type Band,
   type Day,
 } from "../utils/time.js";
 
-const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+export const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 const HOUR = 3_600_000;
+/** How far either side of its moment the server render draws: all a 720 px strip shows. */
+const FIRST_REACH_MS = 20 * HOUR;
+/** Half the widest day-row label, a sunrise pill or "Yesterday", which outgrow the event times' `EDGE_MS`. */
+const DAY_LABEL_REACH_MS = 2 * EDGE_MS;
 /** The strip's fixed rows, shared by every track. */
 export const G = {
   topPad: 160,
@@ -88,12 +95,32 @@ export interface Geometry {
   x: (t: number) => number;
 }
 
+/** A stretch of the strip, in ms. */
+export interface Stretch {
+  from: number;
+  to: number;
+}
+
+/** The samples that draw `view`: those inside it, and the nearest one beyond each end. */
+export function samplesIn<T extends { time: Date }>(samples: T[], view: Stretch): T[] {
+  let a = 0;
+  while (a + 1 < samples.length && samples[a + 1].time.getTime() <= view.from) a++;
+  let b = samples.length - 1;
+  while (b > a && samples[b - 1].time.getTime() >= view.to) b--;
+  return a === 0 && b === samples.length - 1 ? samples : samples.slice(a, b + 1);
+}
+
 /** What a track draws with: the shared rows and masks, placed on its own layers. */
 export interface StripKit {
   id: string;
   g: Geometry;
   bounded: boolean;
-  now: number;
+  /** Undefined until the client reads the clock, so nothing is drawn as past or as now. */
+  now: number | undefined;
+  /** The stretch drawn: the reader's first view on the server, the whole strip once mounted. */
+  view: Stretch;
+  /** Whether a mark at `t`, reaching `reach` ms either side of it, shows in `view`. */
+  shows: (t: number, reach?: number) => boolean;
   /** Event marks and labels for a moment already passed fade to 45%. */
   past: (t: number) => number;
   /** The mask that dims everything left of now to 35%. */
@@ -152,7 +179,10 @@ export interface ScrubberProps {
   latitude: number;
   longitude: number;
   locale?: string;
+  /** Without it, the server and first client render claim no now, and the clock is read on mount. */
   now?: number;
+  /** The moment the strip opens on, in the server render too, with no glide from now; later changes are ignored. */
+  selected?: number;
   className?: string;
   /** Called once with each new time under the center line, and with the current time when `onSelect` itself changes. */
   onSelect?: (time: number) => void;
@@ -298,13 +328,12 @@ export function nextStopComment(t: number, stops: Stop[], locale?: string): Comm
     c && {
       content: (
         <>
-          {c.stop.label === "Slack"
-            ? "Axis slack"
-            : c.stop.label === "Slack window" || c.stop.label === "Slack window closes"
-              ? "Axis window"
-              : c.stop.label}
-          <StopIcon kind={c.stop.label} />
-          {c.duration}
+          {/* Spans, not bare text: two adjacent text nodes are one flex item, so the
+              capsule's gap would vanish between a label and a countdown with no icon.
+              The space between them draws nothing in a flex row but keeps the copied
+              text "Max flood 2h 14m". */}
+          <span>{c.stop.label === "Slack window closes" ? "Slack window" : c.stop.label}</span>
+          <StopIcon kind={c.stop.label} /> <span>{c.duration}</span>
         </>
       ),
       spoken: c.spoken,
@@ -319,7 +348,8 @@ interface StripProps {
   bounded: boolean;
   daysList: Day[];
   bands: Band[];
-  now: number;
+  now: number | undefined;
+  view: Stretch;
   timezone: string;
   locale?: string;
 }
@@ -330,6 +360,7 @@ const Strip = memo(function Strip({
   daysList,
   bands,
   now,
+  view,
   timezone,
   locale,
 }: StripProps) {
@@ -337,14 +368,20 @@ const Strip = memo(function Strip({
   const height = G.height + rowOffset;
   const id = useId().replace(/\W/g, "");
   const g = useMemo(() => geometry(track.start, track.end), [track.start, track.end]);
-  const nowX = Math.min(g.width, Math.max(0, g.x(now)));
-  const past = (t: number) => (t < now ? 0.45 : 1);
+  const nowX = now === undefined ? 0 : Math.min(g.width, Math.max(0, g.x(now)));
+  const past = (t: number) => (now !== undefined && t < now ? 0.45 : 1);
+  const shows = (t: number, reach = 0) => t + reach >= view.from && t - reach <= view.to;
+  const box = stretchBox(g, view, bounded);
+  // A band's fades reach beyond its own span.
+  const drawnBand = (b: Band) => b.to + FADE_MS >= view.from && b.from - FADE_MS <= view.to;
 
   const kit: StripKit = {
     id,
     g,
     bounded,
     now,
+    view,
+    shows,
     past,
     pastMask: `url(#${id}past)`,
     shade: (curve) => (
@@ -356,40 +393,45 @@ const Strip = memo(function Strip({
           </mask>
         </defs>
         <g mask={`url(#${id}shade)`}>
-          {bands.map((b, i) => (
-            <rect
-              key={i}
-              x={g.x(b.from - FADE_MS)}
-              width={Math.max(0, g.x(b.to + FADE_MS) - g.x(b.from - FADE_MS))}
-              height={height}
-              fill={`url(#${id}band${i})`}
-              opacity={b.night ? 0.7 : 0.08}
-            />
-          ))}
+          {bands.map(
+            (b, i) =>
+              drawnBand(b) && (
+                <rect
+                  key={i}
+                  x={g.x(b.from - FADE_MS)}
+                  width={Math.max(0, g.x(b.to + FADE_MS) - g.x(b.from - FADE_MS))}
+                  height={height}
+                  fill={`url(#${id}band${i})`}
+                  opacity={b.night ? 0.7 : 0.08}
+                />
+              ),
+          )}
         </g>
       </>
     ),
     eventTimes: (times, style) =>
-      times.map((time) => (
-        <text
-          key={time}
-          x={g.x(time)}
-          y={style?.y ?? G.eventTimeY}
-          textAnchor="middle"
-          fill={style?.fill ?? C.foam}
-          opacity={(style?.opacity ?? 0.7) * past(time)}
-          fontSize={style?.fontSize ?? 12}
-          fontWeight={style?.fontWeight ?? 500}
-          style={{ fontVariantNumeric: "tabular-nums" }}
-        >
-          {chartTime(time, timezone, locale)}
-        </text>
-      )),
+      times
+        .filter((time) => shows(time, EDGE_MS))
+        .map((time) => (
+          <text
+            key={time}
+            x={g.x(time)}
+            y={style?.y ?? G.eventTimeY}
+            textAnchor="middle"
+            fill={style?.fill ?? C.foam}
+            opacity={(style?.opacity ?? 0.7) * past(time)}
+            fontSize={style?.fontSize ?? 12}
+            fontWeight={style?.fontWeight ?? 500}
+            style={{ fontVariantNumeric: "tabular-nums" }}
+          >
+            {chartTime(time, timezone, locale)}
+          </text>
+        )),
     dayChrome: daysList.map((d) => {
       const mid = dayAnchor(d, bands, timezone);
       return (
         <g key={d.start}>
-          {mid > g.start && mid < g.end && (
+          {mid > g.start && mid < g.end && shows(mid, DAY_LABEL_REACH_MS) && (
             <>
               <text
                 x={g.x(mid)}
@@ -422,7 +464,7 @@ const Strip = memo(function Strip({
               [d.sunset, "Sunset"],
             ] as const
           ).map(([t, kind]) => {
-            if (!t || t <= g.start || t >= g.end) return null;
+            if (!t || t <= g.start || t >= g.end || !shows(t, DAY_LABEL_REACH_MS)) return null;
             const clock = chartTime(t, timezone, locale);
             // ponytail: monospace advance estimated at 0.6em; measure if a font breaks it.
             const width = 13 + 4 + clock.length * 6.6;
@@ -453,9 +495,15 @@ const Strip = memo(function Strip({
 
   return (
     <svg
-      width={g.width}
+      width={box.width}
       height={height}
-      style={{ display: "block", overflow: bounded ? "visible" : undefined }}
+      // A stretch keeps the strip's coordinates and clips to them, so nothing beyond it shows.
+      viewBox={box.partial ? `${box.left} 0 ${box.width} ${height}` : undefined}
+      style={{
+        display: "block",
+        // Explicit, since a partial stretch's fills close to the whole strip's edges and a host stylesheet may show overflow.
+        overflow: box.partial ? "hidden" : bounded ? "visible" : undefined,
+      }}
       aria-hidden="true"
     >
       <defs>
@@ -471,6 +519,7 @@ const Strip = memo(function Strip({
           <stop offset="1" stopColor="#fff" stopOpacity={0} />
         </linearGradient>
         {bands.map((b, i) => {
+          if (!drawnBand(b)) return null;
           const f = (2 * FADE_MS) / (b.to - b.from + 2 * FADE_MS);
           const color = b.night ? C.night : C.day;
           return (
@@ -499,6 +548,21 @@ export function geometry(start: number, end: number): Geometry {
     width: ((end - start) / HOUR) * PX_PER_HOUR,
     x: (t) => ((t - start) / HOUR) * PX_PER_HOUR,
   };
+}
+
+/** The drawn box of `view` in strip coordinates; at a bounded strip's own ends it keeps room for the labels that overhang them. */
+function stretchBox(g: Geometry, view: Stretch, bounded: boolean) {
+  const partial = view.from > g.start || view.to < g.end;
+  if (!partial) return { partial, left: 0, width: g.width };
+  const overhang = bounded ? (EDGE_MS / HOUR) * PX_PER_HOUR : 0;
+  const left = g.x(view.from) - (view.from === g.start ? overhang : 0);
+  const right = g.x(view.to) + (view.to === g.end ? overhang : 0);
+  return { partial, left, width: right - left };
+}
+
+/** The moment a host's `selected` opens on: inside the data, or none when it isn't a number. */
+export function openingMoment(selected: number | undefined, start: number, end: number) {
+  return Number.isFinite(selected) ? Math.min(end, Math.max(start, selected!)) : undefined;
 }
 
 export const prefersReducedMotion = () =>
@@ -530,6 +594,7 @@ export function Scrubber({
   longitude,
   locale,
   now: nowProp,
+  selected: selectedProp,
   className,
   onSelect,
   moveTo,
@@ -537,8 +602,14 @@ export function Scrubber({
   onView,
 }: ScrubberProps) {
   const rowOffset = track.hasMaxTimes ? 20 : 0;
-  const [clock, setClock] = useState(() => nowProp ?? Date.now());
+  // The server can't know the reader's clock, so neither it nor the hydrating render reads one.
+  const [clock, setClock] = useState<number>();
+  // Once: an Activity shown again keeps its clock, which only the Now pill and a page return resample.
+  useIsomorphicLayoutEffect(() => setClock((c) => c ?? Date.now()), []);
+  const mounted = clock !== undefined;
   const now = nowProp ?? clock;
+  // A moment from a malformed link opens like none, rather than failing the render.
+  const [initial] = useState(() => openingMoment(selectedProp, track.start, track.end));
   const g = useMemo(() => geometry(track.start, track.end), [track.start, track.end]);
   // A day either side, so the first night and the last have both their sun events.
   const daysList = useMemo(
@@ -559,9 +630,28 @@ export function Scrubber({
   const targets = useMemo(() => track.targets(stops, first, last), [track, stops, first, last]);
 
   const scroller = useRef<HTMLDivElement>(null);
-  const [selection, setSelected] = useState(now);
-  const selected = bounded ? Math.min(g.end, Math.max(g.start, selection)) : selection;
-  const [resting, setResting] = useState(false);
+  const [selection, setSelected] = useState<number>();
+  // Until the opening places it: the host's moment, else now, else the middle of the data, which no reading claims.
+  const moment = selection ?? initial ?? now ?? (g.start + g.end) / 2;
+  // Before the opening the strip's width is unknown, so a moment holds to the data rather than what can center.
+  const selected =
+    bounded || selection === undefined ? Math.min(g.end, Math.max(g.start, moment)) : moment;
+  /** Whether the strip knows its moment: a reading there is one the host or the clock chose. */
+  const placed = initial !== undefined || now !== undefined;
+  // The server draws only what a reader first sees around that moment; the client draws it all on mount.
+  const center = mounted ? undefined : selected;
+  const view = useMemo(
+    () =>
+      center === undefined
+        ? { from: g.start, to: g.end }
+        : {
+            from: Math.max(g.start, center - FIRST_REACH_MS),
+            to: Math.min(g.end, center + FIRST_REACH_MS),
+          },
+    [center, g.start, g.end],
+  );
+  // A selected moment opens at rest, its pills already showing.
+  const [resting, setResting] = useState(initial !== undefined);
   const restTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   /** A person scrolled since the last rest, so the magnet runs when it comes. */
   const userMoved = useRef(false);
@@ -569,6 +659,8 @@ export function Scrubber({
   const target = useRef<number | undefined>(undefined);
   /** A requested instant the loaded data doesn't reach yet. */
   const pending = useRef<number | undefined>(undefined);
+  /** Where a selected moment's opening put the strip; that scroll is no move. */
+  const placedAt = useRef<number | undefined>(undefined);
   const opening = useRef<number | undefined>(undefined);
   /** The opening glide hasn't come to rest, and nothing has stopped it. */
   const [arriving, setArrivingState] = useState(false);
@@ -602,6 +694,7 @@ export function Scrubber({
   const stopOpening = () => {
     if (opening.current !== undefined) cancelAnimationFrame(opening.current);
     opening.current = undefined;
+    placedAt.current = undefined;
     setArriving(false);
   };
 
@@ -664,6 +757,12 @@ export function Scrubber({
   };
 
   const onScroll = () => {
+    const placement = placedAt.current;
+    placedAt.current = undefined;
+    if (placement !== undefined && Math.abs(scroller.current!.scrollLeft - placement) < 1) {
+      target.current = undefined;
+      return;
+    }
     const t = centerTime();
     const landing = target.current;
     setSelected(
@@ -686,21 +785,29 @@ export function Scrubber({
 
   useIsomorphicLayoutEffect(() => setWidth(scroller.current!.clientWidth), []);
 
-  // Open two hours before now and move linearly to it, unless motion is reduced.
+  // Open two hours before now and move linearly to it, unless motion is reduced;
+  // a selected moment opens in place. Either waits for the whole strip, drawn once the clock is read.
   const opened = useRef(false);
   useIsomorphicLayoutEffect(() => {
     const el = scroller.current;
-    if (!el || opened.current) return;
+    if (!el || opened.current || clock === undefined) return;
     opened.current = true;
-    const to = reachable(now, g.start, g.end, viewport(), bounded);
+    const at = initial ?? nowProp ?? clock;
+    const to = reachable(at, g.start, g.end, viewport(), bounded);
     target.current = to;
+    if (initial !== undefined) {
+      el.scrollLeft = leftFor(to);
+      placedAt.current = el.scrollLeft;
+      setSelected(to);
+      return;
+    }
     if (prefersReducedMotion()) {
       el.scrollLeft = leftFor(to);
       setSelected(to);
       restSoon(() => onRestRef.current());
       return;
     }
-    const from = reachable(now - OPEN_FROM_MS, g.start, g.end, viewport(), bounded);
+    const from = reachable(at - OPEN_FROM_MS, g.start, g.end, viewport(), bounded);
     setArriving(true);
     el.scrollLeft = leftFor(from);
     setSelected(from);
@@ -712,7 +819,7 @@ export function Scrubber({
     };
     opening.current = requestAnimationFrame(frame);
     restSoon(() => onRestRef.current());
-  }, [now, g, leftFor, restSoon, bounded]);
+  }, [clock, nowProp, initial, g, leftFor, restSoon, bounded]);
 
   // A width change keeps the selected time under the new center.
   useEffect(() => {
@@ -755,7 +862,7 @@ export function Scrubber({
       const fresh = Date.now();
       const home =
         Math.abs(
-          selectedRef.current - reachable(nowRef.current, g.start, g.end, viewport(), bounded),
+          selectedRef.current - reachable(nowRef.current!, g.start, g.end, viewport(), bounded),
         ) <= NEAR_NOW_MS;
       setClock(fresh);
       if (home) goTo(fresh, true);
@@ -778,7 +885,9 @@ export function Scrubber({
   );
 
   const reported = useRef<{ time: number; to: typeof onSelect }>(undefined);
+  // Hosts hear nothing until the strip opens, so a render that doesn't know its moment reports none.
   useEffect(() => {
+    if (!mounted) return;
     // The opening only shows the strip arriving, so readers get where it lands, never the earlier hours it passes.
     // The first report runs before the opening's state lands, so it reads the landing the opening just set.
     const landing = arriving || opening.current !== undefined || reported.current === undefined;
@@ -787,16 +896,16 @@ export function Scrubber({
     if (reported.current?.time === time && reported.current.to === onSelect) return;
     reported.current = { time, to: onSelect };
     onSelect?.(time);
-  }, [onSelect, selected, arriving]);
+  }, [onSelect, selected, arriving, mounted]);
   useEffect(() => {
-    onView?.(selected, span);
-  }, [onView, selected, span]);
-  // A request is an object so tapping the same row twice still moves there.
+    if (mounted) onView?.(selected, span);
+  }, [onView, selected, span, mounted]);
+  // A request is an object so tapping the same row twice still moves there; one made before mount waits for the whole strip.
   const requestRef = useRef(request);
   requestRef.current = request;
   useEffect(() => {
-    if (moveTo) requestRef.current(moveTo.time);
-  }, [moveTo]);
+    if (moveTo && mounted) requestRef.current(moveTo.time);
+  }, [moveTo, mounted]);
 
   // A vertical swipe scrolls the page, not the strip, so only a mostly sideways one is a person's move.
   const touchFrom = useRef<{ x: number; y: number }>(undefined);
@@ -864,13 +973,15 @@ export function Scrubber({
     }
   };
 
-  const lead = track.lead(selected);
-  const comment = track.comment
-    ? track.comment(selected, stops)
-    : nextStopComment(selected, stops, locale);
+  const lead = placed ? track.lead(selected) : undefined;
+  const comment = !placed
+    ? undefined
+    : track.comment
+      ? track.comment(selected, stops)
+      : nextStopComment(selected, stops, locale);
   // Where the Now pill goes: now, or as near as a strip this wide can center.
-  const home = reachable(now, g.start, g.end, span, bounded);
-  const awayFromNow = Math.abs(selected - home) > NEAR_NOW_MS;
+  const home = now === undefined ? undefined : reachable(now, g.start, g.end, span, bounded);
+  const awayFromNow = home !== undefined && Math.abs(selected - home) > NEAR_NOW_MS;
 
   const strip = (
     <Strip
@@ -879,6 +990,7 @@ export function Scrubber({
       daysList={daysList}
       bands={bands}
       now={now}
+      view={view}
       timezone={timezone}
       locale={locale}
     />
@@ -911,7 +1023,8 @@ export function Scrubber({
         aria-valuemin={g.start}
         aria-valuemax={g.end}
         aria-valuenow={Math.round(selected)}
-        aria-valuetext={lead?.spoken}
+        // Unplaced, the strip names only its moment's date and time, never a raw timestamp.
+        aria-valuetext={placed ? lead?.spoken : spokenTime(selected, timezone, locale)}
         className="scrollbar-hide h-full overflow-x-auto overflow-y-hidden outline-none cursor-grab active:cursor-grabbing focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white/50"
         style={{ touchAction: "pan-x pan-y", overscrollBehaviorX: "none" }}
         onScroll={onScroll}
@@ -927,7 +1040,14 @@ export function Scrubber({
         onPointerCancel={() => (drag.current = undefined)}
         onKeyDown={onKeyDown}
       >
-        {bounded ? (
+        {center !== undefined ? (
+          // Unscrolled, the stretch puts its moment under the center line, however wide the strip.
+          <div style={{ width: "max-content", paddingLeft: "50%" }}>
+            <div style={{ marginLeft: stretchBox(g, view, bounded).left - g.x(center) }}>
+              {strip}
+            </div>
+          </div>
+        ) : bounded ? (
           <div style={{ width: "max-content", paddingInline: "50%" }}>{strip}</div>
         ) : (
           strip
@@ -951,17 +1071,19 @@ export function Scrubber({
             opacity: resting && comment ? 0.18 : 0,
           }}
         />
-        <div
-          className="absolute rounded-full bg-white"
-          style={{
-            left: "50%",
-            top: track.y(selected),
-            width: track.dot.size,
-            height: track.dot.size,
-            transform: "translate(-50%, -50%)",
-            boxShadow: `0 0 ${track.dot.glow}px rgb(255 255 255 / 0.9)`,
-          }}
-        />
+        {placed && (
+          <div
+            className="absolute rounded-full bg-white"
+            style={{
+              left: "50%",
+              top: track.y(selected),
+              width: track.dot.size,
+              height: track.dot.size,
+              transform: "translate(-50%, -50%)",
+              boxShadow: `0 0 ${track.dot.glow}px rgb(255 255 255 / 0.9)`,
+            }}
+          />
+        )}
 
         {comment && (
           <button
@@ -985,7 +1107,7 @@ export function Scrubber({
             type="button"
             tabIndex={resting ? 0 : -1}
             className={pillButton}
-            style={{ ...pillStyle, [selected > home ? "left" : "right"]: 16 }}
+            style={{ ...pillStyle, [selected > home! ? "left" : "right"]: 16 }}
             aria-label="Return to now"
             onClick={() => {
               const fresh = nowProp ?? Date.now();
@@ -996,7 +1118,7 @@ export function Scrubber({
             }}
           >
             <span className={capsule} style={{ height: PILL_HEIGHT }}>
-              {selected > home ? (
+              {selected > home! ? (
                 <>
                   <NowChevron forward={false} />
                   Now

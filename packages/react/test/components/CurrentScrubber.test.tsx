@@ -2,7 +2,7 @@ import { createTestWrapper } from "../helpers.js";
 import { G } from "../../src/components/Scrubber.js";
 import { Activity, StrictMode } from "react";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
   CurrentScrubber,
   type CurrentScrubberProps,
@@ -142,7 +142,7 @@ describe("CurrentScrubber", () => {
     expect(text(slider)).toMatch(/^2\.0 knots, set east,/);
     expect(screen.getByText("Set E")).toBeDefined();
     expect(screen.getByText("kn")).toBeDefined();
-    expect(screen.queryByText("Axis slack")).toBeNull();
+    expect(screen.queryByText("Slack")).toBeNull();
     const curve = container.querySelector('path[stroke^="url("]')!;
     const ys = [...curve.getAttribute("d")!.matchAll(/[ML][\d.]+ ([\d.]+)/g)].map((m) =>
       Number(m[1]),
@@ -176,9 +176,18 @@ describe("CurrentScrubber", () => {
     expect(value(slider)).toBeLessThan(NOW);
     await restsOn(slider, NOW);
     expect(text(slider)).toBe("1.5 knots, set northeast, Oct 11, 1:00 AM UTC");
-    expect(commentaryPill().ariaLabel).toBe("Maximum flood along the major axis in 2 hours");
-    expect(commentaryPill().textContent).toBe("Max flood2h 0m");
+    expect(commentaryPill().ariaLabel).toBe("Maximum flood current in 2 hours");
+    expect(commentaryPill().textContent).toBe("Max flood 2h 0m");
     expect(nowPill()).toBeNull();
+  });
+
+  test("keeps a gap between a pill's label and its countdown when it has no symbol", async () => {
+    const { slider } = renderScrubber();
+    await restsOn(slider, NOW);
+    const label = within(commentaryPill()).getByText("Max flood");
+    const countdown = within(commentaryPill()).getByText("2h 0m");
+    const gap = countdown.getBoundingClientRect().left - label.getBoundingClientRect().right;
+    expect(gap).toBeGreaterThanOrEqual(3);
   });
 
   test("frames later than the rest delay don't cut the opening short", async () => {
@@ -250,11 +259,11 @@ describe("CurrentScrubber", () => {
     } while (value(slider) !== last && commentaryPill());
 
     expect([...spoken].sort()).toEqual([
-      "Major-axis slack",
-      "Major-axis window",
-      "Major-axis window closes",
-      "Maximum ebb along the major axis",
-      "Maximum flood along the major axis",
+      "Maximum ebb current",
+      "Maximum flood current",
+      "Slack current",
+      "Slack window",
+      "Slack window closes",
       "Sunrise",
       "Sunset",
     ]);
@@ -272,8 +281,7 @@ describe("CurrentScrubber", () => {
     getByTestId("frame").style.width = "300px";
     // Resize observations wait for a frame, and frames run late while other files keep the browser busy.
     await waitFor(
-      () =>
-        expect(commentaryPill()?.ariaLabel).toBe("Maximum flood along the major axis in 2 hours"),
+      () => expect(commentaryPill()?.ariaLabel).toBe("Maximum flood current in 2 hours"),
       { timeout: 4000 },
     );
   });
@@ -870,7 +878,7 @@ test("bounded partial windows draw the maximum the commentary names near the end
     },
     736,
   );
-  expect(commentaryPill().ariaLabel).toBe("Maximum flood along the major axis in 1 hour");
+  expect(commentaryPill().ariaLabel).toBe("Maximum flood current in 1 hour");
   const times = [...container.querySelectorAll(`text[y="${G.eventTimeY + 20}"]`)];
   expect(times).toHaveLength(1);
   expect(times[0].textContent).toMatch(/^3:00\sAM$/);

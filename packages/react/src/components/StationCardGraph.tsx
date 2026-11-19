@@ -131,7 +131,7 @@ export function StationCardGraph({
           value: e.speed,
           high: e.kind === "maxFlood" || e.kind === "minEbb",
           valueText: formatSpeed(e.speed, locale),
-          spokenText: `${formatSpeed(e.speed, locale)} knots along the major axis`,
+          spokenText: `${formatSpeed(e.speed, locale)} knots`,
           ...(e.direction !== undefined && { direction: e.direction }),
         }));
   const spoken = marks

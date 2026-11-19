@@ -12,6 +12,8 @@ export default defineProject({
     // Pre-bundling separates MapLibre from the worker it loads relative to itself,
     // so the map would request a worker that isn't there and never render a tile.
     exclude: ["maplibre-gl"],
+    // Found late, these reload the browser mid-run, failing the server-render tests that import them.
+    include: ["react-dom/client", "react-dom/server"],
   },
   test: {
     browser: {
@@ -28,6 +30,6 @@ export default defineProject({
       ],
     },
     setupFiles: ["./test/setup.ts"],
-    globalSetup: ["./test/globalSetup.ts"],
+    globalSetup: ["./test/globalSetup.ts", "./test/node-render.tsx"],
   },
 });

@@ -66,7 +66,7 @@ function Pill({ entry, setFormat }: { entry: ScheduleEntry; setFormat: SetFormat
       return (
         <span className={`${PILL} bg-(--sw-go)`}>
           <SlackGlyph />
-          Axis slack
+          Slack
         </span>
       );
     default:
