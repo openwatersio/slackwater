@@ -2,6 +2,7 @@ import { describe, test, expect, afterEach, vi } from "vitest";
 import nock from "nock";
 import { loadStations, type Station } from "@slackwater/database";
 import { run } from "../helpers.js";
+import { currentTimeline, hasCrossingFlow, resolveCurrentStation } from "../../src/lib/currents.js";
 
 afterEach(() => {
   nock.cleanAll();
@@ -49,13 +50,31 @@ describe("slackwater currents", () => {
         const { stdout, error } = await run(args);
         expect(error).toBeNull();
         expect(stdout).toContain(meanFlow > 0 ? "Minimum flood" : "Minimum ebb");
-        expect(stdout).not.toContain("Axis slack");
+        expect(stdout).not.toMatch(/\bSlack\b/);
       } finally {
         constituents.mockRestore();
         current.mockRestore();
       }
     },
   );
+
+  test("shows full speed at a station whose only crossing flow is its minor mean flow", async () => {
+    const db = await loadStations();
+    const station = db.byId("noaa/ACT1616")!;
+    const current = vi.spyOn(station, "current", "get").mockReturnValue({
+      ...station.current!,
+      minor_constituents: [],
+      minor_mean_flow: 0.3,
+      azimuth: 90,
+    });
+    try {
+      const { stdout, error } = await run(["currents", "timeline", "-s", station.id, ...span]);
+      expect(error).toBeNull();
+      expect(stdout).toMatch(/Current\s*│\s*Speed\s*│\s*Full speed\s*│\s*Set/);
+    } finally {
+      current.mockRestore();
+    }
+  });
 
   test("lists its subcommands in help", async () => {
     const { stdout } = await run(["currents", "--help"]);
@@ -76,7 +95,8 @@ describe("slackwater currents events", () => {
     const { stdout } = await run(["currents", "events", "--station", "noaa/PUG1701", ...span]);
     expect(stdout).toContain("Deception Pass (Narrows)");
     expect(stdout).toContain("noaa/PUG1701  ·  knots  ·  flood 102°T  ·  ebb 282°T");
-    expect(stdout).toContain("Axis slack");
+    expect(stdout).toMatch(/│\s*Slack\s*│/);
+    expect(stdout).not.toMatch(/axis/i);
     expect(stdout).toMatch(/Max flood\s*│\s*\d+\.\d kn\s*│\s*102°T/);
     expect(stdout).toMatch(/Max ebb\s*│\s*\d+\.\d kn\s*│\s*282°T/);
     // Speeds are magnitudes; the event name carries flood or ebb.
@@ -340,7 +360,7 @@ describe("slackwater currents timeline", () => {
     expect(stdout).toMatch(/Ebb\s*│\s*\d+\.\d kn/);
   });
 
-  test("labels near-zero major-axis samples as axis slack", async () => {
+  test("labels near-zero samples as slack", async () => {
     // Deception Pass turns at about 00:05Z.
     const { stdout } = await run([
       "currents",
@@ -354,8 +374,42 @@ describe("slackwater currents timeline", () => {
       "--interval",
       "1",
     ]);
-    expect(stdout).toMatch(/Axis slack\s*│\s*0\.0 kn/);
+    expect(stdout).toMatch(/Current\s*│\s*Speed\s*│\s*Full speed\s*│\s*Set/);
+    // Crossing flow shows beside the label: at 00:04Z the flood/ebb speed is -0.008 kn while
+    // the water still runs 0.118 kn toward 196°.
+    expect(stdout).toMatch(/Slack\s*│\s*0\.0 kn\s*│\s*0\.1 kn\s*│\s*196°T\s*│/);
   });
+
+  test("gives a station with crossing flow the same table for any window", async () => {
+    // 00:07–00:08Z, where full speed and flood/ebb speed differ by under 0.05 kn and print
+    // the same, so a rule decided by the window's values would print four columns.
+    const { stdout, error } = await run([
+      "currents",
+      "timeline",
+      "-s",
+      "noaa/PUG1701",
+      "--start",
+      "2026-06-01T00:07:00Z",
+      "--end",
+      "2026-06-01T00:08:00Z",
+      "--interval",
+      "1",
+    ]);
+    expect(error).toBeNull();
+    expect(stdout).toMatch(/Ebb\s*│\s*0\.2 kn\s*│\s*0\.2 kn\s*│/);
+    expect(stdout).toMatch(/Current\s*│\s*Speed\s*│\s*Full speed\s*│\s*Set/);
+  });
+
+  // ACT0091 is a subordinate station; ACT1616 is harmonic with no minor-axis constituents.
+  test.each(["noaa/ACT0091", "noaa/ACT1616"])(
+    "keeps the four-column table at %s, which predicts no crossing flow",
+    async (id) => {
+      const { stdout } = await run(["currents", "timeline", "-s", id, ...span]);
+      expect(stdout).toMatch(/Current\s*│\s*Speed\s*│\n/);
+      expect(stdout).not.toContain("Full speed");
+      expect(stdout).toMatch(/(Flood|Ebb)\s*│\s*\d+\.\d kn\s*│\n/);
+    },
+  );
 
   test("outputs JSON in the API's shape", async () => {
     const data = await json(["currents", "timeline", "-s", "noaa/PUG1701", ...span]);
@@ -404,6 +458,39 @@ describe("slackwater currents timeline", () => {
     expect(error!.message).toBe('Invalid interval: "0.001". Expected a positive whole number.');
   });
 
+  test("decides the full-speed columns as the engine predicts, at every bundled station", async () => {
+    const db = await loadStations();
+    const mismatched: string[] = [];
+    let checked = 0;
+    for (const record of db.all) {
+      if (record.kind !== "current" || record.id.includes("@")) continue;
+      // CHS stations and stations with no model refuse a prediction.
+      let prediction: ReturnType<typeof currentTimeline>;
+      try {
+        prediction = currentTimeline(await resolveCurrentStation({ station: record.id }), {
+          start: new Date("2026-06-01T00:00:00Z"),
+          end: new Date("2026-06-02T00:00:00Z"),
+          timeFidelity: 3600,
+        });
+      } catch {
+        continue;
+      }
+      const { station, timeline } = prediction;
+      const predicted = timeline.some(
+        (p) => p.magnitude !== undefined && Math.abs(p.magnitude - Math.abs(p.speed)) > 1e-9,
+      );
+      checked++;
+      if (hasCrossingFlow(station) !== predicted) mismatched.push(record.id);
+    }
+    expect(checked).toBeGreaterThan(1000);
+    expect(mismatched).toEqual([]);
+  }, 120_000);
+
+  test("keeps the word axis out of the timeline", async () => {
+    const { stdout } = await run(["currents", "timeline", "-s", "noaa/PUG1701", ...span]);
+    expect(stdout).not.toMatch(/axis/i);
+  });
+
   test("refuses a CHS station", async () => {
     const { error } = await run(["currents", "timeline", "-s", "chs-active-pass"]);
     expect(error!.message).toContain("Canadian Hydrographic Service");
@@ -413,7 +500,8 @@ describe("slackwater currents timeline", () => {
 describe("slackwater currents slack", () => {
   test("shows windows below the threshold", async () => {
     const { stdout } = await run(["currents", "slack", "-s", "noaa/PUG1701", ...span]);
-    expect(stdout).toContain("below 0.5 kn");
+    expect(stdout).toContain("·  slack windows: flood/ebb speed below 0.5 kn\n");
+    expect(stdout).not.toMatch(/axis/i);
     expect(stdout).toContain("Duration");
     expect(stdout).toMatch(/│\s*\d+m\s*│/);
   });
@@ -549,7 +637,7 @@ describe("slackwater currents slack", () => {
       "--end",
       "2026-06-01T09:00:00Z",
     ]);
-    expect(stdout).toContain("No major-axis slack windows below 0.5 kn in this period");
+    expect(stdout).toContain("No slack windows with flood/ebb speed below 0.5 kn in this period");
   });
 
   test("errors on an invalid threshold", async () => {

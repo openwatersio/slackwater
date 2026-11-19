@@ -1,10 +1,14 @@
 import chalk from "chalk";
 import Table from "cli-table3";
 import type { Formatter, StationResult } from "./index.js";
-import type { CurrentEventsResult, CurrentStationResult } from "../lib/currents.js";
+import {
+  hasCrossingFlow,
+  type CurrentEventsResult,
+  type CurrentStationResult,
+} from "../lib/currents.js";
 
 const EVENT_LABELS = {
-  slack: chalk.green("Axis slack"),
+  slack: chalk.green("Slack"),
   maxFlood: chalk.blue("Max flood"),
   maxEbb: chalk.yellow("Max ebb"),
   minFlood: chalk.blue("Minimum flood"),
@@ -139,8 +143,16 @@ export default function text(): Formatter {
       const tz = station.timezone;
       currentHeader(prediction);
 
+      // Slack is a zero of the flood/ebb speed; crossing flow can still run. Like the
+      // app's lead, a station that predicts crossing flow shows the full speed beside the
+      // label, so a Slack row shows the water still moving. The station decides, not the
+      // window, so one station always prints the same table. "Speed" stays the flood/ebb
+      // speed, as in the events table.
+      const full = hasCrossingFlow(station);
       const table = new Table({
-        head: ["Date", "Time", "Current", "Speed"],
+        head: full
+          ? ["Date", "Time", "Current", "Speed", "Full speed", "Set"]
+          : ["Date", "Time", "Current", "Speed"],
         style: { head: [], border: [] },
       });
 
@@ -151,11 +163,23 @@ export default function text(): Formatter {
           date !== lastDate ? date : "",
           formatTime(point.time, tz),
           Math.abs(point.speed) < 0.05
-            ? chalk.green("Axis slack")
+            ? chalk.green("Slack")
             : point.speed < 0
               ? chalk.yellow("Ebb")
               : chalk.blue("Flood"),
           { content: formatKnots(point.speed), hAlign: "right" },
+          ...(full
+            ? [
+                {
+                  content: point.magnitude !== undefined ? formatKnots(point.magnitude) : "",
+                  hAlign: "right" as const,
+                },
+                {
+                  content: point.direction !== undefined ? formatDirection(point.direction) : "",
+                  hAlign: "right" as const,
+                },
+              ]
+            : []),
         ]);
         lastDate = date;
       }
@@ -167,10 +191,12 @@ export default function text(): Formatter {
     currentSlackWindows(prediction) {
       const { station, threshold, windows } = prediction;
       const tz = station.timezone;
-      currentHeader(prediction, `major-axis speed below ${threshold} kn`);
+      currentHeader(prediction, `slack windows: flood/ebb speed below ${threshold} kn`);
 
       if (!windows.length) {
-        console.log(chalk.dim(`No major-axis slack windows below ${threshold} kn in this period`));
+        console.log(
+          chalk.dim(`No slack windows with flood/ebb speed below ${threshold} kn in this period`),
+        );
         printCredits([station]);
         return;
       }
@@ -265,7 +291,7 @@ function currentHeader(prediction: Omit<CurrentEventsResult, "events">, extra?: 
     floodDirection !== undefined && `flood ${formatDirection(floodDirection)}`,
     ebbDirection !== undefined && `ebb ${formatDirection(ebbDirection)}`,
     distance !== undefined && `${distance.toFixed(1)} km away`,
-    extra ?? "major-axis speed",
+    extra,
   ].filter(Boolean);
 
   console.log(chalk.bold(station.name));
