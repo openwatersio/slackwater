@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from "react";
 
 import { moonApsides, moonAt, moonLitPath, moonPhaseName, moonTideLabel } from "../utils/moon.js";
 import type { TileContent } from "../utils/standing.js";
-import { chartTime, days, nextDay, startOfDay } from "../utils/time.js";
+import { chartTime, days, nextDay, readableMoment, startOfDay } from "../utils/time.js";
 import { formatCountdown } from "../utils/scrubber.js";
 
 export interface SummaryTilesProps {
@@ -33,8 +33,8 @@ export function SummaryTiles({
   className = "mx-4 mt-3",
   time: given,
 }: SummaryTilesProps) {
-  // A value that isn't a finite number, such as one from a malformed URL, reads as no moment.
-  const time = given !== undefined && Number.isFinite(given) ? given : undefined;
+  // A value no date can hold, such as one from a malformed URL, reads as no moment.
+  const time = readableMoment(given);
   const located = latitude !== undefined && longitude !== undefined;
   const day = time === undefined ? undefined : startOfDay(time, timezone);
   // A month-long search, so it runs once per local day rather than per scrub frame.

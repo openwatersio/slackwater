@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
+import { READABLE_LIMIT_MS } from "../../src/utils/time.js";
 import { MoonGlyph, SummaryTiles } from "../../src/components/SummaryTiles.js";
 
 const TZ = "America/Los_Angeles";
@@ -131,11 +132,59 @@ describe("SummaryTiles", () => {
     expect(box(day, pole)).toEqual(box(day));
   });
 
-  test("a time that isn't a finite number reads as no moment", () => {
-    const { container } = render(
-      <SummaryTiles time={NaN} timezone="UTC" latitude={50} longitude={0} className="" />,
-    );
-    expect(tiles(container)).toEqual(["Moon—", "Sun—"]);
+  test("the longest captions keep the size the tiles have with no moment, on a narrow phone", () => {
+    const box = (time?: number) => {
+      const { container, unmount } = render(
+        <div style={{ width: 320 }}>
+          <SummaryTiles
+            timezone="UTC"
+            latitude={50}
+            longitude={0}
+            className=""
+            time={time}
+            primary={{
+              label: "Range",
+              value: time ? "15.0 ft" : "—",
+              caption: time ? "the fortnight's biggest" : "",
+              marked: !!time,
+            }}
+            outlook={<div className="h-[62px] w-[45%] shrink-0" />}
+          />
+        </div>,
+      );
+      const heights = [...container.querySelectorAll<HTMLElement>(".sw-card")].map(
+        (c) => c.getBoundingClientRect().height,
+      );
+      const moon = container.querySelectorAll(".sw-card")[1].textContent;
+      unmount();
+      return { heights, moon };
+    };
+    // A perigean full moon, whose caption is the Moon's longest.
+    const perigee = box(Date.parse("2024-10-17T11:26:00Z"));
+    expect(perigee.moon).toContain("Perigean spring tide");
+    expect(box().heights).toEqual(perigee.heights);
+  });
+
+  test("a time that isn't a number, or is at the far ends of the Date range, reads as no moment", () => {
+    for (const time of [NaN, Infinity, 1e16, 8.64e15]) {
+      const { container, unmount } = render(
+        <SummaryTiles time={time} timezone="UTC" latitude={50} longitude={0} className="" />,
+      );
+      expect(tiles(container), String(time)).toEqual(["Moon—", "Sun—"]);
+      unmount();
+    }
+  });
+
+  test("a time just inside the limit still reads, at either end of the Date range", () => {
+    for (const time of [READABLE_LIMIT_MS, -READABLE_LIMIT_MS, 8e15]) {
+      const { container, unmount } = render(
+        <SummaryTiles time={time} timezone="UTC" latitude={50} longitude={0} className="" />,
+      );
+      const [moon, sun] = tiles(container);
+      expect(moon, String(time)).toMatch(/^Moon(?!—)/);
+      expect(sun, String(time)).toMatch(/^Sun/);
+      unmount();
+    }
   });
 
   test("a className replaces the station page's margins", () => {
