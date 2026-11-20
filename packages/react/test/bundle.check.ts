@@ -4,7 +4,8 @@ import { dirname, isAbsolute, join } from "node:path";
 import { build, Rolldown } from "tsdown";
 
 const packageRoot = join(import.meta.dirname, "..");
-const cache = join(packageRoot, ".test-cache");
+// The IWLS boundary test scans packages recursively while other projects run.
+const cache = join(packageRoot, "..", "..", ".test-cache");
 let temporary: string;
 
 beforeAll(async () => {
