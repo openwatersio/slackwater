@@ -1,6 +1,6 @@
 {
   "station": "noaa/8516990",
-  "note": "Harmonic constants for Willets Point, NY from the slackwater-database station data, copied so a database update cannot move the low of 2026-06-04 off midnight.",
+  "note": "Harmonic constants for Willets Point, NY from the slackwater-database station data, copied so a database update cannot move the high of 2006-06-21 off midnight.",
   "constituents": [
     {
       "name": "M2",

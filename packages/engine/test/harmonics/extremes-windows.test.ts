@@ -127,20 +127,20 @@ describe("a subordinate of a reference whose kept extremes are days apart", () =
 });
 
 describe("a turn on UTC midnight", () => {
-  // Willets Point, NY: each day's parameters put the low of 4 June on the other side of
+  // Willets Point, NY: each day's parameters put the high of 21 June 2006 on the other side of
   // midnight, so neither day's own search sees it change sign.
   const willets = createTidePredictor(midnight.constituents);
   const start = new Date(midnight.start);
   const end = new Date(midnight.end);
 
-  it("is found once, and the high before it is kept", () => {
+  it("is found once, and the low before it is kept", () => {
     const found = willets.getExtremesPrediction({ start, end }).map(key);
     const near = (iso: string, kind: "H" | "L") =>
       found.filter(
         (k) => k.endsWith(kind) && Math.abs(Number(k.split(":")[0]) - Date.parse(iso)) < 5 * 60_000,
       );
-    expect(near("2026-06-04T00:00:00Z", "L")).toHaveLength(1);
-    expect(near("2026-06-03T18:10:00Z", "H")).toHaveLength(1);
+    expect(near("2006-06-21T00:00:00Z", "H")).toHaveLength(1);
+    expect(near("2006-06-20T18:03:00Z", "L")).toHaveLength(1);
   });
 
   it("matches every turn of the curve sampled each minute", () => {

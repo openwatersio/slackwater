@@ -14,13 +14,13 @@ off, read the code, check it against your home waters, and send a fix.
 ## Status
 
 - **Tides** — validated against the Slackwater reference (floating-point agreement across every
-  layer) and NOAA's own published predictions (**Friday Harbor: max 7.9 min / 3.5 cm**).
-  Subordinate stations reduce from their reference within **2.8 min / 0.8 cm** of NOAA
+  layer) and NOAA's own published predictions (**Friday Harbor: max 1.3 min / 0.8 cm**).
+  Subordinate stations reduce from their reference within **1.0 min / 0.2 cm** of NOAA
   (Nurse Channel, ratio; Kamalo Harbor, fixed). See [`docs/validation/phase0-report.md`](docs/validation/phase0-report.md).
 - **Currents** — US NOAA current stations (harmonic + subordinate), constituents sourced
   straight from NOAA CO-OPS, computed offline. Validated against NOAA's own current
-  predictions: **PUG1741 (Bellingham Channel) 9.7 min / 0.055 kn**, subordinate reduction
-  **6.1 min / 0.05 kn**, and the Salish Sea passes (Deception Pass, Rosario, San Juan
+  predictions: **PUG1741 (Bellingham Channel) 3.2 min / 0.036 kn**, subordinate reduction
+  **1.4 min / 0.020 kn**, and the Salish Sea passes (Deception Pass, Rosario, San Juan
   Channel, Turn Point, Admiralty, Race Rocks) directly. See
   [`docs/validation/currents-report.md`](docs/validation/currents-report.md).
 

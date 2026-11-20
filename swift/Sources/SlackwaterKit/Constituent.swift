@@ -200,10 +200,17 @@ struct Catalog: Sendable {
         return correction(at: i, a)
     }
 
+    /// Turns of the perigee p in the argument. Validation leaves every argument coefficients or members.
+    private func perigeeTurns(at i: Int) -> Double {
+        let e = entries[i]
+        if let c = e.coefficients { return Double(c[3]) }
+        return e.members.reduce(0) { $0 + $1.factor * perigeeTurns(at: $1.index) }
+    }
+
     private func correction(at i: Int, _ a: Astro) -> (f: Double, u: Double) {
         let e = entries[i]
         for name in e.formulaNames {
-            if let fundamental = ihoCorrection(name, a) { return fundamental }
+            if let fundamental = ihoCorrection(name, a, perigeeTurns: perigeeTurns(at: i)) { return fundamental }
         }
         var f = 1.0
         var u = 0.0

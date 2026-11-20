@@ -82,6 +82,15 @@ const rates = (() => {
   return [a["T+h-s"].speed, a.s.speed, a.h.speed, a.p.speed, -a.N.speed, a.pp.speed, 0];
 })();
 
+/** Turns of the perigee p in the argument. Validation leaves every argument coefficients or members. */
+function perigeeTurns({ coefficients, members }: Constituent): number {
+  if (coefficients) return coefficients[3];
+  return members.reduce(
+    (sum, { constituent, factor }) => sum + factor * perigeeTurns(constituent),
+    0,
+  );
+}
+
 /** Degrees per hour at which `value()` advances. */
 function argumentRate({ coefficients, members }: Constituent): number {
   if (coefficients) return coefficients.reduce((sum, k, i) => sum + k * rates[i], 0);
@@ -141,9 +150,11 @@ function defineConstituent({
 
     correction(astro: AstroData, fundamentals: Fundamentals = iho): NodalCorrection {
       // Fundamentals have their own correction formula
-      if (Object.hasOwn(fundamentals, name)) return fundamentals[name](astro);
+      if (Object.hasOwn(fundamentals, name))
+        return fundamentals[name](astro, perigeeTurns(constituent));
       for (const alias of constituent.aliases) {
-        if (Object.hasOwn(fundamentals, alias)) return fundamentals[alias](astro);
+        if (Object.hasOwn(fundamentals, alias))
+          return fundamentals[alias](astro, perigeeTurns(constituent));
       }
 
       // Start with UNITY

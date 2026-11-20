@@ -34,7 +34,7 @@ describe("getExtremesPrediction", () => {
 
     const { extremes } = prediction;
     expect(extremes.length).toBe(4);
-    expect(extremes[0].time).toEqual(new Date("2025-12-18T05:29:57.481Z"));
+    expect(extremes[0].time).toEqual(new Date("2025-12-18T05:29:32.561Z"));
     expect(extremes[0].level).toBeCloseTo(0.02, 2);
     expect(extremes[0].high).toBe(false);
     expect(extremes[0].low).toBe(true);
@@ -45,7 +45,7 @@ describe("getExtremesPrediction", () => {
   test("with units=feet", async () => {
     const prediction = await getExtremesPrediction({ ...options, units: "feet" });
     expect(prediction.units).toBe("feet");
-    expect(prediction.extremes[0].level).toBeCloseTo(0.07, 2);
+    expect(prediction.extremes[0].level).toBeCloseTo(0.08, 2);
     expect(prediction.extremes[1].level).toBeCloseTo(3.01, 2);
   });
 });
@@ -135,7 +135,7 @@ describe("for a specific station", async () => {
       });
 
       expect(predictions.length).toBe(4);
-      expect(predictions[0].time).toEqual(new Date("2025-12-17T11:22:20.482Z"));
+      expect(predictions[0].time).toEqual(new Date("2025-12-17T11:22:08.024Z"));
       expect(predictions[0].level).toBeCloseTo(0.9, 1);
       expect(predictions[0].high).toBe(true);
       expect(predictions[0].low).toBe(false);

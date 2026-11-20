@@ -30,6 +30,16 @@ const levels = (c: { name: string; amplitude: number; phase: number }[], opts = 
     .map((p) => p.level);
 
 describe("defineConstituents", () => {
+  it("corrects M1 for the p its argument holds, members included", () => {
+    const models = defineConstituents(
+      [{ name: "M1", speed: constituents.M1C.speed, coefficients: null, members: [["M1C", 1]] }],
+      constituents,
+    );
+    const a = astro(new Date("2026-03-01T00:00:00Z"));
+    expect(models.M1.correction(a).u).toBeCloseTo(constituents.M1C.correction(a).u, 10);
+    expect(constituents.M1.correction(a).u).not.toBeCloseTo(constituents.M1C.correction(a).u, 1);
+  });
+
   it("resolves members against later definitions and the base", () => {
     const models = defineConstituents(
       [

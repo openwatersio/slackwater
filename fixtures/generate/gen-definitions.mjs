@@ -46,6 +46,23 @@ const predictions = [
     constituents: [{ name: "Mf", amplitude: 0.1, phase: 40 }],
   },
   {
+    name: "keeps M1's formula for an argument without p",
+    definitions: [definition("M1", "M1C", { coefficients: shifted("M1C", -1) })],
+    constituents: [{ name: "M1", amplitude: 0.3, phase: 120 }],
+  },
+  {
+    name: "counts p in an M1 argument built from members",
+    definitions: [{ name: "M1", speed: constituents.M1C.speed, coefficients: null, members: [["M1C", 1]] }],
+    constituents: [{ name: "M1", amplitude: 0.3, phase: 120 }],
+  },
+  {
+    name: "half of M1's correction doesn't jump when M1's u wraps",
+    definitions: [definition("HALF_M1", "M1C", { members: [["M1", 0.5]] })],
+    constituents: [{ name: "HALF_M1", amplitude: 0.3, phase: 120 }],
+    start: "2024-06-27T00:00:00.000Z",
+    end: "2024-07-02T00:00:00.000Z",
+  },
+  {
     name: "builds a compound's argument from members defined later",
     definitions: [
       {
@@ -63,12 +80,12 @@ const predictions = [
   },
 ].map((entry) => {
   const predictor = createTidePredictor(entry.constituents, { definitions: entry.definitions });
-  const [start, end] = [new Date(span.start), new Date(span.end)];
+  const window = { ...span, ...entry };
+  const [start, end] = [new Date(window.start), new Date(window.end)];
   return {
-    ...entry,
-    ...span,
+    ...window,
     heights: predictor
-      .getTimelinePrediction({ start, end, timeFidelity: span.step })
+      .getTimelinePrediction({ start, end, timeFidelity: window.step })
       .map((point) => point.level),
     extremes: predictor
       .getExtremesPrediction({ start, end })

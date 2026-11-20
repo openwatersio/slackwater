@@ -27,7 +27,7 @@ write('astronomy.json', {
 });
 
 // ---- Task 2: node corrections (IHO — the default scheme prediction uses) ----
-const IHO_NAMES = ['Mm', 'Mf', 'O1', 'K1', 'J1', 'M1', 'M1A', 'M1B', 'M2', 'K2', 'M3', 'L2', 'gamma2', 'alpha2', 'delta2', 'xi2', 'eta2'];
+const IHO_NAMES = ['Mm', 'Mf', 'O1', 'K1', 'J1', 'M1', 'M1C', 'M1A', 'M1B', 'M2', 'K2', 'M3', 'L2', 'gamma2', 'alpha2', 'delta2', 'xi2', 'eta2'];
 const ncTimes = ['2020-03-21T06:30:00Z', '2026-07-12T00:00:00Z', '2035-09-23T00:00:00Z'];
 write('node-corrections.json', {
   note: 'Slackwater IHO fundamentals via constituents[name].correction(astro). f dimensionless, u degrees.',
@@ -93,16 +93,16 @@ write('extremes-victoria.json', {
 });
 
 // ---- Task 5b: a turn on UTC midnight ----
-// Willets Point, NY (noaa/8516990) puts the low of 4 June 2026 on 00:00 UTC, where each day's
+// Willets Point, NY (noaa/8516990) puts the high of 21 June 2006 on 00:00 UTC, where each day's
 // search hands over to the next day's parameters: the outgoing day's put it after midnight and
 // the incoming day's before, so neither day's own search sees h' change sign. Its constants are
-// a copy, so a database update can't move the low off midnight.
+// a copy, so a database update can't move the high off midnight.
 const willets = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'willets-point-ny.json'), 'utf8'));
 const midnightSet = willets.constituents;
-const midnightStart = new Date('2026-06-03T12:00:00Z');
-const midnightEnd = new Date('2026-06-05T12:00:00Z');
+const midnightStart = new Date('2006-06-20T12:00:00Z');
+const midnightEnd = new Date('2006-06-22T12:00:00Z');
 write('extremes-midnight.json', {
-  note: 'Slackwater getExtremesPrediction for noaa/8516990, whose low of 2026-06-04 falls on 00:00 UTC. Heights metres, times ISO.',
+  note: 'Slackwater getExtremesPrediction for noaa/8516990, whose high of 2006-06-21 falls on 00:00 UTC. Heights metres, times ISO.',
   station: willets.station,
   constituents: midnightSet,
   start: iso(midnightStart), end: iso(midnightEnd),

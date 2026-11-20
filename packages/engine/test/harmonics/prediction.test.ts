@@ -24,8 +24,8 @@ describe("harmonic prediction", () => {
     const testPrediction = setUpPrediction();
     const results = testPrediction.getTimelinePrediction();
     const lastResult = results.pop();
-    expect(results[0].level).toBeCloseTo(-1.4779895, 3);
-    expect(lastResult?.level).toBeCloseTo(2.8542999, 3);
+    expect(results[0].level).toBeCloseTo(-1.3381853, 3);
+    expect(lastResult?.level).toBeCloseTo(2.8517652, 3);
   });
 
   it("keeps the span it was created with after a later setTimeSpan or a mutated Date", () => {
@@ -47,7 +47,7 @@ describe("harmonic prediction", () => {
       .setTimeSpan(startDate, extremesEndDate)
       .prediction()
       .getExtremesPrediction();
-    expect(results[0].level).toBeCloseTo(-1.69091569, 4);
+    expect(results[0].level).toBeCloseTo(-1.55649923, 4);
 
     const customLabels = {
       high: "Super high",
@@ -82,7 +82,7 @@ describe("harmonic prediction", () => {
       .setTimeSpan(startDate, extremesEndDate)
       .prediction({ timeFidelity: 60 })
       .getExtremesPrediction();
-    expect(results[0].level).toBeCloseTo(-1.69091569, 4);
+    expect(results[0].level).toBeCloseTo(-1.55649923, 4);
   });
 });
 
@@ -214,7 +214,7 @@ describe("prominence filtering", () => {
     // 2 days should produce ~8 extremes for a mixed semidiurnal signal
     expect(results.length).toBeGreaterThanOrEqual(7);
     expect(results.length).toBeLessThanOrEqual(9);
-    expect(results[0].level).toBeCloseTo(-1.69091569, 4);
+    expect(results[0].level).toBeCloseTo(-1.55649923, 4);
   });
 
   // Victoria-like mixed tide: small stands on the falling tide are common here.

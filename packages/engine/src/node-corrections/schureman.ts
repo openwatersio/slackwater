@@ -1,5 +1,6 @@
 import { d2r, r2d } from "../astronomy/constants.js";
 import type { AstroData } from "../astronomy/index.js";
+import { withoutPerigee } from "./iho.js";
 import type { Fundamentals } from "./types.js";
 
 const fundamentals: Fundamentals = {
@@ -12,7 +13,7 @@ const fundamentals: Fundamentals = {
   M2: (a) => ({ f: fM2(a), u: uM2(a) }),
   K2: (a) => ({ f: fK2(a), u: uK2(a) }),
   L2: (a) => ({ f: fL2(a), u: uL2(a) }),
-  M1: (a) => ({ f: fM1(a), u: uM1(a) }),
+  M1: (a, turns = 1) => withoutPerigee({ f: fM1(a), u: uM1(a) }, a, turns),
   M3: (a) => ({ f: fModd(a, 3), u: uModd(a, 3) }),
 };
 
@@ -128,7 +129,7 @@ function fM1(a: AstroData): number {
   const I = d2r * a.I.value;
   const qAInv = Math.pow(
     0.25 +
-      1.5 * Math.cos(I) * Math.cos(2 * P) * Math.pow(Math.cos(0.5 * I), -0.5) +
+      1.5 * Math.cos(I) * Math.cos(2 * P) * Math.pow(Math.cos(0.5 * I), -2) +
       2.25 * Math.pow(Math.cos(I), 2) * Math.pow(Math.cos(0.5 * I), -4),
     0.5,
   );
@@ -180,11 +181,13 @@ function uK2(a: AstroData): number {
   return -2.0 * a.nupp.value;
 }
 
-// Schureman 202
+// Schureman 202, for the argument T − s + h − 90°, without p.
 function uM1(a: AstroData): number {
   const I = d2r * a.I.value;
   const P = d2r * a.P.value;
-  const Q = r2d * Math.atan(((5 * Math.cos(I) - 1) / (7 * Math.cos(I) + 1)) * Math.tan(P));
+  const k = (5 * Math.cos(I) - 1) / (7 * Math.cos(I) + 1);
+  // atan2 keeps Q in P's half-turn, so Q turns with P instead of jumping 180°.
+  const Q = r2d * Math.atan2(k * Math.sin(P), Math.cos(P));
   return a.xi.value - a.nu.value + Q;
 }
 

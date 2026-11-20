@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import fundamentals from "../../src/node-corrections/iho.js";
 import astro from "../../src/astronomy/index.js";
+import constituents from "../../src/constituents/index.js";
 
 const sampleTime = new Date("2019-10-04T10:15:40.010Z");
 const testAstro = astro(sampleTime);
@@ -71,15 +72,35 @@ describe("ihoFundamentals", () => {
     const m1 = fundamentals.M1(testAstro);
     const m1a = fundamentals.M1A(testAstro);
 
-    // M1C and M1 use the same formula
+    // M1C and M1 use the same formula, but M1's argument already holds p
     expect(m1c.f).toBe(m1.f);
-    expect(m1c.u).toBe(m1.u);
+    expect(m1c.u - testAstro.p.value).toBeCloseTo(m1.u, 10);
 
     // M1B uses a different formula than M1
     expect(m1b.f).not.toBeCloseTo(m1.f, 5);
 
     // M1A uses a different formula than M1
     expect(m1a.f).not.toBeCloseTo(m1.f, 5);
+  });
+
+  it("M1 counts the perigee once: V + u stays 90° behind M1C's over a nodal cycle", () => {
+    for (let hour = 0; hour < 19 * 8766; hour += 1000) {
+      const a = astro(new Date(Date.UTC(2000, 0, 1) + hour * 3600000));
+      const m1 = constituents.M1.value(a) + fundamentals.M1(a).u;
+      const m1c = constituents.M1C.value(a) + fundamentals.M1C(a).u;
+      expect(Math.cos(((m1 - m1c + 90) * Math.PI) / 180)).toBeCloseTo(1, 10);
+    }
+  });
+
+  it("M1's u follows the argument it's given, and stays continuous for fractional members", () => {
+    const catalog = fundamentals.M1(testAstro);
+    expect(fundamentals.M1(testAstro, 1).u).toBe(catalog.u);
+    expect(fundamentals.M1(testAstro, 0).u).toBeCloseTo(fundamentals.M1C(testAstro).u, 10);
+    // u less p stays near zero, so it never wraps; half of it can't jump 180°.
+    for (let hour = 0; hour < 19 * 8766; hour += 24) {
+      const a = astro(new Date(Date.UTC(2000, 0, 1) + hour * 3600000));
+      expect(Math.abs(fundamentals.M1(a).u)).toBeLessThan(90);
+    }
   });
 
   it("L2 uses f·sinU/f·cosU form", () => {

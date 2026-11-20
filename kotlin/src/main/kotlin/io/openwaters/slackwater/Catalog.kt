@@ -140,6 +140,13 @@ internal class Catalog private constructor(private val entries: List<Entry>, pri
         return catalog
     }
 
+    /** Turns of the perigee p in the argument. Validation leaves every argument coefficients or members. */
+    private fun perigeeTurns(i: Int): Double {
+        val e = entries[i]
+        e.coefficients?.let { return it[3].toDouble() }
+        return e.members.sumOf { it.factor * perigeeTurns(it.index) }
+    }
+
     /** Degrees per hour at which [v0] advances. */
     private fun rate(i: Int): Double {
         val e = entries[i]
@@ -171,7 +178,7 @@ internal class Catalog private constructor(private val entries: List<Entry>, pri
     }
     private fun correction(i: Int, a: Astro): NodeCorrection {
         val e = entries[i]
-        for (name in e.formulaNames) ihoCorrection(name, a)?.let { return it }
+        for (name in e.formulaNames) ihoCorrection(name, a, perigeeTurns(i))?.let { return it }
         var f = 1.0
         var u = 0.0
         for (m in e.members) {

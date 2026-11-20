@@ -2,6 +2,8 @@
 
 **Date:** 2026-07-18 · **Result: VALIDATED** ✅
 
+> Figures here are from the report's date. Current maxima against NOAA are in [docs/CONTRACT.md](../../../docs/CONTRACT.md#physical-accuracy).
+
 Can the engine predict US tidal **currents** — slack, max flood, max ebb — offline, matching
 NOAA's own current predictions? Yes. Constituents come straight from NOAA CO-OPS `harcon`
 (public domain); nothing from XTide. All checks run offline via `swift test` against bundled
