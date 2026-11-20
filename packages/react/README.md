@@ -16,7 +16,7 @@ npm install react react-dom
 npm install maplibre-gl react-map-gl
 ```
 
-`<StationsMap>` comes from its own entry, `@slackwater/react/map`, so the root entry doesn't import `react-map-gl` or MapLibre's stylesheet up front. Station pages and `<NearbyStations>` load the map, its stylesheet and MapLibre only when they draw it; `showMap={false}` leaves it out. Your bundler still resolves both packages and emits that chunk.
+`<StationsMap>` comes from its own entry, `@slackwater/react/map`, so the root entry doesn't import `react-map-gl` or MapLibre's stylesheet up front. Station pages and `<NearbyStations>` load the map, its stylesheet and MapLibre only when they draw it; `showMap={false}` leaves it out. Bundlers can drop the map chunk and its stylesheet from scrubber-only consumers. Importing station pages or `<NearbyStations>` still retains that chunk, even when `showMap={false}` prevents it from loading at runtime.
 
 The components are styled with [Tailwind CSS v4](https://tailwindcss.com), which your app must also use. See [Styling](#styling).
 

@@ -132,6 +132,8 @@ npm run format             # Auto-format with Prettier
 
 Tests are split per-package in `packages/*/test/`. The root `vitest.config.ts` uses projects to run all workspace tests together.
 
+The `react-bundle` Node project builds the React package into temporary output and bundles consumer entries with Rolldown. It checks that scrubber-only consumers drop the map imports while station and map consumers retain them. This runs with the normal suite without requiring workspace `dist` directories before the tests.
+
 The React station pages share `Scrubber.tsx` for movement and next-event commentary, `SummaryTiles.tsx` for the water/Moon/Sun layout, and `StationList.tsx` with search for Nearby's three cards. `NearbyMap.tsx` loads near the viewport and frames the listed stations with the origin. Full maps put units in a bottom legend; framed maps retain units on their pins. Comfort current changes the signed graph’s window edges; its axis zeros remain graph events and do not determine the full-speed reading’s state.
 
 ### Package Publishing
