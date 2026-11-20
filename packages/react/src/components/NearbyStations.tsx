@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { useSeen } from "../hooks/use-seen.js";
 import { MapBoundary } from "./MapBoundary.js";
 import { StationList } from "./StationList.js";
-const NearbyMap = lazy(() => import("./NearbyMap.js"));
+const NearbyMap = /* @__PURE__ */ lazy(() => import("./NearbyMap.js"));
 import { useCurrentStation, useCurrentStations } from "../hooks/use-current-station.js";
 import { useNearbyStations } from "../hooks/use-nearby-stations.js";
 import { useStation } from "../hooks/use-station.js";

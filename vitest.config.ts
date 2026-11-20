@@ -6,7 +6,7 @@ export default defineConfig({
     typecheck: {
       enabled: true,
     },
-    projects: ["packages/*", "benchmarks"],
+    projects: ["packages/*", "packages/react/vitest.bundle.config.ts", "benchmarks"],
     environment: "node",
     setupFiles: [resolve(__dirname, "./test/setup.ts")],
     coverage: {
