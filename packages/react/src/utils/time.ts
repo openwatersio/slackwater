@@ -2,17 +2,29 @@ import { Body, Observer, SearchHourAngle, SearchRiseSet } from "astronomy-engine
 
 const HOUR = 3_600_000;
 
+/** One formatter per zone: building one costs far more than using it, and every day boundary asks several times. */
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatter(timeZone: string): Intl.DateTimeFormat {
+  let f = formatters.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+    });
+    formatters.set(timeZone, f);
+  }
+  return f;
+}
+
 function parts(time: number, timeZone: string) {
-  const p = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    hourCycle: "h23",
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "numeric",
-    minute: "numeric",
-    second: "numeric",
-  }).formatToParts(time);
+  const p = formatter(timeZone).formatToParts(time);
   const get = (type: string) => Number(p.find((x) => x.type === type)!.value);
   return {
     year: get("year"),
@@ -22,6 +34,20 @@ function parts(time: number, timeZone: string) {
     minute: get("minute"),
     second: get("second"),
   };
+}
+
+/** How far inside the Date range's ends a moment must be, so the days searched around it stay readable. */
+export const READABLE_LIMIT_MS = 8.64e15 - 30 * 24 * HOUR;
+
+/**
+ * A moment the tiles and outlook can read, or undefined for none, for a
+ * value that isn't a finite number, or for one at the far ends of the Date
+ * range, such as a malformed URL can give.
+ */
+export function readableMoment(time: number | undefined): number | undefined {
+  return time !== undefined && Number.isFinite(time) && Math.abs(time) <= READABLE_LIMIT_MS
+    ? time
+    : undefined;
 }
 
 /** The zone's offset from UTC at `time`, in ms. */

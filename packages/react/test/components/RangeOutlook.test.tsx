@@ -8,6 +8,7 @@ import {
 import type { Extreme } from "../../src/types.js";
 import { createTestWrapper } from "../helpers.js";
 import { addDays, startOfDay } from "../../src/utils/time.js";
+import { outlookWindow } from "../../src/utils/standing.js";
 
 const H = 3_600_000;
 
@@ -23,7 +24,13 @@ test("the shifted outlook loads seven complete days beyond the scrubber window",
     />,
     { wrapper: createTestWrapper() },
   );
-  expect(screen.getByRole("img", { name: /^Daily tide ranges:/ })).toBeDefined();
+  // Silent until its week loads, then spoken.
+  expect(screen.queryByRole("img")).toBeNull();
+  expect(container.firstElementChild!.getAttribute("aria-hidden")).toBe("true");
+  await waitFor(
+    () => expect(screen.getByRole("img", { name: /^Daily tide ranges:/ })).toBeDefined(),
+    { timeout: 10000 },
+  );
   const bars = () => [...container.querySelectorAll("span")];
   await waitFor(() => expect(bars()).toHaveLength(7), { timeout: 10000 });
   rerender(
@@ -78,6 +85,16 @@ test("draws the highs and lows it is given, with no provider", () => {
   expect(bars[6].style.height).toBe("62px"); // the week's biggest swing fills the tile
 });
 
+test("without its highs and lows it keeps its size and says nothing", () => {
+  const start = Date.UTC(2026, 10, 20);
+  const { container } = render(<RangeOutlook week={start} units="feet" timezone="UTC" />);
+  const box = container.firstElementChild!;
+  expect(box.getAttribute("aria-hidden")).toBe("true");
+  expect(box.getAttribute("aria-label")).toBeNull();
+  expect(box.getAttribute("role")).toBeNull();
+  expect(box.getBoundingClientRect().height).toBe(62);
+});
+
 test("with no moment, every day is drawn alike", () => {
   const start = Date.UTC(2026, 10, 20);
   const { container } = render(
@@ -87,7 +104,59 @@ test("with no moment, every day is drawn alike", () => {
   expect(new Set(bars.map((b) => b.style.opacity))).toEqual(new Set(["1"]));
 });
 
-test("the week holds while the moment is inside it, moves once it leaves, and is the anchor with no moment", () => {
+test("a week that fails to load speaks its days as unavailable", async () => {
+  const timezone = "America/Los_Angeles";
+  const anchor = startOfDay(Date.now(), timezone);
+  render(
+    <StationRangeOutlook id="noaa/9447130" anchor={anchor} time={anchor} timezone={timezone} />,
+    { wrapper: createTestWrapper({ baseUrl: "http://127.0.0.1:9" }) },
+  );
+  await waitFor(
+    () =>
+      expect(screen.getByRole("img").getAttribute("aria-label")).toMatch(
+        /^Daily tide ranges: (\w+, \w+ \d+: unavailable(; )?){7}$/,
+      ),
+    { timeout: 10000 },
+  );
+});
+
+test("any moment in the first day stands for its station-local start", () => {
+  const tz = "America/Los_Angeles";
+  const midnight = Date.parse("2026-11-20T08:00:00Z");
+  // 4 AM PST on Nov 20, hours after that day's midnight.
+  const early = Date.UTC(2026, 10, 20) + 12 * H;
+  const { result } = renderHook(() => useOutlookWeek(early, undefined, tz));
+  expect(result.current).toBe(midnight);
+  expect(outlookWindow(early, tz)).toEqual(outlookWindow(midnight, tz));
+  const drawn = (start: number) =>
+    render(
+      <RangeOutlook
+        week={start}
+        extremes={week(midnight)}
+        units="feet"
+        timezone={tz}
+        locale="en-US"
+      />,
+    ).container.firstElementChild!.getAttribute("aria-label");
+  expect(drawn(midnight + 15 * H)).toBe(drawn(midnight));
+  expect(drawn(midnight)).toMatch(/^Daily tide ranges: Friday, Nov 20: \d/);
+});
+
+test("a moment at the far ends of the Date range reads as none", () => {
+  const start = Date.UTC(2026, 10, 20);
+  for (const time of [1e16, -1e16, 8.64e15]) {
+    const { container, unmount } = render(
+      <RangeOutlook week={start} extremes={week(start)} units="feet" time={time} timezone="UTC" />,
+    );
+    const bars = [...container.querySelectorAll<HTMLElement>("[style]")];
+    expect(new Set(bars.map((b) => b.style.opacity))).toEqual(new Set(["1"]));
+    unmount();
+    const { result } = renderHook(() => useOutlookWeek(start, time, "UTC"));
+    expect(result.current).toBe(start);
+  }
+});
+
+test("the week holds through its fifth day, starts on the moment's day from its sixth, and is the anchor with no moment", () => {
   const tz = "UTC";
   const anchor = Date.UTC(2026, 10, 20);
   const { result, rerender } = renderHook(
