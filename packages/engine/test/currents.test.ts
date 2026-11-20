@@ -416,13 +416,16 @@ describe("slackWindows", () => {
     expect(windows[0].end.getTime()).toBeCloseTo(hours(1 + 0.05 / 0.9), -2);
   });
 
-  test("a lull that never reverses is not a window", () => {
-    // Dips under the threshold and builds back the way it came: weak water.
-    const windows = slackWindows([sample(0, 2), sample(1, 0.5), sample(2, 2)], 1);
-    expect(windows).toEqual([]);
-
-    // Touching exactly zero without reversing is still a lull.
-    expect(slackWindows([sample(0, 2), sample(1, 0), sample(2, 2)], 1)).toEqual([]);
+  test("a lull below the threshold is a window even without reversal", () => {
+    for (const sign of [1, -1]) {
+      const windows = slackWindows(
+        [sample(0, 2 * sign), sample(1, 0.5 * sign), sample(2, 2 * sign)],
+        1,
+      );
+      expect(windows).toHaveLength(1);
+      expect(windows[0].start.getTime()).toBeCloseTo(hours(2 / 3), -2);
+      expect(windows[0].end.getTime()).toBeCloseTo(hours(4 / 3), -2);
+    }
   });
 
   test("a reversal landing on an exact-zero sample still counts", () => {

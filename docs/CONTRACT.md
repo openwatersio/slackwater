@@ -69,7 +69,7 @@ Kotlin subordinate tide and current curves expand their event context until corr
 - Swift and Kotlin `CurrentPoint`s always carry a magnitude, so a point with no direction, a magnitude equal to its absolute speed, and a nonzero magnitude is read as a one-axis sample and takes the published bearing for its sign; a zero sample with no direction is a zero vector. TypeScript reads a sample with no `magnitude` the same way.
 - Percentile rank: Swift and Kotlin return nil/null only for an empty list, so a one-value list still ranks: values at or above its member rank 1.0 and values below it 0.0. TypeScript's `peakRank` is undefined with fewer than two values.
 - The sampled tide rate (`tideRates`, `[TidePoint].rates()`, `sampledRates`) is a central difference over the samples given, one-sided at the ends; Swift and Kotlin also offer the analytic `Station.rates`. The two are different capabilities and are listed as such.
-- `slackWindows` (TypeScript only) interpolates the absolute speed on a sample step that holds both the reversal and the band edge; the event-centred `slackWindowAround` family interpolates the signed speed, so edges can differ there by a fraction of a sample.
+- Low-speed windows include same-direction lulls; slack events remain zero crossings. Event-based runs include sampled low-speed intervals and measured extrema. `slackWindows` (TypeScript only) interpolates the absolute speed on a sample step that holds both the reversal and the band edge; the event-centred `slackWindowAround` family interpolates the signed speed, so edges can differ there by a fraction of a sample.
 
 ## Cross-port parity
 

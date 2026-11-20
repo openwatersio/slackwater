@@ -226,9 +226,9 @@ A subordinate's timeline is a half-cosine drawn through its event knots — a dr
 
 Database and caller-supplied station records can include `current.minor_constituents`, `current.minor_mean_flow`, and `current.azimuth`. NOAA harmonic records supply published minor-axis data for vector timelines. Records without effective minor data and subordinate stations use the one-axis fallback.
 
-`slackWindows(timeline, threshold)` returns the runs of time where |speed| stays below `threshold` knots around a reversal, with interpolated band crossings. A lull that never reverses is weak water, not slack, and does not count; a window still open at the frame edge is kept and ends at the edge.
+`slackWindows(timeline, threshold)` returns runs where |speed| stays below `threshold` knots, including same-direction lulls, with interpolated band crossings. A window still open at the frame edge is kept and ends at the edge. A lull is not a zero-current slack event.
 
-`slackRuns(timeline, events, threshold)` and `slackWindowAround(timeline, slack, threshold)` start from the engine's slack events, always contain the slack, and report a window for a reversal the sampled series never dips into; `slackWindows` needs no events and only counts a dip that contains a reversal. On a sample step that holds both the reversal and the band edge, `slackWindows` interpolates the absolute speed and the event-centred pair interpolate the signed speed, so their edges can differ there by a fraction of a sample.
+`slackRuns(timeline, events, threshold)` measures around slack events and minima below the threshold. A slack is retained even when no window can be measured; a qualifying minimum is inserted into the sampled series so a narrow lull between samples is retained. `slackWindows` needs no events and reports sampled low-speed runs. On a sample step that holds both the reversal and the band edge, `slackWindows` interpolates the absolute speed and the event-centred pair interpolate the signed speed, so their edges can differ there by a fraction of a sample.
 
 ## Readings
 
@@ -285,7 +285,7 @@ const peaks = flowPeaks(rates, 0.3); // [{ time, rate }, ...]
 
 ### Slack runs
 
-`slackRuns(timeline, events, threshold)` merges the window around each slack event into runs, so slacks whose windows touch read as one stretch of quiet water. The threshold is in knots, and `DEFAULT_SLACK_THRESHOLD` is 0.5.
+`slackRuns(timeline, events, threshold)` merges the windows around slack events and qualifying minima into runs, so slacks whose windows touch read as one stretch of quiet water. The threshold is in knots, and `DEFAULT_SLACK_THRESHOLD` is 0.5.
 
 ```ts
 import { slackRuns } from "@slackwater/engine";

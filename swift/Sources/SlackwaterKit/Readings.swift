@@ -210,12 +210,24 @@ public func mergeWindows(_ windows: [SlackWindow]) -> [SlackWindow] {
     return runs
 }
 
-/// The windows around the slacks inside the series merged into runs; a slack with no window stays an exact instant.
+/// Windows around slack events and qualifying minima, merged into runs; a slack with no window stays an exact instant.
 public func slackRuns(_ points: [CurrentPoint], events: [CurrentEvent], threshold: Double) -> [SlackWindow] {
     guard let first = points.first?.time, let last = points.last?.time else { return [] }
-    let windows = events
-        .filter { $0.kind == .slack && $0.time >= first && $0.time <= last }
-        .map { slackWindow(points, around: $0.time, threshold: threshold) ?? SlackWindow(start: $0.time, end: $0.time) }
-        .sorted { $0.start < $1.start }
-    return mergeWindows(windows)
+    let extrema = events.filter { $0.kind != .slack && $0.time >= first && $0.time <= last }
+    let times = Set(extrema.map(\.time))
+    let augmented = (points.filter { !times.contains($0.time) } + extrema.map { CurrentPoint(time: $0.time, speed: $0.speed) }).sorted { $0.time < $1.time }
+    var windows = events
+        .filter { $0.time >= first && $0.time <= last && ($0.kind == .slack ||
+            (threshold > 0 && ($0.kind == .minFlood || $0.kind == .minEbb) && abs($0.speed) <= threshold)) }
+        .compactMap { event in
+            let samples = event.kind == .slack ? points : augmented
+            return slackWindow(samples, around: event.time, threshold: threshold)
+                ?? (event.kind == .slack ? SlackWindow(start: event.time, end: event.time) : nil)
+        }
+    if threshold > 0 {
+        for (index, point) in augmented.enumerated() where abs(point.speed) <= threshold && (index == 0 || abs(augmented[index - 1].speed) > threshold) {
+            if let window = slackWindow(augmented, around: point.time, threshold: threshold) { windows.append(window) }
+        }
+    }
+    return mergeWindows(windows.sorted { $0.start < $1.start })
 }

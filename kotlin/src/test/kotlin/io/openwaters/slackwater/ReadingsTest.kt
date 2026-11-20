@@ -231,6 +231,36 @@ class ReadingsTest {
         assertEquals(emptyList(), mergeWindows(emptyList()))
     }
 
+    @Test fun slackRunsIncludesSameDirectionMinimum() {
+        for ((speed, kind) in listOf(0.2 to CurrentEventKind.MIN_FLOOD, -0.2 to CurrentEventKind.MIN_EBB)) {
+            val event = CurrentEvent(at(10 * m), speed, kind)
+            val points = series(speed * 5, speed, speed * 5)
+            assertEquals(1, slackRuns(points, listOf(event), 0.5).size)
+            assertTrue(slackRuns(points, listOf(event), 0.1).isEmpty())
+            assertTrue(slackRuns(points, listOf(event), 0.0).isEmpty())
+        }
+    }
+
+    @Test fun slackRunsIncludesMinimumBetweenOutOfBandSamples() {
+        val minimum = CurrentEvent(at(5 * m), 0.2, CurrentEventKind.MIN_FLOOD)
+        assertEquals(1, slackRuns(series(1.0, 1.0), listOf(minimum), 0.5).size)
+    }
+
+    @Test fun minimaStaySeparatedByFasterMaximum() {
+        val events = listOf(CurrentEvent(at(3 * m), 0.2, CurrentEventKind.MIN_FLOOD),
+            CurrentEvent(at(5 * m), 1.0, CurrentEventKind.MAX_FLOOD),
+            CurrentEvent(at(7 * m), 0.2, CurrentEventKind.MIN_FLOOD))
+        assertEquals(2, slackRuns(series(1.0, 1.0), events, 0.5).size)
+    }
+
+    @Test fun lowSpeedWindowAtSeriesEdge() {
+        assertEquals(1, slackRuns(series(0.2, 0.4, 1.0), emptyList(), 0.5).size)
+    }
+
+    @Test fun sampledLullWithoutEvent() {
+        assertEquals(1, slackRuns(series(1.0, 0.2, 1.0), emptyList(), 0.5).size)
+    }
+
     @Test fun slackRunsMergeWindowsAroundSlacks() {
         val shared = slackRuns(series(1.0, 0.2, -0.2, 0.2, -0.2, -1.0),
             listOf(slackAt(at(15 * m)), slackAt(at(25 * m)), slackAt(at(35 * m))), 0.5)
@@ -239,7 +269,7 @@ class ReadingsTest {
         val tail = slackRuns(series(2.0, 1.0, -3.0, -4.0), listOf(slackAt(at(12 * m)), slackAt(at(19 * m))), 0.5).first()
         assertTrue(abs(seconds(tail.start) - 11.25 * m) < 1e-6)
         assertEquals(at(19 * m), tail.end)
-        assertEquals(2, slackRuns(sine, sineEvents + listOf(slackAt(at(12 * h)), slackAt(at(-h))), 0.5).size)
+        assertEquals(5, slackRuns(sine, sineEvents + listOf(slackAt(at(12 * h)), slackAt(at(-h))), 0.5).size)
         assertEquals(listOf(SlackWindow(at(5 * m), at(5 * m))), slackRuns(series(2.0, 1.0, 2.0), listOf(slackAt(at(5 * m))), 0.5))
         assertEquals(listOf(SlackWindow(at(6 * h), at(6 * h))), slackRuns(sine, sineEvents, 0.0))
         assertEquals(emptyList(), slackRuns(emptyList(), sineEvents, 0.5))

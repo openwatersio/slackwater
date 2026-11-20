@@ -182,6 +182,37 @@ private func seconds(_ date: Date?) -> Double { date?.timeIntervalSince(t0) ?? .
     #expect(mergeWindows([]) == [])
 }
 
+@Test func slackRunsIncludesSameDirectionMinimum() {
+    for (speed, kind) in [(0.2, CurrentEventKind.minFlood), (-0.2, .minEbb)] {
+        let event = CurrentEvent(time: at(10 * M), speed: speed, kind: kind)
+        let points = series([speed * 5, speed, speed * 5])
+        #expect(slackRuns(points, events: [event], threshold: 0.5).count == 1)
+        #expect(slackRuns(points, events: [event], threshold: 0.1).isEmpty)
+        #expect(slackRuns(points, events: [event], threshold: 0).isEmpty)
+    }
+}
+
+@Test func slackRunsIncludesMinimumBetweenOutOfBandSamples() {
+    let minimum = CurrentEvent(time: at(5 * M), speed: 0.2, kind: .minFlood)
+    #expect(slackRuns(series([1, 1]), events: [minimum], threshold: 0.5).count == 1)
+}
+
+@Test func minimaStaySeparatedByFasterMaximum() {
+    let events = [CurrentEvent(time: at(3 * M), speed: 0.2, kind: .minFlood),
+                  CurrentEvent(time: at(5 * M), speed: 1, kind: .maxFlood),
+                  CurrentEvent(time: at(7 * M), speed: 0.2, kind: .minFlood)]
+    let runs = slackRuns(series([1, 1]), events: events, threshold: 0.5)
+    #expect(runs.count == 2)
+}
+
+@Test func lowSpeedWindowAtSeriesEdge() {
+    #expect(slackRuns(series([0.2, 0.4, 1]), events: [], threshold: 0.5).count == 1)
+}
+
+@Test func sampledLullWithoutEvent() {
+    #expect(slackRuns(series([1, 0.2, 1]), events: [], threshold: 0.5).count == 1)
+}
+
 @Test func slackRunsMergeWindowsAroundSlacks() throws {
     let shared = slackRuns(series([1, 0.2, -0.2, 0.2, -0.2, -1]),
                            events: [slackAt(at(15 * M)), slackAt(at(25 * M)), slackAt(at(35 * M))], threshold: 0.5)
@@ -189,7 +220,7 @@ private func seconds(_ date: Date?) -> Double { date?.timeIntervalSince(t0) ?? .
     #expect(try #require(shared.first).start < at(10 * M) && shared[0].end > at(40 * M))
     let tail = try #require(slackRuns(series([2, 1, -3, -4]), events: [slackAt(at(12 * M)), slackAt(at(19 * M))], threshold: 0.5).first)
     #expect(abs(seconds(tail.start) - 11.25 * M) < 1e-6 && tail.end == at(19 * M))
-    #expect(slackRuns(sine, events: sineEvents + [slackAt(at(12 * H)), slackAt(at(-H))], threshold: 0.5).count == 2)
+    #expect(slackRuns(sine, events: sineEvents + [slackAt(at(12 * H)), slackAt(at(-H))], threshold: 0.5).count == 5)
     #expect(slackRuns(series([2, 1, 2]), events: [slackAt(at(5 * M))], threshold: 0.5) == [SlackWindow(start: at(5 * M), end: at(5 * M))])
     #expect(slackRuns(sine, events: sineEvents, threshold: 0) == [SlackWindow(start: at(6 * H), end: at(6 * H))])
     #expect(slackRuns([], events: sineEvents, threshold: 0.5) == [])

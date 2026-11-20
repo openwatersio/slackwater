@@ -164,7 +164,7 @@ export function maxSpeeds(
 /** The default major-axis speed threshold for slack windows, in knots. */
 export const DEFAULT_SLACK_THRESHOLD = 0.5;
 
-/** The workable window around one slack: where |speed| stays within `threshold`, clamped to the series and holding the slack itself; undefined for a slack outside the series or with no reversal to bound. */
+/** The workable window around one slack: where |speed| stays within `threshold`, clamped to the series and holding the slack itself; undefined when the instant is outside the series or the samples do not reach the threshold. */
 export function slackWindowAround(
   timeline: Pick<CurrentPoint, "time" | "speed">[],
   slack: Date,
@@ -210,7 +210,7 @@ export function slackWindowAround(
   };
 }
 
-/** Touching or overlapping windows around the slacks in the series merged into runs; a slack with no window stays an exact instant. */
+/** Windows around slack events and qualifying minima, merged into runs; a slack with no window stays an exact instant. */
 export function slackRuns(
   timeline: Pick<CurrentPoint, "time" | "speed">[],
   events: CurrentEvent[],
@@ -218,10 +218,41 @@ export function slackRuns(
 ): SlackWindow[] {
   const first = timeline[0]?.time.getTime();
   const last = timeline[timeline.length - 1]?.time.getTime();
+  const extrema = events.filter(
+    (e) => e.kind !== "slack" && e.time.getTime() >= first && e.time.getTime() <= last,
+  );
+  const times = new Set(extrema.map((e) => e.time.getTime()));
+  const augmented = [
+    ...timeline.filter((p) => !times.has(p.time.getTime())),
+    ...extrema.map((e) => ({ time: e.time, speed: e.speed })),
+  ].sort((a, b) => a.time.getTime() - b.time.getTime());
   const windows = events
-    .filter((e) => e.kind === "slack" && e.time.getTime() >= first && e.time.getTime() <= last)
-    .map((e) => slackWindowAround(timeline, e.time, threshold) ?? { start: e.time, end: e.time })
-    .sort((a, b) => a.start.getTime() - b.start.getTime());
+    .filter(
+      (e) =>
+        e.time.getTime() >= first &&
+        e.time.getTime() <= last &&
+        (e.kind === "slack" ||
+          (threshold > 0 &&
+            (e.kind === "minFlood" || e.kind === "minEbb") &&
+            Math.abs(e.speed) <= threshold)),
+    )
+    .flatMap((e) => {
+      const samples = e.kind === "slack" ? timeline : augmented;
+      const window = slackWindowAround(samples, e.time, threshold);
+      return window ? [window] : e.kind === "slack" ? [{ start: e.time, end: e.time }] : [];
+    });
+  if (threshold > 0) {
+    augmented.forEach((point, index) => {
+      if (
+        Math.abs(point.speed) <= threshold &&
+        (index === 0 || Math.abs(augmented[index - 1].speed) > threshold)
+      ) {
+        const window = slackWindowAround(augmented, point.time, threshold);
+        if (window) windows.push(window);
+      }
+    });
+  }
+  windows.sort((a, b) => a.start.getTime() - b.start.getTime());
   const runs: SlackWindow[] = [];
   for (const window of windows) {
     const previous = runs.at(-1);

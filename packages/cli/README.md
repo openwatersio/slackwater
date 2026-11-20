@@ -175,7 +175,7 @@ noaa/PUG1701  ·  knots  ·  flood 102°T  ·  ebb 282°T
 Slackwater database (https://github.com/openwatersio/slackwater-database)
 ```
 
-Get slack windows around each reversal, while the speed along the flood axis stays below a threshold you choose (0.5 knots by default). Rotary current can keep moving across that axis inside a window. A window that runs past the start or end of the period shows its duration as `≥`, a lower bound:
+Get low-speed windows around reversals and same-direction lulls, while the speed along the flood axis stays below a threshold you choose (0.5 knots by default). Rotary current can keep moving across that axis inside a window. A window that runs past the start or end of the period shows its duration as `≥`, a lower bound:
 
 ```sh
 slackwater currents slack --station noaa/PUG1701 --threshold 1

@@ -242,14 +242,24 @@ fun mergeWindows(windows: List<SlackWindow>): List<SlackWindow> {
     return runs
 }
 
-/** The windows around the slacks inside the series merged into runs; a slack with no window stays an exact instant. */
+/** Windows around slack events and qualifying minima, merged into runs; a slack with no window stays an exact instant. */
 fun slackRuns(points: List<CurrentPoint>, events: List<CurrentEvent>, thresholdKnots: Double): List<SlackWindow> {
     val first = points.firstOrNull()?.time ?: return emptyList()
     val last = points.last().time
-    return mergeWindows(events
-        .filter { it.kind == CurrentEventKind.SLACK && it.time >= first && it.time <= last }
-        .map { slackWindowAround(points, it.time, thresholdKnots) ?: SlackWindow(it.time, it.time) }
-        .sortedBy { it.start })
+    val extrema = events.filter { it.kind != CurrentEventKind.SLACK && it.time >= first && it.time <= last }
+    val times = extrema.map { it.time }.toSet()
+    val augmented = (points.filter { it.time !in times } + extrema.map { CurrentPoint(it.time, it.speedKnots) }).sortedBy { it.time }
+    val windows = events
+        .filter { it.time >= first && it.time <= last && (it.kind == CurrentEventKind.SLACK ||
+            (thresholdKnots > 0 && (it.kind == CurrentEventKind.MIN_FLOOD || it.kind == CurrentEventKind.MIN_EBB) && abs(it.speedKnots) <= thresholdKnots)) }
+        .mapNotNull { event ->
+            val samples = if (event.kind == CurrentEventKind.SLACK) points else augmented
+            slackWindowAround(samples, event.time, thresholdKnots) ?: if (event.kind == CurrentEventKind.SLACK) SlackWindow(event.time, event.time) else null
+        }
+    val sampled = if (thresholdKnots > 0) augmented.filterIndexed { index, point ->
+        abs(point.speedKnots) <= thresholdKnots && (index == 0 || abs(augmented[index - 1].speedKnots) > thresholdKnots)
+    }.mapNotNull { slackWindowAround(augmented, it.time, thresholdKnots) } else emptyList()
+    return mergeWindows((windows + sampled).sortedBy { it.start })
 }
 
 /** Each rising or falling run's fastest sample, when it reaches `floorMetresPerHour`; a still sample ends a run. */

@@ -215,6 +215,46 @@ describe("slackWindowAround", () => {
   });
 });
 
+test("slack runs include a same-direction minimum below the threshold", () => {
+  for (const [speed, kind] of [
+    [0.2, "minFlood"],
+    [-0.2, "minEbb"],
+  ] as const) {
+    const event: CurrentEvent = { time: new Date(t0 + 10 * M), speed, kind };
+    const points = series([speed * 5, speed, speed * 5]);
+    expect(slackRuns(points, [event], 0.5)).toHaveLength(1);
+    expect(slackRuns(points, [event], 0.1)).toEqual([]);
+    expect(slackRuns(points, [event], 0)).toEqual([]);
+  }
+});
+
+test("slack runs include a minimum between out-of-band samples", () => {
+  const minimum: CurrentEvent = { time: new Date(t0 + 5 * M), speed: 0.2, kind: "minFlood" };
+  expect(slackRuns(series([1, 1]), [minimum], 0.5)).toHaveLength(1);
+});
+
+test("two minima stay separated by a faster maximum", () => {
+  const events: CurrentEvent[] = [
+    { time: new Date(t0 + 3 * M), speed: 0.2, kind: "minFlood" },
+    { time: new Date(t0 + 5 * M), speed: 1, kind: "maxFlood" },
+    { time: new Date(t0 + 7 * M), speed: 0.2, kind: "minFlood" },
+  ];
+  const runs = slackRuns(series([1, 1]), events, 0.5);
+  expect(runs).toHaveLength(2);
+  expect(runs[0].end.getTime()).toBeLessThan(t0 + 5 * M);
+  expect(runs[1].start.getTime()).toBeGreaterThan(t0 + 5 * M);
+});
+
+test("retains a low-speed window already open at the series edge", () => {
+  const runs = slackRuns(series([0.2, 0.4, 1]), [], 0.5);
+  expect(runs).toHaveLength(1);
+  expect(runs[0].start.getTime()).toBe(t0);
+});
+
+test("finds a sampled lull even when its event is not supplied", () => {
+  expect(slackRuns(series([1, 0.2, 1]), [], 0.5)).toHaveLength(1);
+});
+
 describe("slackRuns", () => {
   test("keeps a window shared by several slacks once", () => {
     const tl = series([1, 0.2, -0.2, 0.2, -0.2, -1]);
@@ -237,7 +277,7 @@ describe("slackRuns", () => {
   });
   test("keeps separate windows apart and skips slacks outside the series", () => {
     const runs = slackRuns(timeline, [...events, slackAt(t0 + 12 * H), slackAt(t0 - H)], 0.5);
-    expect(runs).toHaveLength(2);
+    expect(runs).toHaveLength(5);
   });
   test("a slack with no window is a zero-width window", () => {
     const slack = slackAt(t0 + 5 * M);
