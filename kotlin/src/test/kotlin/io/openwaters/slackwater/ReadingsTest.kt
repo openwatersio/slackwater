@@ -141,7 +141,7 @@ class ReadingsTest {
 
     @Test fun readCurrentNamesThePhase() {
         val crossflow = listOf(point(0.0, 0.0, 2.0, 90.0), point(1.0, -1.0, 2.0, 120.0))
-        assertEquals(CurrentReading(CurrentState.SLACK, 0.0, 2.0, 90.0), readCurrent(t0, crossflow, listOf(slackAt(t0)), 0.0, 180.0))
+        assertEquals(CurrentReading(CurrentState.FLOODING, 0.0, 2.0, 90.0), readCurrent(t0, crossflow, listOf(slackAt(t0)), 0.0, 180.0))
         assertEquals(CurrentState.SLACK, readCurrent(at(6 * h), sine, sineEvents, 45.0, 225.0)?.state)
         assertEquals(CurrentState.SLACK, readCurrent(at(6 * h + 1), sine, sineEvents, 45.0, 225.0)?.state)
         assertEquals(CurrentState.SLACK, readCurrent(at(6 * h - 1), sine, sineEvents, 45.0, 225.0)?.state)
@@ -266,9 +266,41 @@ class ReadingsTest {
             CurrentPoint(at(10 * m), -1.0, sqrt(2.0), 315.0))
         val event = slackAt(at(5 * m))
         assertTrue(slackRuns(points, listOf(event), 0.5).isEmpty())
+        assertNull(slackWindowAround(points, event.time, 0.5))
         val reading = assertNotNull(readCurrent(event.time, points, listOf(event), null, null))
         assertNotEquals(CurrentState.SLACK, reading.state)
         assertTrue(abs(reading.magnitudeKnots - 1) < 1e-6)
+    }
+
+    @Test fun rotaryWindowUsesFullVectorBoundaries() {
+        val magnitude = hypot(1.0, 0.2); val angle = atan2(1.0, 0.2) / D2R
+        val points = listOf(CurrentPoint(at(0.0), 1.0, magnitude, angle),
+            CurrentPoint(at(10 * m), -1.0, magnitude, 360 - angle))
+        val run = slackRuns(points, listOf(slackAt(at(5 * m))), 0.5).single()
+        assertTrue(currentWindows(points, listOf(slackAt(at(5 * m))), 0.5).single().slackTimes.isEmpty())
+        val half = 5 * m * sqrt(0.25 - 0.04)
+        assertTrue(abs(seconds(run.start) - (5 * m - half)) < 0.01)
+        assertTrue(abs(seconds(run.end) - (5 * m + half)) < 0.01)
+    }
+
+    @Test fun currentWindowsReportContainedSlacks() {
+        val slack = slackAt(at(10 * m))
+        assertEquals(listOf(slack.time), currentWindows(series(1.0, 0.0, -1.0), listOf(slack), 0.5).single().slackTimes)
+        assertTrue(currentWindows(series(1.0, 0.2, 1.0), emptyList(), 0.5).single().slackTimes.isEmpty())
+    }
+
+    @Test fun trueRotaryZeroIsIncludedInWindow() {
+        val magnitude = hypot(1.0, 0.3); val bearing = atan2(1.0, 0.3) / D2R
+        val points = listOf(CurrentPoint(at(0.0), 1.0, magnitude, bearing),
+            CurrentPoint(at(10 * m), -1.0, magnitude, bearing + 180))
+        val slack = slackAt(at(5 * m))
+        assertEquals(listOf(slack.time), currentWindows(points, listOf(slack), 0.5).single().slackTimes)
+    }
+
+    @Test fun singleRotarySampleUsesFullSpeed() {
+        val points = listOf(CurrentPoint(t0, 0.1, 0.3, 90.0))
+        assertEquals(listOf(SlackWindow(t0, t0)), slackRuns(points, emptyList(), 0.5))
+        assertTrue(slackRuns(points, emptyList(), 0.2).isEmpty())
     }
 
     @Test fun slackRunsMergeWindowsAroundSlacks() {
@@ -422,12 +454,12 @@ class ReadingsTest {
         }
         val events = v.array("events").map { it.obj().event() }
         val threshold = v.number("threshold")
-        assertEquals(79, v.array("readings").size)
+        assertEquals(63, v.array("readings").size)
         checkCurrent(v.array("readings"), timeline, events, v.number("floodDirection"), v.number("ebbDirection"))
         val windows = events.filter { it.kind == CurrentEventKind.SLACK }.mapNotNull { e ->
             slackWindowAround(timeline, e.time, threshold)?.let { e.time to it }
         }
-        assertEquals(8, v.array("windows").size)
+        assertEquals(0, v.array("windows").size)
         assertEquals(v.array("windows").size, windows.size)
         for ((actual, row) in windows.zip(v.array("windows"))) {
             val e = row.obj()
@@ -436,14 +468,27 @@ class ReadingsTest {
             assertTrue(sameTime(actual.second.end, e.instant("end")), e.string("slack"))
         }
         val runs = slackRuns(timeline, events, threshold)
-        assertEquals(5, v.array("runs").size)
+        assertEquals(4, v.array("runs").size)
         assertEquals(v.array("runs").size, runs.size)
         for ((actual, row) in runs.zip(v.array("runs"))) {
             val e = row.obj()
             assertTrue(sameTime(actual.start, e.instant("start")) && sameTime(actual.end, e.instant("end")), e.string("start"))
         }
 
+        fun checkWindows(actual: List<CurrentWindow>, expected: JsonArray) {
+            assertEquals(expected.size, actual.size)
+            for ((window, row) in actual.zip(expected)) {
+                val e = row.obj()
+                assertTrue(sameTime(window.start, e.instant("start")) && sameTime(window.end, e.instant("end")))
+                val slacks = e.array("slackTimes").map { Instant.parse(it.jsonPrimitive.content) }
+                assertEquals(slacks.size, window.slackTimes.size)
+                for ((time, expectedTime) in window.slackTimes.zip(slacks)) assertTrue(abs(secondsBetween(time, expectedTime)) < 0.5)
+            }
+        }
+        checkWindows(currentWindows(timeline, events, threshold), v.array("currentWindows"))
         val s = f.getValue("scalar").obj()
+        val scalarPoints = s.array("timeline").map { CurrentPoint(it.obj().instant("time"), it.obj().number("speed")) }
+        checkWindows(currentWindows(scalarPoints, s.array("events").map { it.obj().event() }, threshold), s.array("currentWindows"))
         assertEquals(6, s.array("readings").size)
         checkCurrent(s.array("readings"), s.array("timeline").map { CurrentPoint(it.obj().instant("time"), it.obj().number("speed")) },
             s.array("events").map { it.obj().event() }, s.number("flood"), s.number("ebb"))

@@ -6,6 +6,7 @@ import { findExtremes, findSlacks, evalH } from "./harmonics/extremes.js";
 import { createParamsFactory } from "./harmonics/params.js";
 import { getTimeline } from "./harmonics/index.js";
 import { bandCrossing } from "./readings/series.js";
+import { slackRuns } from "./readings/current.js";
 import type { HarmonicConstituent } from "./harmonics/index.js";
 import type { TimeSpan } from "./index.js";
 
@@ -31,6 +32,8 @@ export interface CurrentEvent {
   /** Signed knots. Slack events carry the residual near-zero root value. */
   speed: number;
   kind: CurrentEventKind;
+  /** True when the full harmonic vector was checked at a zero-current event. */
+  verifiedZero?: boolean;
   /**
    * Flood or ebb direction in degrees true. Absent for slack, and absent
    * when the station publishes no direction for that phase.
@@ -69,6 +72,8 @@ export interface CurrentPredictor {
   getTimelinePrediction: (input: CurrentTimelineInput) => CurrentPoint[];
   /** Slack and flood/ebb maxima and minima in time order. */
   getEventsPrediction: (input: TimeSpan) => CurrentEvent[];
+  /** @internal Major-axis events used only to reduce a subordinate station. */
+  getAxisEventsForReduction?: (input: TimeSpan) => CurrentEvent[];
 }
 
 /** Maxima below this prominence (knots) are relaxation noise, as for tides. */
@@ -167,7 +172,7 @@ export function createCurrentPredictor(
    * All events inside one search window. Velocity extrema are classified by slope and sign: same-sign lulls
    * are minimum flood/ebb, while slacks remain velocity zero crossings.
    */
-  function eventsInWindow(from: Date, to: Date): CurrentEvent[] {
+  function eventsInWindow(from: Date, to: Date, axisOnly = false): CurrentEvent[] {
     const { startMs, endHour, correctedParams } = windowParams(from, to);
 
     const maxima = findExtremes(0, endHour, {
@@ -192,16 +197,71 @@ export function createCurrentPredictor(
         : { time, speed: level, kind: high ? "minEbb" : "maxEbb", ...withDirection(ebbDirection) },
     );
 
-    const slacks = findSlacks(0, endHour, { startMs, getParams: correctedParams() }).map(
-      ({ time, speed }): CurrentEvent => ({ time, speed, kind: "slack" }),
+    const minorParams = hasMinor
+      ? createParamsFactory({
+          constituents: minor,
+          constituentModels: models,
+          fundamentals,
+          start: new Date(startMs),
+          endHour,
+        })
+      : undefined;
+    const majorParams = correctedParams();
+    const slacks = findSlacks(0, endHour, { startMs, getParams: majorParams }).flatMap(
+      ({ time, speed }): CurrentEvent[] => {
+        if (axisOnly || !minorParams) return [{ time, speed, kind: "slack" }];
+        const hour = (time.getTime() - startMs) / 3_600_000;
+        const majorAtEvent = correctedParams()(hour);
+        const minorAtEvent = minorParams()(hour);
+        let lo = hour - 1 / 3600,
+          hi = hour + 1 / 3600;
+        const initial = evalH(lo, majorAtEvent);
+        for (let i = 0; i < 40; i++) {
+          const mid = (lo + hi) / 2;
+          if (evalH(mid, majorAtEvent) > 0 === initial > 0) lo = mid;
+          else hi = mid;
+        }
+        const root = (lo + hi) / 2;
+        return Math.abs(evalH(root, minorAtEvent)) < 1e-7
+          ? [
+              {
+                time: new Date(startMs + root * 3_600_000),
+                speed: evalH(root, majorAtEvent),
+                kind: "slack",
+                verifiedZero: true,
+              },
+            ]
+          : [];
+      },
     );
 
     return [...slacks, ...maxima].sort(byTime);
   }
 
+  function eventsByDay({ start, end }: TimeSpan, axisOnly: boolean): CurrentEvent[] {
+    checkTimeSpan({ start, end });
+    const first = Math.floor(start.getTime() / DAY_MS);
+    const last = Math.floor(end.getTime() / DAY_MS);
+    const results: CurrentEvent[] = [];
+    for (let day = first; day <= last; day++) {
+      const dayStart = day * DAY_MS;
+      const dayEnd = dayStart + DAY_MS;
+      for (const event of eventsInWindow(
+        new Date(dayStart - DAY_MARGIN_MS),
+        new Date(dayEnd + DAY_MARGIN_MS),
+        axisOnly,
+      )) {
+        const t = event.time.getTime();
+        if (t >= dayStart && t < dayEnd) results.push(event);
+      }
+    }
+    return results;
+  }
+
   return {
     floodDirection,
     ebbDirection,
+    getAxisEventsForReduction: (span: TimeSpan) => eventsByDay(span, true),
 
     getTimelinePrediction({ start, end, timeFidelity }: CurrentTimelineInput): CurrentPoint[] {
       checkTimeSpan({ start, end });
@@ -246,24 +306,8 @@ export function createCurrentPredictor(
      * depends on the range asked for; a single-window search does, because
      * slacks are found from the window's own start.
      */
-    getEventsPrediction({ start, end }: TimeSpan): CurrentEvent[] {
-      checkTimeSpan({ start, end });
-      const first = Math.floor(start.getTime() / DAY_MS);
-      const last = Math.floor(end.getTime() / DAY_MS);
-
-      const results: CurrentEvent[] = [];
-      for (let day = first; day <= last; day++) {
-        const dayStart = day * DAY_MS;
-        const dayEnd = dayStart + DAY_MS;
-        for (const event of eventsInWindow(
-          new Date(dayStart - DAY_MARGIN_MS),
-          new Date(dayEnd + DAY_MARGIN_MS),
-        )) {
-          const t = event.time.getTime();
-          if (t >= dayStart && t < dayEnd) results.push(event);
-        }
-      }
-      return results;
+    getEventsPrediction(span: TimeSpan): CurrentEvent[] {
+      return eventsByDay(span, false);
     },
   };
 }
@@ -390,7 +434,7 @@ export function createSubordinateCurrentPredictor(
 
   function getEventsPrediction({ start, end }: TimeSpan): CurrentEvent[] {
     checkTimeSpan({ start, end });
-    const refEvents = reference.getEventsPrediction({
+    const refEvents = (reference.getAxisEventsForReduction ?? reference.getEventsPrediction)({
       start: new Date(start.getTime() - eventPadMs),
       end: new Date(end.getTime() + eventPadMs),
     });
@@ -432,14 +476,16 @@ export interface SlackWindow {
 }
 
 /**
- * The runs of time when |speed| stays below `threshold` knots around a
- * a slack or a same-direction lull. Endpoints are interpolated ±threshold
- * band crossings. A window still open at the frame edge ends at the edge.
+ * The runs of time when full current speed stays below `threshold` knots.
+ * Endpoints are interpolated threshold crossings. A window still open at the frame edge ends at the edge.
  */
 export function slackWindows(
-  timeline: Pick<CurrentPoint, "time" | "speed">[],
+  timeline: Pick<CurrentPoint, "time" | "speed" | "magnitude" | "direction">[],
   threshold: number,
 ): SlackWindow[] {
+  if (timeline.some((p) => p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9)) {
+    return slackRuns(timeline, [], threshold);
+  }
   if (timeline.length === 0) return [];
 
   // Signed distance out of the band — negative inside, zero at the edge.

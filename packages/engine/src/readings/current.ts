@@ -135,7 +135,19 @@ export function readCurrent(
   const vector = vectorAt(timeline, time, directions);
   if (speed === undefined || vector === undefined) return undefined;
   const near = (e: CurrentEvent) => Math.abs(e.time.getTime() - time.getTime()) <= 1000;
-  if (events.some((e) => e.kind === "slack" && near(e))) {
+  const rotary = timeline.some(
+    (p) => p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9,
+  );
+  if (
+    events.some(
+      (e) =>
+        e.kind === "slack" &&
+        near(e) &&
+        (e.verifiedZero ||
+          !rotary ||
+          (vectorAt(timeline, e.time, directions)?.magnitude ?? Infinity) < 1e-9),
+    )
+  ) {
     return { state: "Slack", speed, ...vector };
   }
   const max = events.find((e) => e.kind !== "slack" && near(e));
@@ -161,15 +173,18 @@ export function maxSpeeds(
   return events.filter((e) => e.kind === kind).map((e) => Math.abs(e.speed));
 }
 
-/** The default major-axis speed threshold for slack windows, in knots. */
+/** The default full-speed threshold for slack windows, in knots. */
 export const DEFAULT_SLACK_THRESHOLD = 0.5;
 
-/** The workable window around one slack: where |speed| stays within `threshold`, clamped to the series and holding the slack itself; undefined when the instant is outside the series or the samples do not reach the threshold. */
+/** The workable window around one slack: where full current speed stays within `threshold`, clamped to the series and holding the slack itself; undefined when the instant is outside the series or the samples do not reach the threshold. */
 export function slackWindowAround(
-  timeline: Pick<CurrentPoint, "time" | "speed">[],
+  timeline: CurrentSample[],
   slack: Date,
   threshold: number,
 ): SlackWindow | undefined {
+  if (timeline.some((p) => p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9)) {
+    return rotaryWindows(timeline, threshold).find((w) => w.start <= slack && slack <= w.end);
+  }
   const n = timeline.length;
   const at = slack.getTime();
   if (
@@ -210,12 +225,82 @@ export function slackWindowAround(
   };
 }
 
+function rotaryWindows(timeline: CurrentSample[], threshold: number): SlackWindow[] {
+  if (threshold <= 0 || timeline.length === 0) return [];
+  const windows: SlackWindow[] = [];
+  if (timeline.length === 1)
+    return (timeline[0].magnitude ?? Math.abs(timeline[0].speed)) <= threshold
+      ? [{ start: timeline[0].time, end: timeline[0].time }]
+      : [];
+  for (let i = 0; i < timeline.length - 1; i++) {
+    const pair = timeline.slice(i, i + 2);
+    const start = pair[0].time.getTime(),
+      duration = pair[1].time.getTime() - start;
+    if (duration <= 0) continue;
+    const speed = (f: number) => vectorAt(pair, new Date(start + duration * f), {})!.magnitude;
+    const q0 = speed(0) ** 2,
+      qm = speed(0.5) ** 2,
+      q1 = speed(1) ** 2;
+    const a = 2 * (q0 + q1 - 2 * qm),
+      b = q1 - q0 - a;
+    const mid = a > 1e-15 ? Math.max(0, Math.min(1, -b / (2 * a))) : q0 <= q1 ? 0 : 1;
+    if (speed(mid) > threshold) continue;
+    const edge = (lo: number, hi: number, insideAtHi: boolean) => {
+      for (let n = 0; n < 32; n++) {
+        const f = (lo + hi) / 2;
+        if (speed(f) <= threshold === insideAtHi) hi = f;
+        else lo = f;
+      }
+      return (lo + hi) / 2;
+    };
+    const left = speed(0) <= threshold ? 0 : edge(0, mid, true);
+    const right = speed(1) <= threshold ? 1 : edge(mid, 1, false);
+    const next = {
+      start: new Date(start + duration * left),
+      end: new Date(start + duration * right),
+    };
+    const previous = windows.at(-1);
+    if (previous && next.start <= previous.end) previous.end = next.end;
+    else windows.push(next);
+  }
+  return windows;
+}
+
+/** A comfort-current window and the zero-current events it contains. */
+export interface CurrentWindow extends SlackWindow {
+  slackTimes: Date[];
+}
+
+/** Measured windows with the actual slack moments falling inside each one. */
+export function currentWindows(
+  timeline: CurrentSample[],
+  events: CurrentEvent[],
+  threshold: number,
+): CurrentWindow[] {
+  if (threshold <= 0) return [];
+  return slackRuns(timeline, events, threshold).map((window) => ({
+    ...window,
+    slackTimes: events
+      .filter(
+        (event) =>
+          event.kind === "slack" &&
+          event.time >= window.start &&
+          event.time <= window.end &&
+          readCurrent(event.time, timeline, [event], {})?.state === "Slack",
+      )
+      .map((event) => event.time),
+  }));
+}
+
 /** Windows around slack events and qualifying minima, merged into runs; a slack with no window stays an exact instant. */
 export function slackRuns(
-  timeline: Pick<CurrentPoint, "time" | "speed">[],
+  timeline: CurrentSample[],
   events: CurrentEvent[],
   threshold: number,
 ): SlackWindow[] {
+  if (timeline.some((p) => p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9)) {
+    return rotaryWindows(timeline, threshold);
+  }
   const first = timeline[0]?.time.getTime();
   const last = timeline[timeline.length - 1]?.time.getTime();
   const extrema = events.filter(

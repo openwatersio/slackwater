@@ -73,7 +73,7 @@ const timeline = predictionCommand("timeline", "Get a current speed timeline for
 
 const slack = predictionCommand(
   "slack",
-  "Get slack windows around reversals when the flood/ebb speed stays below a threshold",
+  "Get slack windows where full current speed stays below a threshold",
   72,
 )
   .option("-t, --threshold <knots>", "flood/ebb speed limit in knots", "0.5")

@@ -6,6 +6,7 @@ import {
   compassIndex,
   maxSpeeds,
   readCurrent,
+  currentWindows,
   slackRuns,
   slackWindowAround,
   speedAt,
@@ -47,7 +48,7 @@ describe("vector readings", () => {
   test("keeps crossflow and its set at a flood/ebb zero", () => {
     const tl = [point(0, 0, 2, 90), point(1, -1, 2, 120)];
     const reading = readCurrent(new Date(t0), tl, [slackAt(t0)], { flood: 0, ebb: 180 })!;
-    expect(reading).toMatchObject({ state: "Slack", speed: 0, magnitude: 2, direction: 90 });
+    expect(reading).toMatchObject({ state: "Flooding", speed: 0, magnitude: 2, direction: 90 });
   });
   test("interpolates vectors through north rather than turning south", () => {
     const reading = readCurrent(
@@ -262,10 +263,53 @@ test("a rotating current above the comfort speed has no window or slack reading 
   ];
   const slack = slackAt(t0 + 5 * M);
   expect(slackRuns(points, [slack], 0.5)).toEqual([]);
+  expect(slackWindowAround(points, slack.time, 0.5)).toBeUndefined();
   const reading = readCurrent(slack.time, points, [slack], {});
   expect(reading?.state).not.toBe("Slack");
   expect(reading?.magnitude).toBeCloseTo(1);
   expect(reading?.direction).toBeCloseTo(0);
+});
+
+test("rotary window boundaries use the full vector speed", () => {
+  const magnitude = Math.hypot(1, 0.2);
+  const angle = (Math.atan2(1, 0.2) * 180) / Math.PI;
+  const points = [
+    { time: new Date(t0), speed: 1, magnitude, direction: angle },
+    { time: new Date(t0 + 10 * M), speed: -1, magnitude, direction: 360 - angle },
+  ];
+  const runs = slackRuns(points, [slackAt(t0 + 5 * M)], 0.5);
+  expect(runs).toHaveLength(1);
+  expect(currentWindows(points, [slackAt(t0 + 5 * M)], 0.5)[0].slackTimes).toEqual([]);
+  const halfWidth = 5 * M * Math.sqrt(0.25 - 0.04);
+  expect(runs[0].start.getTime()).toBeCloseTo(t0 + 5 * M - halfWidth, -1);
+  expect(runs[0].end.getTime()).toBeCloseTo(t0 + 5 * M + halfWidth, -1);
+});
+
+test("current windows report their contained slack events", () => {
+  const slack = slackAt(t0 + 10 * M);
+  const withSlack = currentWindows(series([1, 0, -1]), [slack], 0.5);
+  expect(withSlack).toHaveLength(1);
+  expect(withSlack[0].slackTimes).toEqual([slack.time]);
+  const lull = currentWindows(series([1, 0.2, 1]), [], 0.5);
+  expect(lull).toHaveLength(1);
+  expect(lull[0].slackTimes).toEqual([]);
+});
+
+test("a true zero-vector event is included in its rotary window", () => {
+  const magnitude = Math.hypot(1, 0.3),
+    bearing = (Math.atan2(1, 0.3) * 180) / Math.PI;
+  const points = [
+    { time: new Date(t0), speed: 1, magnitude, direction: bearing },
+    { time: new Date(t0 + 10 * M), speed: -1, magnitude, direction: bearing + 180 },
+  ];
+  const slack = slackAt(t0 + 5 * M);
+  expect(currentWindows(points, [slack], 0.5)[0].slackTimes).toEqual([slack.time]);
+});
+
+test("a single rotary sample only forms a window when it meets the threshold", () => {
+  const points = [{ time: new Date(t0), speed: 0.1, magnitude: 0.3, direction: 90 }];
+  expect(slackRuns(points, [], 0.5)).toEqual([{ start: points[0].time, end: points[0].time }]);
+  expect(slackRuns(points, [], 0.2)).toEqual([]);
 });
 
 describe("slackRuns", () => {

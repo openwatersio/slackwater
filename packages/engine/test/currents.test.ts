@@ -5,6 +5,7 @@ import {
   reduceCurrentEvents,
   currentSpeedAt,
   slackWindows,
+  currentWindows,
   type CurrentEvent,
   type CurrentPoint,
   type CurrentPredictor,
@@ -44,6 +45,52 @@ describe("findSlacks", () => {
     const params = [{ A: 0.5, w: 0, phi: 0 }];
     expect(findSlacks(0, 48, { startMs: 0, getParams: () => params })).toEqual([]);
   });
+});
+
+test("a constant cross-current prevents zero-current slack events", () => {
+  const station = createCurrentPredictor([{ name: "S2", amplitude: 1, phase: 0 }], {
+    minorMeanFlow: 1,
+  });
+  const start = new Date("2026-01-01T00:00:00Z"),
+    end = new Date("2026-01-02T00:00:00Z");
+  expect(
+    station.getEventsPrediction({ start, end }).filter((event) => event.kind === "slack"),
+  ).toEqual([]);
+});
+
+test("a rotating prediction retains simultaneous zero-current slack events", () => {
+  const c = [{ name: "M2", amplitude: 1, phase: 0 }];
+  const station = createCurrentPredictor(c, { minorConstituents: c });
+  const start = new Date("2026-01-01T00:00:00Z"),
+    end = new Date("2026-01-04T00:00:00Z");
+  const actual = station
+    .getEventsPrediction({ start, end })
+    .filter((event) => event.kind === "slack");
+  const axial = createCurrentPredictor(c, {})
+    .getEventsPrediction({ start, end })
+    .filter((event) => event.kind === "slack");
+  expect(actual).toHaveLength(axial.length);
+  expect(actual.length).toBeGreaterThan(0);
+  for (let i = 0; i < actual.length; i++)
+    expect(Math.abs(actual[i].time.getTime() - axial[i].time.getTime())).toBeLessThan(500);
+});
+
+test("a predicted true rotary slack is associated with its full-speed window", () => {
+  const c = [{ name: "M2", amplitude: 1, phase: 37 }];
+  const station = createCurrentPredictor(c, { minorConstituents: c, azimuth: 0 });
+  const start = new Date("2026-01-01T00:00:00Z"),
+    end = new Date("2026-01-02T00:00:00Z");
+  const events = station.getEventsPrediction({ start, end });
+  const timeline = station.getTimelinePrediction({ start, end, timeFidelity: 600 });
+  const slack = events.find(
+    (event) => event.kind === "slack" && event.time >= start && event.time <= end,
+  )!;
+  expect(slack).toBeDefined();
+  expect(
+    currentWindows(timeline, events, 0.5).some((window) =>
+      window.slackTimes.some((time) => time.getTime() === slack.time.getTime()),
+    ),
+  ).toBe(true);
 });
 
 describe("createCurrentPredictor", () => {
@@ -414,6 +461,20 @@ describe("slackWindows", () => {
     expect(windows.length).toBe(1);
     expect(windows[0].start.getTime()).toBeCloseTo(hours(0.85 / 0.9), -2);
     expect(windows[0].end.getTime()).toBeCloseTo(hours(1 + 0.05 / 0.9), -2);
+  });
+
+  test("the threshold applies to full rotary speed, including cross-flow", () => {
+    const magnitude = Math.SQRT2;
+    const points = [sample(0, 1), sample(1, -1)].map((point, index) => ({
+      ...point,
+      magnitude,
+      direction: index === 0 ? 45 : 315,
+    }));
+    expect(slackWindows(points, 0.5)).toEqual([]);
+    const window = slackWindows(points, 1.1);
+    expect(window).toHaveLength(1);
+    expect(window[0].start.getTime()).toBeLessThan(hours(0.5));
+    expect(window[0].end.getTime()).toBeGreaterThan(hours(0.5));
   });
 
   test("a lull below the threshold is a window even without reversal", () => {

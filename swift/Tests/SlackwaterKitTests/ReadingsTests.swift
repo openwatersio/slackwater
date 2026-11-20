@@ -107,7 +107,7 @@ private func seconds(_ date: Date?) -> Double { date?.timeIntervalSince(t0) ?? .
 @Test func readCurrentNamesThePhase() throws {
     let crossflow = [point(0, 0, 2, 90), point(1, -1, 2, 120)]
     #expect(readCurrent(at: t0, timeline: crossflow, events: [slackAt(t0)], flood: 0, ebb: 180)
-        == CurrentReading(state: .slack, speed: 0, magnitude: 2, direction: 90))
+        == CurrentReading(state: .flooding, speed: 0, magnitude: 2, direction: 90))
     #expect(readCurrent(at: at(6 * H), timeline: sine, events: sineEvents, flood: 45, ebb: 225)?.state == .slack)
     #expect(readCurrent(at: at(6 * H + 1), timeline: sine, events: sineEvents, flood: 45, ebb: 225)?.state == .slack)
     #expect(readCurrent(at: at(6 * H + 1.001), timeline: sine, events: sineEvents, flood: 45, ebb: 225)?.state == .ebbing)
@@ -218,9 +218,43 @@ private func seconds(_ date: Date?) -> Double { date?.timeIntervalSince(t0) ?? .
                   CurrentPoint(time: at(10 * M), speed: -1, magnitude: sqrt(2), direction: 315)]
     let event = slackAt(at(5 * M))
     #expect(slackRuns(points, events: [event], threshold: 0.5).isEmpty)
+    #expect(slackWindow(points, around: event.time, threshold: 0.5) == nil)
     let reading = try #require(readCurrent(at: event.time, timeline: points, events: [event], flood: nil, ebb: nil))
     #expect(reading.state != .slack)
     #expect(abs(reading.magnitude - 1) < 1e-6)
+}
+
+@Test func rotaryWindowUsesFullVectorBoundaries() throws {
+    let magnitude = hypot(1, 0.2), angle = atan2(1.0, 0.2) * 180 / Double.pi
+    let points = [CurrentPoint(time: at(0), speed: 1, magnitude: magnitude, direction: angle),
+                  CurrentPoint(time: at(10 * M), speed: -1, magnitude: magnitude, direction: 360 - angle)]
+    let run = try #require(slackRuns(points, events: [slackAt(at(5 * M))], threshold: 0.5).first)
+    #expect(try #require(currentWindows(points, events: [slackAt(at(5 * M))], threshold: 0.5).first).slackTimes.isEmpty)
+    let half = 5 * M * sqrt(0.25 - 0.04)
+    #expect(abs(run.start.timeIntervalSince(at(5 * M - half))) < 0.01)
+    #expect(abs(run.end.timeIntervalSince(at(5 * M + half))) < 0.01)
+}
+
+@Test func currentWindowsReportContainedSlacks() throws {
+    let slack = slackAt(at(10 * M))
+    let window = try #require(currentWindows(series([1, 0, -1]), events: [slack], threshold: 0.5).first)
+    #expect(window.slackTimes == [slack.time])
+    let lull = try #require(currentWindows(series([1, 0.2, 1]), events: [], threshold: 0.5).first)
+    #expect(lull.slackTimes.isEmpty)
+}
+
+@Test func trueRotaryZeroIsIncludedInWindow() throws {
+    let magnitude = hypot(1, 0.3), bearing = atan2(1.0, 0.3) * 180 / Double.pi
+    let points = [CurrentPoint(time: at(0), speed: 1, magnitude: magnitude, direction: bearing),
+                  CurrentPoint(time: at(10 * M), speed: -1, magnitude: magnitude, direction: bearing + 180)]
+    let slack = slackAt(at(5 * M))
+    #expect(try #require(currentWindows(points, events: [slack], threshold: 0.5).first).slackTimes == [slack.time])
+}
+
+@Test func singleRotarySampleUsesFullSpeed() {
+    let points = [CurrentPoint(time: t0, speed: 0.1, magnitude: 0.3, direction: 90)]
+    #expect(slackRuns(points, events: [], threshold: 0.5) == [SlackWindow(start: t0, end: t0)])
+    #expect(slackRuns(points, events: [], threshold: 0.2).isEmpty)
 }
 
 @Test func slackRunsMergeWindowsAroundSlacks() throws {
@@ -319,14 +353,15 @@ private struct ReadingsFixture: Decodable {
     struct Reading: Decodable { let time: String; let state: String; let speed: Double; let magnitude: Double; let direction: Double? }
     struct Span: Decodable { let start: String; let end: String }
     struct Window: Decodable { let slack: String; let start: String; let end: String }
+    struct CurrentWindowFixture: Decodable { let start: String; let end: String; let slackTimes: [String] }
     struct Vector: Decodable {
         let floodDirection: Double; let ebbDirection: Double; let threshold: Double
-        let timeline: [P]; let events: [Event]; let runs: [Span]; let windows: [Window]; let readings: [Reading]
+        let timeline: [P]; let events: [Event]; let runs: [Span]; let windows: [Window]; let currentWindows: [CurrentWindowFixture]; let readings: [Reading]
         struct P: Decodable { let time: String; let speed: Double; let magnitude: Double; let direction: Double? }
     }
     struct Scalar: Decodable {
         let flood: Double; let ebb: Double
-        let timeline: [P]; let events: [Event]; let readings: [Reading]
+        let timeline: [P]; let events: [Event]; let currentWindows: [CurrentWindowFixture]; let readings: [Reading]
         struct P: Decodable { let time: String; let speed: Double }
     }
     struct Tide: Decodable {
@@ -384,7 +419,7 @@ private func checkCurrent(_ expected: [ReadingsFixture.Reading], timeline: [Curr
         CurrentPoint(time: parseISO($0.time), speed: $0.speed, magnitude: $0.magnitude, direction: $0.direction)
     }
     let events = try v.events.map { try $0.event }
-    #expect(v.readings.count == 79)
+    #expect(v.readings.count == 63)
     try checkCurrent(v.readings, timeline: timeline, events: events, flood: v.floodDirection, ebb: v.ebbDirection)
     let windows = events.filter { $0.kind == .slack }.compactMap { e in
         slackWindow(timeline, around: e.time, threshold: v.threshold).map { (slack: e.time, window: $0) }
@@ -400,7 +435,22 @@ private func checkCurrent(_ expected: [ReadingsFixture.Reading], timeline: [Curr
         #expect(sameTime(actual.start, expected.start) && sameTime(actual.end, expected.end), "\(expected.start)")
     }
 
+    let annotated = currentWindows(timeline, events: events, threshold: v.threshold)
+    #expect(annotated.count == v.currentWindows.count)
+    for (actual, expected) in zip(annotated, v.currentWindows) {
+        #expect(sameTime(actual.start, expected.start) && sameTime(actual.end, expected.end))
+        #expect(actual.slackTimes.count == expected.slackTimes.count)
+        for (time, expectedTime) in zip(actual.slackTimes, expected.slackTimes) { #expect(sameTime(time, expectedTime)) }
+    }
     let s = f.scalar
+    let scalarPoints = s.timeline.map { CurrentPoint(time: parseISO($0.time), speed: $0.speed) }
+    let scalarWindows = currentWindows(scalarPoints, events: try s.events.map { try $0.event }, threshold: v.threshold)
+    #expect(scalarWindows.count == s.currentWindows.count)
+    for (actual, expected) in zip(scalarWindows, s.currentWindows) {
+        #expect(sameTime(actual.start, expected.start) && sameTime(actual.end, expected.end))
+        #expect(actual.slackTimes.count == expected.slackTimes.count)
+        for (time, expectedTime) in zip(actual.slackTimes, expected.slackTimes) { #expect(sameTime(time, expectedTime)) }
+    }
     #expect(s.readings.count == 6)
     try checkCurrent(s.readings, timeline: s.timeline.map { CurrentPoint(time: parseISO($0.time), speed: $0.speed) },
                      events: try s.events.map { try $0.event }, flood: s.flood, ebb: s.ebb)

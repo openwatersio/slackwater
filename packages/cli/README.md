@@ -117,7 +117,7 @@ Options:
 
 ### Tidal currents
 
-Current commands live under `slackwater currents`. Speed columns and slack thresholds are the flood/ebb speed, in knots along the station's flood axis: in JSON, positive is flood and negative is ebb. Only the timeline's Full speed column, and `magnitude` in JSON, is the water's full speed. Directions are in degrees true. Times are shown in the station's time zone.
+Current commands live under `slackwater currents`. Flood/ebb speed columns are signed along the station’s flood axis: in JSON, positive is flood and negative is ebb. The timeline’s Full speed column, `magnitude` in JSON, and slack-window thresholds use the full current speed in knots. Directions are in degrees true. Times are shown in the station's time zone.
 
 Get slack, maximum flood/ebb, and minimum flood/ebb lulls (the default subcommand, so `slackwater currents` and `slackwater currents events` are the same):
 

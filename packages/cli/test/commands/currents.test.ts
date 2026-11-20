@@ -91,11 +91,11 @@ describe("slackwater currents", () => {
 });
 
 describe("slackwater currents events", () => {
-  test("shows slack, max flood, and max ebb with speed and direction", async () => {
+  test("shows extrema with speed and direction at a rotary station", async () => {
     const { stdout } = await run(["currents", "events", "--station", "noaa/PUG1701", ...span]);
     expect(stdout).toContain("Deception Pass (Narrows)");
     expect(stdout).toContain("noaa/PUG1701  ·  knots  ·  flood 102°T  ·  ebb 282°T");
-    expect(stdout).toMatch(/│\s*Slack\s*│/);
+    expect(stdout).not.toMatch(/│\s*Slack\s*│/);
     expect(stdout).not.toMatch(/axis/i);
     expect(stdout).toMatch(/Max flood\s*│\s*\d+\.\d kn\s*│\s*102°T/);
     expect(stdout).toMatch(/Max ebb\s*│\s*\d+\.\d kn\s*│\s*282°T/);
@@ -114,11 +114,11 @@ describe("slackwater currents events", () => {
     expect(data).not.toHaveProperty("distance");
 
     const events: Event[] = data.events;
-    expect(new Set(events.map((e) => e.kind))).toEqual(new Set(["slack", "maxFlood", "maxEbb"]));
+    expect(new Set(events.map((e) => e.kind))).toEqual(new Set(["maxFlood", "maxEbb"]));
     expect(events.find((e) => e.kind === "maxFlood")!.speed).toBeGreaterThan(0);
     expect(events.find((e) => e.kind === "maxFlood")!.direction).toBe(101.5);
     expect(events.find((e) => e.kind === "maxEbb")!.speed).toBeLessThan(0);
-    expect(events.find((e) => e.kind === "slack")).not.toHaveProperty("direction");
+    expect(events.find((e) => e.kind === "slack")).toBeUndefined();
   });
 
   test("returns only events inside start and end", async () => {

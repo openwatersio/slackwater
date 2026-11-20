@@ -167,7 +167,7 @@ A single object is returned with:
 
 ## Current prediction
 
-A tidal current station is the same sum of cosines as a tide station, read as signed velocity along the flood axis in knots: positive is flood, negative is ebb, zero is slack. Constituent amplitudes are NOAA major-axis amplitudes in knots and phases are `majorPhaseGMT` in degrees.
+A tidal current station is the same sum of cosines as a tide station, read as signed velocity along the flood axis in knots: positive is flood and negative is ebb. Slack requires the full current vector to reach zero. Constituent amplitudes are NOAA major-axis amplitudes in knots and phases are `majorPhaseGMT` in degrees.
 
 ```ts
 import { createCurrentPredictor } from "@slackwater/engine";
@@ -192,7 +192,7 @@ For two-dimensional predictions, pass `minorConstituents` (NOAA `minorAmplitude`
 
 `createCurrentPredictor` also takes `nodeCorrections` and `definitions`, as `createTidePredictor` does.
 
-Empty minor arrays, unknown constituent names, and zero minor amplitudes without mean cross-flow use the one-axis fallback. Without minor-axis data, every timeline point has `magnitude: abs(speed)` and the published flood or ebb direction for its sign. Subordinates use their own phase directions. A zero vector has no direction; a vector whose azimuth is unknown also has no direction. In a rotary current, a major-axis slack can have nonzero magnitude and a direction. Events and `slackWindows` always use the major axis. The `CurrentPoint` type permits caller-synthesized points without `magnitude`; engine timelines always supply it.
+Empty minor arrays, unknown constituent names, and zero minor amplitudes without mean cross-flow use the one-axis fallback. Without minor-axis data, every timeline point has `magnitude: abs(speed)` and the published flood or ebb direction for its sign. Subordinates use their own phase directions. A zero vector has no direction; a vector whose azimuth is unknown also has no direction. In a rotary current, a major-axis crossing can have nonzero magnitude and direction, so it is not a slack event. Extrema describe the major axis; slack windows use full speed. The `CurrentPoint` type permits caller-synthesized points without `magnitude`; engine timelines always supply it.
 
 ```ts
 const rotary = createCurrentPredictor(constituents, {
@@ -226,9 +226,9 @@ A subordinate's timeline is a half-cosine drawn through its event knots — a dr
 
 Database and caller-supplied station records can include `current.minor_constituents`, `current.minor_mean_flow`, and `current.azimuth`. NOAA harmonic records supply published minor-axis data for vector timelines. Records without effective minor data and subordinate stations use the one-axis fallback.
 
-`slackWindows(timeline, threshold)` returns runs where |speed| stays below `threshold` knots, including same-direction lulls, with interpolated band crossings. A window still open at the frame edge is kept and ends at the edge. A lull is not a zero-current slack event.
+`slackWindows(timeline, threshold)` returns runs where full current speed stays below `threshold` knots, including same-direction lulls, with interpolated crossings. A window still open at the frame edge is kept and ends at the edge. A lull is not a zero-current slack event.
 
-`slackRuns(timeline, events, threshold)` measures around slack events and minima below the threshold. A slack is retained even when no window can be measured; a qualifying minimum is inserted into the sampled series so a narrow lull between samples is retained. `slackWindows` needs no events and reports sampled low-speed runs. On a sample step that holds both the reversal and the band edge, `slackWindows` interpolates the absolute speed and the event-centred pair interpolate the signed speed, so their edges can differ there by a fraction of a sample.
+`slackRuns(timeline, events, threshold)` finds windows from sampled speed and predicted events. `currentWindows(timeline, events, threshold)` also returns each window’s contained `slackTimes`. A slack is retained even when no window can be measured; a qualifying minimum is inserted into the sampled series so a narrow lull between samples is retained. `slackWindows` needs no events and reports sampled low-speed runs. On a sample step that holds both the reversal and the band edge, `slackWindows` interpolates the absolute speed and the event-centred pair interpolate the signed speed, so their edges can differ there by a fraction of a sample.
 
 ## Readings
 

@@ -144,7 +144,9 @@ fun readCurrent(time: Instant, timeline: List<CurrentPoint>, events: List<Curren
     val vector = timeline.vectorAt(time, floodDirectionDegrees, ebbDirectionDegrees) ?: return null
     val event = events.firstOrNull { it.kind != CurrentEventKind.SLACK && withinOneSecond(it.time, time) }
     val state = when {
-        events.any { it.kind == CurrentEventKind.SLACK && withinOneSecond(it.time, time) } -> CurrentState.SLACK
+        events.any { it.kind == CurrentEventKind.SLACK && withinOneSecond(it.time, time) &&
+            (it.verifiedZero || timeline.none { point -> point.magnitudeKnots > abs(point.speedKnots) + 1e-9 } ||
+                (timeline.vectorAt(it.time, floodDirectionDegrees, ebbDirectionDegrees)?.magnitudeKnots ?: Double.POSITIVE_INFINITY) < 1e-9) } -> CurrentState.SLACK
         event != null -> when (event.kind) {
             CurrentEventKind.MAX_FLOOD -> CurrentState.MAX_FLOOD
             CurrentEventKind.MAX_EBB -> CurrentState.MAX_EBB
@@ -184,7 +186,7 @@ fun compassPoint(degrees: Double): String = COMPASS_POINTS[compassIndex(degrees)
 /** One kind's maxima as unsigned speeds, so floods rank against floods and ebbs against ebbs. */
 fun List<CurrentEvent>.maxSpeeds(kind: CurrentEventKind): List<Double> = filter { it.kind == kind && (kind == CurrentEventKind.MAX_FLOOD || kind == CurrentEventKind.MAX_EBB) }.map { abs(it.speedKnots) }
 
-/** The default major-axis speed threshold for slack windows, in knots. */
+/** The default full current speed threshold for slack windows, in knots. */
 const val DEFAULT_SLACK_THRESHOLD_KNOTS = 0.5
 
 /** A span of workable water around one or more slacks. */
@@ -201,11 +203,14 @@ private fun bandCrossing(a: CurrentPoint, b: CurrentPoint, threshold: Double): I
 }
 
 /**
- * The workable window around a slack: where |speed| stays within `thresholdKnots`, clamped to the series and widened
+ * The workable window around a slack: where full current speed stays within `thresholdKnots`, clamped to the series and widened
  * to hold the slack. Null for a slack outside the series, between two out-of-band samples of one sign, or at a
  * threshold at or below zero.
  */
 fun slackWindowAround(points: List<CurrentPoint>, slack: Instant, thresholdKnots: Double): SlackWindow? {
+    if (points.any { it.magnitudeKnots > abs(it.speedKnots) + 1e-9 }) {
+        return rotaryWindows(points, thresholdKnots).firstOrNull { slack >= it.start && slack <= it.end }
+    }
     val n = points.size
     if (thresholdKnots <= 0 || n == 0 || slack < points[0].time || slack > points[n - 1].time) return null
     fun inBand(i: Int) = abs(points[i].speedKnots) <= thresholdKnots
@@ -242,10 +247,54 @@ fun mergeWindows(windows: List<SlackWindow>): List<SlackWindow> {
     return runs
 }
 
+private fun rotaryWindows(points: List<CurrentPoint>, threshold: Double): List<SlackWindow> {
+    if (threshold <= 0 || points.isEmpty()) return emptyList()
+    if (points.size == 1) return if (points[0].magnitudeKnots <= threshold) listOf(SlackWindow(points[0].time, points[0].time)) else emptyList()
+    val windows = mutableListOf<SlackWindow>()
+    for (i in 0 until points.size - 1) {
+        val pair = points.subList(i, i + 2)
+        if (pair[1].time <= pair[0].time) continue
+        fun instant(f: Double) = between(pair[0].time, pair[1].time, f)
+        fun speed(f: Double) = pair.vectorAt(instant(f), null, null)!!.magnitudeKnots
+        val q0 = speed(0.0).pow(2); val qm = speed(0.5).pow(2); val q1 = speed(1.0).pow(2)
+        val a = 2 * (q0 + q1 - 2 * qm); val b = q1 - q0 - a
+        val mid = if (a > 1e-15) (-b / (2 * a)).coerceIn(0.0, 1.0) else if (q0 <= q1) 0.0 else 1.0
+        if (speed(mid) > threshold) continue
+        fun edge(left: Double, right: Double, insideAtRight: Boolean): Double {
+            var lo = left; var hi = right
+            repeat(32) {
+                val f = (lo + hi) / 2
+                if ((speed(f) <= threshold) == insideAtRight) hi = f else lo = f
+            }
+            return (lo + hi) / 2
+        }
+        val left = if (speed(0.0) <= threshold) 0.0 else edge(0.0, mid, true)
+        val right = if (speed(1.0) <= threshold) 1.0 else edge(mid, 1.0, false)
+        val next = SlackWindow(instant(left), instant(right)); val previous = windows.lastOrNull()
+        if (previous != null && next.start <= previous.end) windows[windows.lastIndex] = SlackWindow(previous.start, maxOf(previous.end, next.end))
+        else windows.add(next)
+    }
+    return windows
+}
+
+/** A comfort-current window and the zero-current events it contains. */
+data class CurrentWindow(val start: Instant, val end: Instant, val slackTimes: List<Instant>)
+
+/** Measured windows with the actual slack moments falling inside each one. */
+fun currentWindows(points: List<CurrentPoint>, events: List<CurrentEvent>, thresholdKnots: Double): List<CurrentWindow> {
+    if (thresholdKnots <= 0) return emptyList()
+    return slackRuns(points, events, thresholdKnots).map { window ->
+        val slacks = events.filter { event -> event.kind == CurrentEventKind.SLACK && event.time >= window.start && event.time <= window.end &&
+            readCurrent(event.time, points, listOf(event), null, null)?.state == CurrentState.SLACK }.map { it.time }
+        CurrentWindow(window.start, window.end, slacks)
+    }
+}
+
 /** Windows around slack events and qualifying minima, merged into runs; a slack with no window stays an exact instant. */
 fun slackRuns(points: List<CurrentPoint>, events: List<CurrentEvent>, thresholdKnots: Double): List<SlackWindow> {
     val first = points.firstOrNull()?.time ?: return emptyList()
     val last = points.last().time
+    if (points.any { it.magnitudeKnots > abs(it.speedKnots) + 1e-9 }) return rotaryWindows(points, thresholdKnots)
     val extrema = events.filter { it.kind != CurrentEventKind.SLACK && it.time >= first && it.time <= last }
     val times = extrema.map { it.time }.toSet()
     val augmented = (points.filter { it.time !in times } + extrema.map { CurrentPoint(it.time, it.speedKnots) }).sortedBy { it.time }

@@ -125,7 +125,9 @@ public func readCurrent(at time: Date, timeline: [CurrentPoint], events: [Curren
     guard let speed = timeline.speed(at: time),
           let vector = timeline.vector(at: time, flood: flood, ebb: ebb) else { return nil }
     let state: CurrentState
-    if events.contains(where: { $0.kind == .slack && withinOneSecond($0.time, time) }) {
+    let rotary = timeline.contains { $0.magnitude > abs($0.speed) + 1e-9 }
+    if events.contains(where: { $0.kind == .slack && withinOneSecond($0.time, time) &&
+        ($0.verifiedZero || !rotary || (timeline.vector(at: $0.time, flood: flood, ebb: ebb)?.magnitude ?? .infinity) < 1e-9) }) {
         state = .slack
     } else if let event = events.first(where: { $0.kind != .slack && withinOneSecond($0.time, time) }) {
         switch event.kind {
@@ -146,7 +148,7 @@ extension Array where Element == CurrentEvent {
     public func maxSpeeds(_ kind: CurrentEventKind) -> [Double] { filter { $0.kind.isMaximum && $0.kind == kind }.map { abs($0.speed) } }
 }
 
-/// The default major-axis speed threshold for slack windows, in knots.
+/// The default full-speed threshold for slack windows, in knots.
 public let defaultSlackThreshold = 0.5
 
 /// A span of workable water around one or more slacks.
@@ -165,9 +167,12 @@ private func bandCrossing(_ a: CurrentPoint, _ b: CurrentPoint, threshold: Doubl
     return a.time.addingTimeInterval(b.time.timeIntervalSince(a.time) * f)
 }
 
-/// The workable window around a slack: where |speed| stays within `threshold`, clamped to the series and widened to hold the slack.
+/// The workable window around a slack: where full current speed stays within `threshold`, clamped to the series and widened to hold the slack.
 /// Nil for a slack outside the series, between two out-of-band samples of one sign, or at a threshold at or below zero.
 public func slackWindow(_ points: [CurrentPoint], around slack: Date, threshold: Double) -> SlackWindow? {
+    if points.contains(where: { $0.magnitude > abs($0.speed) + 1e-9 }) {
+        return rotaryWindows(points, threshold: threshold).first { $0.start <= slack && slack <= $0.end }
+    }
     guard threshold > 0, let first = points.first, let last = points.last,
           slack >= first.time, slack <= last.time else { return nil }
     let i = points.lastIndex(where: { $0.time <= slack }) ?? 0
@@ -210,9 +215,58 @@ public func mergeWindows(_ windows: [SlackWindow]) -> [SlackWindow] {
     return runs
 }
 
+private func rotaryWindows(_ points: [CurrentPoint], threshold: Double) -> [SlackWindow] {
+    guard threshold > 0, let first = points.first else { return [] }
+    if points.count == 1 { return first.magnitude <= threshold ? [SlackWindow(start: first.time, end: first.time)] : [] }
+    var windows: [SlackWindow] = []
+    for i in 0..<(points.count - 1) {
+        let pair = [points[i], points[i + 1]], start = pair[0].time
+        let duration = pair[1].time.timeIntervalSince(start)
+        guard duration > 0 else { continue }
+        func speed(_ f: Double) -> Double { pair.vector(at: start.addingTimeInterval(duration * f), flood: nil, ebb: nil)!.magnitude }
+        let q0 = pow(speed(0), 2), qm = pow(speed(0.5), 2), q1 = pow(speed(1), 2)
+        let a = 2 * (q0 + q1 - 2 * qm), b = q1 - q0 - a
+        let mid = a > 1e-15 ? max(0, min(1, -b / (2 * a))) : (q0 <= q1 ? 0 : 1)
+        guard speed(mid) <= threshold else { continue }
+        func edge(_ left: Double, _ right: Double, insideAtRight: Bool) -> Double {
+            var lo = left, hi = right
+            for _ in 0..<32 {
+                let f = (lo + hi) / 2
+                if (speed(f) <= threshold) == insideAtRight { hi = f } else { lo = f }
+            }
+            return (lo + hi) / 2
+        }
+        let left = speed(0) <= threshold ? 0 : edge(0, mid, insideAtRight: true)
+        let right = speed(1) <= threshold ? 1 : edge(mid, 1, insideAtRight: false)
+        let next = SlackWindow(start: start.addingTimeInterval(duration * left), end: start.addingTimeInterval(duration * right))
+        if let previous = windows.last, next.start <= previous.end {
+            windows[windows.count - 1] = SlackWindow(start: previous.start, end: max(previous.end, next.end))
+        } else { windows.append(next) }
+    }
+    return windows
+}
+
+/// A comfort-current window and the zero-current events it contains.
+public struct CurrentWindow: Sendable, Equatable {
+    public let start: Date; public let end: Date; public let slackTimes: [Date]
+}
+
+/// Measured windows with the actual slack moments falling inside each one.
+public func currentWindows(_ points: [CurrentPoint], events: [CurrentEvent], threshold: Double) -> [CurrentWindow] {
+    guard threshold > 0 else { return [] }
+    return slackRuns(points, events: events, threshold: threshold).map { window in
+        let slacks = events.filter { event in
+            event.kind == .slack && window.start <= event.time && event.time <= window.end &&
+            readCurrent(at: event.time, timeline: points, events: [event], flood: nil, ebb: nil)?.state == .slack
+        }.map(\.time)
+        return CurrentWindow(start: window.start, end: window.end, slackTimes: slacks)
+    }
+}
+
 /// Windows around slack events and qualifying minima, merged into runs; a slack with no window stays an exact instant.
 public func slackRuns(_ points: [CurrentPoint], events: [CurrentEvent], threshold: Double) -> [SlackWindow] {
     guard let first = points.first?.time, let last = points.last?.time else { return [] }
+    if points.contains(where: { $0.magnitude > abs($0.speed) + 1e-9 }) { return rotaryWindows(points, threshold: threshold) }
     let extrema = events.filter { $0.kind != .slack && $0.time >= first && $0.time <= last }
     let times = Set(extrema.map(\.time))
     let augmented = (points.filter { !times.contains($0.time) } + extrema.map { CurrentPoint(time: $0.time, speed: $0.speed) }).sorted { $0.time < $1.time }

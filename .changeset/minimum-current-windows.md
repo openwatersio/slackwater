@@ -1,7 +1,7 @@
 ---
-"@slackwater/engine": minor
-"slackwater": minor
-"@slackwater/cli": minor
+"@slackwater/engine": major
+"slackwater": major
+"@slackwater/cli": major
 ---
 
-Include low-speed lulls in current windows, even when the current does not reverse.
+Measure current windows against full speed and report slack only when the full current reaches zero. Rotary stations no longer report every flood/ebb-axis crossing as slack. `currentWindows` returns each window and the slack moments it contains.

@@ -34,7 +34,7 @@ import { SummaryTiles } from "./SummaryTiles.js";
 export interface CurrentStationProps {
   /** "source/id", optionally with a depth bin: "noaa/PUG1701", "noaa/EPT0003@11". */
   id: string;
-  /** Major-axis speed threshold for slack windows, in knots. */
+  /** Full-speed threshold for slack windows, in knots. */
   threshold?: number;
   /** Called when a nearby station is picked; its `kind` says which page it belongs on. */
   onStationSelect?: (station: CardStation) => void;
@@ -50,7 +50,7 @@ function provenance(station: CurrentStationInfo, reference: string | undefined) 
   const flood = station.current?.flood_direction;
   const sets = flood === undefined ? "" : ` Flood bearing ${degrees(flood)}.`;
   const axis =
-    " Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and slack windows follow the flood/ebb direction; crossing flow can remain at slack. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.";
+    " Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph and extrema follow flood and ebb. Slack windows use the full current speed. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.";
   if (station.type === "subordinate") {
     const whose = reference ? `${reference}'s ` : "";
     return `NOAA subordinate station: ${whose}slacks, maxima, and minima, corrected by published offsets.${sets}${axis}`;

@@ -80,7 +80,7 @@ let rotary = CurrentStation(constituents: major, floodDirection: 20, ebbDirectio
 let vectors = rotary.speeds(from: start, to: end)
 ```
 
-`CurrentStation` and `SubordinateStation` accept optional flood and ebb bearings. Pass `nil` for unknown bearings instead of substituting zero. Their existing `floodDirection` and `ebbDirection` properties remain `Double` with a zero placeholder when missing; use the optional timeline `direction` to display a bearing. Empty or ineffective minor constituents without mean cross-flow use the one-axis fallback. Without minor-axis data, magnitude is `abs(speed)` and direction is the published flood or ebb bearing. A zero vector has no direction. A major-axis slack can have nonzero vector magnitude; all event calculations use the major axis. `CurrentPoint(time:speed:)` defaults to absolute speed and no direction for caller-synthesized series.
+`CurrentStation` and `SubordinateStation` accept optional flood and ebb bearings. Pass `nil` for unknown bearings instead of substituting zero. Their existing `floodDirection` and `ebbDirection` properties remain `Double` with a zero placeholder when missing; use the optional timeline `direction` to display a bearing. Empty or ineffective minor constituents without mean cross-flow use the one-axis fallback. Without minor-axis data, magnitude is `abs(speed)` and direction is the published flood or ebb bearing. A zero vector has no direction. A major-axis crossing with nonzero vector magnitude is not a slack event. Extrema use the major axis; windows use full current speed. `CurrentPoint(time:speed:)` defaults to absolute speed and no direction for caller-synthesized series.
 
 `maxima(from:to:)` returns true flood and ebb maxima only. `events(from:to:)` also retains `.minFlood` and `.minEbb`, lulls that do not reverse, as curve knots. Use `kind.isMaximum` to select peaks and `maxSpeeds` to rank only maxima.
 
@@ -89,7 +89,7 @@ two-slack / speed-ratio offsets. `speeds(from:to:step:)` draws a half-cosine thr
 events, on the same timeline as a harmonic station's — NOAA publishes no curve for a
 subordinate, so it is a drawing of the table, not a prediction between its rows.
 
-Subordinate timeline points use absolute speed for magnitude and the subordinate's own flood or ebb direction.
+Subordinate timeline points use absolute speed for magnitude and the subordinate's own flood or ebb direction. When sharing a reference event scan across subordinate reductions, use `axisEventsForReduction(from:to:)`; its axis crossings are reduction inputs and must not be presented as slack events at the reference station.
 
 Before adopting timeline directions, callers that used `metadata.floodDirection ?? 0` or `metadata.ebbDirection ?? 0` must pass the optional metadata values directly to the station initializer. Zero is a valid north bearing, so the engine cannot identify a substituted zero as missing data.
 
@@ -106,7 +106,7 @@ if let now = readCurrent(at: Date(), timeline: speeds, events: events, flood: 92
 let runs = slackRuns(speeds, events: events, threshold: defaultSlackThreshold)  // [SlackWindow], merged
 ```
 
-`readCurrent` reads `.slack` within one second of a slack event and `.maxFlood`, `.maxEbb`, `.minFlood` or `.minEbb` within one second of an extremum; otherwise the sign of the speed gives `.flooding` or `.ebbing`. `speeds.vector(at:flood:ebb:)` interpolates the full vector through bearings, so a set turning through north stays north and opposing flows cancel. A zero vector has no direction. A point with no `direction` whose `magnitude` is `abs(speed)`, as `CurrentPoint(time:speed:)` builds, is a one-axis sample: it takes the `flood` or `ebb` bearing for its sign, and the two need not be reciprocal. `slackWindow(_:around:threshold:)` is the span around one slack where the speed stays within the threshold, and `slackRuns` merges windows around slack events and qualifying same-direction minima. A slack without a measured window remains a zero-width run; minima do not become slack events. A threshold at or below zero produces only zero-width slack runs.
+`readCurrent` reads `.slack` within one second of a slack event and `.maxFlood`, `.maxEbb`, `.minFlood` or `.minEbb` within one second of an extremum; otherwise the sign of the speed gives `.flooding` or `.ebbing`. `speeds.vector(at:flood:ebb:)` interpolates the full vector through bearings, so a set turning through north stays north and opposing flows cancel. A zero vector has no direction. A point with no `direction` whose `magnitude` is `abs(speed)`, as `CurrentPoint(time:speed:)` builds, is a one-axis sample: it takes the `flood` or `ebb` bearing for its sign, and the two need not be reciprocal. `slackWindow(_:around:threshold:)` returns the full-speed window containing a time, and `slackRuns` merges touching windows. `currentWindows` also returns each window’s `slackTimes`. A slack without a measured window remains a zero-width run; minima do not become slack events. A threshold at or below zero produces only zero-width slack runs.
 
 ```swift
 let heights = station.heights(from: start, to: end)
