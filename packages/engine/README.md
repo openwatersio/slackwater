@@ -220,7 +220,7 @@ const subordinate = createSubordinateCurrentPredictor(reference, {
 });
 ```
 
-A subordinate's timeline is a half-cosine drawn through its event knots — a drawing of the table, not a prediction of the water between its rows. `reduceCurrentEvents(refEvents, offsets)` exposes the reduction for callers that already hold the reference's events, and `currentSpeedAt(events, time)` samples the same half-cosine at one instant.
+A subordinate's timeline is a half-cosine drawn through its event knots — a drawing of the table, not a prediction of the water between its rows. `reduceCurrentEvents(refEvents, offsets)` exposes the reduction for callers that already hold the reference's axis events (obtain these with `getAxisEventsForReduction`; its axis crossings are not necessarily true slack), and `currentSpeedAt(events, time)` samples the same half-cosine at one instant.
 
 `useCurrentStation(station, { reference })` wraps a `@slackwater/database` current station (`kind: "current"`), predicting harmonically when the station has its own constituents and reducing the given reference station otherwise — the database's offset minutes are converted internally.
 

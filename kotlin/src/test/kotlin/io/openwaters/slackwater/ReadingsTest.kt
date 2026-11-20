@@ -289,6 +289,15 @@ class ReadingsTest {
         assertTrue(currentWindows(series(1.0, 0.2, 1.0), emptyList(), 0.5).single().slackTimes.isEmpty())
     }
 
+    @Test fun verifiedRotaryZeroSurvivesSamplingAndZeroThreshold() {
+        val points = listOf(point(0.0, 0.1, 1.0, 45.0), point(1.0, -0.1, 1.0, 135.0))
+        val slack = CurrentEvent(at(h / 2), 0.0, CurrentEventKind.SLACK, verifiedZero = true)
+        for (threshold in listOf(0.0, 0.1)) {
+            assertEquals(listOf(CurrentWindow(slack.time, slack.time, listOf(slack.time))), currentWindows(points, listOf(slack), threshold))
+        }
+        assertEquals(1, currentWindows(points, listOf(slack), 2.0).size)
+    }
+
     @Test fun trueRotaryZeroIsIncludedInWindow() {
         val magnitude = hypot(1.0, 0.3); val bearing = atan2(1.0, 0.3) / D2R
         val points = listOf(CurrentPoint(at(0.0), 1.0, magnitude, bearing),

@@ -4,6 +4,7 @@ import {
   formatSet,
   spokenSet,
   currentStops,
+  currentEventsForTimeline,
   formatSpeed,
   isDotRun,
   runCenter,
@@ -262,4 +263,15 @@ test("minima remain labeled navigation destinations", () => {
   const stops = currentStops(timeline, minima, []);
   expect(stops.map((s) => s.label)).toEqual(["Minimum flood", "Minimum ebb"]);
   expect(snapTargets(stops, minima, [], t0, t0 + 3 * H)).toEqual([t0 + H, t0 + 2 * H]);
+});
+
+test("filters legacy rotary axis crossings while retaining verified slack", () => {
+  const points = [
+    { time: new Date(t0), speed: 1, magnitude: 1.5, direction: 45 },
+    { time: new Date(t0 + H), speed: -1, magnitude: 1.5, direction: 135 },
+  ];
+  const old: CurrentEvent = { time: new Date(t0 + H / 2), kind: "slack", speed: 0 };
+  const verified = { ...old, verifiedZero: true };
+  expect(currentEventsForTimeline(points, [old])).toEqual([]);
+  expect(currentEventsForTimeline(points, [verified])).toEqual([verified]);
 });

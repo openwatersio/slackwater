@@ -360,7 +360,7 @@ describe("slackwater currents timeline", () => {
     expect(stdout).toMatch(/Ebb\s*│\s*\d+\.\d kn/);
   });
 
-  test("labels near-zero samples as slack", async () => {
+  test("keeps the flow label when crossing current remains", async () => {
     // Deception Pass turns at about 00:05Z.
     const { stdout } = await run([
       "currents",
@@ -377,7 +377,7 @@ describe("slackwater currents timeline", () => {
     expect(stdout).toMatch(/Current\s*│\s*Speed\s*│\s*Full speed\s*│\s*Set/);
     // Crossing flow shows beside the label: at 00:04Z the flood/ebb speed is -0.008 kn while
     // the water still runs 0.118 kn toward 196°.
-    expect(stdout).toMatch(/Slack\s*│\s*0\.0 kn\s*│\s*0\.1 kn\s*│\s*196°T\s*│/);
+    expect(stdout).toMatch(/Ebb\s*│\s*0\.0 kn\s*│\s*0\.1 kn\s*│\s*196°T\s*│/);
   });
 
   test("gives a station with crossing flow the same table for any window", async () => {
@@ -500,7 +500,7 @@ describe("slackwater currents timeline", () => {
 describe("slackwater currents slack", () => {
   test("shows windows below the threshold", async () => {
     const { stdout } = await run(["currents", "slack", "-s", "noaa/PUG1701", ...span]);
-    expect(stdout).toContain("·  slack windows: flood/ebb speed below 0.5 kn\n");
+    expect(stdout).toContain("·  slack windows: full current speed below 0.5 kn\n");
     expect(stdout).not.toMatch(/axis/i);
     expect(stdout).toContain("Duration");
     expect(stdout).toMatch(/│\s*\d+m\s*│/);
@@ -637,7 +637,9 @@ describe("slackwater currents slack", () => {
       "--end",
       "2026-06-01T09:00:00Z",
     ]);
-    expect(stdout).toContain("No slack windows with flood/ebb speed below 0.5 kn in this period");
+    expect(stdout).toContain(
+      "No slack windows with full current speed below 0.5 kn in this period",
+    );
   });
 
   test("errors on an invalid threshold", async () => {

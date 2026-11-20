@@ -282,7 +282,6 @@ data class CurrentWindow(val start: Instant, val end: Instant, val slackTimes: L
 
 /** Measured windows with the actual slack moments falling inside each one. */
 fun currentWindows(points: List<CurrentPoint>, events: List<CurrentEvent>, thresholdKnots: Double): List<CurrentWindow> {
-    if (thresholdKnots <= 0) return emptyList()
     return slackRuns(points, events, thresholdKnots).map { window ->
         val slacks = events.filter { event -> event.kind == CurrentEventKind.SLACK && event.time >= window.start && event.time <= window.end &&
             readCurrent(event.time, points, listOf(event), null, null)?.state == CurrentState.SLACK }.map { it.time }
@@ -294,7 +293,16 @@ fun currentWindows(points: List<CurrentPoint>, events: List<CurrentEvent>, thres
 fun slackRuns(points: List<CurrentPoint>, events: List<CurrentEvent>, thresholdKnots: Double): List<SlackWindow> {
     val first = points.firstOrNull()?.time ?: return emptyList()
     val last = points.last().time
-    if (points.any { it.magnitudeKnots > abs(it.speedKnots) + 1e-9 }) return rotaryWindows(points, thresholdKnots)
+    if (points.any { it.magnitudeKnots > abs(it.speedKnots) + 1e-9 }) {
+        val windows = rotaryWindows(points, thresholdKnots).toMutableList()
+        for (event in events.filter { it.kind == CurrentEventKind.SLACK && it.time >= first && it.time <= last }) {
+            if (readCurrent(event.time, points, listOf(event), null, null)?.state == CurrentState.SLACK &&
+                windows.none { event.time >= it.start && event.time <= it.end }) {
+                windows.add(SlackWindow(event.time, event.time))
+            }
+        }
+        return windows.sortedBy { it.start }
+    }
     val extrema = events.filter { it.kind != CurrentEventKind.SLACK && it.time >= first && it.time <= last }
     val times = extrema.map { it.time }.toSet()
     val augmented = (points.filter { it.time !in times } + extrema.map { CurrentPoint(it.time, it.speedKnots) }).sortedBy { it.time }

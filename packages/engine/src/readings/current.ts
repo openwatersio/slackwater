@@ -277,7 +277,6 @@ export function currentWindows(
   events: CurrentEvent[],
   threshold: number,
 ): CurrentWindow[] {
-  if (threshold <= 0) return [];
   return slackRuns(timeline, events, threshold).map((window) => ({
     ...window,
     slackTimes: events
@@ -299,7 +298,21 @@ export function slackRuns(
   threshold: number,
 ): SlackWindow[] {
   if (timeline.some((p) => p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9)) {
-    return rotaryWindows(timeline, threshold);
+    const windows = rotaryWindows(timeline, threshold);
+    const first = timeline[0].time;
+    const last = timeline[timeline.length - 1].time;
+    for (const event of events) {
+      if (
+        event.kind === "slack" &&
+        event.time >= first &&
+        event.time <= last &&
+        readCurrent(event.time, timeline, [event], {})?.state === "Slack" &&
+        !windows.some((window) => event.time >= window.start && event.time <= window.end)
+      ) {
+        windows.push({ start: event.time, end: event.time });
+      }
+    }
+    return windows.sort((a, b) => a.start.getTime() - b.start.getTime());
   }
   const first = timeline[0]?.time.getTime();
   const last = timeline[timeline.length - 1]?.time.getTime();

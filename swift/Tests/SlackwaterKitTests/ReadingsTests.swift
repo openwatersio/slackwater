@@ -243,6 +243,16 @@ private func seconds(_ date: Date?) -> Double { date?.timeIntervalSince(t0) ?? .
     #expect(lull.slackTimes.isEmpty)
 }
 
+@Test func verifiedRotaryZeroSurvivesSamplingAndZeroThreshold() {
+    let points = [CurrentPoint(time: at(0), speed: 0.1, magnitude: 1, direction: 45),
+                  CurrentPoint(time: at(10 * M), speed: -0.1, magnitude: 1, direction: 135)]
+    let time = at(5 * M)
+    let event = CurrentEvent(time: time, speed: 0, kind: .slack, verifiedZero: true)
+    for threshold in [0.0, 0.1] {
+        #expect(currentWindows(points, events: [event], threshold: threshold) == [CurrentWindow(start: time, end: time, slackTimes: [time])])
+    }
+}
+
 @Test func trueRotaryZeroIsIncludedInWindow() throws {
     let magnitude = hypot(1, 0.3), bearing = atan2(1.0, 0.3) * 180 / Double.pi
     let points = [CurrentPoint(time: at(0), speed: 1, magnitude: magnitude, direction: bearing),

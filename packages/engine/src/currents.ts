@@ -72,7 +72,7 @@ export interface CurrentPredictor {
   getTimelinePrediction: (input: CurrentTimelineInput) => CurrentPoint[];
   /** Slack and flood/ebb maxima and minima in time order. */
   getEventsPrediction: (input: TimeSpan) => CurrentEvent[];
-  /** @internal Major-axis events used only to reduce a subordinate station. */
+  /** Major-axis events for subordinate reduction; axis crossings are not necessarily true slack. */
   getAxisEventsForReduction?: (input: TimeSpan) => CurrentEvent[];
 }
 
@@ -434,10 +434,13 @@ export function createSubordinateCurrentPredictor(
 
   function getEventsPrediction({ start, end }: TimeSpan): CurrentEvent[] {
     checkTimeSpan({ start, end });
-    const refEvents = (reference.getAxisEventsForReduction ?? reference.getEventsPrediction)({
-      start: new Date(start.getTime() - eventPadMs),
-      end: new Date(end.getTime() + eventPadMs),
-    });
+    const refEvents = (reference.getAxisEventsForReduction ?? reference.getEventsPrediction).call(
+      reference,
+      {
+        start: new Date(start.getTime() - eventPadMs),
+        end: new Date(end.getTime() + eventPadMs),
+      },
+    );
     return reduceCurrentEvents(refEvents, offsets).filter((e) => e.time >= start && e.time <= end);
   }
 

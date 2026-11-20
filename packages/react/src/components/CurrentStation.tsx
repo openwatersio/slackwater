@@ -7,7 +7,7 @@ import {
   useCurrentTimeline,
 } from "../hooks/use-current-station.js";
 import type { CurrentEvent, CurrentStationInfo } from "../types.js";
-import { formatSpeed, formatSet } from "../utils/current.js";
+import { currentEventsForTimeline, formatSpeed, formatSet } from "../utils/current.js";
 import type { ScheduleEntry } from "../utils/schedule.js";
 import { nextMaxTile } from "../utils/standing.js";
 import { CurrentScrubber } from "./CurrentScrubber.js";
@@ -113,9 +113,16 @@ function CurrentPage({
 
   const flood = s?.current?.flood_direction;
   const ebb = s?.current?.ebb_direction;
+  const currentEvents = useMemo(
+    () =>
+      timeline.data && events.data
+        ? currentEventsForTimeline(timeline.data.timeline, events.data.events)
+        : [],
+    [timeline.data, events.data],
+  );
   const entries = useMemo(
     () =>
-      events.data?.events.map((e): ScheduleEntry => {
+      currentEvents.map((e): ScheduleEntry => {
         const time = e.time.getTime();
         if (e.kind === "slack") return { time, pill: "slack" };
         const value = `${formatSpeed(e.speed, locale)} kn`;
@@ -125,7 +132,7 @@ function CurrentPage({
           ? { time, pill: "flood", value, direction: flood }
           : { time, pill: "ebb", value, direction: ebb };
       }),
-    [events.data, flood, ebb, locale],
+    [currentEvents, flood, ebb, locale],
   );
   const sync = useScheduleSync(entries, week, s?.timezone);
   const error = station.error ?? timeline.error ?? events.error;
@@ -141,7 +148,7 @@ function CurrentPage({
         <>
           <CurrentScrubber
             timeline={timeline.data.timeline}
-            events={events.data.events}
+            events={currentEvents}
             timezone={s.timezone}
             latitude={s.latitude}
             longitude={s.longitude}
@@ -156,7 +163,7 @@ function CurrentPage({
           <CurrentTiles
             selection={sync.selection}
             now={week.now}
-            events={events.data.events}
+            events={currentEvents}
             fortnight={standing.data?.events}
             timezone={s.timezone}
             latitude={s.latitude}

@@ -429,3 +429,17 @@ test.each(["minFlood", "minEbb"] as const)("names %s without ranking it as a max
   expect(maxSpeeds(minima, "maxFlood")).toEqual([]);
   expect(maxSpeeds(minima, "maxEbb")).toEqual([]);
 });
+
+test("preserves a verified rotary slack between samples even at zero threshold", () => {
+  const time = new Date(t0 + 5 * M);
+  const points = [
+    { time: new Date(t0), speed: 0.1, magnitude: 1, direction: 45 },
+    { time: new Date(t0 + 10 * M), speed: -0.1, magnitude: 1, direction: 135 },
+  ];
+  const event: CurrentEvent = { time, speed: 0, kind: "slack", verifiedZero: true };
+  for (const threshold of [0, 0.1]) {
+    expect(currentWindows(points, [event], threshold)).toEqual([
+      { start: time, end: time, slackTimes: [time] },
+    ]);
+  }
+});

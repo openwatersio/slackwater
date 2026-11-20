@@ -148,7 +148,7 @@ Get a timeline of current speed:
 slackwater currents timeline --station noaa/PUG1701 --interval 30
 ```
 
-Each row names the current as Flood, Ebb or Slack from its flood/ebb speed. At a station whose predictions carry crossing flow, the table adds Full speed and Set, so a Slack row shows the water still moving beside it. A station without crossing-flow data, such as a subordinate station, keeps the four-column table. The station decides, so the same station prints the same columns for any window:
+Each row names the current as Flood, Ebb or Slack from its flood/ebb speed. At a station whose predictions carry crossing flow, the table adds Full speed and Set and retains the flood or ebb label at an axis crossing. A station without crossing-flow data, such as a subordinate station, keeps the four-column table. The station decides, so the same station prints the same columns for any window:
 
 ```sh
 slackwater currents timeline --station noaa/PUG1701 --start 2026-06-01T00:02:00Z --end 2026-06-01T00:06:00Z --interval 1
@@ -175,7 +175,7 @@ noaa/PUG1701  ·  knots  ·  flood 102°T  ·  ebb 282°T
 Slackwater database (https://github.com/openwatersio/slackwater-database)
 ```
 
-Get low-speed windows around reversals and same-direction lulls, while the speed along the flood axis stays below a threshold you choose (0.5 knots by default). Rotary current can keep moving across that axis inside a window. A window that runs past the start or end of the period shows its duration as `≥`, a lower bound:
+Get low-speed windows around reversals and same-direction lulls, while full current speed stays below a threshold you choose (0.5 knots by default). A window that runs past the start or end of the period shows its duration as `≥`, a lower bound:
 
 ```sh
 slackwater currents slack --station noaa/PUG1701 --threshold 1
@@ -215,7 +215,7 @@ Options for `events`, `timeline`, and `slack`:
 | `--start <date>`          | Start date in ISO format (default: now)                                            |
 | `--end <date>`            | End date, at most 366 days from start (default: 24h for `timeline`, otherwise 72h) |
 | `--interval <minutes>`    | `timeline` only: whole minutes between data points (default: 60)                   |
-| `-t, --threshold <knots>` | `slack` only: flood/ebb speed limit (default: 0.5 kn)                              |
+| `-t, --threshold <knots>` | `slack` only: full current speed limit (default: 0.5 kn)                           |
 | `-f, --format <format>`   | Output format: `text`, `json`                                                      |
 
 ### API server

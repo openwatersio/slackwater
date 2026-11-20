@@ -76,7 +76,7 @@ const slack = predictionCommand(
   "Get slack windows where full current speed stays below a threshold",
   72,
 )
-  .option("-t, --threshold <knots>", "flood/ebb speed limit in knots", "0.5")
+  .option("-t, --threshold <knots>", "full current speed limit in knots", "0.5")
   .action(async (opts) => {
     const span = parseSpan(opts, 72);
     const threshold = positiveNumber(opts.threshold, "threshold");

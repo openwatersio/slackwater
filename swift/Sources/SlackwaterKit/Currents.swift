@@ -322,7 +322,7 @@ public struct SubordinateStation: Sendable {
 
     /// The reduction alone, over reference events a caller already holds — a
     /// map full of pins hanging off one reference searches that reference once
-    /// (`eventsByDay`, so the list matches what `events`/`speeds` would use)
+    /// (`axisEventsForReduction`, so the list matches what `events`/`speeds` would use)
     /// and reduces per pin. Sorted; unequal offsets can reorder neighbours.
     public func reduce(_ refEvents: [CurrentEvent]) -> [CurrentEvent] {
         refEvents.enumerated().map { (i, e) -> CurrentEvent in

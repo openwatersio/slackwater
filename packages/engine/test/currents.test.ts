@@ -227,6 +227,29 @@ describe("createSubordinateCurrentPredictor", () => {
     ebbDirection: 290,
   });
 
+  test("preserves the receiver of a custom reference predictor", () => {
+    const custom = {
+      events: reference.getEventsPrediction({ start, end }),
+      getEventsPrediction() {
+        return this.events;
+      },
+      getTimelinePrediction: reference.getTimelinePrediction,
+    };
+    const predictor = createSubordinateCurrentPredictor(custom, {
+      slackBeforeFloodOffset: 0,
+      slackBeforeEbbOffset: 0,
+      floodTimeOffset: 0,
+      ebbTimeOffset: 0,
+      floodSpeedRatio: 1,
+      ebbSpeedRatio: 1,
+    });
+    expect(predictor.getEventsPrediction({ start, end }).map((event) => event.time)).toEqual(
+      custom.events
+        .filter((event) => event.time >= start && event.time <= end)
+        .map((event) => event.time),
+    );
+  });
+
   // NOAA's subordinate reduction: two slack offsets (before-flood, before-ebb),
   // two peak time offsets, two speed ratios. A slack is shifted by the offset
   // that matches the phase it precedes (its next non-slack event's kind).

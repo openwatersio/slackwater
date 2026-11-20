@@ -253,7 +253,6 @@ public struct CurrentWindow: Sendable, Equatable {
 
 /// Measured windows with the actual slack moments falling inside each one.
 public func currentWindows(_ points: [CurrentPoint], events: [CurrentEvent], threshold: Double) -> [CurrentWindow] {
-    guard threshold > 0 else { return [] }
     return slackRuns(points, events: events, threshold: threshold).map { window in
         let slacks = events.filter { event in
             event.kind == .slack && window.start <= event.time && event.time <= window.end &&
@@ -266,7 +265,16 @@ public func currentWindows(_ points: [CurrentPoint], events: [CurrentEvent], thr
 /// Windows around slack events and qualifying minima, merged into runs; a slack with no window stays an exact instant.
 public func slackRuns(_ points: [CurrentPoint], events: [CurrentEvent], threshold: Double) -> [SlackWindow] {
     guard let first = points.first?.time, let last = points.last?.time else { return [] }
-    if points.contains(where: { $0.magnitude > abs($0.speed) + 1e-9 }) { return rotaryWindows(points, threshold: threshold) }
+    if points.contains(where: { $0.magnitude > abs($0.speed) + 1e-9 }) {
+        var windows = rotaryWindows(points, threshold: threshold)
+        for event in events where event.kind == .slack && event.time >= first && event.time <= last {
+            if readCurrent(at: event.time, timeline: points, events: [event], flood: nil, ebb: nil)?.state == .slack &&
+                !windows.contains(where: { $0.start <= event.time && event.time <= $0.end }) {
+                windows.append(SlackWindow(start: event.time, end: event.time))
+            }
+        }
+        return windows.sorted { $0.start < $1.start }
+    }
     let extrema = events.filter { $0.kind != .slack && $0.time >= first && $0.time <= last }
     let times = Set(extrema.map(\.time))
     let augmented = (points.filter { !times.contains($0.time) } + extrema.map { CurrentPoint(time: $0.time, speed: $0.speed) }).sorted { $0.time < $1.time }
