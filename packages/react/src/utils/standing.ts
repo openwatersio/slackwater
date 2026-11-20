@@ -60,17 +60,26 @@ export function dailySwingRanges(
   });
 }
 
-/** The Range tile: the swing from the turn at or behind `time` to the one ahead, ranked among the fortnight's swings. */
+/** A tile with its label and no reading, the size of one with a reading. */
+const blank = (label: string): TileContent => ({ label, value: "—", caption: "" });
+
+/**
+ * The Range tile: the swing from the turn at or behind `time` to the one
+ * ahead, ranked among the fortnight's swings. With no `time`, for a server
+ * render with no moment to claim, or without a turn on each side of it, the
+ * tile reads "—" and keeps its place, so nothing moves when a reading comes.
+ */
 export function rangeTile(
   extremes: Extreme[],
-  time: number,
+  time: number | undefined,
   swings: number[] | undefined,
   units: Units,
   locale?: string,
-): TileContent | undefined {
+): TileContent {
+  if (time === undefined) return blank("Range");
   const prev = extremes.findLast((e) => e.time.getTime() <= time);
   const next = extremes.find((e) => e.time.getTime() > time);
-  if (!prev || !next) return undefined;
+  if (!prev || !next) return blank("Range");
   const swing = Math.abs(next.level - prev.level);
   const rank = swings && peakRank(swing, swings);
   const marked = rank !== undefined && rank >= MARK_THRESHOLD;
@@ -88,19 +97,24 @@ export function rangeTile(
   };
 }
 
-/** The Next max tile: the first maximum after `time`, ranked within its own direction's fortnight. */
+/**
+ * The Next max tile: the first maximum after `time`, ranked within its own
+ * direction's fortnight. With no `time`, or no maximum after it, the tile
+ * reads "—", as `rangeTile` does.
+ */
 export function nextMaxTile(
   events: CurrentEvent[],
-  time: number,
+  time: number | undefined,
   fortnight: CurrentEvent[] | undefined,
   timeZone: string,
   locale?: string,
-): TileContent | undefined {
+): TileContent {
+  if (time === undefined) return blank("Next max");
   const e = events.find(
     (e): e is CurrentEvent & { kind: "maxFlood" | "maxEbb" } =>
       (e.kind === "maxFlood" || e.kind === "maxEbb") && e.time.getTime() > time,
   );
-  if (!e) return undefined;
+  if (!e) return blank("Next max");
   const flood = e.kind === "maxFlood";
   const rank = fortnight && peakRank(Math.abs(e.speed), maxSpeeds(fortnight, e.kind));
   const marked = rank !== undefined && rank >= MARK_THRESHOLD;

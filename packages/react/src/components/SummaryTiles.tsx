@@ -8,52 +8,48 @@ import { formatCountdown } from "../utils/scrubber.js";
 export interface SummaryTilesProps {
   /** The station's own number: a tide's Range or a current's Next max. Absent leaves the Moon alone. */
   primary?: TileContent;
-  /** The scrubber's selected moment. */
-  time: number;
+  /**
+   * The strip's selected moment. Absent, the Moon and Sun read nothing and
+   * keep their size, for a server render that has no moment to claim.
+   */
+  time?: number;
   timezone: string;
   latitude?: number;
   longitude?: number;
   locale?: string;
   outlook?: ReactNode;
+  /** Classes for the outer element, in place of the station page's `mx-4 mt-3`. */
+  className?: string;
 }
 
 /** Between the strip and the schedule, after the app's summary tiles: the station's number above Moon and Sun that drives it. */
 export function SummaryTiles({
   primary,
-  time,
   timezone,
   latitude,
   longitude,
   locale,
   outlook,
+  className = "mx-4 mt-3",
+  time: given,
 }: SummaryTilesProps) {
-  const moon = moonAt(time);
-  const day = startOfDay(time, timezone);
+  // A value that isn't a finite number, such as one from a malformed URL, reads as no moment.
+  const time = given !== undefined && Number.isFinite(given) ? given : undefined;
+  const located = latitude !== undefined && longitude !== undefined;
+  const day = time === undefined ? undefined : startOfDay(time, timezone);
   // A month-long search, so it runs once per local day rather than per scrub frame.
-  const apsides = useMemo(() => moonApsides(day), [day]);
-  const tide = moonTideLabel(moon.phase, time, apsides.perigee, apsides.apogee);
+  const apsides = useMemo(() => (day === undefined ? undefined : moonApsides(day)), [day]);
   const solar = useMemo(
     () =>
-      latitude === undefined || longitude === undefined
+      day === undefined || !located
         ? []
         : days(day, nextDay(nextDay(day, timezone), timezone), timezone, latitude, longitude),
-    [day, timezone, latitude, longitude],
+    [day, timezone, located, latitude, longitude],
   );
-  const nextSun = solar
-    .flatMap((d) => [
-      ...(d.sunrise === undefined ? [] : [{ time: d.sunrise, label: "Sunrise" }]),
-      ...(d.sunset === undefined ? [] : [{ time: d.sunset, label: "Sunset" }]),
-    ])
-    .sort((a, b) => a.time - b.time)
-    .find((e) => e.time > time);
-  const today = solar[0];
-  const daylight =
-    today?.sunrise !== undefined && today.sunset !== undefined
-      ? `${formatCountdown(today.sunset >= today.sunrise ? today.sunset - today.sunrise : today.end - today.start - (today.sunrise - today.sunset))} daylight`
-      : "—";
+  const reading = time === undefined || !apsides ? undefined : readTiles(time, apsides, solar);
 
   return (
-    <div className="@container/sw-summary mx-4 mt-3">
+    <div className={`@container/sw-summary ${className}`}>
       <div
         className={`grid items-start gap-3 ${primary ? "@min-[700px]/sw-summary:grid-cols-2" : ""}`}
       >
@@ -67,25 +63,29 @@ export function SummaryTiles({
             <span className="text-[22px] font-medium">{primary.value}</span>
           </Tile>
         )}
-        <div className={`grid min-w-0 gap-3 ${solar.length ? "grid-cols-2" : ""}`}>
+        <div className={`grid min-w-0 gap-3 ${located ? "grid-cols-2" : ""}`}>
           <Tile
             label="Moon"
-            caption={tide ?? `${Math.round(moon.fraction * 100)}% lit`}
-            glyph={<MoonGlyph fraction={moon.fraction} waxing={moon.waxing} />}
+            caption={reading ? reading.moonCaption : ""}
+            glyph={
+              reading && <MoonGlyph fraction={reading.moon.fraction} waxing={reading.moon.waxing} />
+            }
           >
             {/* Words, not a number, so a phase name fits on one line where a reading does. */}
             <span className="text-[17px] leading-[22px] font-medium">
-              {moonPhaseName(moon.phase)}
+              {reading ? moonPhaseName(reading.moon.phase) : "—"}
             </span>
           </Tile>
-          {solar.length > 0 && (
-            <Tile label="Sun" caption={daylight} glyph={<SunGlyph />}>
-              <span className="text-[17px] leading-[22px] font-medium">
-                {nextSun ? (
+          {located && (
+            <Tile label="Sun" caption={reading ? reading.daylight : ""} glyph={<SunGlyph />}>
+              {/* Two lines tall whatever it reads, so a polar day or a tile with
+                  no reading yet is the size of one naming a sunrise. */}
+              <span className="min-h-11 text-[17px] leading-[22px] font-medium">
+                {reading?.nextSun ? (
                   <>
-                    {nextSun.label}
+                    {reading.nextSun.label}
                     <br />
-                    {chartTime(nextSun.time, timezone, locale)}
+                    {chartTime(reading.nextSun.time, timezone, locale)}
                   </>
                 ) : (
                   "—"
@@ -97,6 +97,34 @@ export function SummaryTiles({
       </div>
     </div>
   );
+}
+
+/** What the Moon and Sun tiles read at `time`. */
+function readTiles(
+  time: number,
+  apsides: ReturnType<typeof moonApsides>,
+  solar: ReturnType<typeof days>,
+) {
+  const moon = moonAt(time);
+  const tide = moonTideLabel(moon.phase, time, apsides.perigee, apsides.apogee);
+  const nextSun = solar
+    .flatMap((d) => [
+      ...(d.sunrise === undefined ? [] : [{ time: d.sunrise, label: "Sunrise" }]),
+      ...(d.sunset === undefined ? [] : [{ time: d.sunset, label: "Sunset" }]),
+    ])
+    .sort((a, b) => a.time - b.time)
+    .find((e) => e.time > time);
+  const today = solar[0];
+  const daylight =
+    today?.sunrise !== undefined && today.sunset !== undefined
+      ? `${formatCountdown(today.sunset >= today.sunrise ? today.sunset - today.sunrise : today.end - today.start - (today.sunrise - today.sunset))} daylight`
+      : "—";
+  return {
+    moon,
+    moonCaption: tide ?? `${Math.round(moon.fraction * 100)}% lit`,
+    nextSun,
+    daylight,
+  };
 }
 
 function Tile({
@@ -120,7 +148,8 @@ function Tile({
             {label}
           </span>
           <span className="flex-1" />
-          <span className="flex items-center text-(--sw-foam)/55" aria-hidden="true">
+          {/* A glyph's height held without one, so a Moon with no reading yet keeps its size. */}
+          <span className="flex min-h-3.5 items-center text-(--sw-foam)/55" aria-hidden="true">
             {glyph}
           </span>
         </div>
@@ -131,7 +160,8 @@ function Tile({
         >
           {children}
         </div>
-        <p className="m-0 text-xs text-(--sw-foam)/55 tabular-nums">{caption}</p>
+        {/* Its line held when empty, so a tile with no reading yet is the size it will be. */}
+        <p className="m-0 min-h-4 text-xs text-(--sw-foam)/55 tabular-nums">{caption}</p>
       </div>
       {trailing}
     </div>

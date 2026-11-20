@@ -211,6 +211,70 @@ Both scrubbers also take `onSelect(time)`, called once for each new selected mom
 
 Both scrubbers render on the server. `selected` gives the moment a shared link points at: the server render and the browser both open on it, with its reading, its pills, and no glide in from now, and `onSelect` hears it once. A moment outside the data opens on its nearest end, and one too close to an end of an unbounded strip moves in the browser to the nearest moment that strip can center; a value that isn't a finite number is ignored. Without `now`, the server render claims no present: it draws no now dot, no dimmed past, no Today, Tomorrow, or Yesterday, and no Now pill, and the browser adds them once it reads its own clock. With neither `now` nor `selected`, the server render draws the middle of the supplied data with no reading, and the browser opens on now. Pass `locale` as well, since clocks and dates otherwise follow each runtime's default locale and the server's can differ from the reader's. The server render draws only the stretch around its moment that a strip 720 pixels wide shows, and the browser draws the rest as it mounts, so a week of predictions prerenders in a fraction of the HTML; a wider strip shows empty canvas at its sides until then.
 
+### `<SummaryTiles>`
+
+The tiles `<TideStation>` and `<CurrentStation>` draw under their strip: the station's own number above paired Moon and Sun cards, all three on one row in panes at least 700 px wide. They read the moment you pass as `time`, usually the strip's selection from `onSelect`. Build the number with `rangeTile` or `nextMaxTile`, from predictions you already have:
+
+```tsx
+import { useMemo } from "react";
+import {
+  RangeOutlook,
+  SummaryTiles,
+  rangeTile,
+  swingHeights,
+  useOutlookWeek,
+} from "@slackwater/react";
+
+// `extremes`: the highs and lows the strip draws, in `units`.
+// `fortnightExtremes`: those over `fortnightWindow(openedAt, timezone)`, loaded once,
+// or undefined while they load.
+// `outlookExtremes`: those over `outlookWindow(week, timezone)`, or undefined while they load.
+const swings = useMemo(
+  () => fortnightExtremes && swingHeights(fortnightExtremes),
+  [fortnightExtremes],
+);
+const week = useOutlookWeek(anchor, time, timezone);
+
+<SummaryTiles
+  time={time}
+  timezone="America/Los_Angeles"
+  latitude={47.6}
+  longitude={-122.3}
+  primary={rangeTile(extremes, time, swings, units)}
+  outlook={
+    <RangeOutlook
+      week={week}
+      extremes={outlookExtremes}
+      units={units}
+      time={time}
+      timezone="America/Los_Angeles"
+    />
+  }
+/>;
+```
+
+| Prop        | Type          | Default     | Description                                                                         |
+| ----------- | ------------- | ----------- | ----------------------------------------------------------------------------------- |
+| `time`      | `number`      | —           | The moment in ms the tiles read; without it they read nothing (see below)           |
+| `timezone`  | `string`      | —           | Station IANA time zone                                                              |
+| `latitude`  | `number`      | —           | Station latitude; without a position there is no Sun card                           |
+| `longitude` | `number`      | —           | Station longitude                                                                   |
+| `primary`   | `TileContent` | —           | The station's number, from `rangeTile` or `nextMaxTile`; absent leaves Moon and Sun |
+| `outlook`   | `ReactNode`   | —           | Drawn at the end of the primary tile, such as a `<RangeOutlook>`                    |
+| `locale`    | `string`      | reader's    | BCP 47 locale for clocks                                                            |
+| `className` | `string`      | `mx-4 mt-3` | Classes for the outer element, in place of the station page's margins               |
+
+- `rangeTile(extremes, time, swings, units, locale?)` is the **Range** tile: the swing from the turn at or before `time` to the one after it. To mark a swing in its fortnight's top tenth, pass `swings`, the `swingHeights` of the highs and lows over `fortnightWindow(openedAt, timezone)`. `openedAt` is the moment the page opened, and the window stays fixed while the reader moves the strip, as `<TideStation>` keeps it. Pass `undefined` to leave the swing unranked.
+- `nextMaxTile(events, time, fortnight, timezone, locale?)` is the **Next max** tile: the first maximum flood or ebb after `time`, ranked among the same direction's maxima in `fortnight`, the events over that same `fortnightWindow`.
+- Either tile reads "—" under its label when there is no `time`, or no turn on each side of it, or no maximum after it. It keeps its place, so the tiles never rearrange.
+- `<RangeOutlook>` draws seven bars, one for each day's biggest swing, with the selected day bright. `useOutlookWeek(anchor, time, timezone)` picks its first day, where `anchor` is a station-local midnight, usually the first day of the strip's week:
+  - The week starting at `anchor` holds until `time` reaches its sixth day. The week then starts on that day.
+  - A `time` before the week's first day starts the week four days before it.
+  - With no `time`, the week is `anchor`'s.
+  - Pass the highs and lows over `outlookWindow(week, timezone)`, which reaches a day either side so the end days' swings are complete. Until `extremes` is passed, it draws no bars.
+
+Without `time`, the server render claims no moment. Moon and Sun read "—" with no phase, glyph, sunrise, or daylight. The Range or Next max tile reads "—". `<RangeOutlook>` draws every day alike. Each tile keeps the size it has with a reading, so nothing below moves when the browser passes the moment.
+
 ### `<TideConditions>`
 
 The tide now, after the app's small home-screen widget: the station's name, the height with an arrow for rising or falling, and the curve from half a swing back to a swing and a half ahead, whose labels name the next highs and lows. It is 170 px tall, or the parent's height with `fill`, with the station's credit under it. Pass data, or a station ID to fetch it; a station the API can't serve, such as `chs-campbell-river`, shows the reason instead.
@@ -369,7 +433,7 @@ Every hook scopes its query key by the source's `cacheKey`. When seeding caches 
 
 `prefetchTideStation(queryClient, baseUrlOrSource, id, { units?, locale?, now? })` fills the station, prediction windows, and Nearby lists for `<TideStation>`. A subordinate station's reference metadata loads separately. `prefetchNearbyStations` fills the lists for `<NearbyStations>`. Pass `dehydrate(queryClient)` to the client and render inside a `<HydrationBoundary>`; both are re-exported from TanStack Query. Both prefetch helpers accept a URL or a `SlackwaterDataSource`; render with an equivalent source and matching units on the client.
 
-A server-rendered `<TideStation>` or `<CurrentStation>` draws its strip at the middle of the week it loads, with no reading, and opens on now in the browser. The page's week, schedule, and tiles still follow the server's clock until the browser renders them. To prerender a reading at a chosen moment, render `<TideScrubber>` or `<CurrentScrubber>` with `selected`.
+A server-rendered `<TideStation>` or `<CurrentStation>` draws its strip at the middle of the week it loads, with no reading, and opens on now in the browser. The page's week, schedule, and tiles still follow the server's clock until the browser renders them. To prerender a reading at a chosen moment, render `<TideScrubber>` or `<CurrentScrubber>` with `selected`, and `<SummaryTiles>` with the same moment as `time`.
 
 The hydrated cache contains data, not the source's methods. Reconstruct the source on the client with the same `cacheKey`. If your framework serializes the cache, use a serializer that preserves `Date` values or revive them before hydration. Plain JSON turns dates into strings and is insufficient for these responses.
 
