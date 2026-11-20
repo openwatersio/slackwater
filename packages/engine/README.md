@@ -50,7 +50,7 @@ Calling `createTidePredictor` will generate a new tide prediction object. It acc
   - `nodeCorrections` - The nodal correction convention: `"iho"` (default) or `"schureman"`.
   - `definitions` - An array of [catalog definitions](#catalog-definitions) to predict alongside the built-in catalog. A definition that shares a name or alias with a catalog entry replaces that entry under all of the entry's names.
 
-Use `"iho"` unless the harmonic constants were derived with the Schureman convention. Keep the convention consistent between fitting and prediction; switching conventions can change some nodal amplitude factors by about 7% for J1 and 5.5% for Mf. Slackwater's harmonic fitter uses IHO corrections.
+Use `"iho"` unless the harmonic constants were derived with the Schureman convention. Keep the convention consistent between fitting and prediction; switching conventions can change some nodal amplitude factors by about 7% for J1 and 5.5% for Mf. Slackwater's harmonic fitter uses IHO corrections unless told otherwise.
 
 ### Tide prediction methods
 
@@ -323,18 +323,23 @@ Each sample is `{ time: Date, value: number }`. Values and times must be finite,
 
 The result contains unrounded `constituents` (amplitude in input units, Greenwich phase in degrees), `offset`, training residual `rms`, `unseparable` Rayleigh warnings, and `dropped`. Warnings do not remove constituents. An empty basis fits only the offset. No trend, rounding, parsing, or database-specific frequency filtering is applied.
 
-The least-squares fit evaluates equilibrium arguments and IHO nodal corrections at every sample, so one fit can span many years and gaps. A Householder QR runs in bounded batches, retaining only a reduced matrix between batches so workspace does not grow with the observation count, and the residual comes from those reductions, so without the options below each sample's astronomy is evaluated once. Rank-deficient fits are rejected unless `dropDependent` is set, and underdetermined fits always are; this is not a minimum-norm SVD API.
+The least-squares fit evaluates equilibrium arguments and nodal corrections at every sample, so one fit can span many years and gaps. A Householder QR runs in bounded batches, retaining only a reduced matrix between batches so workspace does not grow with the observation count, and the residual comes from those reductions, so without the options below each sample's astronomy is evaluated once. Rank-deficient fits are rejected unless `dropDependent` is set, and underdetermined fits always are; this is not a minimum-norm SVD API.
 
-These options are TypeScript only; the Swift and Kotlin fitters take neither:
+These options are TypeScript only; the Swift and Kotlin fitters take none of them:
 
 - `weights`: a nonnegative weight per sample, in sample order. These are reliability weights: in an ordinary fit a weight of 2 counts a sample twice in the estimates, though not in the degrees of freedom or in `robust` reweighting, and 0 leaves it out, including from the sample count the fit needs and the record's span. `rms` is then the weighted RMS, and with `robust` it includes the robust weights, so it understates the plain RMS of a record with outliers.
 - `robust: true`: iteratively reweighted least squares with UTide's Cauchy weights (tuning constant 2.385, scale from the median absolute deviation), stopping when the weighted mean square improves by less than 0.1% or after 50 iterations ([Codiga 2011](https://www.po.gso.uri.edu/~codiga/utide/2011Codiga-UTide-Report.pdf), §II.B.1). Each iteration reads the samples twice. UTide also scales each residual by its leverage, which this leaves out: for a tidal record leverage is about the number of parameters over the number of samples.
+- `nodeCorrections`: `"iho"` (default), `"schureman"` or `"foreman"`, as described in [nodal corrections](docs/nodal-corrections.md#nodal-corrections). Foreman's also take the site's `latitude`, in degrees north. `fit` throws `invalidLatitude` when Foreman's set has no numeric latitude or another set has one, and `invalidNodeCorrections` for any other name.
+- `nodal: "yearly"`: for each UTC calendar year, take each argument at January 1 and advance it at the constituent's speed, and take f and u at July 2, as NOAA analyzes one year of observations ([Parker 2007](https://tidesandcurrents.noaa.gov/publications/Tidal_Analysis_and_Predictions.pdf), pp. 41 and 94). NOAA averages such one-year fits as vectors to publish a station's constants, so fit each year on its own to reproduce them. The default, `"exact"`, evaluates both at every sample. Any other value throws `invalidNodal`.
+
 - `dropDependent: true`: leave out a constituent the record can't separate from the names before it, list it in `dropped`, and fit the rest, instead of throwing `rankDeficient`. Pass names in priority order so the weaker of a pair is the one dropped.
 - `confidence: true`: add `amplitudeInterval` and `phaseInterval`, the half-widths of 95% confidence intervals, and `snr`, amplitude squared over its variance, to each constituent. The least-squares covariance of each constituent's cosine and sine coefficients is scaled by the residual's Hann-windowed periodogram, averaged over the constituent's band with UTide's band edges, relative to white noise of the same variance, as T_TIDE and UTide do for colored noise ([Pawlowicz, Beardsley and Lentz 2002](<https://doi.org/10.1016/S0098-3004(02)00013-4>)). White residuals give the ordinary least-squares interval. The intervals are linearized, so they're only reliable where SNR is well above 1. They need more weighted samples than fitted parameters; otherwise `fit` throws `invalidSamples`.
 
+Foreman's corrections and the yearly mode are for comparing a fit with constants an agency published that way. The predictors take only IHO's or Schureman's corrections, evaluated through the span, so constants fitted with Foreman's set or by year predict with a small error.
+
 `selectConstituents` with `robust: true` on 19 years of hourly samples takes about 40 seconds on an Apple M-series Mac.
 
-Invalid input throws `RangeError` with a message beginning with `invalidSamples`, `invalidWeights`, `unknownConstituent`, `duplicateConstituent`, or `rankDeficient`. All but `invalidWeights` correspond to the [Swift fitter's](../../swift/README.md#harmonic-fitting) errors. Swift uses Accelerate QR on Apple platforms; TypeScript works on Linux and in browsers.
+Invalid input throws `RangeError` with a message beginning with `invalidSamples`, `invalidWeights`, `unknownConstituent`, `duplicateConstituent`, `rankDeficient`, `invalidNodeCorrections`, `invalidLatitude` or `invalidNodal`. `invalidSamples`, `unknownConstituent`, `duplicateConstituent` and `rankDeficient` correspond to the [Swift fitter's](../../swift/README.md#harmonic-fitting) errors. Swift uses Accelerate QR on Apple platforms; TypeScript works on Linux and in browsers.
 
 ### Constituent selection
 
@@ -459,11 +464,12 @@ The IHO list encodes each constituent as an extended Doodson number and a letter
 
 ### Node corrections
 
-Both the IHO and Schureman systems compute the same two values per constituent (`f` amplitude factor, `u` phase correction in degrees) but use different math:
+The IHO, Schureman and Foreman systems compute the same two values per constituent (`f` amplitude factor, `u` phase correction in degrees) but use different math:
 
 - [src/node-corrections/types.ts](src/node-corrections/types.ts) — `NodalCorrection` type (`f` and `u`), `CorrectionFn`, and `Fundamentals` type
 - [src/node-corrections/iho.ts](src/node-corrections/iho.ts) — IHO TWCWG Annex A simplified Fourier series formulas (uses only N, p, p' from astro data). **This is the default.**
 - [src/node-corrections/schureman.ts](src/node-corrections/schureman.ts) — Schureman (1940) exact spherical geometry formulas (uses I, ξ, ν, ν', ν'' from astro data). Kept for backward compatibility.
+- [src/node-corrections/foreman.ts](src/node-corrections/foreman.ts) — Foreman's satellite corrections, as t_tide and UTide use them, built for a latitude by `foreman(latitude)` from [foreman.json](src/node-corrections/foreman.json), which [scripts/gen-foreman.py](scripts/gen-foreman.py) generates. Used by `fit` only.
 - [src/node-corrections/index.ts](src/node-corrections/index.ts) — `resolveFundamentals(name?)` selects IHO (default) or Schureman at runtime
 
 ## Design notes
