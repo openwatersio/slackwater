@@ -3,6 +3,7 @@ import input from "../../../fixtures/harmonic-fit.json";
 import parity from "../../../fixtures/harmonic-fit-parity.json";
 import invalid from "../../../fixtures/harmonic-fit-invalid.json";
 import { astro, constituents, fit, type HarmonicFit, type HarmonicSample } from "../src/index.js";
+import { foreman, schureman, type Fundamentals } from "../src/node-corrections/index.js";
 
 const astronomy = vi.hoisted(() => ({ calls: 0 }));
 vi.mock("../src/astronomy/index.js", async (importOriginal) => {
@@ -75,6 +76,128 @@ describe("fit", () => {
       expect(c.amplitude).toBeCloseTo(truth[i].amplitude, 10);
       expect(angleDiff(c.phase, truth[i].phase)).toBeLessThan(1e-8);
     });
+  });
+
+  // Hourly over 2023 and 2024, from M2, K1 and M1 with the given terms at each time.
+  const synthetic = (terms: (time: Date, name: string) => { v: number; f: number; u: number }) =>
+    Array.from({ length: 2 * 8760 }, (_, i) => {
+      const time = new Date(Date.UTC(2023, 0, 1) + i * 3600000);
+      const value = truthNodal.reduce((sum, { name, amplitude, phase }) => {
+        const { v, f, u } = terms(time, name);
+        return sum + amplitude * f * Math.cos(((v + u - phase) * Math.PI) / 180);
+      }, 0.5);
+      return { time, value };
+    });
+  const truthNodal = [
+    { name: "M2", amplitude: 1.2, phase: 100 },
+    { name: "K1", amplitude: 0.4, phase: 200 },
+    { name: "M1", amplitude: 0.02, phase: 300 },
+  ];
+  const recovers = (result: HarmonicFit) => {
+    expect(result.rms).toBeLessThan(1e-9);
+    result.constituents.forEach((c, i) => {
+      expect(c.amplitude).toBeCloseTo(truthNodal[i].amplitude, 9);
+      expect(angleDiff(c.phase, truthNodal[i].phase)).toBeLessThan(1e-6);
+    });
+  };
+  const names = truthNodal.map(({ name }) => name);
+
+  test.each([
+    ["schureman", schureman, {}],
+    ["foreman", foreman(59.9), { latitude: 59.9 }],
+  ] as const)("fits with %s corrections", (nodeCorrections, fundamentals, options) => {
+    const data = synthetic((time, name) => {
+      const state = astro(time);
+      return {
+        ...constituents[name].correction(state, fundamentals),
+        v: constituents[name].value(state),
+      };
+    });
+    recovers(fit(data, names, { nodeCorrections, ...options }));
+    // IHO's corrections leave a residual, so the option took effect.
+    expect(fit(data, names).rms).toBeGreaterThan(1e-4);
+  });
+
+  // The argument at January 1 advanced at the constituent's speed, and f and u at July 2.
+  const yearlyTerms = (fundamentals: Fundamentals) => (time: Date, name: string) => {
+    const year = time.getUTCFullYear();
+    const january = new Date(new Date(0).setUTCFullYear(year, 0, 1));
+    const start = astro(january);
+    const c = constituents[name];
+    const hours = (time.getTime() - january.getTime()) / 3600000;
+    return {
+      ...c.correction(astro(new Date(new Date(0).setUTCFullYear(year, 6, 2))), fundamentals, start),
+      v: c.value(start) + c.speed * hours,
+    };
+  };
+
+  test.each([
+    ["schureman", schureman, {}],
+    ["foreman", foreman(59.9), { latitude: 59.9 }],
+  ] as const)(
+    "fits a year at a time with %s corrections",
+    (nodeCorrections, fundamentals, options) => {
+      const data = synthetic(yearlyTerms(fundamentals));
+      recovers(fit(data, names, { nodeCorrections, nodal: "yearly", ...options }));
+      expect(fit(data, names, { nodeCorrections, ...options }).rms).toBeGreaterThan(1e-4);
+    },
+  );
+
+  test("fits years 0 to 99 a year at a time in their own century", () => {
+    const data = synthetic(yearlyTerms(schureman)).map(({ time, value }) => ({
+      time: new Date(new Date(time).setUTCFullYear(time.getUTCFullYear() - 2000)),
+      value,
+    }));
+    const terms = yearlyTerms(schureman);
+    const truth = data.map(({ time }) =>
+      truthNodal.reduce((sum, { name, amplitude, phase }) => {
+        const { v, f, u } = terms(time, name);
+        return sum + amplitude * f * Math.cos(((v + u - phase) * Math.PI) / 180);
+      }, 0.5),
+    );
+    recovers(
+      fit(
+        data.map(({ time }, i) => ({ time, value: truth[i] })),
+        names,
+        {
+          nodeCorrections: "schureman",
+          nodal: "yearly",
+        },
+      ),
+    );
+  });
+
+  test("reproduces NOAA's yearly M1, whose argument leaves p out", () => {
+    // Schureman's second form: V = T − s + h − 90° at January 1, advanced at the catalog's
+    // speed, and u = ξ − ν + Q at July 2 (Parker 2007; Schureman eq. 202).
+    const data = synthetic((time, name) => {
+      const year = time.getUTCFullYear();
+      const start = astro(new Date(Date.UTC(year, 0, 1)));
+      const middle = astro(new Date(Date.UTC(year, 6, 2)));
+      const c = constituents[name];
+      const hours = (time.getTime() - Date.UTC(year, 0, 1)) / 3600000;
+      const v = c.value(start) + c.speed * hours;
+      if (name !== "M1") return { ...c.correction(middle, schureman), v };
+      return { ...schureman.M1(middle, 0), v: v - start.p.value };
+    });
+    recovers(fit(data, names, { nodeCorrections: "schureman", nodal: "yearly" }));
+  });
+
+  test("rejects Foreman's corrections without a latitude, and an unknown set or nodal mode", () => {
+    expect(() => fit(samples, ["M2"], { nodeCorrections: "foreman" })).toThrow("invalidLatitude");
+    expect(() =>
+      fit(samples, ["M2"], { nodeCorrections: "foreman", latitude: null as unknown as number }),
+    ).toThrow("invalidLatitude");
+    expect(() =>
+      fit(samples, ["M2"], { nodeCorrections: "foreman", latitude: "60" as unknown as number }),
+    ).toThrow("invalidLatitude");
+    expect(() => fit(samples, ["M2"], { latitude: 60 })).toThrow("invalidLatitude");
+    for (const name of ["constructor", "", "IHO"])
+      expect(() => fit(samples, ["M2"], { nodeCorrections: name as "iho" })).toThrow(RangeError);
+    expect(() =>
+      fit(samples, ["M2"], { nodeCorrections: "foreman", latitude: Number.NaN }),
+    ).toThrow("invalidLatitude");
+    expect(() => fit(samples, ["M2"], { nodal: "daily" as "exact" })).toThrow("invalidNodal");
   });
 
   test("fits an offset without harmonics", () => {

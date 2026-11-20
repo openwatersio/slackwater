@@ -10,8 +10,10 @@ const fundamentals: Fundamentals = {
   J1: (a) => corrJ1(d2r * a.N.value),
   M1B: (a) => corrM1B(d2r * a.N.value, d2r * a.p.value),
   // Annex A's M1 formula is for an argument without p (1 555 556), so u takes off the p the argument holds.
-  M1C: (a, turns = 0) => withoutPerigee(corrM1(d2r * a.N.value, d2r * a.p.value), a, turns),
-  M1: (a, turns = 1) => withoutPerigee(corrM1(d2r * a.N.value, d2r * a.p.value), a, turns),
+  M1C: (a, turns = 0, epoch = a) =>
+    withoutPerigee(corrM1(d2r * a.N.value, d2r * a.p.value), epoch, turns),
+  M1: (a, turns = 1, epoch = a) =>
+    withoutPerigee(corrM1(d2r * a.N.value, d2r * a.p.value), epoch, turns),
   M1A: (a) => corrM1A(d2r * a.N.value, d2r * a.p.value),
   M2: (a) => corrM2(d2r * a.N.value),
   K2: (a) => corrK2(d2r * a.N.value),

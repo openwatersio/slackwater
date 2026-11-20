@@ -34,7 +34,8 @@ export interface Constituent {
   members: ConstituentMember[];
   speed: number;
   value: (astro: AstroData) => number;
-  correction: (astro: AstroData, fundamentals?: Fundamentals) => NodalCorrection;
+  /** `epoch` is where the argument is evaluated, when not at `astro`; see `CorrectionFn`. */
+  correction: (astro: AstroData, fundamentals?: Fundamentals, epoch?: AstroData) => NodalCorrection;
 }
 
 export interface ConstituentMember {

@@ -2,6 +2,7 @@ import astro from "./astronomy/index.js";
 import { constituentModels } from "./constituents/index.js";
 import type { Constituent, ConstituentDefinition } from "./constituents/types.js";
 import type { HarmonicConstituent } from "./harmonics/index.js";
+import { foreman, resolveFundamentals } from "./node-corrections/index.js";
 
 export interface HarmonicSample {
   time: Date;
@@ -52,6 +53,17 @@ export interface FitOptions {
    * Needs more weighted samples than fitted parameters.
    */
   confidence?: boolean;
+  /** Nodal correction formulas. Foreman's take the site's `latitude`. Defaults to IHO's. */
+  nodeCorrections?: "iho" | "schureman" | "foreman";
+  /** Degrees north, for Foreman's corrections. */
+  latitude?: number;
+  /**
+   * When f, u and the argument are evaluated. `exact` evaluates them at each sample.
+   * `yearly` takes the argument at the start of each UTC calendar year, advanced at
+   * the constituent's speed, and f and u at July 2, as NOAA analyzes a year of
+   * observations (Parker 2007, Tidal Analysis and Prediction, pp. 41 and 94).
+   */
+  nodal?: "exact" | "yearly";
 }
 
 const radians = Math.PI / 180;
@@ -74,7 +86,7 @@ const BANDS: readonly [number, number][] = [
 // Most frequencies averaged in each band, as UTide caps its Lomb-Scargle grid.
 const BAND_FREQUENCIES = 100;
 
-/** Fit an offset and caller-selected harmonics using per-sample IHO astronomy. */
+/** Fit an offset and caller-selected harmonics. */
 export function fit(
   samples: readonly HarmonicSample[],
   names: readonly string[],
@@ -84,8 +96,19 @@ export function fit(
     robust = false,
     dropDependent = false,
     confidence = false,
+    nodeCorrections,
+    latitude,
+    nodal = "exact",
   }: FitOptions = {},
 ): HarmonicFit {
+  if (nodeCorrections !== undefined && !["iho", "schureman", "foreman"].includes(nodeCorrections))
+    throw new RangeError(`invalidNodeCorrections: ${nodeCorrections}`);
+  // Only Foreman's corrections use a latitude, so one given with another set is a mistake.
+  if ((nodeCorrections === "foreman") !== (latitude !== undefined))
+    throw new RangeError("invalidLatitude");
+  const fundamentals =
+    nodeCorrections === "foreman" ? foreman(latitude!) : resolveFundamentals(nodeCorrections);
+  if (nodal !== "exact" && nodal !== "yearly") throw new RangeError(`invalidNodal: ${nodal}`);
   const count = samples.length;
   if (
     count < Math.max(2, 1 + 2 * names.length) ||
@@ -118,13 +141,45 @@ export function fit(
   const dropped: string[] = [];
 
   // Adapted from https://github.com/openwatersio/tide-database/tree/main/packages/harmonic-analysis.
+  // Each year's arguments at January 1 and corrections at July 2, by constituent name.
+  const years = new Map<number, Map<string, { v: number; f: number; u: number }>>();
+  const yearly = (year: number, model: Constituent) => {
+    let terms = years.get(year);
+    if (!terms) years.set(year, (terms = new Map()));
+    let term = terms.get(model.name);
+    if (!term) {
+      const start = astro(utcDate(year, 0, 1));
+      // The p a formula takes off is the argument's, at January 1.
+      const { f, u } = model.correction(astro(utcDate(year, 6, 2)), fundamentals, start);
+      terms.set(model.name, (term = { v: model.value(start), f, u }));
+    }
+    return term;
+  };
+
+  // The argument v and nodal terms f and u of each constituent at `time`.
+  const termsAt = (time: Date) => {
+    if (nodal === "exact") {
+      const state = astro(time);
+      return (model: Constituent) => ({
+        ...model.correction(state, fundamentals),
+        v: model.value(state),
+      });
+    }
+    const year = time.getUTCFullYear();
+    const hours = (time.getTime() - utcDate(year, 0, 1).getTime()) / 3600000;
+    return (model: Constituent) => {
+      const { v, f, u } = yearly(year, model);
+      return { v: v + model.speed * hours, f, u };
+    };
+  };
+
   const rowAt = (time: Date) => {
-    const state = astro(time);
+    const terms = termsAt(time);
     return [
       1,
       ...fitted.flatMap(({ model }) => {
-        const { f, u } = model.correction(state);
-        const angle = (model.value(state) + u) * radians;
+        const { f, u, v } = terms(model);
+        const angle = (v + u) * radians;
         return [f * Math.cos(angle), f * Math.sin(angle)];
       }),
     ];
@@ -205,6 +260,10 @@ export function fit(
     dropped,
   };
 }
+
+// Date.UTC reads years 0 to 99 as 1900 to 1999; setUTCFullYear doesn't.
+const utcDate = (year: number, month: number, day: number) =>
+  new Date(new Date(0).setUTCFullYear(year, month, day));
 
 export function checkWeights(weights: readonly number[] | undefined, count: number) {
   if (
