@@ -7,6 +7,9 @@ import Foundation
 private let d2r = Double.pi / 180
 private let r2d = 180 / Double.pi
 
+/// To ±180°. For an argument that holds p, u then stays near zero and never wraps.
+private func wrapDegrees(_ d: Double) -> Double { d - 360 * (d / 360 + 0.5).rounded(.down) }
+
 /// Convert f·sinU / f·cosU form to (f, u°).
 private func fromSinCos(_ fsinU: Double, _ fcosU: Double) -> (f: Double, u: Double) {
     (f: (fsinU * fsinU + fcosU * fcosU).squareRoot(), u: r2d * atan2(fsinU, fcosU))
@@ -72,7 +75,8 @@ private func corrL2(_ N: Double, _ p: Double) -> (Double, Double) {
 
 /// IHO node correction for a base constituent name, or nil if it has no explicit
 /// fundamental (compound constituents derive theirs from members — see Constituent).
-func ihoCorrection(_ name: String, _ a: Astro) -> (f: Double, u: Double)? {
+/// `perigeeTurns` is how many turns of p the argument being corrected holds, when it isn't the catalog's.
+func ihoCorrection(_ name: String, _ a: Astro, perigeeTurns: Double? = nil) -> (f: Double, u: Double)? {
     let N = d2r * a.N, p = d2r * a.p, pp = d2r * a.pp
     let r: (Double, Double)
     switch name {
@@ -82,7 +86,11 @@ func ihoCorrection(_ name: String, _ a: Astro) -> (f: Double, u: Double)? {
     case "K1": r = corrK1(N)
     case "J1": r = corrJ1(N)
     case "M1B": r = corrM1B(N, p)
-    case "M1C", "M1": r = corrM1(N, p)
+    // Annex A's M1 formula is for an argument without p (1 555 556), so u takes off the p the argument holds.
+    case "M1C", "M1":
+        let m1 = corrM1(N, p)
+        let turns = perigeeTurns ?? (name == "M1" ? 1 : 0)
+        r = (m1.0, wrapDegrees(m1.1 - turns * a.p))
     case "M1A": r = corrM1A(N, p)
     case "M2": r = corrM2(N)
     case "K2": r = corrK2(N)

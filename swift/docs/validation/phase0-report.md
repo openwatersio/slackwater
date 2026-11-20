@@ -2,6 +2,8 @@
 
 **Date:** 2026-07-12 · **Result: GATE PASSED** ✅
 
+> Figures here are from the report's date. Current maxima against NOAA are in [docs/CONTRACT.md](../../../docs/CONTRACT.md#physical-accuracy).
+
 Phase 0 asked one question: can a pure-Swift harmonic engine be *accurate* — matching
 both the Neaps reference and the tide authority's own published predictions, fully
 offline? Yes.

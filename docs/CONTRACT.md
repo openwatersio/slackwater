@@ -94,11 +94,11 @@ These gates compare the Swift and Kotlin implementations with checked-in NOAA CO
 
 | Area                           | Stations                                        | Tolerance               | Swift observed maximum |
 | ------------------------------ | ----------------------------------------------- | ----------------------- | ---------------------- |
-| Harmonic tides                 | Friday Harbor 9449880                           | `< 15 min`; `< 0.15 m`  | `7.9 min`; `0.035 m`   |
-| Subordinate tides              | Nurse Channel TEC4635 and Kamalo Harbor 1613077 | `< 15 min`; `< 0.15 m`  | `2.8 min`; `0.008 m`   |
-| Harmonic currents              | PUG1741                                         | `< 20 min`; `< 0.30 kn` | `9.7 min`; `0.055 kn`  |
-| Significant home-pass currents | Six Salish Sea stations, events `>= 0.75 kn`    | `< 20 min`; `< 0.35 kn` | `15.3 min`; `0.278 kn` |
-| Subordinate currents           | PCT0236 and nine-station batch                  | `< 30 min`; `< 0.40 kn` | `7.7 min`; `0.101 kn`  |
+| Harmonic tides                 | Friday Harbor 9449880                           | `< 15 min`; `< 0.15 m`  | `1.3 min`; `0.008 m`   |
+| Subordinate tides              | Nurse Channel TEC4635 and Kamalo Harbor 1613077 | `< 15 min`; `< 0.15 m`  | `1.0 min`; `0.002 m`   |
+| Harmonic currents              | PUG1741                                         | `< 20 min`; `< 0.30 kn` | `3.2 min`; `0.036 kn`  |
+| Significant home-pass currents | Six Salish Sea stations, events `>= 0.75 kn`    | `< 20 min`; `< 0.35 kn` | `2.9 min`; `0.072 kn`  |
+| Subordinate currents           | PCT0236 and nine-station batch                  | `< 30 min`; `< 0.40 kn` | `1.4 min`; `0.020 kn`  |
 
 TypeScript also checks `fixtures/currents-vector-noaa.json` against NOAA CO-OPS `vel_type=speed_dir` output for PUG1741 bin 27 over 48 hourly samples. The gate is `< 0.15 kn` magnitude error and `< 5°` circular direction error when NOAA magnitude is at least 0.75 kn. The fixture records both NOAA source URLs; it is independent of Slackwater-generated parity values.
 

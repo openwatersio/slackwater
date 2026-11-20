@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import fundamentals from "../../src/node-corrections/schureman.js";
+import iho from "../../src/node-corrections/iho.js";
 import astro, { AstroData } from "../../src/astronomy/index.js";
 
 const testItems = {
@@ -10,6 +11,7 @@ const testItems = {
   nup: { value: 4 },
   nupp: { value: 2 },
   P: { value: 14 },
+  p: { value: 10 },
   xi: { value: 4 },
 } as AstroData;
 
@@ -80,8 +82,31 @@ describe("schuremanFundamentals", () => {
 
   it("M1: Schureman equations 206, 207, 195 / u_M1 (eq 202)", () => {
     const result = fundamentals.M1(testItems);
-    expect(result.f).toBeCloseTo(3.90313810168, 4);
-    expect(result.u).toBeCloseTo(7.09154172301, 4);
+    expect(result.f).toBeCloseTo(3.90452969083, 4);
+    // ξ − ν + Q − p, with Q from eq 202
+    expect(result.u).toBeCloseTo(7.09154172301 - 10, 4);
+  });
+
+  it("M1: f / f(O1) is 1/Qa, which eq 197 gives as (2.310 + 1.435 cos 2P)^½ at mean I", () => {
+    for (const P of [0, 30, 60, 90, 135]) {
+      const a = { ...testItems, I: { value: 23.45 }, P: { value: P } } as AstroData;
+      const ratio = fundamentals.M1(a).f / fundamentals.O1(a).f;
+      expect(ratio ** 2).toBeCloseTo(2.31 + 1.435 * Math.cos((2 * P * Math.PI) / 180), 2);
+    }
+  });
+
+  it("M1: an argument without p keeps eq 202's u", () => {
+    const withP = fundamentals.M1(testItems);
+    const withoutP = fundamentals.M1(testItems, 0);
+    expect(withoutP.u - withP.u).toBeCloseTo(10, 10);
+  });
+
+  it("M1: Q turns with P, so u stays within a few degrees of IHO's over a nodal cycle", () => {
+    for (let hour = 0; hour < 19 * 8766; hour += 240) {
+      const a = astro(new Date(Date.UTC(2000, 0, 1) + hour * 3600000));
+      const difference = fundamentals.M1(a).u - iho.M1(a).u;
+      expect(Math.cos((difference * Math.PI) / 180)).toBeGreaterThan(Math.cos((3 * Math.PI) / 180));
+    }
   });
 
   it("M3: Schureman equation 149 / u_Modd", () => {
