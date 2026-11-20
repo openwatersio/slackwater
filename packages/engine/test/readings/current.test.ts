@@ -255,6 +255,19 @@ test("finds a sampled lull even when its event is not supplied", () => {
   expect(slackRuns(series([1, 0.2, 1]), [], 0.5)).toHaveLength(1);
 });
 
+test("a rotating current above the comfort speed has no window or slack reading at an axis crossing", () => {
+  const points = [
+    { time: new Date(t0), speed: 1, magnitude: Math.SQRT2, direction: 45 },
+    { time: new Date(t0 + 10 * M), speed: -1, magnitude: Math.SQRT2, direction: 315 },
+  ];
+  const slack = slackAt(t0 + 5 * M);
+  expect(slackRuns(points, [slack], 0.5)).toEqual([]);
+  const reading = readCurrent(slack.time, points, [slack], {});
+  expect(reading?.state).not.toBe("Slack");
+  expect(reading?.magnitude).toBeCloseTo(1);
+  expect(reading?.direction).toBeCloseTo(0);
+});
+
 describe("slackRuns", () => {
   test("keeps a window shared by several slacks once", () => {
     const tl = series([1, 0.2, -0.2, 0.2, -0.2, -1]);

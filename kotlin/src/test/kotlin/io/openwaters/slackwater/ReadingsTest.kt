@@ -261,6 +261,16 @@ class ReadingsTest {
         assertEquals(1, slackRuns(series(1.0, 0.2, 1.0), emptyList(), 0.5).size)
     }
 
+    @Test fun rotatingCurrentDoesNotReadSlackOrOpenWindowAtAxisCrossing() {
+        val points = listOf(CurrentPoint(at(0.0), 1.0, sqrt(2.0), 45.0),
+            CurrentPoint(at(10 * m), -1.0, sqrt(2.0), 315.0))
+        val event = slackAt(at(5 * m))
+        assertTrue(slackRuns(points, listOf(event), 0.5).isEmpty())
+        val reading = assertNotNull(readCurrent(event.time, points, listOf(event), null, null))
+        assertNotEquals(CurrentState.SLACK, reading.state)
+        assertTrue(abs(reading.magnitudeKnots - 1) < 1e-6)
+    }
+
     @Test fun slackRunsMergeWindowsAroundSlacks() {
         val shared = slackRuns(series(1.0, 0.2, -0.2, 0.2, -0.2, -1.0),
             listOf(slackAt(at(15 * m)), slackAt(at(25 * m)), slackAt(at(35 * m))), 0.5)

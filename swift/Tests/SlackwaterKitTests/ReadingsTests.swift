@@ -213,6 +213,16 @@ private func seconds(_ date: Date?) -> Double { date?.timeIntervalSince(t0) ?? .
     #expect(slackRuns(series([1, 0.2, 1]), events: [], threshold: 0.5).count == 1)
 }
 
+@Test func rotatingCurrentDoesNotReadSlackOrOpenWindowAtAxisCrossing() throws {
+    let points = [CurrentPoint(time: at(0), speed: 1, magnitude: sqrt(2), direction: 45),
+                  CurrentPoint(time: at(10 * M), speed: -1, magnitude: sqrt(2), direction: 315)]
+    let event = slackAt(at(5 * M))
+    #expect(slackRuns(points, events: [event], threshold: 0.5).isEmpty)
+    let reading = try #require(readCurrent(at: event.time, timeline: points, events: [event], flood: nil, ebb: nil))
+    #expect(reading.state != .slack)
+    #expect(abs(reading.magnitude - 1) < 1e-6)
+}
+
 @Test func slackRunsMergeWindowsAroundSlacks() throws {
     let shared = slackRuns(series([1, 0.2, -0.2, 0.2, -0.2, -1]),
                            events: [slackAt(at(15 * M)), slackAt(at(25 * M)), slackAt(at(35 * M))], threshold: 0.5)
