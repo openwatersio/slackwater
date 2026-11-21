@@ -1,5 +1,17 @@
 # @neaps/react
 
+## 1.0.0-beta.9
+
+### Major Changes
+
+- [#549](https://github.com/openwatersio/slackwater/pull/549) [`ec76a43`](https://github.com/openwatersio/slackwater/commit/ec76a430ee6772901192170df2a3c01c0afcc229) Thanks [@clarkbw](https://github.com/clarkbw)! - Measure current windows against full speed and report slack only when the full current reaches zero. Rotary stations no longer report every flood/ebb-axis crossing as slack. `currentWindows` returns each window and the slack moments it contains.
+
+### Patch Changes
+
+- [#548](https://github.com/openwatersio/slackwater/pull/548) [`475aa98`](https://github.com/openwatersio/slackwater/commit/475aa98108c519039ac888942409dfff66dda85a) Thanks [@tstotzer](https://github.com/tstotzer)! - Scrubber-only apps can leave the unused nearby map and its stylesheet out of their bundles.
+- Updated dependencies [[`ec76a43`](https://github.com/openwatersio/slackwater/commit/ec76a430ee6772901192170df2a3c01c0afcc229)]:
+  - @slackwater/engine@1.0.0-beta.14
+
 ## 1.0.0-beta.8
 
 ### Minor Changes

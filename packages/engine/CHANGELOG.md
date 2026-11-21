@@ -1,5 +1,11 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.14
+
+### Major Changes
+
+- [#549](https://github.com/openwatersio/slackwater/pull/549) [`ec76a43`](https://github.com/openwatersio/slackwater/commit/ec76a430ee6772901192170df2a3c01c0afcc229) Thanks [@clarkbw](https://github.com/clarkbw)! - Measure current windows against full speed and report slack only when the full current reaches zero. Rotary stations no longer report every flood/ebb-axis crossing as slack. `currentWindows` returns each window and the slack moments it contains.
+
 ## 1.0.0-beta.13
 
 ### Minor Changes
