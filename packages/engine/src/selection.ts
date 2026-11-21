@@ -1,4 +1,5 @@
 import { constituentModels } from "./constituents/index.js";
+import { foremanLines } from "./node-corrections/foreman.js";
 import {
   checkWeights,
   fit,
@@ -22,8 +23,10 @@ export interface Candidate {
  * with its Rayleigh comparison constituent (Foreman 1977, Appendix 1), under
  * the catalog's names. Z0 is the fit's offset, so only stands as a comparison
  * here. Foreman's OQ2 is left out, since the catalog's OQ2 is the O1 + Q1
- * compound on another line. The catalog has no H1 or H2, so selection reports
- * them as unknown unless `definitions` adds them.
+ * compound on another line. The catalog holds H1 and H2 only as alpha2 and
+ * M(KS)2, so selection reports them as unknown unless `definitions` adds them.
+ * With Foreman's nodal corrections and no `candidates`, selection takes his
+ * lines instead (`foremanLines`), OQ2 among them as the catalog's OQ2_KV.
  */
 export const foremanCandidates: readonly Candidate[] = [
   ["Sa", "Ssa"],
@@ -96,7 +99,10 @@ export const foremanCandidates: readonly Candidate[] = [
 ].map(([name, comparison]) => ({ name, comparison }));
 
 export interface SelectionOptions extends FitOptions {
-  /** Candidates in priority order. Defaults to `foremanCandidates`. */
+  /**
+   * Candidates in priority order. Defaults to `foremanCandidates`, on
+   * t_tide's lines (`foremanLines`) with Foreman's nodal corrections.
+   */
   candidates?: readonly Candidate[];
   /** Cycles a pair must separate by over the record. Defaults to 1. */
   rayleigh?: number;
@@ -135,8 +141,20 @@ export interface SelectionResult {
  */
 export function selectConstituents(
   samples: readonly HarmonicSample[],
-  { candidates = foremanCandidates, rayleigh = 1, minSnr = 2, ...options }: SelectionOptions = {},
+  { candidates: given, rayleigh = 1, minSnr = 2, ...options }: SelectionOptions = {},
 ): SelectionResult {
+  // A caller's own definition keeps its name.
+  const defined = new Set(options.definitions?.map((d) => d.name));
+  const onForemanLine = (name: string) => (defined.has(name) ? name : (foremanLines[name] ?? name));
+  const candidates =
+    given ??
+    (options.nodeCorrections === "foreman"
+      ? foremanCandidates.flatMap(({ name, comparison }) => [
+          // Foreman's OQ2, which the shared list leaves out, is the catalog's OQ2_KV.
+          ...(name === "eps2" ? [{ name: "OQ2_KV", comparison: "eps2" }] : []),
+          { name: onForemanLine(name), comparison: comparison && onForemanLine(comparison) },
+        ])
+      : foremanCandidates);
   checkWeights(options.weights, samples.length);
   // Samples weighted zero are out of the record, so they don't stretch its span.
   const active = samples.filter((_, i) => !options.weights || options.weights[i] > 0);

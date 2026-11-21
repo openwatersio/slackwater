@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
 import { astro, constituents, foremanCandidates, selectConstituents } from "../src/index.js";
+import { foremanLines } from "../src/node-corrections/foreman.js";
 
-// Foreman (1977), Appendix 1: each standard constituent's frequency in cycles per hour.
+// Foreman (1977), Appendix 1: each standard constituent's frequency in cycles per hour. mu2's
+// is t_tide's (UTide 0.4.0), 0.077689468: a transcription here had 0.077689408.
 const FOREMAN_FREQUENCIES: Record<string, number> = {
   Sa: 0.0001140741,
   Ssa: 0.0002281591,
@@ -32,7 +34,7 @@ const FOREMAN_FREQUENCIES: Record<string, number> = {
   ups1: 0.0463429898,
   eps2: 0.0761773161,
   "2N2": 0.077487097,
-  mu2: 0.077689408,
+  mu2: 0.077689468,
   N2: 0.0789992488,
   nu2: 0.0792016198,
   gamma2: 0.0803090296,
@@ -106,17 +108,65 @@ describe("foremanCandidates", () => {
     for (const { name, comparison } of foremanCandidates) {
       expect(FOREMAN_FREQUENCIES[name]).toBeDefined();
       expect(comparison === "Z0" || FOREMAN_FREQUENCIES[comparison!] !== undefined).toBe(true);
-      // H1 and H2 aren't in the catalog; every other name resolves on Foreman's line.
+      // H1 and H2 aren't in the catalog under those names; every other name resolves on
+      // Foreman's line, roughly for Sa and S1, which the catalog names without the perihelion.
       if (name === "H1" || name === "H2") expect(constituents[name]).toBeUndefined();
       else
         expect(Math.abs(constituents[name].speed / 360 - FOREMAN_FREQUENCIES[name])).toBeLessThan(
           1e-7,
         );
+      // t_tide's lines resolve exactly: S1 and S1_KV, Sa and SA_KV are 6e-9 cycles an hour apart.
+      const line = foremanLines[name] ?? name;
+      // The catalog's M(KS)2 is tabled 7.7e-6 °/h off its Doodson rate, 2e-8 cycles an hour.
+      if (line === "M(KS)2")
+        expect(Math.abs(constituents[line].speed / 360 - FOREMAN_FREQUENCIES[name])).toBeLessThan(
+          3e-8,
+        );
+      else
+        expect(
+          Math.abs(constituents[line].speed / 360 - FOREMAN_FREQUENCIES[name]),
+          line,
+        ).toBeLessThan(1e-9);
     }
   });
 });
 
 describe("selectConstituents", () => {
+  test("takes t_tide's lines with Foreman's nodal corrections", () => {
+    const names = (options: Parameters<typeof selectConstituents>[1]) =>
+      selectConstituents(record(15), options).selection.map((s) => s.name);
+    const foreman = names({ nodeCorrections: "foreman", latitude: 59.9 });
+    expect(foreman).toEqual(
+      expect.arrayContaining(["SA_KV", "S1_KV", "alpha2", "M(KS)2", "OQ2_KV"]),
+    );
+    expect(foreman.indexOf("OQ2_KV")).toBe(foreman.indexOf("eps2") - 1);
+    expect(foreman).not.toEqual(expect.arrayContaining(["Sa"]));
+    expect(foreman).not.toEqual(expect.arrayContaining(["S1"]));
+    expect(foreman).not.toEqual(expect.arrayContaining(["H1"]));
+    expect(names({})).toEqual(expect.arrayContaining(["Sa", "S1", "H1"]));
+    const H1 = { name: "H1", speed: 28.9430376, coefficients: [2, 0, -1, 0, 0, 1, -2] as const };
+    expect(
+      names({
+        nodeCorrections: "foreman",
+        latitude: 59.9,
+        definitions: [
+          {
+            ...H1,
+            coefficients: [...H1.coefficients] as [
+              number,
+              number,
+              number,
+              number,
+              number,
+              number,
+              number,
+            ],
+          },
+        ],
+      }),
+    ).toContain("H1");
+  });
+
   test("keeps what fifteen days resolve, as Parker's pairs say", () => {
     const { selection } = selectConstituents(record(15));
     const entry = (name: string) => selection.find((s) => s.name === name)!;

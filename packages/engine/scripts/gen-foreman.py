@@ -14,6 +14,7 @@ checked by speed.
 
 import datetime
 import json
+import re
 import math
 import pathlib
 
@@ -28,7 +29,9 @@ for c in catalog:
     for n in [c["name"], *c["aliases"]]:
         names.setdefault(n.upper(), c)
 # t_tide's names for lines the catalog spells out.
-for foreman, ours in {"SIG1": "sigma1", "THE1": "theta1", "GAM2": "gamma2", "H1": "alpha2", "LDA2": "lambda2"}.items():
+# t_tide's SA and S1 carry the perihelion, as the catalog's SA_KV and S1_KV do; its Sa and S1 don't.
+# Its H2 and OQ2 are the lines Kartverket names M(KS)2 and OQ2_KV; the catalog's OQ2 is another line.
+for foreman, ours in {"SIG1": "sigma1", "THE1": "theta1", "GAM2": "gamma2", "H1": "alpha2", "LDA2": "lambda2", "SA": "SA_KV", "S1": "S1_KV", "H2": "M(KS)2", "OQ2": "OQ2_KV"}.items():
     names[foreman] = next(c for c in catalog if c["name"] == ours)
 
 const, sat, shallow = ut_constants.const, ut_constants.sat, ut_constants.shallow
@@ -54,6 +57,12 @@ def catalog_entry(i):
     # t_tide's speeds come from its own astronomy, so they agree to about 1e-7 °/h.
     if c is None or abs(c["speed"] - const.freq[i] * 360) > 1e-5:
         return None
+    # A main line's Doodson numbers must match too: S1 and S1_KV are only 2e-6 °/h apart.
+    # Both count N′ = −N.
+    doodson = const.doodson[i]
+    if not np.isnan(doodson).any():
+        if c["coefficients"][:6] != [int(x) for x in doodson]:
+            raise SystemExit(f"{const.name[i]} matched {c['name']}, whose coefficients differ")
     return c
 
 
@@ -94,10 +103,11 @@ for i, name in enumerate(const.name):
 # The catalog's M1 is the 14.4966939 °/h line t_tide calls NO1.
 satellites["M1"] = satellites["NO1"]
 
-# t_tide's OQ2 is a different line from the catalog's, H2 has none, and its ST lines are unnamed shallow-water lines.
-expected = {"OQ2", "H2"}
-if {n for n in unmatched if not n.startswith("ST")} != expected:
-    raise SystemExit(f"unexpected lines left out: {sorted(set(unmatched) - expected)}")
+# t_tide's ST lines are unnamed shallow-water lines the catalog doesn't hold.
+expected = set()
+left_out = {n for n in unmatched if not re.fullmatch(r"ST\d+", n)}
+if left_out != expected:
+    raise SystemExit(f"unexpected lines left out: {sorted(left_out ^ expected)}")
 if any(m not in satellites for members in products.values() for m, _ in members):
     raise SystemExit("a shallow-water product names a line without its own entry")
 
@@ -115,7 +125,7 @@ for when in ["1995-03-10T06:00", "2006-06-21T00:00", "2024-12-31T18:00"]:
     t = datetime.datetime.fromisoformat(when)
     # UTide counts days from the proleptic Gregorian calendar's day 1, as date.toordinal does.
     day = t.toordinal() + t.hour / 24
-    for latitude in [-33.9, 2.0, 37.8, 70.66]:
+    for latitude in [-33.9, -2.0, 2.0, 37.8, 70.66]:
         F, U, _ = FUV(np.array([day]), day, np.array(picked), latitude, np.zeros(4, bool))
         reference.append({
             "time": when + ":00Z",

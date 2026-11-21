@@ -160,6 +160,39 @@ describe("fit", () => {
     recovers(fit(data, names, { nodeCorrections: "schureman", nodal: "yearly" }));
   });
 
+  test.each(["Sa", "SA", "S1", "OQ2"])(
+    "refuses %s with Foreman's set, whose line it isn't",
+    (name) => {
+      const data = synthetic(yearlyTerms(schureman)).slice(0, 2000);
+      expect(() => fit(data, [name, "M2"], { nodeCorrections: "foreman", latitude: 60 })).toThrow(
+        "notForemanLine",
+      );
+      expect(() => fit(data, [name, "M2"])).not.toThrow();
+    },
+  );
+
+  test("fits a caller's own definition under a name Foreman's set refuses", () => {
+    const data = synthetic(yearlyTerms(schureman)).slice(0, 2000);
+    const definitions = [
+      {
+        name: "S1",
+        speed: 15,
+        coefficients: [1, 1, -1, 0, 0, 0, 0] as [
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+          number,
+        ],
+      },
+    ];
+    expect(() =>
+      fit(data, ["S1", "M2"], { definitions, nodeCorrections: "foreman", latitude: 60 }),
+    ).not.toThrow();
+  });
+
   test("reproduces NOAA's yearly M1, whose argument leaves p out", () => {
     // Schureman's second form: V = T − s + h − 90° at January 1, advanced at the catalog's
     // speed, and u = ξ − ν + Q at July 2 (Parker 2007; Schureman eq. 202).

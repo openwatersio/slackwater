@@ -3,6 +3,7 @@ import { constituentModels } from "./constituents/index.js";
 import type { Constituent, ConstituentDefinition } from "./constituents/types.js";
 import type { HarmonicConstituent } from "./harmonics/index.js";
 import { foreman, resolveFundamentals } from "./node-corrections/index.js";
+import { foremanLines } from "./node-corrections/foreman.js";
 
 export interface HarmonicSample {
   time: Date;
@@ -130,11 +131,21 @@ export function fit(
     throw new RangeError("invalidSamples");
 
   const catalog = constituentModels(definitions);
+  const base = constituentModels();
   const seen = new Set<string>();
   let fitted = names.map((name) => {
     const model = Object.hasOwn(catalog, name) ? catalog[name] : undefined;
     if (!model) throw new RangeError(`unknownConstituent: ${name}`);
     if (seen.has(model.name)) throw new RangeError(`duplicateConstituent: ${name}`);
+    // The catalog's Sa, S1 and OQ2 are other lines than t_tide's by those names, so fitting them
+    // with Foreman's set would fit a line t_tide doesn't. A caller's own definition is its own.
+    if (
+      nodeCorrections === "foreman" &&
+      Object.hasOwn(foremanLines, model.name) &&
+      Object.hasOwn(base, model.name) &&
+      base[model.name] === model
+    )
+      throw new RangeError(`notForemanLine: ${name} (t_tide's is ${foremanLines[model.name]})`);
     seen.add(model.name);
     return { name, model };
   });
@@ -149,7 +160,7 @@ export function fit(
     let term = terms.get(model.name);
     if (!term) {
       const start = astro(utcDate(year, 0, 1));
-      // The p a formula takes off is the argument's, at January 1.
+      // The p a formula takes off is the argument's, at January 1. Foreman's M1 takes none off.
       const { f, u } = model.correction(astro(utcDate(year, 6, 2)), fundamentals, start);
       terms.set(model.name, (term = { v: model.value(start), f, u }));
     }

@@ -24,8 +24,8 @@ SOFTWARE.
 
 ---
 
-src/node-corrections/foreman.json holds Foreman's satellite and shallow-water
-tables as UTide distributes them (https://github.com/wesleybowman/UTide),
+Foreman's satellite and shallow-water tables (src/node-corrections/foreman.json,
+built into dist/index.js) are copied as UTide distributes them (https://github.com/wesleybowman/UTide),
 under the following license.
 
 The MIT License (MIT)

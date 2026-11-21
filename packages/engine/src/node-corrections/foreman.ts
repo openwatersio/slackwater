@@ -4,6 +4,20 @@ import table from "./foreman.json" with { type: "json" };
 import { withoutPerigee } from "./iho.js";
 import type { Fundamentals, NodalCorrection } from "./types.js";
 
+/**
+ * The catalog lines t_tide fits under Foreman's names, where they differ from
+ * the catalog's: his Sa and S1 carry the perihelion, as the catalog's SA_KV
+ * and S1_KV do; his H1 and H2 are the catalog's alpha2 and M(KS)2; and his OQ2
+ * is the catalog's OQ2_KV, where the catalog's OQ2 is a compound on another line.
+ */
+export const foremanLines: Readonly<Record<string, string>> = {
+  Sa: "SA_KV",
+  S1: "S1_KV",
+  H1: "alpha2",
+  H2: "M(KS)2",
+  OQ2: "OQ2_KV",
+};
+
 /** Changes in p, N and p′, phase in cycles, amplitude ratio, and latitude factor kind. */
 type Satellite = [number, number, number, number, number, number];
 

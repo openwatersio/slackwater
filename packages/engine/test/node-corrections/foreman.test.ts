@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import astro from "../../src/astronomy/index.js";
 import constituents from "../../src/constituents/index.js";
 import { foreman } from "../../src/node-corrections/index.js";
+import table from "../../src/node-corrections/foreman.json" with { type: "json" };
 import reference from "./foreman-utide.json" with { type: "json" };
 
 const turn = (degrees: number) => degrees - 360 * Math.round(degrees / 360);
@@ -21,6 +22,14 @@ describe("foreman", () => {
       }
     },
   );
+
+  it("has UTide's values for every line in the table", () => {
+    // M1 is a catalog name for t_tide's NO1, which UTide doesn't know by that name.
+    const lines = [...Object.keys(table.satellites), ...Object.keys(table.products)].filter(
+      (name) => name !== "M1",
+    );
+    for (const { values } of reference) expect(Object.keys(values).sort()).toEqual(lines.sort());
+  });
 
   it("gives M1 the correction of its line, which t_tide calls NO1", () => {
     const a = astro(new Date("2010-05-01T00:00:00Z"));
@@ -44,8 +53,8 @@ describe("foreman", () => {
     expect(foreman(-1).K1(a)).not.toEqual(foreman(1).K1(a));
   });
 
-  it.each(["Sa", "MSf", "MSm", "Mf"])(
-    "leaves %s uncorrected, as t_tide does, whatever its catalog members",
+  it.each(["Sa", "SA_KV", "S1", "MSf", "MSm", "Mf"])(
+    "leaves %s uncorrected, as t_tide does or has no such line",
     (name) => {
       const a = astro(new Date("2010-05-01T00:00:00Z"));
       expect(constituents[name].correction(a, foreman(60))).toEqual({ f: 1, u: 0 });
