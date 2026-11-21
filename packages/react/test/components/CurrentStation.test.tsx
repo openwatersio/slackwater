@@ -249,7 +249,7 @@ describe("CurrentStation", () => {
     expect(screen.getByRole("slider").getAttribute("aria-valuetext")).toMatch(/set \d+ degrees,/);
   });
 
-  test("lists the week's slacks and maxima, and says where they come from", async () => {
+  test("lists the week's extrema and says where they come from", async () => {
     const realFetch = window.fetch;
     const attribution =
       "Slackwater database (https://github.com/openwatersio/slackwater-database). Source: Page current survey";
@@ -274,7 +274,7 @@ describe("CurrentStation", () => {
     expect(nearby.contains(credits[0])).toBe(true);
 
     const rows = [...container.querySelectorAll("button")].map((b) => b.textContent ?? "");
-    expect(rows.some((r) => /—Slack$/.test(r))).toBe(true);
+    expect(rows.some((r) => /—Slack$/.test(r))).toBe(false);
     expect(container.textContent).not.toMatch(/axis/i);
     const nextMax = [...container.querySelectorAll(".sw-card")].find((t) =>
       t.textContent!.startsWith("Next max"),
@@ -286,7 +286,7 @@ describe("CurrentStation", () => {
     expect(rows.some((r) => /\d kn(WNW|W)Ebb$/.test(r))).toBe(true);
     expect(
       screen.getByText(
-        "NOAA harmonic current prediction. Flood bearing 102°. Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and slack windows follow the flood/ebb direction; crossing flow can remain at slack. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.",
+        "NOAA harmonic current prediction. Flood bearing 102°. Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph and extrema follow flood and ebb. Slack windows use the full current speed. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.",
       ),
     ).toBeDefined();
 
@@ -304,7 +304,7 @@ describe("CurrentStation", () => {
 
     expect(
       await screen.findByText(
-        /^NOAA subordinate station: .+'s slacks, maxima, and minima, corrected by published offsets\. Flood bearing 210°\. Bearings are measured from true north\. The reading shows full predicted speed and Set, the direction water flows toward\. The graph, maxima and slack windows follow the flood\/ebb direction; crossing flow can remain at slack\. Schedule headings use published flood\/ebb bearings; Set uses them when rotation data is unavailable\.$/,
+        /^NOAA subordinate station: .+'s slacks, maxima, and minima, corrected by published offsets\. Flood bearing 210°\. Bearings are measured from true north\. The reading shows full predicted speed and Set, the direction water flows toward\. The graph and extrema follow flood and ebb\. Slack windows use the full current speed\. Schedule headings use published flood\/ebb bearings; Set uses them when rotation data is unavailable\.$/,
         undefined,
         { timeout: 10000 },
       ),
@@ -342,7 +342,7 @@ describe("CurrentStation", () => {
 
     expect(
       await screen.findByText(
-        "Harmonic constants from Test Survey. Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and slack windows follow the flood/ebb direction; crossing flow can remain at slack. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.",
+        "Harmonic constants from Test Survey. Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph and extrema follow flood and ebb. Slack windows use the full current speed. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.",
       ),
     ).toBeDefined();
     fireEvent.click(screen.getByText("Station details"));

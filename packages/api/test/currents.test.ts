@@ -103,7 +103,7 @@ describe("GET /currents/events", () => {
     expect(response.body.ebbDirection).toBe(response.body.station.current.ebb_direction);
 
     const events: Event[] = response.body.events;
-    expect(new Set(events.map((e) => e.kind))).toEqual(new Set(["slack", "maxFlood", "maxEbb"]));
+    expect(new Set(events.map((e) => e.kind))).toEqual(new Set(["maxFlood", "maxEbb"]));
     for (const event of events) {
       if (event.kind === "maxFlood") {
         expect(event.speed).toBeGreaterThan(0);

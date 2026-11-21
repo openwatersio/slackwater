@@ -2,6 +2,7 @@ import {
   SPOKEN_COMPASS_POINTS,
   compass16,
   compassIndex,
+  readCurrent,
   type CurrentReading,
   type SlackWindow,
 } from "@slackwater/engine";
@@ -14,6 +15,17 @@ export type { CurrentReading, CurrentState, Directions, SlackWindow } from "@sla
 
 /** What shows in place of a strip with fewer than two samples. */
 export const EMPTY_MESSAGE = "No current predictions for this period.";
+
+/** Keep only slack events supported by the sampled current or verified by its predictor. */
+export function currentEventsForTimeline(
+  timeline: CurrentTimelineEntry[],
+  events: CurrentEvent[],
+): CurrentEvent[] {
+  return events.filter(
+    (event) =>
+      event.kind !== "slack" || readCurrent(event.time, timeline, [event], {})?.state === "Slack",
+  );
+}
 
 /**
  * The speed ramp color for an absolute speed in knots. The ramp is the same

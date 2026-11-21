@@ -91,11 +91,11 @@ describe("slackwater currents", () => {
 });
 
 describe("slackwater currents events", () => {
-  test("shows slack, max flood, and max ebb with speed and direction", async () => {
+  test("shows extrema with speed and direction at a rotary station", async () => {
     const { stdout } = await run(["currents", "events", "--station", "noaa/PUG1701", ...span]);
     expect(stdout).toContain("Deception Pass (Narrows)");
     expect(stdout).toContain("noaa/PUG1701  ·  knots  ·  flood 102°T  ·  ebb 282°T");
-    expect(stdout).toMatch(/│\s*Slack\s*│/);
+    expect(stdout).not.toMatch(/│\s*Slack\s*│/);
     expect(stdout).not.toMatch(/axis/i);
     expect(stdout).toMatch(/Max flood\s*│\s*\d+\.\d kn\s*│\s*102°T/);
     expect(stdout).toMatch(/Max ebb\s*│\s*\d+\.\d kn\s*│\s*282°T/);
@@ -114,11 +114,11 @@ describe("slackwater currents events", () => {
     expect(data).not.toHaveProperty("distance");
 
     const events: Event[] = data.events;
-    expect(new Set(events.map((e) => e.kind))).toEqual(new Set(["slack", "maxFlood", "maxEbb"]));
+    expect(new Set(events.map((e) => e.kind))).toEqual(new Set(["maxFlood", "maxEbb"]));
     expect(events.find((e) => e.kind === "maxFlood")!.speed).toBeGreaterThan(0);
     expect(events.find((e) => e.kind === "maxFlood")!.direction).toBe(101.5);
     expect(events.find((e) => e.kind === "maxEbb")!.speed).toBeLessThan(0);
-    expect(events.find((e) => e.kind === "slack")).not.toHaveProperty("direction");
+    expect(events.find((e) => e.kind === "slack")).toBeUndefined();
   });
 
   test("returns only events inside start and end", async () => {
@@ -360,7 +360,7 @@ describe("slackwater currents timeline", () => {
     expect(stdout).toMatch(/Ebb\s*│\s*\d+\.\d kn/);
   });
 
-  test("labels near-zero samples as slack", async () => {
+  test("keeps the flow label when crossing current remains", async () => {
     // Deception Pass turns at about 00:05Z.
     const { stdout } = await run([
       "currents",
@@ -377,7 +377,7 @@ describe("slackwater currents timeline", () => {
     expect(stdout).toMatch(/Current\s*│\s*Speed\s*│\s*Full speed\s*│\s*Set/);
     // Crossing flow shows beside the label: at 00:04Z the flood/ebb speed is -0.008 kn while
     // the water still runs 0.118 kn toward 196°.
-    expect(stdout).toMatch(/Slack\s*│\s*0\.0 kn\s*│\s*0\.1 kn\s*│\s*196°T\s*│/);
+    expect(stdout).toMatch(/Ebb\s*│\s*0\.0 kn\s*│\s*0\.1 kn\s*│\s*196°T\s*│/);
   });
 
   test("gives a station with crossing flow the same table for any window", async () => {
@@ -500,7 +500,7 @@ describe("slackwater currents timeline", () => {
 describe("slackwater currents slack", () => {
   test("shows windows below the threshold", async () => {
     const { stdout } = await run(["currents", "slack", "-s", "noaa/PUG1701", ...span]);
-    expect(stdout).toContain("·  slack windows: flood/ebb speed below 0.5 kn\n");
+    expect(stdout).toContain("·  slack windows: full current speed below 0.5 kn\n");
     expect(stdout).not.toMatch(/axis/i);
     expect(stdout).toContain("Duration");
     expect(stdout).toMatch(/│\s*\d+m\s*│/);
@@ -637,7 +637,9 @@ describe("slackwater currents slack", () => {
       "--end",
       "2026-06-01T09:00:00Z",
     ]);
-    expect(stdout).toContain("No slack windows with flood/ebb speed below 0.5 kn in this period");
+    expect(stdout).toContain(
+      "No slack windows with full current speed below 0.5 kn in this period",
+    );
   });
 
   test("errors on an invalid threshold", async () => {

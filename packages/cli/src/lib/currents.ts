@@ -192,10 +192,8 @@ export function currentTimeline(
 const SLACK_SAMPLE_SECONDS = 60;
 
 /**
- * `slackWindows` only keeps a window once it sees the current reverse, so
- * sampling starts half a day early to find a slack already under way at the
- * start of the span, and runs as long past the end. A window still open at
- * the padded edge is clamped and marked clipped like any other.
+ * Sample half a day beyond each end to find windows already under way at the
+ * edges. A window still open at the padded edge is clamped and marked clipped.
  */
 const SLACK_PAD_MS = 12 * 60 * 60 * 1000;
 
