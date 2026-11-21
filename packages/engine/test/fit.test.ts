@@ -144,27 +144,20 @@ describe("fit", () => {
   );
 
   test("fits years 0 to 99 a year at a time in their own century", () => {
-    const data = synthetic(yearlyTerms(schureman)).map(({ time, value }) => ({
-      time: new Date(new Date(time).setUTCFullYear(time.getUTCFullYear() - 2000)),
-      value,
-    }));
+    // Three-hourly in years 23 and 24, which keeps the test fast under coverage.
     const terms = yearlyTerms(schureman);
-    const truth = data.map(({ time }) =>
-      truthNodal.reduce((sum, { name, amplitude, phase }) => {
+    const data = Array.from({ length: (2 * 8760) / 3 }, (_, i) => {
+      const time = new Date(new Date(Date.UTC(2023, 0, 1) + i * 3 * 3600000).setUTCFullYear(0));
+      time.setUTCFullYear(23 + Math.floor(i / (8760 / 3)), 0, 1);
+      time.setUTCHours((i % (8760 / 3)) * 3);
+      const value = truthNodal.reduce((sum, { name, amplitude, phase }) => {
         const { v, f, u } = terms(time, name);
         return sum + amplitude * f * Math.cos(((v + u - phase) * Math.PI) / 180);
-      }, 0.5),
-    );
-    recovers(
-      fit(
-        data.map(({ time }, i) => ({ time, value: truth[i] })),
-        names,
-        {
-          nodeCorrections: "schureman",
-          nodal: "yearly",
-        },
-      ),
-    );
+      }, 0.5);
+      return { time, value };
+    });
+    expect(data[0].time.getUTCFullYear()).toBe(23);
+    recovers(fit(data, names, { nodeCorrections: "schureman", nodal: "yearly" }));
   });
 
   test("reproduces NOAA's yearly M1, whose argument leaves p out", () => {
