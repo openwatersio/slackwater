@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { renderToString } from "react-dom/server";
 import { MoonGlyph, SummaryTiles } from "../../src/components/SummaryTiles.js";
 
 const TZ = "America/Los_Angeles";
@@ -83,6 +84,63 @@ describe("SummaryTiles", () => {
       <SummaryTiles time={Date.parse("2024-10-06T12:00:00Z")} timezone={TZ} />,
     );
     expect(tiles(container)).toEqual(["MoonWaxing Crescent12% lit"]);
+  });
+
+  test("with no moment, the server render reads nothing, and the tiles keep their size", () => {
+    const props = {
+      timezone: "UTC",
+      latitude: 50,
+      longitude: 0,
+      className: "",
+    };
+    const html = renderToString(
+      <SummaryTiles {...props} primary={{ label: "Range", value: "—", caption: "" }} />,
+    );
+    expect(html).not.toMatch(/Moon<\/span>.*(Full|New|Crescent|Gibbous|Quarter)/);
+    expect(html).not.toMatch(/Sunrise|Sunset|daylight|% lit/);
+    expect(html).not.toContain("--sw-moon-limb"); // no Moon glyph claims a phase
+    const box = (time?: number, place: { latitude?: number; longitude?: number } = props) => {
+      const { container, unmount } = render(
+        <div style={{ width: 390 }}>
+          <SummaryTiles
+            {...props}
+            {...place}
+            time={time}
+            primary={{
+              label: "Range",
+              value: time ? "2.0 m" : "—",
+              caption: time ? "low to high" : "",
+            }}
+          />
+        </div>,
+      );
+      const heights = [...container.querySelectorAll<HTMLElement>(".sw-card")].map(
+        (c) => c.getBoundingClientRect().height,
+      );
+      unmount();
+      return heights;
+    };
+    const day = Date.parse("2026-10-10T12:00:00Z");
+    expect(box()).toEqual(box(day));
+    // A lone Moon, with no Sun card beside it to hold the row's height.
+    const nowhere = { latitude: undefined, longitude: undefined };
+    expect(box(undefined, nowhere)).toEqual(box(day, nowhere));
+    // A polar day, whose Sun names no sunrise or sunset.
+    const pole = { latitude: 85, longitude: 0 };
+    expect(box(undefined, pole)).toEqual(box(Date.parse("2026-06-21T12:00:00Z"), pole));
+    expect(box(day, pole)).toEqual(box(day));
+  });
+
+  test("a time that isn't a finite number reads as no moment", () => {
+    const { container } = render(
+      <SummaryTiles time={NaN} timezone="UTC" latitude={50} longitude={0} className="" />,
+    );
+    expect(tiles(container)).toEqual(["Moon—", "Sun—"]);
+  });
+
+  test("a className replaces the station page's margins", () => {
+    const { container } = render(<SummaryTiles timezone={TZ} className="mt-6" />);
+    expect((container.firstChild as HTMLElement).className).toBe("@container/sw-summary mt-6");
   });
 
   test("an unmarked number has no glyph", () => {
