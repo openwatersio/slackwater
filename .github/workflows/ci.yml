@@ -205,11 +205,19 @@ jobs:
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: |
+            17
+            25
           cache: gradle
           cache-dependency-path: |
             kotlin/**/*.gradle.kts
             kotlin/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Configure JDK 17 toolchain discovery
+        run: |
+          echo "JAVA_HOME=${JAVA_HOME_25_X64:-${JAVA_HOME_25_ARM64:?JDK 25 not installed}}" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/.gradle"
+          echo 'org.gradle.java.installations.fromEnv=JAVA_HOME_17_X64,JAVA_HOME_17_ARM64' >> "$HOME/.gradle/gradle.properties"
 
       - name: Test Kotlin and enforce coverage
         working-directory: kotlin
@@ -218,6 +226,12 @@ jobs:
       - name: Test source consumer
         working-directory: kotlin
         run: ./gradlew -p smoke run
+
+      - name: Test source consumer with Gradle on JDK 17
+        working-directory: kotlin
+        run: |
+          export JAVA_HOME="${JAVA_HOME_17_X64:-${JAVA_HOME_17_ARM64:?JDK 17 not installed}}"
+          ./gradlew -p smoke run --rerun-tasks
 
       - name: Upload Kotlin test and coverage reports
         if: always()
