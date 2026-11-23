@@ -33,8 +33,13 @@ export function outlookWeek(anchor: number, time: number, timezone: string): num
   return day < addDays(anchor, 5, timezone) ? anchor : day;
 }
 
-/** A full outlook week, with surrounding turns to measure its first and last swings. */
-export function outlookWindow(week: number, timezone: string): { start: string; end: string } {
+/**
+ * A full outlook week, with surrounding turns to measure its first and last
+ * swings. Any moment in the week's first day stands for its start, as
+ * `useOutlookWeek` and `<RangeOutlook>` read it.
+ */
+export function outlookWindow(day: number, timezone: string): { start: string; end: string } {
+  const week = startOfDay(day, timezone);
   return {
     start: new Date(addDays(week, -1, timezone)).toISOString(),
     end: new Date(addDays(week, 8, timezone)).toISOString(),

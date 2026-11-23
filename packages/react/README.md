@@ -267,11 +267,11 @@ const week = useOutlookWeek(anchor, time, timezone);
 - `rangeTile(extremes, time, swings, units, locale?)` is the **Range** tile: the swing from the turn at or before `time` to the one after it. To mark a swing in its fortnight's top tenth, pass `swings`, the `swingHeights` of the highs and lows over `fortnightWindow(openedAt, timezone)`. `openedAt` is the moment the page opened, and the window stays fixed while the reader moves the strip, as `<TideStation>` keeps it. Pass `undefined` to leave the swing unranked.
 - `nextMaxTile(events, time, fortnight, timezone, locale?)` is the **Next max** tile: the first maximum flood or ebb after `time`, ranked among the same direction's maxima in `fortnight`, the events over that same `fortnightWindow`.
 - Either tile reads "—" under its label when there is no `time`, or no turn on each side of it, or no maximum after it. It keeps its place, so the tiles never rearrange.
-- `<RangeOutlook>` draws seven bars, one for each day's biggest swing, with the selected day bright. `useOutlookWeek(anchor, time, timezone)` picks its first day, where `anchor` is a station-local midnight, usually the first day of the strip's week:
+- `<RangeOutlook>` draws seven bars, one for each day's biggest swing, with the selected day bright. `useOutlookWeek(anchor, time, timezone)` picks its first day, the station-local day containing `anchor`, usually the first day of the strip's week:
   - The week starting at `anchor` holds until `time` reaches its sixth day. The week then starts on that day.
-  - A `time` before the week's first day starts the week four days before it.
+  - A `time` before the week's first day starts the week four days before the day `time` falls on.
   - With no `time`, the week is `anchor`'s.
-  - Pass the highs and lows over `outlookWindow(week, timezone)`, which reaches a day either side so the end days' swings are complete. Until `extremes` is passed, it draws no bars.
+  - Pass the highs and lows over `outlookWindow(week, timezone)`, which reaches a day either side so the end days' swings are complete. Until `extremes` is passed, it draws no bars and is hidden from assistive technology, keeping its size.
 
 Without `time`, the server render claims no moment. Moon and Sun read "—" with no phase, glyph, sunrise, or daylight. The Range or Next max tile reads "—". `<RangeOutlook>` draws every day alike. Each tile keeps the size it has with a reading, so nothing below moves when the browser passes the moment.
 
@@ -433,7 +433,7 @@ Every hook scopes its query key by the source's `cacheKey`. When seeding caches 
 
 `prefetchTideStation(queryClient, baseUrlOrSource, id, { units?, locale?, now? })` fills the station, prediction windows, and Nearby lists for `<TideStation>`. A subordinate station's reference metadata loads separately. `prefetchNearbyStations` fills the lists for `<NearbyStations>`. Pass `dehydrate(queryClient)` to the client and render inside a `<HydrationBoundary>`; both are re-exported from TanStack Query. Both prefetch helpers accept a URL or a `SlackwaterDataSource`; render with an equivalent source and matching units on the client.
 
-A server-rendered `<TideStation>` or `<CurrentStation>` draws its strip at the middle of the week it loads, with no reading, and opens on now in the browser. The page's week, schedule, and tiles still follow the server's clock until the browser renders them. To prerender a reading at a chosen moment, render `<TideScrubber>` or `<CurrentScrubber>` with `selected`, and `<SummaryTiles>` with the same moment as `time`.
+A server-rendered `<TideStation>` or `<CurrentStation>` draws its strip at the middle of the week it loads, with no reading, and opens on now in the browser. The page's week, schedule, and tiles still follow the server's clock until the browser renders them. To prerender a reading at a chosen moment, render `<TideScrubber>` or `<CurrentScrubber>` with `selected`, and `<SummaryTiles>` with the same moment as `time`. The strip opens on `selected` itself when it lies within its data and, for an unbounded strip, at least half the strip's width (20 hours on a 720 px strip) from either end. Otherwise the strip moves to the nearest moment it can show, and the tiles follow when `onSelect` first reports it.
 
 The hydrated cache contains data, not the source's methods. Reconstruct the source on the client with the same `cacheKey`. If your framework serializes the cache, use a serializer that preserves `Date` values or revive them before hydration. Plain JSON turns dates into strings and is insufficient for these responses.
 
