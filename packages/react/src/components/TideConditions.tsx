@@ -30,13 +30,18 @@ interface TideConditionsFetchProps {
   id: string;
 }
 
-export type TideConditionsProps = (TideConditionsDataProps | TideConditionsFetchProps) & {
+interface TideConditionsOptions {
+  /** Show the station's credit below the widget; when false, the host must show it elsewhere. */
+  caption?: boolean;
   /** Fill the parent's height instead of the small widget's 170 px. */
   fill?: boolean;
   /** The current instant; defaults to the clock. Pass it to render deterministically. */
   now?: number;
   className?: string;
-};
+}
+
+export type TideConditionsProps = (TideConditionsDataProps | TideConditionsFetchProps) &
+  TideConditionsOptions;
 
 /** The widget's square: the canvas with the card's fill over it, clipped to the card's corners. */
 function Frame({
@@ -73,17 +78,19 @@ function TideConditionsStatic({
   name,
   chartDatum,
   attribution,
+  caption = true,
   fill,
   now: fixedNow,
   className,
-}: TideConditionsDataProps & { fill?: boolean; now?: number; className?: string }) {
+}: TideConditionsDataProps & TideConditionsOptions) {
   const { locale } = useSlackwaterConfig();
   const now = useMinuteClock(fixedNow);
   const reading = readTideCard(timeline, extremes, now);
+  const showCaption = caption && !!attribution;
 
   const widget = (
     // Under a caption, the square gives up the caption's height when it fills its parent.
-    <Frame fill={fill} className={attribution ? (fill ? "min-h-0 flex-1" : undefined) : className}>
+    <Frame fill={fill} className={showCaption ? (fill ? "min-h-0 flex-1" : undefined) : className}>
       {reading && timeline.length > 1 ? (
         <>
           {/* The graph clears the name and reading, and bleeds past the sides to leave on its own slope. */}
@@ -109,7 +116,7 @@ function TideConditionsStatic({
       )}
     </Frame>
   );
-  if (!attribution) return widget;
+  if (!showCaption) return widget;
   return (
     <figure className={`m-0 flex flex-col gap-1.5 ${fill ? "h-full" : ""} ${className ?? ""}`}>
       {widget}
@@ -125,10 +132,11 @@ function TideConditionsStatic({
 
 function TideConditionsFetcher({
   id,
+  caption,
   fill,
   now: fixedNow,
   className,
-}: TideConditionsFetchProps & { fill?: boolean; now?: number; className?: string }) {
+}: TideConditionsFetchProps & TideConditionsOptions) {
   const config = useSlackwaterConfig();
   const now = useMinuteClock(fixedNow);
   // The card's window, so a widget and a card for one station share their queries.
@@ -182,6 +190,7 @@ function TideConditionsFetcher({
       name={timeline.data.station.name}
       chartDatum={!!timeline.data.datum}
       attribution={timeline.data.station.attribution}
+      caption={caption}
       fill={fill}
       now={fixedNow}
       className={className}
@@ -210,9 +219,25 @@ function Waves() {
  * half a swing back to a swing and a half ahead, whose labels name the next
  * turns. Pass data, or a station ID to fetch it.
  */
-export function TideConditions({ fill, now, className, ...props }: TideConditionsProps) {
+export function TideConditions({ caption, fill, now, className, ...props }: TideConditionsProps) {
   if ("id" in props) {
-    return <TideConditionsFetcher id={props.id} fill={fill} now={now} className={className} />;
+    return (
+      <TideConditionsFetcher
+        id={props.id}
+        caption={caption}
+        fill={fill}
+        now={now}
+        className={className}
+      />
+    );
   }
-  return <TideConditionsStatic {...props} fill={fill} now={now} className={className} />;
+  return (
+    <TideConditionsStatic
+      {...props}
+      caption={caption}
+      fill={fill}
+      now={now}
+      className={className}
+    />
+  );
 }

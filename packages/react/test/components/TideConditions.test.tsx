@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient } from "@tanstack/react-query";
 import { TideConditions } from "../../src/components/TideConditions.js";
+import { StationCredits } from "../../src/components/StationCredits.js";
+import { useStation } from "../../src/hooks/use-station.js";
 import { cardRange } from "../../src/utils/card.js";
-import { createTestWrapper } from "../helpers.js";
+import { createTestWrapper, holdRequests } from "../helpers.js";
 import type { Extreme, TimelineEntry } from "../../src/types.js";
 
 const HOUR = 3_600_000;
@@ -141,6 +143,111 @@ describe("TideConditions", () => {
     expect(screen.getByText(credit).getBoundingClientRect().bottom).toBeLessThanOrEqual(
       tile.bottom,
     );
+  });
+
+  test.each([false, true])("omits the data widget's figure and caption with fill=%s", (fill) => {
+    const credit = "Test station credit. Licensed CC BY 4.0.";
+    const { container } = render(
+      <div style={{ height: 240 }}>
+        <TideConditions
+          timeline={timeline}
+          extremes={extremes}
+          units="meters"
+          timezone="UTC"
+          now={NOW}
+          attribution={credit}
+          caption={false}
+          className="tile"
+          fill={fill}
+        />
+      </div>,
+      { wrapper: createTestWrapper() },
+    );
+
+    expect(container.querySelector("figure, figcaption")).toBeNull();
+    expect(screen.queryByText(credit)).toBeNull();
+    expect(screen.getByRole("img", { name: /^12-hour curve/ })).toBeDefined();
+    expect(container.querySelector(".tile")!.getBoundingClientRect().height).toBe(fill ? 240 : 170);
+  });
+
+  test("can restore the caption without losing the outer class or fill height", () => {
+    const credit = "Test station credit.";
+    const props = { timeline, extremes, units: "feet" as const, timezone: "UTC", now: NOW };
+    const view = (caption: boolean) => (
+      <div style={{ height: 240 }}>
+        <TideConditions {...props} attribution={credit} caption={caption} className="tile" fill />
+      </div>
+    );
+    const { container, rerender } = render(view(false), { wrapper: createTestWrapper() });
+    expect(container.querySelector("figure")).toBeNull();
+
+    rerender(view(true));
+    expect(container.querySelector("figure.tile figcaption")!.textContent).toBe(credit);
+    expect(container.querySelector(".tile")!.getBoundingClientRect().height).toBe(240);
+
+    rerender(view(false));
+    expect(container.querySelector("figure, figcaption")).toBeNull();
+    expect(container.querySelector("div.tile")!.getBoundingClientRect().height).toBe(240);
+  });
+
+  test.each([false, true])(
+    "omits a fetched station's figure and caption with fill=%s",
+    async (fill) => {
+      const { container } = render(
+        <div style={{ height: 240 }}>
+          <TideConditions
+            id="kartverket/BGO"
+            caption={false}
+            className="tile"
+            fill={fill}
+            now={NOW}
+          />
+        </div>,
+        { wrapper: createTestWrapper() },
+      );
+
+      expect(await screen.findByText("Bergen", undefined, { timeout: 10000 })).toBeDefined();
+      expect(container.querySelector("figure, figcaption")).toBeNull();
+      expect(screen.queryByText(/^Slackwater database \(/)).toBeNull();
+      expect(screen.getByRole("img", { name: /^12-hour curve/ })).toBeDefined();
+      expect(container.querySelector(".tile")!.getBoundingClientRect().height).toBe(
+        fill ? 240 : 170,
+      );
+    },
+  );
+
+  test("lets a host show the fetched station's credit in its own disclosure", async () => {
+    function HostWidget({ id }: { id: string }) {
+      const station = useStation(id);
+      return (
+        <>
+          <TideConditions key={id} id={id} caption={false} now={NOW} />
+          <StationCredits stations={station.data ? [station.data] : []} />
+        </>
+      );
+    }
+    const { container, rerender } = render(<HostWidget id="kartverket/BGO" />, {
+      wrapper: createTestWrapper(),
+    });
+
+    expect(await screen.findByText("Bergen", undefined, { timeout: 10000 })).toBeDefined();
+    expect(container.querySelector("figure, figcaption")).toBeNull();
+    const disclosure = container.querySelector("details")!;
+    expect(disclosure.querySelector("summary")!.textContent).toBe("Data sources");
+    expect(disclosure.textContent).toMatch(/Source: .*Kartverket .+ Licensed CC BY 4\.0/);
+    expect(container.querySelectorAll("details p")).toHaveLength(1);
+
+    const held = holdRequests((url) => url.includes("noaa/9447130"));
+    rerender(<HostWidget id="noaa/9447130" />);
+    await waitFor(() => expect(screen.queryByRole("img")).toBeNull());
+    expect(screen.queryByText("Bergen")).toBeNull();
+    expect(container.querySelector("details")).toBeNull();
+
+    vi.mocked(window.fetch).mockRestore();
+    held.release();
+    expect(await screen.findByText("Seattle", undefined, { timeout: 10000 })).toBeDefined();
+    expect(container.querySelector("details")!.textContent).not.toMatch(/Kartverket/);
+    expect(container.querySelector("details")!.textContent).toContain("Slackwater database");
   });
 
   test("shades amber below chart datum and marks it with a line", () => {
