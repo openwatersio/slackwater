@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, inject, test, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { StationCard, type CardStation } from "../../src/components/StationCard.js";
-import { fetchCurrentStationEvents } from "../../src/client.js";
+import { fetchCurrentStationTimeline } from "../../src/client.js";
 import { CurrentReading } from "../../src/components/StationCardFace.js";
 import { readCurrentCard, cardRange } from "../../src/utils/card.js";
 import { createTestWrapper } from "../helpers.js";
@@ -159,12 +159,21 @@ describe("StationCard", () => {
 
   test("keeps a flood/ebb zero in the graph without calling the full flow slack", async () => {
     const range = cardRange(NOW).timeline;
-    const { events } = await fetchCurrentStationEvents(inject("apiBaseUrl"), {
+    const { timeline } = await fetchCurrentStationTimeline(inject("apiBaseUrl"), {
       id: deceptionPass.id,
       ...range,
     });
-    const slack = events.find((e) => e.kind === "slack" && e.time.getTime() > NOW)!.time.getTime();
-    render(<StationCard station={deceptionPass} now={slack} />, { wrapper: createTestWrapper() });
+    const index = timeline.findIndex(
+      (point, i) => i > 0 && point.time.getTime() > NOW && point.speed * timeline[i - 1].speed < 0,
+    );
+    const before = timeline[index - 1],
+      after = timeline[index];
+    const fraction = Math.abs(before.speed) / (Math.abs(before.speed) + Math.abs(after.speed));
+    const crossing =
+      before.time.getTime() + fraction * (after.time.getTime() - before.time.getTime());
+    render(<StationCard station={deceptionPass} now={crossing} />, {
+      wrapper: createTestWrapper(),
+    });
 
     await curve();
     expect(screen.getByText(/^\d+\.\d knots(?:, set [a-z-]+)?$/)).toBeDefined();

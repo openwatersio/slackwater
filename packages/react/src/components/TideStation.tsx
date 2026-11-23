@@ -30,7 +30,7 @@ import {
 } from "./StationPage.js";
 import { SummaryTiles } from "./SummaryTiles.js";
 import { TideScrubber } from "./TideScrubber.js";
-import { RangeOutlook } from "./RangeOutlook.js";
+import { StationRangeOutlook } from "./RangeOutlook.js";
 
 export interface TideStationProps {
   /** "source/id": "noaa/9447130". */
@@ -75,7 +75,7 @@ function TideTiles(props: {
       longitude={props.longitude}
       locale={props.locale}
       outlook={
-        <RangeOutlook
+        <StationRangeOutlook
           id={props.id}
           anchor={props.anchor}
           time={time}

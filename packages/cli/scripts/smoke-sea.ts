@@ -53,7 +53,7 @@ if (!Array.isArray(nearby) || !nearby.some((s) => s.id === "noaa/9447130")) {
   throw new Error("stations --near 47.6,-122.34 did not include noaa/9447130");
 }
 
-// Deception Pass turns about four times a day
+// Deception Pass has about four flood and ebb extrema a day.
 const currents = JSON.parse(
   run([
     "currents",
@@ -67,13 +67,13 @@ const currents = JSON.parse(
     "json",
   ]),
 );
-const slacks = currents.events?.filter((e: { kind: string }) => e.kind === "slack") ?? [];
-if (currents.station?.id !== "noaa/PUG1701" || slacks.length < 3) {
+const extrema = currents.events?.filter((e: { kind: string }) => e.kind !== "slack") ?? [];
+if (currents.station?.id !== "noaa/PUG1701" || extrema.length < 3) {
   throw new Error(
-    `currents returned ${slacks.length} slacks for ${currents.station?.id}, expected at least 3 for noaa/PUG1701`,
+    `currents returned ${extrema.length} extrema for ${currents.station?.id}, expected at least 3 for noaa/PUG1701`,
   );
 }
 
 console.log(
-  `OK: ${binary} ${version}, ${extremes.length} extremes for ${station.id}, ${slacks.length} slacks for ${currents.station.id}`,
+  `OK: ${binary} ${version}, ${extremes.length} extremes for ${station.id}, ${extrema.length} extrema for ${currents.station.id}`,
 );

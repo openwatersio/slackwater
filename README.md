@@ -240,7 +240,7 @@ const { station, events } = await getCurrentEventsPrediction(options);
 // Signed speed, magnitude, and direction when known, sampled every 10 minutes.
 const { timeline } = await getCurrentTimelinePrediction(options);
 
-// The windows where |speed| stays under a threshold around a reversal.
+// The windows where |speed| stays under a threshold around reversals and low-speed lulls.
 const windows = slackWindows(timeline, 0.5);
 // [{ start: Date, end: Date }, ...]
 ```

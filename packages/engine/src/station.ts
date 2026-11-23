@@ -245,6 +245,10 @@ export type CurrentStationTimelinePrediction = CurrentStationPrediction & {
 export type CurrentStationPredictor = CurrentStation & {
   distance?: number;
   getEventsPrediction: (options: CurrentStationEventsOptions) => CurrentStationEventsPrediction;
+  /** Major-axis events for subordinate reduction, including crossings that are not true slack. */
+  getAxisEventsForReduction: (
+    options: CurrentStationEventsOptions,
+  ) => CurrentStationEventsPrediction;
   getTimelinePrediction: (
     options: CurrentStationTimelineOptions,
   ) => CurrentStationTimelinePrediction;
@@ -323,6 +327,15 @@ export function useCurrentStation(
 
     getEventsPrediction({ nodeCorrections, ...options }: CurrentStationEventsOptions) {
       const events = getPredictor(nodeCorrections).getEventsPrediction(options);
+      return { station, distance, events };
+    },
+
+    getAxisEventsForReduction({ nodeCorrections, ...options }: CurrentStationEventsOptions) {
+      const predictor = getPredictor(nodeCorrections);
+      const events = (predictor.getAxisEventsForReduction ?? predictor.getEventsPrediction).call(
+        predictor,
+        options,
+      );
       return { station, distance, events };
     },
 

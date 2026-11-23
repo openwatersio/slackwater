@@ -7,7 +7,7 @@ import {
   useCurrentTimeline,
 } from "../hooks/use-current-station.js";
 import type { CurrentEvent, CurrentStationInfo } from "../types.js";
-import { formatSpeed, formatSet } from "../utils/current.js";
+import { currentEventsForTimeline, formatSpeed, formatSet } from "../utils/current.js";
 import type { ScheduleEntry } from "../utils/schedule.js";
 import { nextMaxTile } from "../utils/standing.js";
 import { CurrentScrubber } from "./CurrentScrubber.js";
@@ -34,7 +34,7 @@ import { SummaryTiles } from "./SummaryTiles.js";
 export interface CurrentStationProps {
   /** "source/id", optionally with a depth bin: "noaa/PUG1701", "noaa/EPT0003@11". */
   id: string;
-  /** Major-axis speed threshold for slack windows, in knots. */
+  /** Full-speed threshold for slack windows, in knots. */
   threshold?: number;
   /** Called when a nearby station is picked; its `kind` says which page it belongs on. */
   onStationSelect?: (station: CardStation) => void;
@@ -50,7 +50,7 @@ function provenance(station: CurrentStationInfo, reference: string | undefined) 
   const flood = station.current?.flood_direction;
   const sets = flood === undefined ? "" : ` Flood bearing ${degrees(flood)}.`;
   const axis =
-    " Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph, maxima and slack windows follow the flood/ebb direction; crossing flow can remain at slack. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.";
+    " Bearings are measured from true north. The reading shows full predicted speed and Set, the direction water flows toward. The graph and extrema follow flood and ebb. Slack windows use the full current speed. Schedule headings use published flood/ebb bearings; Set uses them when rotation data is unavailable.";
   if (station.type === "subordinate") {
     const whose = reference ? `${reference}'s ` : "";
     return `NOAA subordinate station: ${whose}slacks, maxima, and minima, corrected by published offsets.${sets}${axis}`;
@@ -113,9 +113,16 @@ function CurrentPage({
 
   const flood = s?.current?.flood_direction;
   const ebb = s?.current?.ebb_direction;
+  const currentEvents = useMemo(
+    () =>
+      timeline.data && events.data
+        ? currentEventsForTimeline(timeline.data.timeline, events.data.events)
+        : [],
+    [timeline.data, events.data],
+  );
   const entries = useMemo(
     () =>
-      events.data?.events.map((e): ScheduleEntry => {
+      currentEvents.map((e): ScheduleEntry => {
         const time = e.time.getTime();
         if (e.kind === "slack") return { time, pill: "slack" };
         const value = `${formatSpeed(e.speed, locale)} kn`;
@@ -125,7 +132,7 @@ function CurrentPage({
           ? { time, pill: "flood", value, direction: flood }
           : { time, pill: "ebb", value, direction: ebb };
       }),
-    [events.data, flood, ebb, locale],
+    [currentEvents, flood, ebb, locale],
   );
   const sync = useScheduleSync(entries, week, s?.timezone);
   const error = station.error ?? timeline.error ?? events.error;
@@ -141,7 +148,7 @@ function CurrentPage({
         <>
           <CurrentScrubber
             timeline={timeline.data.timeline}
-            events={events.data.events}
+            events={currentEvents}
             timezone={s.timezone}
             latitude={s.latitude}
             longitude={s.longitude}
@@ -156,7 +163,7 @@ function CurrentPage({
           <CurrentTiles
             selection={sync.selection}
             now={week.now}
-            events={events.data.events}
+            events={currentEvents}
             fortnight={standing.data?.events}
             timezone={s.timezone}
             latitude={s.latitude}

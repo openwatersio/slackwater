@@ -36,7 +36,7 @@ describe("current vectors", () => {
     }
     expect(significant).toBe(34);
   });
-  test("rotates clockwise through the minor axis without changing speed or events", () => {
+  test("rotates clockwise while preserving major-axis extrema", () => {
     const options = {
       floodDirection: 10,
       ebbDirection: 200,
@@ -58,8 +58,10 @@ describe("current vectors", () => {
     expect(points.map((p) => p.speed)).toEqual(
       axial.getTimelinePrediction(span).map((p) => p.speed),
     );
-    expect(vector.getEventsPrediction(span)).toEqual(axial.getEventsPrediction(span));
-    expect(vector.getEventsPrediction(span).filter((e) => e.kind === "slack")).not.toHaveLength(0);
+    expect(vector.getEventsPrediction(span).filter((e) => e.kind !== "slack")).toEqual(
+      axial.getEventsPrediction(span).filter((e) => e.kind !== "slack"),
+    );
+    expect(vector.getEventsPrediction(span).filter((e) => e.kind === "slack")).toHaveLength(0);
   });
 
   test.each([
@@ -150,6 +152,10 @@ describe("current vectors", () => {
       floodSpeedRatio: 1,
       ebbSpeedRatio: 1,
     };
+    const subordinate = createSubordinateCurrentPredictor(reference, offsets);
+    expect(subordinate.getEventsPrediction(span).some((event) => event.kind === "slack")).toBe(
+      true,
+    );
     for (const directions of [{ floodDirection: 20, ebbDirection: 205 }, {}]) {
       const points = createSubordinateCurrentPredictor(reference, {
         ...offsets,

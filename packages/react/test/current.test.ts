@@ -4,6 +4,7 @@ import {
   formatSet,
   spokenSet,
   currentStops,
+  currentEventsForTimeline,
   formatSpeed,
   isDotRun,
   runCenter,
@@ -114,7 +115,9 @@ describe("dot runs", () => {
 
 describe("currentStops", () => {
   test("walks the window opening, exact zero, closing and maximum in order", () => {
-    const stops = currentStops(timeline, events, slackRuns(timeline, events, 0.5));
+    const stops = currentStops(timeline, events, slackRuns(timeline, events, 0.5)).filter(
+      (s) => s.time >= t0 + 2 * H && s.time <= t0 + 10 * H,
+    );
     expect(stops.map((s) => s.label)).toEqual([
       "Max flood",
       "Slack window",
@@ -128,12 +131,17 @@ describe("currentStops", () => {
   });
   test("a window clamped to the sampled boundary invents no edge stop", () => {
     const tail = timeline.slice(0, 74);
-    expect(
-      currentStops(tail, [], slackRuns(tail, [slackAt(t0 + 12 * H)], 0.5)).map((s) => s.label),
-    ).toEqual(["Slack window"]);
-    expect(
-      currentStops(timeline, [], slackRuns(timeline, [slackAt(t0)], 0.5)).map((s) => s.label),
-    ).toEqual(["Slack window closes"]);
+    for (const points of [tail, timeline]) {
+      const stops = currentStops(points, [], slackRuns(points, [], 0.5));
+      expect(
+        stops.every(
+          (s) =>
+            s.time > points[0].time.getTime() && s.time < points[points.length - 1].time.getTime(),
+        ),
+      ).toBe(true);
+      expect(stops[0].label).toBe("Slack window closes");
+      expect(stops.at(-1)?.label).toBe("Slack window");
+    }
   });
   test("a zero at a window opening is named Slack", () => {
     const zero = slackAt(t0 + 20 * M);
@@ -255,4 +263,15 @@ test("minima remain labeled navigation destinations", () => {
   const stops = currentStops(timeline, minima, []);
   expect(stops.map((s) => s.label)).toEqual(["Minimum flood", "Minimum ebb"]);
   expect(snapTargets(stops, minima, [], t0, t0 + 3 * H)).toEqual([t0 + H, t0 + 2 * H]);
+});
+
+test("filters legacy rotary axis crossings while retaining verified slack", () => {
+  const points = [
+    { time: new Date(t0), speed: 1, magnitude: 1.5, direction: 45 },
+    { time: new Date(t0 + H), speed: -1, magnitude: 1.5, direction: 135 },
+  ];
+  const old: CurrentEvent = { time: new Date(t0 + H / 2), kind: "slack", speed: 0 };
+  const verified = { ...old, verifiedZero: true };
+  expect(currentEventsForTimeline(points, [old])).toEqual([]);
+  expect(currentEventsForTimeline(points, [verified])).toEqual([verified]);
 });
