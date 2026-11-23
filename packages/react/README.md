@@ -291,9 +291,28 @@ The tide now, after the app's small home-screen widget: the station's name, the 
 | `name`                                      | `string`  | —         | The station's name, with the data props                                                    |
 | `chartDatum`                                | `boolean` | `true`    | With the data props, `false` when the heights aren't above a chart datum, so 0 is unmarked |
 | `attribution`                               | `string`  | —         | With the data props, the station's `attribution`, printed under the widget                 |
+| `caption`                                   | `boolean` | `true`    | Show the credit and figure wrapper; `false` when the host shows the credit elsewhere       |
 | `fill`                                      | `boolean` | `false`   | Fill the parent's height                                                                   |
 | `now`                                       | `number`  | the clock | The current instant in ms; pass it to render deterministically                             |
 | `className`                                 | `string`  | —         | Extra classes for the outer element                                                        |
+
+Set `caption={false}` to leave out both the `<figure>` and `<figcaption>` when your app shows the credit elsewhere. This works with data props and with `id`, and keeps `fill` and `className` on the widget itself. The default still prints the credit below the widget.
+
+An app leaving out the caption takes responsibility for showing the station's full `attribution` where its data is shown. With data props, retain the attribution you received; with `id`, `useStation(id).data?.attribution` makes the credit available without fetching the widget's prediction window yourself. A timeline query also carries it in `data.station.attribution`. Key the widget by `id` when it can change, so the previous station's predictions do not remain under the new station's credit while loading. For example, inside a `<SlackwaterProvider>`:
+
+```tsx
+import { StationCredits, TideConditions, useStation } from "@slackwater/react";
+
+function TideWidget({ id }: { id: string }) {
+  const station = useStation(id);
+  return (
+    <>
+      <TideConditions key={id} id={id} caption={false} />
+      <StationCredits stations={station.data ? [station.data] : []} />
+    </>
+  );
+}
+```
 
 ### `<StationCard>`
 
