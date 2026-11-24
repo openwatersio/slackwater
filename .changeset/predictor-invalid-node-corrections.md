@@ -1,5 +1,5 @@
 ---
-"@slackwater/engine": patch
+"@slackwater/engine": minor
 ---
 
-The predictors throw a `RangeError` beginning with `invalidNodeCorrections` for an unknown `nodeCorrections`, as `fit` does.
+The predictors check `nodeCorrections` as `fit` does. An unknown set throws a `RangeError` beginning with `invalidNodeCorrections`, and a `latitude` given without Foreman's set throws `invalidLatitude`. A null or empty set still means IHO's.

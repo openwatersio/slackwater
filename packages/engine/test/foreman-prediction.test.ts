@@ -112,12 +112,29 @@ describe("Foreman's nodal corrections in prediction", () => {
     expect(() => createCurrentPredictor(harmonics, options)).toThrow("invalidLatitude");
   });
 
+  test.each([null, ""])("reads a %j set as IHO's", (nodeCorrections) => {
+    const harmonics = [{ name: "M2", amplitude: 1, phase: 0 }];
+    const options = { nodeCorrections: nodeCorrections as unknown as "iho" };
+    const time = samples[0].time;
+    expect(createTidePredictor(harmonics, options).getWaterLevelAtTime({ time }).level).toBe(
+      createTidePredictor(harmonics).getWaterLevelAtTime({ time }).level,
+    );
+  });
+
+  test("reports constituents that aren't an array as other sets do", () => {
+    const options = { nodeCorrections: "foreman", latitude } as const;
+    const predictor = createTidePredictor(null as unknown as [], options);
+    expect(() => predictor.getWaterLevelAtTime({ time: samples[0].time })).toThrow(
+      "Harmonic constituents are not an array",
+    );
+  });
+
   test("rejects an unknown set as fit does", () => {
     const options = { nodeCorrections: "t_tide" as "iho" };
     expect(() => createTidePredictor([], options)).toThrow("invalidNodeCorrections: t_tide");
   });
 
-  test.each(["Sa", "SA", "S1", "OQ2", "OO2"])(
+  test.each(["Sa", "SA", "S1", "OQ2", "OO2", "H1", "H2"])(
     "refuses %s, which isn't t_tide's line by that name",
     (name) => {
       const harmonics = [{ name, amplitude: 0.1, phase: 0 }];
@@ -161,7 +178,7 @@ describe("Foreman's nodal corrections in prediction", () => {
 
   test("skips names the catalog doesn't know, as with other sets", () => {
     const options = { nodeCorrections: "foreman", latitude } as const;
-    const harmonics = [{ name: "H1", amplitude: 0.1, phase: 0 }];
+    const harmonics = [{ name: "H3", amplitude: 0.1, phase: 0 }];
     expect(
       createTidePredictor(harmonics, options).getWaterLevelAtTime({ time: samples[0].time }).level,
     ).toBe(0);

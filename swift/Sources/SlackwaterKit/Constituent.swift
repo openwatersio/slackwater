@@ -68,14 +68,18 @@ struct Catalog: Sendable {
     /// Turns of the perigee p in each argument, counted once the members are set.
     private(set) var perigeeTurns: [Double] = []
 
-    private static let file: File = {
-        let url = Bundle.module.url(forResource: "catalog", withExtension: "json")!
+    private static let url = Bundle.module.url(forResource: "catalog", withExtension: "json")!
+
+    /// Foreman's tables, read from the bundled catalog the first time a station uses them.
+    private static let foremanTable: ForemanTable = {
+        struct File: Decodable { let foreman: ForemanTable }
         // swiftlint:disable:next force_try
-        return try! JSONDecoder().decode(File.self, from: Data(contentsOf: url))
+        return try! JSONDecoder().decode(File.self, from: Data(contentsOf: url)).foreman
     }()
 
     static let shared: Catalog = {
-        let file = Catalog.file
+        // swiftlint:disable:next force_try
+        let file = try! JSONDecoder().decode(File.self, from: Data(contentsOf: url))
         var index: [String: Int] = [:]
         for (i, c) in file.constituents.enumerated() { index[c.name] = i }
         var entries = file.constituents.map { c in
@@ -97,7 +101,6 @@ struct Catalog: Sendable {
 
     private struct File: Decodable {
         let constituents: [Generated]; let aliases: [String: String]; let argumentRates: [Double]
-        let foreman: ForemanTable
     }
 
     /// This catalog correcting with `corrections`. With Foreman's, a catalog line in `names` that
@@ -105,9 +108,14 @@ struct Catalog: Sendable {
     func corrected(with corrections: NodeCorrections, names: [String]) throws -> Catalog {
         guard case let .foreman(latitude) = corrections else { return self }
         var catalog = self
-        catalog.foreman = try ForemanCorrections(latitude: latitude, table: Self.file.foreman)
+        catalog.foreman = try ForemanCorrections(latitude: latitude, table: Self.foremanTable)
         for name in names {
-            guard let i = index[name], i < Self.catalogCount, let line = Self.file.foreman.lines[entries[i].name] else { continue }
+            // t_tide's H1 and H2 aren't catalog names; they're refused with the line they mean, not dropped.
+            guard let i = index[name] else {
+                if let line = Self.foremanTable.lines[name] { throw NodeCorrectionsError.notForemanLine(name, line: line) }
+                continue
+            }
+            guard i < Self.catalogCount, let line = Self.foremanTable.lines[entries[i].name] else { continue }
             throw NodeCorrectionsError.notForemanLine(name, line: line)
         }
         return catalog

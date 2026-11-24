@@ -4,9 +4,10 @@ Swift and Kotlin engines are each checked against.
 
     pip install utide==0.4.0
     python3 packages/engine/scripts/gen-foreman.py
-    npx prettier --write packages/engine/src/node-corrections/foreman.json \
+    npx prettier --ignore-path /dev/null --write packages/engine/src/node-corrections/foreman.json \
       fixtures/foreman-utide.json
-    npm run build --workspace @slackwater/engine && node fixtures/generate/gen-catalog.mjs
+    npm run build --workspace @slackwater/engine
+    node fixtures/generate/gen-catalog.mjs && node fixtures/generate/gen-golden.mjs
 
 UTide's ut_constants holds t_tide's tables, which come from Foreman (1977,
 revised 2004), "Manual for tidal heights analysis and prediction", IOS Pacific
@@ -120,7 +121,8 @@ out = {
     "products": products,
 }
 
-# UTide's f and u for a sample of lines, times and latitudes, the equator's clamp included.
+# UTide's f and u for a sample of lines, times and latitudes, the equator's clamp included, and its
+# equilibrium argument V in degrees, which the engine's arguments are compared with.
 picked = [i for i in range(len(const.name)) if (c := catalog_entry(i)) and (c["name"] in satellites or c["name"] in products)]
 reference = []
 for when in ["1995-03-10T06:00", "2006-06-21T00:00", "2024-12-31T18:00"]:
@@ -128,11 +130,12 @@ for when in ["1995-03-10T06:00", "2006-06-21T00:00", "2024-12-31T18:00"]:
     # UTide counts days from the proleptic Gregorian calendar's day 1, as date.toordinal does.
     day = t.toordinal() + t.hour / 24
     for latitude in [-33.9, -2.0, 2.0, 37.8, 70.66]:
-        F, U, _ = FUV(np.array([day]), day, np.array(picked), latitude, np.zeros(4, bool))
+        F, U, V = FUV(np.array([day]), day, np.array(picked), latitude, np.zeros(4, bool))
         reference.append({
             "time": when + ":00Z",
             "latitude": latitude,
             "values": {catalog_entry(i)["name"]: [round(float(F[0, k]), 9), round(float(U[0, k]) * 360, 7)] for k, i in enumerate(picked)},
+            "arguments": {catalog_entry(i)["name"]: round(float(V[0, k]) * 360 % 360, 7) for k, i in enumerate(picked)},
         })
 # Both files are written only once both are computed, so neither runs ahead of the other.
 (engine / "src/node-corrections/foreman.json").write_text(json.dumps(out) + "\n")

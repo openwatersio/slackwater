@@ -28,6 +28,7 @@ test("generator rejects broken Foreman tables", () => {
     { ...table, products: { missing: [["M2", 2]] } },
     { ...table, products: { M4: [["M(KS)2", 2]] } },
     { ...table, products: { M4: [["M2", Infinity]] } },
+    { ...table, satellites: { ...table.satellites, M1: [] }, products: { M4: [["M1", 2]] } },
     { ...table, lines: { S2: "missing" } },
     { ...table, lines: { S2: "M(KS)2" } },
   ]) assert.throws(() => validateForeman(broken, entries));

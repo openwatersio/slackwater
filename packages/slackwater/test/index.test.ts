@@ -294,3 +294,28 @@ describe("readings", () => {
     }
   });
 });
+
+describe("Foreman's nodal corrections", () => {
+  test("predict Kartverket's constants, which are on t_tide's lines", async () => {
+    const station = await findStation("kartverket/BGO");
+    const options = { start: new Date("2025-12-18"), end: new Date("2025-12-19") };
+    const foreman = station.getTimelinePrediction({ ...options, nodeCorrections: "foreman" });
+    const iho = station.getTimelinePrediction(options);
+    expect(foreman.timeline).toHaveLength(iho.timeline.length);
+    expect(foreman.timeline.map((p) => p.level)).not.toEqual(iho.timeline.map((p) => p.level));
+  });
+
+  test("reach a subordinate's reference station", async () => {
+    // NOAA's constants carry the catalog's Sa, so Foreman's set refuses them, after the reference
+    // whose latitude it takes is found.
+    const station = await findStation("8417988");
+    expect(station.offsets?.reference).toBeDefined();
+    expect(() =>
+      station.getWaterLevelAtTime({ time: new Date("2025-12-18"), nodeCorrections: "foreman" }),
+    ).toThrow("notForemanLine");
+    const [near] = await stationsNear({ lat: station.latitude, lon: station.longitude });
+    expect(() =>
+      near.getWaterLevelAtTime({ time: new Date("2025-12-18"), nodeCorrections: "foreman" }),
+    ).toThrow("notForemanLine");
+  });
+});

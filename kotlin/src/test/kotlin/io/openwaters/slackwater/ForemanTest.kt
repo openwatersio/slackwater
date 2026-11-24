@@ -55,7 +55,9 @@ class ForemanTest {
         val station = CurrentStation(constituents, 0.0, 180.0, minorConstituents = constituents, azimuthDegrees = 0.0,
             nodeCorrections = foreman(case.number("latitude")))
         val speeds = station.speeds(prediction.instant("start"), prediction.instant("end"), prediction.number("step"))
+        assertEquals(case.array("points").size, speeds.size)
         for ((p, point) in speeds.zip(case.array("points"))) {
+            assertEquals(point.obj().instant("time"), p.time)
             assertTrue(abs(p.speedKnots - point.obj().number("height")) < 1e-6)
             assertTrue(abs(p.magnitudeKnots - abs(p.speedKnots) * kotlin.math.sqrt(2.0)) < 1e-9)
         }

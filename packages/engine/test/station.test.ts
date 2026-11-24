@@ -107,6 +107,40 @@ describe("useStation", () => {
       ).not.toBe(level);
     });
 
+    test("take a subordinate's reference station's latitude", () => {
+      const reference: Station = {
+        ...baseStation,
+        latitude: 59.9,
+        harmonic_constituents: harmonics,
+      };
+      const sub = (latitude: number, ref?: Station) =>
+        useStation(
+          {
+            ...reference,
+            id: "test/subordinate",
+            type: "subordinate",
+            latitude,
+            offsets: { reference: reference.id, time: { high: 0, low: 0 } },
+          },
+          undefined,
+          { reference: ref },
+        );
+      const level = (station: ReturnType<typeof useStation>) =>
+        station.getWaterLevelAtTime({ time, datum: "MSL", nodeCorrections: "foreman" }).level;
+      expect(level(sub(-10, reference))).toBe(level(useStation(reference)));
+      // A reference station whose record holds a null reference id is no subordinate.
+      const own = { ...reference, offsets: { reference: null as unknown as string } };
+      expect(level(useStation(own))).toBe(level(useStation(reference)));
+      expect(() => level(sub(-10))).toThrow(/pass that station as options\.reference/);
+      expect(() => level(sub(-10, { ...reference, id: "test/other" }))).toThrow(
+        "subordinate to test/station, not test/other",
+      );
+      // IHO's corrections don't need the reference.
+      expect(sub(-10).getWaterLevelAtTime({ time, datum: "MSL" }).level).toBe(
+        useStation(reference).getWaterLevelAtTime({ time, datum: "MSL" }).level,
+      );
+    });
+
     test("refuse the catalog's S1", () => {
       expect(() =>
         useStation(baseStation).getExtremesPrediction({
@@ -632,6 +666,9 @@ describe("useCurrentStation", () => {
         );
       expect(speeds(sub(10, at(59.9)))).toEqual(speeds(sub(-10, at(59.9))));
       expect(speeds(sub(10, at(59.9)))).not.toEqual(speeds(sub(10, at(-59.9))));
+      expect(() => speeds(sub(10, { ...at(59.9), id: "test/other" }))).toThrow(
+        "subordinate to test/current, not test/other",
+      );
     });
   });
 

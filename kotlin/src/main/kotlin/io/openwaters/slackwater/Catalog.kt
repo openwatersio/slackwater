@@ -188,7 +188,8 @@ internal class Catalog private constructor(
         if (corrections !is NodeCorrections.Foreman) return this
         val foreman = ForemanCorrections(corrections.latitude)
         for (name in names) {
-            val i = index[name] ?: continue
+            // t_tide's H1 and H2 aren't catalog names; they're refused with the line they mean, not dropped.
+            val i = index[name] ?: foremanLines[name]?.let { throw NodeCorrectionsException.NotForemanLine(name, it) } ?: continue
             val line = foremanLines[entries[i].name]
             if (line != null && i < shared.entries.size) throw NodeCorrectionsException.NotForemanLine(name, line)
         }

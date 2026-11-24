@@ -40,7 +40,9 @@ export function checkForemanLine(name: string, model: Constituent): void {
 
 /**
  * The formulas a predictor corrects `constituents` with, checked as `fit` checks
- * them. Names `models` doesn't know are left for the predictor to skip.
+ * them. Names `models` doesn't know are left for the predictor to skip, except t_tide's
+ * H1 and H2, which Foreman's set refuses with the catalog line they mean rather than
+ * drop. A null or empty set is IHO's, as the predictors have always read it.
  */
 export function predictionCorrections(
   nodeCorrections: NodeCorrections | undefined,
@@ -48,9 +50,13 @@ export function predictionCorrections(
   constituents: readonly { name: string }[],
   models: Record<string, Constituent>,
 ): Fundamentals {
-  const fundamentals = correctionsFor(nodeCorrections, latitude);
-  if (nodeCorrections === "foreman")
-    for (const { name } of constituents)
+  const fundamentals = correctionsFor(nodeCorrections || undefined, latitude);
+  // A predictor reports constituents that aren't an array itself.
+  if (nodeCorrections === "foreman" && Array.isArray(constituents))
+    for (const { name } of constituents) {
       if (Object.hasOwn(models, name)) checkForemanLine(name, models[name]);
+      else if (Object.hasOwn(foremanLines, name))
+        throw new RangeError(`notForemanLine: ${name} (t_tide's is ${foremanLines[name]})`);
+    }
   return fundamentals;
 }

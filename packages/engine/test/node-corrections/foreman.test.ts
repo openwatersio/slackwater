@@ -23,6 +23,22 @@ describe("foreman", () => {
     },
   );
 
+  // Foreman's set changes f and u only. The catalog's arguments are t_tide's except on these lines,
+  // so their phases as t_tide publishes them differ by this much; the docs list them. t_tide's M7 is
+  // 3.5 times M2's argument wrapped to a turn, so it flips between agreeing and 180° with the date.
+  const argumentOffsets: Record<string, number> = { O2: 180, "3KM5": 180, MSK5: 90 };
+  it("has UTide's arguments on every line but O2, 3KM5, MSK5 and M7", () => {
+    for (const { time, arguments: v } of reference) {
+      const a = astro(new Date(time));
+      for (const [name, utide] of Object.entries(v)) {
+        const off = Math.abs(
+          turn(constituents[name].value(a) - utide - (argumentOffsets[name] ?? 0)),
+        );
+        expect(name === "M7" ? Math.min(off, 180 - off) : off, name).toBeLessThan(0.01);
+      }
+    }
+  });
+
   it("has UTide's values for every line in the table", () => {
     // M1 is a catalog name for t_tide's NO1, which UTide doesn't know by that name.
     const lines = [...Object.keys(table.satellites), ...Object.keys(table.products)].filter(

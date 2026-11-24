@@ -138,7 +138,7 @@ Stations predict with IHO's nodal corrections by default. Constants fitted with 
 val station = Station(kartverket, nodeCorrections = NodeCorrections.Foreman(59.9))
 ```
 
-`CurrentStation` takes `nodeCorrections` for both axes, and a `SubordinateTideStation` or `SubordinateCurrentStation` predicts with its reference's. A latitude outside -90 to 90 throws `NodeCorrectionsException.InvalidLatitude`. The catalog's Sa, S1 and OQ2, by any of their names, throw `NodeCorrectionsException.NotForemanLine`, since t_tide's lines by those names are SA_KV, S1_KV and OQ2_KV; a caller's own definition under one of those names predicts as given. `fit` takes IHO's corrections only. `ForemanTest` checks f and u against UTide's own in `fixtures/foreman-utide.json` and predictions against `fixtures/prediction-foreman.json`, which the TypeScript engine generates and Swift checks too.
+`CurrentStation` takes `nodeCorrections` for both axes, and a `SubordinateTideStation` or `SubordinateCurrentStation` predicts with its reference's. A latitude outside -90 to 90 throws `NodeCorrectionsException.InvalidLatitude`. The catalog's Sa, S1 and OQ2, by any of their names, and t_tide's H1 and H2 throw `NodeCorrectionsException.NotForemanLine`, since t_tide's lines by those names are SA_KV, S1_KV, OQ2_KV, alpha2 and M(KS)2; a caller's own definition under one of those names predicts as given. `fit` takes IHO's corrections only. `ForemanTest` checks f and u against UTide's own in `fixtures/foreman-utide.json` and predictions against `fixtures/prediction-foreman.json`, which the TypeScript engine generates and Swift checks too.
 
 ## Readings
 

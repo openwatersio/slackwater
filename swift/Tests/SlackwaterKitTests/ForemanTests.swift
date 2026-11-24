@@ -68,7 +68,9 @@ private func corrections(_ latitude: Double) throws -> Catalog {
                                      minorConstituents: fixture.harmonics, azimuth: 0,
                                      nodeCorrections: .foreman(latitude: c.latitude))
     let speeds = station.speeds(from: parseISO(fixture.start), to: parseISO(fixture.end), step: fixture.step)
+    #expect(speeds.count == c.points.count)
     for (got, expected) in zip(speeds, c.points) {
+        #expect(got.time == parseISO(expected.time))
         #expect(abs(got.speed - expected.height) < 1e-6)
         #expect(abs((got.magnitude ?? 0) - abs(got.speed) * 2.0.squareRoot()) < 1e-9)
     }

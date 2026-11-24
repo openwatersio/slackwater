@@ -22,7 +22,9 @@ SOFTWARE.
 
 ---
 
-Foreman's satellite and shallow-water tables (Sources/SlackwaterKit/Resources/catalog.json) are copied as UTide
+Foreman's satellite and shallow-water tables (packages/engine/src/node-corrections/foreman.json,
+and the generated swift/Sources/SlackwaterKit/Resources/catalog.json and
+kotlin/src/main/kotlin/io/openwaters/slackwater/ForemanData.kt built from it) are copied as UTide
 distributes them (https://github.com/wesleybowman/UTide), under the following license.
 
 The MIT License (MIT)
