@@ -9,7 +9,7 @@ import { useTimeline } from "../hooks/use-timeline.js";
 import { useSlackwaterConfig } from "../provider.js";
 import type { StationSummary } from "../types.js";
 import { cardRange, readCurrentCard, readTideCard } from "../utils/card.js";
-import { EMPTY_MESSAGE } from "../utils/current.js";
+import { EMPTY_MESSAGE, currentEventsForTimeline } from "../utils/current.js";
 import { EMPTY_TIDE_MESSAGE } from "../utils/tide.js";
 import { CurrentReading, StationCardFace, TideReading, useMinuteClock } from "./StationCardFace.js";
 import { StationCardGraph } from "./StationCardGraph.js";
@@ -31,7 +31,7 @@ export interface StationCardProps {
    * modified or middle click opens the link as usual.
    */
   onSelect?: (station: CardStation) => void;
-  /** Major-axis speed threshold for a current's slack windows, in knots. */
+  /** Full-speed threshold for a current's slack windows, in knots. */
   threshold?: number;
   /** The current instant; defaults to the clock. Pass it to render deterministically. */
   now?: number;
@@ -178,12 +178,19 @@ function CurrentCardBody({
   const range = useCardRange(now).timeline;
   const timeline = useCurrentTimeline(station.id, seen ? range : undefined);
   const events = useCurrentEvents(station.id, seen ? range : undefined);
+  const currentEvents = useMemo(
+    () =>
+      timeline.data && events.data
+        ? currentEventsForTimeline(timeline.data.timeline, events.data.events)
+        : [],
+    [timeline.data, events.data],
+  );
   const runs = useMemo(
     () =>
       timeline.data && events.data
-        ? slackRuns(timeline.data.timeline, events.data.events, threshold)
+        ? slackRuns(timeline.data.timeline, currentEvents, threshold)
         : [],
-    [timeline.data, events.data, threshold],
+    [timeline.data, events.data, currentEvents, threshold],
   );
   const error = timeline.error ?? events.error;
   if (error) return <StationCardFace {...identity} status={error.message} />;
@@ -192,7 +199,7 @@ function CurrentCardBody({
   const sets = timeline.data.station.current;
   const reading = readCurrentCard(
     timeline.data.timeline,
-    events.data.events,
+    currentEvents,
     { flood: sets?.flood_direction, ebb: sets?.ebb_direction },
     now,
   );
@@ -206,7 +213,7 @@ function CurrentCardBody({
           data={{
             kind: "current",
             timeline: timeline.data.timeline,
-            events: events.data.events,
+            events: currentEvents,
             runs,
           }}
           now={now}

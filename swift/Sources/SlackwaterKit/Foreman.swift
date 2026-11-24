@@ -59,12 +59,12 @@ struct ForemanCorrections: Sendable {
     }
 
     /// f and u for a line Foreman gives, or nil. `perigeeTurns` is as in `ihoCorrection`.
-    func correction(_ name: String, _ a: Astro, perigeeTurns: Double? = nil) -> (f: Double, u: Double)? {
+    func correction(_ name: String, _ a: Astro, perigeeTurns: Double) -> (f: Double, u: Double)? {
         if let satellites = table.satellites[name] {
             let c = main(satellites, a)
             // Foreman's M1 (his NO1) argument holds one turn of p, as the catalog's does.
             guard name == "M1" || name == "NO1" else { return c }
-            return (c.f, wrapDegrees(c.u - ((perigeeTurns ?? 1) - 1) * a.p))
+            return (c.f, wrapDegrees(c.u - (perigeeTurns - 1) * a.p))
         }
         guard let members = table.products[name] else { return nil }
         var f = 1.0

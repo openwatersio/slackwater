@@ -84,8 +84,9 @@ public enum CurrentEventKind: Sendable {
 }
 public struct CurrentEvent: Sendable {
     public let time: Date; public let speed: Double; public let kind: CurrentEventKind
-    public init(time: Date, speed: Double, kind: CurrentEventKind) {
-        self.time = time; self.speed = speed; self.kind = kind
+    public let verifiedZero: Bool
+    public init(time: Date, speed: Double, kind: CurrentEventKind, verifiedZero: Bool = false) {
+        self.time = time; self.speed = speed; self.kind = kind; self.verifiedZero = verifiedZero
     }
 }
 
@@ -219,9 +220,31 @@ public struct CurrentStation: Sendable {
 
     /// Slack water — velocity value-zeros.
     public func slacks(from: Date, to: Date) -> [CurrentEvent] {
+        slackEvents(from: from, to: to, axisOnly: false)
+    }
+
+    private func slackEvents(from: Date, to: Date, axisOnly: Bool) -> [CurrentEvent] {
         let (p, endHour) = provider(from: from, to: to)
+        let startSec = (from.timeIntervalSince1970 / 600).rounded(.down) * 600
         return findSlacks(fromHour: 0, toHour: endHour, provider: p)
-            .map { CurrentEvent(time: $0.time, speed: $0.speed, kind: .slack) }
+            .compactMap { event in
+                guard !axisOnly, let minorConstituents else { return CurrentEvent(time: event.time, speed: event.speed, kind: .slack) }
+                let hour = (event.time.timeIntervalSince1970 - startSec) / 3600
+                let base = astro(Date(timeIntervalSince1970: startSec))
+                let majorAtEvent = ParamProvider(constituents: constituents, baseAstro: base, catalog: catalog,
+                                                 startMs: startSec * 1000, endHour: endHour)(hour)
+                let minorAtEvent = ParamProvider(constituents: minorConstituents, baseAstro: base, catalog: catalog,
+                                                 startMs: startSec * 1000, endHour: endHour)(hour)
+                var lo = hour - 1 / 3600, hi = hour + 1 / 3600
+                let initial = evalH(lo, majorAtEvent)
+                for _ in 0..<40 {
+                    let mid = (lo + hi) / 2
+                    if (evalH(mid, majorAtEvent) > 0) == (initial > 0) { lo = mid } else { hi = mid }
+                }
+                let root = (lo + hi) / 2
+                guard abs(evalH(root, minorAtEvent)) < 1e-7 else { return nil }
+                return CurrentEvent(time: Date(timeIntervalSince1970: startSec + root * 3600), speed: evalH(root, majorAtEvent), kind: .slack, verifiedZero: true)
+            }
     }
 
     /// Slacks + all extrema merged in time order — the app-facing event list.
@@ -246,14 +269,25 @@ extension CurrentStation {
     /// searches can disagree at a slack near a refresh. A subordinate
     /// reduces these, and so can a caller holding them for many subordinates.
     public func eventsByDay(from: Date, to: Date) -> [CurrentEvent] {
+        eventsByDay(from: from, to: to, axisOnly: false)
+    }
+
+    /// Major-axis crossings and extrema for subordinate reduction; do not present these crossings as slack.
+    public func axisEventsForReduction(from: Date, to: Date) -> [CurrentEvent] {
+        eventsByDay(from: from, to: to, axisOnly: true)
+    }
+
+    private func eventsByDay(from: Date, to: Date, axisOnly: Bool) -> [CurrentEvent] {
         let day = 86_400.0
         let first = (from.timeIntervalSince1970 / day).rounded(.down)
         let last = (to.timeIntervalSince1970 / day).rounded(.down)
         guard last >= first else { return [] }
         return stride(from: first, through: last, by: 1).flatMap { d -> [CurrentEvent] in
             let start = Date(timeIntervalSince1970: d * day), end = start.addingTimeInterval(day)
-            return events(from: start.addingTimeInterval(-Self.dayMargin), to: end.addingTimeInterval(Self.dayMargin))
-                .filter { $0.time >= start && $0.time < end }
+            let lo = start.addingTimeInterval(-Self.dayMargin), hi = end.addingTimeInterval(Self.dayMargin)
+            let found = axisOnly ? (slackEvents(from: lo, to: hi, axisOnly: true) + extrema(from: lo, to: hi)).sorted { $0.time < $1.time }
+                                 : events(from: lo, to: hi)
+            return found.filter { $0.time >= start && $0.time < end }
         }
     }
 }
@@ -295,14 +329,14 @@ public struct SubordinateStation: Sendable {
     public func events(from: Date, to: Date) -> [CurrentEvent] {
         let pad = [slackBeforeFloodOffset, slackBeforeEbbOffset, floodTimeOffset, ebbTimeOffset]
             .map(abs).max()! + 3600
-        let refEvents = reference.eventsByDay(from: from.addingTimeInterval(-pad),
+        let refEvents = reference.axisEventsForReduction(from: from.addingTimeInterval(-pad),
                                               to: to.addingTimeInterval(pad))
         return reduce(refEvents).filter { $0.time >= from && $0.time <= to }
     }
 
     /// The reduction alone, over reference events a caller already holds — a
     /// map full of pins hanging off one reference searches that reference once
-    /// (`eventsByDay`, so the list matches what `events`/`speeds` would use)
+    /// (`axisEventsForReduction`, so the list matches what `events`/`speeds` would use)
     /// and reduces per pin. Sorted; unequal offsets can reorder neighbours.
     public func reduce(_ refEvents: [CurrentEvent]) -> [CurrentEvent] {
         refEvents.enumerated().map { (i, e) -> CurrentEvent in

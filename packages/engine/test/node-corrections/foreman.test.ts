@@ -46,11 +46,18 @@ describe("foreman", () => {
     expect(turn(M1(a, 0, epoch).u - M1(a, 1).u - epoch.p.value)).toBeCloseTo(0, 9);
   });
 
+  it("builds no product from M1 or NO1, the lines whose correction needs a perigee count", () => {
+    for (const members of Object.values(table.products))
+      expect((members as [string, number][]).map(([m]) => m)).not.toContain("M1");
+    for (const members of Object.values(table.products))
+      expect((members as [string, number][]).map(([m]) => m)).not.toContain("NO1");
+  });
+
   it("holds the latitude 5° from the equator, on either side", () => {
     const a = astro(new Date("2010-05-01T00:00:00Z"));
-    expect(foreman(0).K1(a)).toEqual(foreman(4).K1(a));
-    expect(foreman(-1).K1(a)).toEqual(foreman(-5).K1(a));
-    expect(foreman(-1).K1(a)).not.toEqual(foreman(1).K1(a));
+    expect(foreman(0).K1(a, 0)).toEqual(foreman(4).K1(a, 0));
+    expect(foreman(-1).K1(a, 0)).toEqual(foreman(-5).K1(a, 0));
+    expect(foreman(-1).K1(a, 0)).not.toEqual(foreman(1).K1(a, 0));
   });
 
   it.each(["Sa", "SA_KV", "S1", "MSf", "MSm", "Mf"])(

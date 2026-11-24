@@ -18,4 +18,4 @@ data class CurrentPoint @JvmOverloads constructor(val time: Instant, val speedKn
     fun copy(time: Instant, speedKnots: Double): CurrentPoint = copy(time, speedKnots, magnitudeKnots, directionDegrees)
 }
 enum class CurrentEventKind { SLACK, MAX_FLOOD, MAX_EBB, MIN_FLOOD, MIN_EBB }
-data class CurrentEvent(val time: Instant, val speedKnots: Double, val kind: CurrentEventKind, val directionDegrees: Double? = null)
+data class CurrentEvent @JvmOverloads constructor(val time: Instant, val speedKnots: Double, val kind: CurrentEventKind, val directionDegrees: Double? = null, val verifiedZero: Boolean = false)

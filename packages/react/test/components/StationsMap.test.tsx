@@ -190,7 +190,7 @@ describe("StationsMap", () => {
     }
   });
 
-  test("a real predicted Slack colors its map pin green despite interpolation residuals", async () => {
+  test("a rotating current retains a directional map pin at an axis crossing", async () => {
     const ref = createRef<MapRef>();
     render(
       <StationsMap
@@ -206,7 +206,9 @@ describe("StationsMap", () => {
     await waitFor(
       () => {
         const pin = sourcePins(map).find((f) => f.properties!.key === "current:noaa/PUG1701");
-        expect(pin?.properties!.icon).toMatch(/sw-pin\|arrow\|rgb\(136, 184, 104\)/);
+        expect(pin?.properties!.icon).toMatch(/^sw-pin\|arrow\|/);
+        expect(pin?.properties!.icon).not.toBe("sw-pin|arrow|rgb(136, 184, 104)");
+        expect(pin?.properties!.reading).toBeDefined();
       },
       { timeout: 15000 },
     );

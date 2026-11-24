@@ -65,6 +65,8 @@ struct Catalog: Sendable {
     let argumentRates: [Double]
     /// Foreman's corrections in place of IHO's, when the station is corrected with them.
     private(set) var foreman: ForemanCorrections?
+    /// Turns of the perigee p in each argument, counted once the members are set.
+    private(set) var perigeeTurns: [Double] = []
 
     private static let file: File = {
         let url = Bundle.module.url(forResource: "catalog", withExtension: "json")!
@@ -85,7 +87,9 @@ struct Catalog: Sendable {
             index[alias] = index[canonical]!
             entries[index[canonical]!].formulaNames.append(alias)
         }
-        return Catalog(entries: entries, index: index, argumentRates: file.argumentRates)
+        var catalog = Catalog(entries: entries, index: index, argumentRates: file.argumentRates)
+        catalog.countPerigeeTurns()
+        return catalog
     }()
 
     /// Entries the bundled catalog defines; a caller's definitions come after them.
@@ -109,7 +113,7 @@ struct Catalog: Sendable {
         return catalog
     }
 
-    private func formula(_ name: String, _ a: Astro, perigeeTurns: Double?) -> (f: Double, u: Double)? {
+    private func formula(_ name: String, _ a: Astro, perigeeTurns: Double) -> (f: Double, u: Double)? {
         if let foreman { return foreman.correction(name, a, perigeeTurns: perigeeTurns) }
         return ihoCorrection(name, a, perigeeTurns: perigeeTurns)
     }
@@ -174,6 +178,7 @@ struct Catalog: Sendable {
         for i in first..<catalog.entries.count where !(abs(catalog.rate(i) - catalog.entries[i].speed) <= 1e-5) {
             throw ConstituentDefinitionError.invalidDefinition(catalog.entries[i].name)
         }
+        catalog.countPerigeeTurns()
         return catalog
     }
 
@@ -224,21 +229,25 @@ struct Catalog: Sendable {
     /// Node correction (f, u°). The correction set's formula if the constituent has one, else
     /// combined from members: f = Π f_memberᵃᵇˢ⁽ᶠᵃᶜᵗᵒʳ⁾, u = Σ factor·u_member.
     func correction(_ name: String, _ a: Astro) -> (f: Double, u: Double) {
-        guard let i = index[name] else { return formula(name, a, perigeeTurns: nil) ?? (1, 0) }
+        guard let i = index[name] else { return formula(name, a, perigeeTurns: 0) ?? (1, 0) }
         return correction(at: i, a)
     }
 
-    /// Turns of the perigee p in the argument. Validation leaves every argument coefficients or members.
-    private func perigeeTurns(at i: Int) -> Double {
+    private mutating func countPerigeeTurns() {
+        perigeeTurns = entries.indices.map(turns(at:))
+    }
+
+    /// Validation leaves every argument coefficients or members.
+    private func turns(at i: Int) -> Double {
         let e = entries[i]
         if let c = e.coefficients { return Double(c[3]) }
-        return e.members.reduce(0) { $0 + $1.factor * perigeeTurns(at: $1.index) }
+        return e.members.reduce(0) { $0 + $1.factor * turns(at: $1.index) }
     }
 
     private func correction(at i: Int, _ a: Astro) -> (f: Double, u: Double) {
         let e = entries[i]
         for name in e.formulaNames {
-            if let fundamental = formula(name, a, perigeeTurns: perigeeTurns(at: i)) { return fundamental }
+            if let fundamental = formula(name, a, perigeeTurns: perigeeTurns[i]) { return fundamental }
         }
         var f = 1.0
         var u = 0.0

@@ -42,18 +42,19 @@ internal class ForemanCorrections(latitude: Double) {
     }
 
     /** f and u for a line Foreman gives, or null. [perigeeTurns] is as in [ihoCorrection]. */
-    fun correction(name: String, a: Astro, perigeeTurns: Double? = null): NodeCorrection? {
+    fun correction(name: String, a: Astro, perigeeTurns: Double): NodeCorrection? {
         foremanSatellites[name]?.let { satellites ->
             val c = main(satellites, a)
             // Foreman's M1 (his NO1) argument holds one turn of p, as the catalog's does.
             if (name != "M1" && name != "NO1") return c
-            return NodeCorrection(c.f, wrapDegrees(c.uDegrees - ((perigeeTurns ?: 1.0) - 1) * a["p"]))
+            return NodeCorrection(c.f, wrapDegrees(c.uDegrees - (perigeeTurns - 1) * a["p"]))
         }
         val members = foremanProducts[name] ?: return null
         var f = 1.0
         var u = 0.0
         for (m in members) {
-            val c = correction(m.name, a)!!
+            // Only M1 and NO1 read the perigee count, and no product has them, so members get none.
+            val c = correction(m.name, a, 0.0)!!
             f *= c.f.pow(abs(m.factor))
             u += m.factor * c.uDegrees
         }

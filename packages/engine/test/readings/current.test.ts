@@ -6,6 +6,7 @@ import {
   compassIndex,
   maxSpeeds,
   readCurrent,
+  currentWindows,
   slackRuns,
   slackWindowAround,
   speedAt,
@@ -47,7 +48,7 @@ describe("vector readings", () => {
   test("keeps crossflow and its set at a flood/ebb zero", () => {
     const tl = [point(0, 0, 2, 90), point(1, -1, 2, 120)];
     const reading = readCurrent(new Date(t0), tl, [slackAt(t0)], { flood: 0, ebb: 180 })!;
-    expect(reading).toMatchObject({ state: "Slack", speed: 0, magnitude: 2, direction: 90 });
+    expect(reading).toMatchObject({ state: "Flooding", speed: 0, magnitude: 2, direction: 90 });
   });
   test("interpolates vectors through north rather than turning south", () => {
     const reading = readCurrent(
@@ -215,6 +216,102 @@ describe("slackWindowAround", () => {
   });
 });
 
+test("slack runs include a same-direction minimum below the threshold", () => {
+  for (const [speed, kind] of [
+    [0.2, "minFlood"],
+    [-0.2, "minEbb"],
+  ] as const) {
+    const event: CurrentEvent = { time: new Date(t0 + 10 * M), speed, kind };
+    const points = series([speed * 5, speed, speed * 5]);
+    expect(slackRuns(points, [event], 0.5)).toHaveLength(1);
+    expect(slackRuns(points, [event], 0.1)).toEqual([]);
+    expect(slackRuns(points, [event], 0)).toEqual([]);
+  }
+});
+
+test("slack runs include a minimum between out-of-band samples", () => {
+  const minimum: CurrentEvent = { time: new Date(t0 + 5 * M), speed: 0.2, kind: "minFlood" };
+  expect(slackRuns(series([1, 1]), [minimum], 0.5)).toHaveLength(1);
+});
+
+test("two minima stay separated by a faster maximum", () => {
+  const events: CurrentEvent[] = [
+    { time: new Date(t0 + 3 * M), speed: 0.2, kind: "minFlood" },
+    { time: new Date(t0 + 5 * M), speed: 1, kind: "maxFlood" },
+    { time: new Date(t0 + 7 * M), speed: 0.2, kind: "minFlood" },
+  ];
+  const runs = slackRuns(series([1, 1]), events, 0.5);
+  expect(runs).toHaveLength(2);
+  expect(runs[0].end.getTime()).toBeLessThan(t0 + 5 * M);
+  expect(runs[1].start.getTime()).toBeGreaterThan(t0 + 5 * M);
+});
+
+test("retains a low-speed window already open at the series edge", () => {
+  const runs = slackRuns(series([0.2, 0.4, 1]), [], 0.5);
+  expect(runs).toHaveLength(1);
+  expect(runs[0].start.getTime()).toBe(t0);
+});
+
+test("finds a sampled lull even when its event is not supplied", () => {
+  expect(slackRuns(series([1, 0.2, 1]), [], 0.5)).toHaveLength(1);
+});
+
+test("a rotating current above the comfort speed has no window or slack reading at an axis crossing", () => {
+  const points = [
+    { time: new Date(t0), speed: 1, magnitude: Math.SQRT2, direction: 45 },
+    { time: new Date(t0 + 10 * M), speed: -1, magnitude: Math.SQRT2, direction: 315 },
+  ];
+  const slack = slackAt(t0 + 5 * M);
+  expect(slackRuns(points, [slack], 0.5)).toEqual([]);
+  expect(slackWindowAround(points, slack.time, 0.5)).toBeUndefined();
+  const reading = readCurrent(slack.time, points, [slack], {});
+  expect(reading?.state).not.toBe("Slack");
+  expect(reading?.magnitude).toBeCloseTo(1);
+  expect(reading?.direction).toBeCloseTo(0);
+});
+
+test("rotary window boundaries use the full vector speed", () => {
+  const magnitude = Math.hypot(1, 0.2);
+  const angle = (Math.atan2(1, 0.2) * 180) / Math.PI;
+  const points = [
+    { time: new Date(t0), speed: 1, magnitude, direction: angle },
+    { time: new Date(t0 + 10 * M), speed: -1, magnitude, direction: 360 - angle },
+  ];
+  const runs = slackRuns(points, [slackAt(t0 + 5 * M)], 0.5);
+  expect(runs).toHaveLength(1);
+  expect(currentWindows(points, [slackAt(t0 + 5 * M)], 0.5)[0].slackTimes).toEqual([]);
+  const halfWidth = 5 * M * Math.sqrt(0.25 - 0.04);
+  expect(runs[0].start.getTime()).toBeCloseTo(t0 + 5 * M - halfWidth, -1);
+  expect(runs[0].end.getTime()).toBeCloseTo(t0 + 5 * M + halfWidth, -1);
+});
+
+test("current windows report their contained slack events", () => {
+  const slack = slackAt(t0 + 10 * M);
+  const withSlack = currentWindows(series([1, 0, -1]), [slack], 0.5);
+  expect(withSlack).toHaveLength(1);
+  expect(withSlack[0].slackTimes).toEqual([slack.time]);
+  const lull = currentWindows(series([1, 0.2, 1]), [], 0.5);
+  expect(lull).toHaveLength(1);
+  expect(lull[0].slackTimes).toEqual([]);
+});
+
+test("a true zero-vector event is included in its rotary window", () => {
+  const magnitude = Math.hypot(1, 0.3),
+    bearing = (Math.atan2(1, 0.3) * 180) / Math.PI;
+  const points = [
+    { time: new Date(t0), speed: 1, magnitude, direction: bearing },
+    { time: new Date(t0 + 10 * M), speed: -1, magnitude, direction: bearing + 180 },
+  ];
+  const slack = slackAt(t0 + 5 * M);
+  expect(currentWindows(points, [slack], 0.5)[0].slackTimes).toEqual([slack.time]);
+});
+
+test("a single rotary sample only forms a window when it meets the threshold", () => {
+  const points = [{ time: new Date(t0), speed: 0.1, magnitude: 0.3, direction: 90 }];
+  expect(slackRuns(points, [], 0.5)).toEqual([{ start: points[0].time, end: points[0].time }]);
+  expect(slackRuns(points, [], 0.2)).toEqual([]);
+});
+
 describe("slackRuns", () => {
   test("keeps a window shared by several slacks once", () => {
     const tl = series([1, 0.2, -0.2, 0.2, -0.2, -1]);
@@ -237,7 +334,7 @@ describe("slackRuns", () => {
   });
   test("keeps separate windows apart and skips slacks outside the series", () => {
     const runs = slackRuns(timeline, [...events, slackAt(t0 + 12 * H), slackAt(t0 - H)], 0.5);
-    expect(runs).toHaveLength(2);
+    expect(runs).toHaveLength(5);
   });
   test("a slack with no window is a zero-width window", () => {
     const slack = slackAt(t0 + 5 * M);
@@ -331,4 +428,18 @@ test.each(["minFlood", "minEbb"] as const)("names %s without ranking it as a max
   );
   expect(maxSpeeds(minima, "maxFlood")).toEqual([]);
   expect(maxSpeeds(minima, "maxEbb")).toEqual([]);
+});
+
+test("preserves a verified rotary slack between samples even at zero threshold", () => {
+  const time = new Date(t0 + 5 * M);
+  const points = [
+    { time: new Date(t0), speed: 0.1, magnitude: 1, direction: 45 },
+    { time: new Date(t0 + 10 * M), speed: -0.1, magnitude: 1, direction: 135 },
+  ];
+  const event: CurrentEvent = { time, speed: 0, kind: "slack", verifiedZero: true };
+  for (const threshold of [0, 0.1]) {
+    expect(currentWindows(points, [event], threshold)).toEqual([
+      { start: time, end: time, slackTimes: [time] },
+    ]);
+  }
 });

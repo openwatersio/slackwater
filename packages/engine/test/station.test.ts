@@ -489,6 +489,21 @@ describe("useCurrentStation", () => {
       }
     });
 
+    test("exposes axis crossings for reduction when cross-flow prevents true slack", () => {
+      const rotary = useCurrentStation({
+        ...baseCurrentStation,
+        current: { ...baseCurrentStation.current, minor_mean_flow: 0.5 },
+      });
+      expect(
+        rotary.getEventsPrediction({ start, end }).events.filter((event) => event.kind === "slack"),
+      ).toEqual([]);
+      expect(
+        rotary
+          .getAxisEventsForReduction({ start, end })
+          .events.some((event) => event.kind === "slack"),
+      ).toBe(true);
+    });
+
     test("predicts a signed timeline in knots", () => {
       const { timeline } = station.getTimelinePrediction({ start, end });
       expect(timeline.length).toBe(145); // 24 h at the default 600 s step

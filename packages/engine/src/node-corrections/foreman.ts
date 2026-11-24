@@ -1,7 +1,7 @@
 import { d2r, r2d } from "../astronomy/constants.js";
 import type { AstroData } from "../astronomy/index.js";
 import table from "./foreman.json" with { type: "json" };
-import { withoutPerigee } from "./iho.js";
+import { withoutPerigee } from "./perigee.js";
 import type { Fundamentals, NodalCorrection } from "./types.js";
 
 /**
@@ -52,14 +52,15 @@ export function foreman(latitude: number): Fundamentals {
     // Foreman's M1 (his NO1) argument holds one turn of p, as the catalog's does.
     fundamentals[name] =
       name === "M1" || name === "NO1"
-        ? (a, turns = 1, epoch = a) => withoutPerigee(correction(a), epoch, turns - 1)
+        ? (a, turns, epoch = a) => withoutPerigee(correction(a), epoch, turns - 1)
         : correction;
   }
   for (const [name, members] of Object.entries(table.products))
+    // Only M1 and NO1 read the perigee count, and no product has them, so members get none.
     fundamentals[name] = (a: AstroData): NodalCorrection =>
       (members as [string, number][]).reduce(
         ({ f, u }, [member, power]) => {
-          const c = fundamentals[member](a);
+          const c = fundamentals[member](a, 0);
           return { f: f * c.f ** Math.abs(power), u: u + power * c.u };
         },
         { f: 1, u: 0 },

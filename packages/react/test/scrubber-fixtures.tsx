@@ -1,6 +1,10 @@
 import { CurrentScrubber } from "../src/components/CurrentScrubber.js";
 import { TideScrubber, type TideScrubberProps } from "../src/components/TideScrubber.js";
+import { RangeOutlook } from "../src/components/RangeOutlook.js";
+import { SummaryTiles } from "../src/components/SummaryTiles.js";
 import type { CurrentEvent, Extreme } from "../src/types.js";
+import { rangeTile } from "../src/utils/standing.js";
+import { swingHeights } from "@slackwater/engine";
 
 export const H = 3_600_000;
 const M = 60_000;
@@ -71,9 +75,41 @@ export function current(selected?: number) {
   );
 }
 
-/** The strips `test/node-render.tsx` renders under Node, for the browser to hydrate. */
+/**
+ * The tiles under a tide strip, read at `time`, or with no reading as a server
+ * render with no moment draws them; `week` passes the outlook its highs and
+ * lows even then.
+ */
+export function tiles(time?: number, week = time !== undefined) {
+  const { extremes } = tides();
+  return (
+    <SummaryTiles
+      time={time}
+      timezone="UTC"
+      latitude={50}
+      longitude={0}
+      locale="en-US"
+      primary={rangeTile(extremes, time, swingHeights(extremes), "meters", "en-US")}
+      outlook={
+        <RangeOutlook
+          week={t0}
+          extremes={week ? extremes : undefined}
+          units="meters"
+          time={time}
+          timezone="UTC"
+          locale="en-US"
+        />
+      }
+    />
+  );
+}
+
+/** The strips and tiles `test/node-render.tsx` renders under Node, for the browser to hydrate. */
 export const nodeRendered = {
   tide: () => tide(),
   selectedTide: () => tide({ selected: LATER }),
   selectedCurrent: () => current(NOW),
+  tiles: () => tiles(),
+  tilesWithWeek: () => tiles(undefined, true),
+  selectedTiles: () => tiles(LATER),
 };

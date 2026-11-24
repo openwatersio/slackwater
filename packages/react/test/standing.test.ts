@@ -60,9 +60,24 @@ describe("rangeTile", () => {
     expect(rangeTile(list, t0 + 6 * H, undefined, "meters")?.caption).toBe("high to low");
   });
 
-  test("absent without a turn on each side", () => {
-    expect(rangeTile(list, t0 - H, undefined, "meters")).toBeUndefined();
-    expect(rangeTile(list, t0 + 12 * H, undefined, "meters")).toBeUndefined();
+  test("with no moment, a label and no reading", () => {
+    expect(rangeTile(list, undefined, undefined, "meters")).toEqual({
+      label: "Range",
+      value: "—",
+      caption: "",
+    });
+    expect(nextMaxTile([event(3, 3, "maxFlood")], undefined, undefined, tz)).toEqual({
+      label: "Next max",
+      value: "—",
+      caption: "",
+    });
+  });
+
+  test("without a turn on each side, a label and no reading, so the tile keeps its place", () => {
+    const blank = { label: "Range", value: "—", caption: "" };
+    expect(rangeTile(list, t0 - H, undefined, "meters")).toEqual(blank);
+    expect(rangeTile(list, t0 + 12 * H, undefined, "meters")).toEqual(blank);
+    expect(rangeTile([], t0, undefined, "meters")).toEqual(blank);
   });
 
   test("the fortnight's top tenth marks, and its biggest says so", () => {
@@ -109,8 +124,12 @@ describe("nextMaxTile", () => {
     });
   });
 
-  test("absent when no maximum follows", () => {
-    expect(nextMaxTile(events, t0 + 9 * H, undefined, tz)).toBeUndefined();
+  test("a label and no reading when no maximum follows", () => {
+    expect(nextMaxTile(events, t0 + 9 * H, undefined, tz)).toEqual({
+      label: "Next max",
+      value: "—",
+      caption: "",
+    });
   });
 
   test("ranks within its own direction", () => {
@@ -191,7 +210,7 @@ test("outlook ranks complete local days and leaves unloaded days empty", () => {
 test("Next max skips minima and leaves minima out of peak rankings", () => {
   const minima = [event(1, 0.01, "minFlood"), event(2, -0.01, "minEbb")];
   const maximum = event(3, 3, "maxFlood");
-  expect(nextMaxTile(minima, t0, minima, tz)).toBeUndefined();
+  expect(nextMaxTile(minima, t0, minima, tz).value).toBe("—");
   expect(nextMaxTile([...minima, maximum], t0, [...minima, maximum], tz)).toEqual(
     nextMaxTile([maximum], t0, [maximum], tz),
   );

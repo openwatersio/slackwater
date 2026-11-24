@@ -40,7 +40,7 @@ describe("getCurrentEventsPrediction", () => {
     expect(prediction.events.length).toBeGreaterThan(0);
     expect(prediction.events.some((e) => e.kind === "maxFlood")).toBe(true);
     expect(prediction.events.some((e) => e.kind === "maxEbb")).toBe(true);
-    expect(prediction.events.some((e) => e.kind === "slack")).toBe(true);
+    expect(prediction.events.some((e) => e.kind === "slack")).toBe(false);
     for (const event of prediction.events) {
       if (event.kind === "maxFlood") expect(event.speed).toBeGreaterThan(0);
       if (event.kind === "maxEbb") expect(event.speed).toBeLessThan(0);
@@ -158,7 +158,7 @@ describe("findCurrentStation", () => {
     }
   });
 
-  test("retains major-axis speeds and events with the bundled minor axis", async () => {
+  test("retains major-axis speeds and extrema with the bundled minor axis", async () => {
     const station = await findCurrentStation("noaa/PUG1741");
     const scalar = createCurrentPredictor(station.harmonic_constituents, {
       meanFlow: station.current?.mean_flow,
@@ -168,7 +168,9 @@ describe("findCurrentStation", () => {
     expect(station.getTimelinePrediction(span).timeline.map((p) => p.speed)).toEqual(
       scalar.getTimelinePrediction(span).map((p) => p.speed),
     );
-    expect(station.getEventsPrediction(span).events).toEqual(scalar.getEventsPrediction(span));
+    expect(station.getEventsPrediction(span).events.filter((e) => e.kind !== "slack")).toEqual(
+      scalar.getEventsPrediction(span).filter((e) => e.kind !== "slack"),
+    );
   });
 
   test.each([

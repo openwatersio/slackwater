@@ -145,11 +145,14 @@ internal class Catalog private constructor(
         return catalog
     }
 
-    /** Turns of the perigee p in the argument. Validation leaves every argument coefficients or members. */
-    private fun perigeeTurns(i: Int): Double {
+    /** Turns of the perigee p in each argument, counted once: members never change after construction. */
+    private val perigeeTurns = DoubleArray(entries.size) { turnsOf(it) }
+
+    /** Validation leaves every argument coefficients or members. */
+    private fun turnsOf(i: Int): Double {
         val e = entries[i]
         e.coefficients?.let { return it[3].toDouble() }
-        return e.members.sumOf { it.factor * perigeeTurns(it.index) }
+        return e.members.sumOf { it.factor * turnsOf(it.index) }
     }
 
     /** Degrees per hour at which [v0] advances. */
@@ -192,16 +195,16 @@ internal class Catalog private constructor(
         return Catalog(entries, index, foreman)
     }
 
-    private fun formula(name: String, a: Astro, perigeeTurns: Double?): NodeCorrection? =
+    private fun formula(name: String, a: Astro, perigeeTurns: Double): NodeCorrection? =
         if (foreman != null) foreman.correction(name, a, perigeeTurns) else ihoCorrection(name, a, perigeeTurns)
 
     fun correction(name: String, a: Astro): NodeCorrection {
-        val i = index[name] ?: return formula(name, a, null) ?: NodeCorrection(1.0, 0.0)
+        val i = index[name] ?: return formula(name, a, 0.0) ?: NodeCorrection(1.0, 0.0)
         return correction(i, a)
     }
     private fun correction(i: Int, a: Astro): NodeCorrection {
         val e = entries[i]
-        for (name in e.formulaNames) formula(name, a, perigeeTurns(i))?.let { return it }
+        for (name in e.formulaNames) formula(name, a, perigeeTurns[i])?.let { return it }
         var f = 1.0
         var u = 0.0
         for (m in e.members) {

@@ -33,7 +33,8 @@ private struct VectorFixture: Decodable {
     }
     let axial = CurrentStation(constituents: f.constituents.map(\.harmonic),
         floodDirection: f.floodDirection, ebbDirection: f.ebbDirection, offset: f.meanFlow)
-    let actual = station.events(from: from, to: to), expected = axial.events(from: from, to: to)
+    let actual = station.events(from: from, to: to).filter { $0.kind != .slack }
+    let expected = axial.events(from: from, to: to).filter { $0.kind != .slack }
     #expect(actual.count == expected.count)
     for (a, b) in zip(actual, expected) { #expect(a.time == b.time && a.speed == b.speed && a.kind == b.kind) }
 }
@@ -96,8 +97,25 @@ private struct VectorFixture: Decodable {
         floodDirection: 30, ebbDirection: 225)
     let _: Double = sub.floodDirection
     let _: Double = sub.ebbDirection
+    #expect(sub.events(from: from, to: to).contains { $0.kind == .slack })
     for p in sub.speeds(from: from, to: to) {
         #expect(p.magnitude == abs(p.speed))
         #expect(p.direction == (p.speed > 0 ? 30 : p.speed < 0 ? 225 : nil))
     }
+}
+
+@Test func constantCrossCurrentPreventsSlackEvents() {
+    let station = CurrentStation(constituents: [HarmonicConstituent(name: "S2", amplitude: 1, phase: 0)], minorMeanFlow: 1)
+    let start = Date(timeIntervalSince1970: 1767225600)
+    #expect(station.slacks(from: start, to: start.addingTimeInterval(86400)).isEmpty)
+}
+
+@Test func simultaneousAxisZerosRemainSlackEvents() {
+    let c = [HarmonicConstituent(name: "M2", amplitude: 1, phase: 0)]
+    let station = CurrentStation(constituents: c, minorConstituents: c)
+    let axial = CurrentStation(constituents: c)
+    let start = Date(timeIntervalSince1970: 1767225600), end = start.addingTimeInterval(3 * 86400)
+    let actual = station.slacks(from: start, to: end), expected = axial.slacks(from: start, to: end)
+    #expect(!expected.isEmpty && actual.count == expected.count)
+    for (a, b) in zip(actual, expected) { #expect(abs(a.time.timeIntervalSince(b.time)) < 0.5) }
 }
