@@ -147,6 +147,16 @@ let station = try Station(
 
 A definition that shares a name or alias with a catalog entry replaces that entry under all of the entry's names, and catalog compounds keep their own members. An invalid set throws `ConstituentDefinitionError`. `fixtures/constituent-definitions.json`, generated from the TypeScript engine by `node fixtures/generate/gen-definitions.mjs`, holds predictions, a fit and rejected definitions that all three engines check.
 
+### Nodal corrections
+
+Stations predict with IHO's nodal corrections by default. Constants fitted with t_tide or UTide, such as Kartverket's, predict with Foreman's satellite corrections at the site's latitude in degrees north, as [`@slackwater/engine`](../packages/engine/README.md#tide-prediction-object) does:
+
+```swift
+let station = try Station(constituents: kartverket, nodeCorrections: .foreman(latitude: 59.9))
+```
+
+`CurrentStation(constituents:…:nodeCorrections:)` takes the same set for both axes, and a `SubordinateTideStation` or current `SubordinateStation` predicts with its reference's. A latitude outside -90 to 90 throws `NodeCorrectionsError.invalidLatitude`. The catalog's Sa, S1 and OQ2, by any of their names, throw `NodeCorrectionsError.notForemanLine`, since t_tide's lines by those names are SA_KV, S1_KV and OQ2_KV; a caller's own definition under one of those names predicts as given. The fitter takes IHO's corrections only. `fixtures/foreman-utide.json` holds UTide's own f and u and `fixtures/prediction-foreman.json` the TypeScript engine's predictions, which all three engines check.
+
 ## Develop
 
 ```sh

@@ -31,7 +31,7 @@ tasks.jacocoTestReport {
     dependsOn(tasks.test)
     reports { xml.required = true; html.required = true }
     classDirectories.setFrom(sourceSets.main.get().output.asFileTree.matching {
-        exclude("io/openwaters/slackwater/CatalogDataKt.class")
+        exclude("io/openwaters/slackwater/CatalogDataKt.class", "io/openwaters/slackwater/ForemanDataKt.class")
     })
 }
 tasks.jacocoTestCoverageVerification {

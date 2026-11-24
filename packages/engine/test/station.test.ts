@@ -1,6 +1,7 @@
 import { describe, test, expect } from "vitest";
 import { loadStations } from "@slackwater/database";
 import { useStation, useCurrentStation } from "../src/station.js";
+import { createTidePredictor } from "../src/index.js";
 import mockConstituents from "./_mocks/constituents.js";
 import { loadFixture, type FixtureEvent } from "./_mocks/currents-catalog.js";
 import type { Station, StationPredictor, CurrentStation } from "../src/station.js";
@@ -71,6 +72,49 @@ describe("useStation", () => {
         station.getWaterLevelAtTime({ ...options, nodeCorrections }),
       );
       expect(iho.level).not.toBe(schureman.level);
+    });
+  });
+
+  describe("Foreman's nodeCorrections", () => {
+    // The mock's Sa and S1 are the catalog's, not t_tide's lines by those names.
+    const harmonics = mockConstituents.filter((c) => c.name !== "SA" && c.name !== "S1");
+    const time = new Date("2025-12-19T00:30:00Z");
+
+    test("take the station's latitude", () => {
+      const station = useStation({
+        ...baseStation,
+        latitude: 59.9,
+        harmonic_constituents: harmonics,
+      });
+      const { level } = station.getWaterLevelAtTime({
+        time,
+        datum: "MSL",
+        nodeCorrections: "foreman",
+      });
+      const predictor = createTidePredictor(harmonics, {
+        offset: 0,
+        nodeCorrections: "foreman",
+        latitude: 59.9,
+      });
+      expect(level).toBe(predictor.getWaterLevelAtTime({ time }).level);
+      const south = useStation({
+        ...baseStation,
+        latitude: -59.9,
+        harmonic_constituents: harmonics,
+      });
+      expect(
+        south.getWaterLevelAtTime({ time, datum: "MSL", nodeCorrections: "foreman" }).level,
+      ).not.toBe(level);
+    });
+
+    test("refuse the catalog's S1", () => {
+      expect(() =>
+        useStation(baseStation).getExtremesPrediction({
+          start: time,
+          end: new Date("2025-12-20T00:00:00Z"),
+          nodeCorrections: "foreman",
+        }),
+      ).toThrow("notForemanLine: S1");
     });
   });
 
@@ -542,6 +586,37 @@ describe("useCurrentStation", () => {
       // The subordinate publishes no directions, so its events carry none,
       // not the reference's and not 0.
       for (const event of events) expect(event).not.toHaveProperty("direction");
+    });
+  });
+
+  describe("Foreman's nodeCorrections", () => {
+    const harmonics = mockConstituents.filter((c) => c.name !== "SA" && c.name !== "S1");
+    const at = (latitude: number): CurrentStation => ({
+      ...baseCurrentStation,
+      latitude,
+      harmonic_constituents: harmonics,
+    });
+    const speeds = (station: ReturnType<typeof useCurrentStation>) =>
+      station
+        .getTimelinePrediction({ start, end, nodeCorrections: "foreman" })
+        .timeline.map((p) => p.speed);
+
+    test("take a harmonic station's latitude", () => {
+      expect(speeds(useCurrentStation(at(59.9)))).not.toEqual(speeds(useCurrentStation(at(-59.9))));
+    });
+
+    test("take a subordinate's reference station's latitude", () => {
+      const sub = (latitude: number, reference: CurrentStation) =>
+        useCurrentStation(
+          {
+            ...at(latitude),
+            harmonic_constituents: [],
+            current: { offsets: { reference: "test/current" } },
+          },
+          { reference },
+        );
+      expect(speeds(sub(10, at(59.9)))).toEqual(speeds(sub(-10, at(59.9))));
+      expect(speeds(sub(10, at(59.9)))).not.toEqual(speeds(sub(10, at(-59.9))));
     });
   });
 

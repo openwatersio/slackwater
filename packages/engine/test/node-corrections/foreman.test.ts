@@ -3,12 +3,12 @@ import astro from "../../src/astronomy/index.js";
 import constituents from "../../src/constituents/index.js";
 import { foreman } from "../../src/node-corrections/index.js";
 import table from "../../src/node-corrections/foreman.json" with { type: "json" };
-import reference from "./foreman-utide.json" with { type: "json" };
+import reference from "../../../../fixtures/foreman-utide.json" with { type: "json" };
 
 const turn = (degrees: number) => degrees - 360 * Math.round(degrees / 360);
 
 describe("foreman", () => {
-  // UTide's own f and u, written by scripts/gen-foreman.py. The two astronomies differ in their
+  // UTide's own f and u, written by scripts/gen-foreman.py and shared with Swift and Kotlin. The two astronomies differ in their
   // polynomials, which leaves about 1e-5 in f and 0.002° in u.
   it.each(reference.map((r) => [r.time, r.latitude, r.values] as const))(
     "matches UTide at %s, latitude %d",

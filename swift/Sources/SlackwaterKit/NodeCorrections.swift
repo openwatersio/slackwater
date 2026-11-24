@@ -8,7 +8,7 @@ private let d2r = Double.pi / 180
 private let r2d = 180 / Double.pi
 
 /// To ±180°. For an argument that holds p, u then stays near zero and never wraps.
-private func wrapDegrees(_ d: Double) -> Double { d - 360 * (d / 360 + 0.5).rounded(.down) }
+func wrapDegrees(_ d: Double) -> Double { d - 360 * (d / 360 + 0.5).rounded(.down) }
 
 /// Convert f·sinU / f·cosU form to (f, u°).
 private func fromSinCos(_ fsinU: Double, _ fcosU: Double) -> (f: Double, u: Double) {

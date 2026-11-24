@@ -7,6 +7,7 @@ import {
   type TimelinePoint,
 } from "./index.js";
 import type { HarmonicConstituent, ExtremeOffsets } from "./harmonics/index.js";
+import type { NodeCorrections } from "./node-corrections/resolve.js";
 import {
   createCurrentPredictor,
   createSubordinateCurrentPredictor,
@@ -51,8 +52,8 @@ export type StationPredictionOptions = {
   /** Units for returned water levels. Defaults to 'meters'. */
   units?: Units;
 
-  /** Nodal correction fundamentals. Defaults to 'iho'. */
-  nodeCorrections?: "iho" | "schureman";
+  /** Nodal correction formulas, IHO's by default. Foreman's take the station's latitude. */
+  nodeCorrections?: NodeCorrections;
 };
 
 export type StationExtremesOptions = ExtremesInput & StationPredictionOptions;
@@ -131,7 +132,11 @@ export function useStation(station: Station, distance?: number): StationPredicto
     }
 
     return {
-      predictor: createTidePredictor(harmonic_constituents, { offset: base, nodeCorrections }),
+      predictor: createTidePredictor(harmonic_constituents, {
+        offset: base,
+        nodeCorrections,
+        latitude: nodeCorrections === "foreman" ? station.latitude : undefined,
+      }),
       shift: offset - base,
     };
   }
@@ -222,8 +227,11 @@ export type CurrentStation = Station & {
 };
 
 export type CurrentStationPredictionOptions = {
-  /** Nodal correction fundamentals. Defaults to 'iho'. */
-  nodeCorrections?: "iho" | "schureman";
+  /**
+   * Nodal correction formulas, IHO's by default. Foreman's take the latitude of the
+   * station whose constants are predicted: a subordinate's reference station.
+   */
+  nodeCorrections?: NodeCorrections;
 };
 
 export type CurrentStationEventsOptions = TimeSpan & CurrentStationPredictionOptions;
@@ -271,7 +279,7 @@ export function useCurrentStation(
   station: CurrentStation,
   { reference, distance }: UseCurrentStationOptions = {},
 ): CurrentStationPredictor {
-  function harmonic(s: CurrentStation, nodeCorrections?: "iho" | "schureman") {
+  function harmonic(s: CurrentStation, nodeCorrections?: NodeCorrections) {
     if (s.harmonic_constituents.length === 0) return undefined;
     return createCurrentPredictor(s.harmonic_constituents, {
       floodDirection: s.current?.flood_direction,
@@ -281,10 +289,11 @@ export function useCurrentStation(
       minorMeanFlow: s.current?.minor_mean_flow ?? 0,
       azimuth: s.current?.azimuth ?? undefined,
       nodeCorrections,
+      latitude: nodeCorrections === "foreman" ? s.latitude : undefined,
     });
   }
 
-  function getPredictor(nodeCorrections?: "iho" | "schureman"): CurrentPredictor {
+  function getPredictor(nodeCorrections?: NodeCorrections): CurrentPredictor {
     const own = harmonic(station, nodeCorrections);
     if (own) return own;
 

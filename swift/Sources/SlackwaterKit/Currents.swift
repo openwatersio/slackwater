@@ -128,6 +128,20 @@ public struct CurrentStation: Sendable {
                   azimuth: azimuth, catalog: try Catalog.shared.with(definitions))
     }
 
+    /// Predicts with `nodeCorrections`, and with any `definitions` added to the catalog. Throws
+    /// `NodeCorrectionsError` for an invalid latitude or a line t_tide names differently.
+    public init(constituents inputs: [HarmonicConstituent],
+                floodDirection: Double? = nil, ebbDirection: Double? = nil, offset: Double = 0,
+                minorConstituents: [HarmonicConstituent]? = nil, minorMeanFlow: Double = 0,
+                azimuth: Double? = nil, definitions: [ConstituentDefinition] = [],
+                nodeCorrections: NodeCorrections) throws {
+        let catalog = try Catalog.shared.with(definitions)
+            .corrected(with: nodeCorrections, names: (inputs + (minorConstituents ?? [])).map(\.name))
+        self.init(constituents: inputs, floodDirection: floodDirection, ebbDirection: ebbDirection,
+                  offset: offset, minorConstituents: minorConstituents, minorMeanFlow: minorMeanFlow,
+                  azimuth: azimuth, catalog: catalog)
+    }
+
     init(constituents inputs: [HarmonicConstituent], floodDirection: Double?, ebbDirection: Double?,
          offset: Double, minorConstituents: [HarmonicConstituent]?, minorMeanFlow: Double,
          azimuth: Double?, catalog cat: Catalog) {

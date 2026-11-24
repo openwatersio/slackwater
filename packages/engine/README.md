@@ -47,10 +47,13 @@ Calling `createTidePredictor` will generate a new tide prediction object. It acc
 - `constituents` - An array of [constituent objects](#constituent-object)
 - `options` - An object with one of:
   - `offset` - A value to add to **all** values predicted. This is useful if you want to, for example, offset tides by mean high water, etc.
-  - `nodeCorrections` - The nodal correction convention: `"iho"` (default) or `"schureman"`.
+  - `nodeCorrections` - The nodal correction convention: `"iho"` (default), `"schureman"` or `"foreman"`.
+  - `latitude` - The site's latitude in degrees north, for `"foreman"` only.
   - `definitions` - An array of [catalog definitions](#catalog-definitions) to predict alongside the built-in catalog. A definition that shares a name or alias with a catalog entry replaces that entry under all of the entry's names.
 
-Use `"iho"` unless the harmonic constants were derived with the Schureman convention. Keep the convention consistent between fitting and prediction; switching conventions can change some nodal amplitude factors by about 7% for J1 and 5.5% for Mf. Slackwater's harmonic fitter uses IHO corrections unless told otherwise.
+Use `"iho"` unless the harmonic constants were derived with another convention. Keep the convention consistent between fitting and prediction; switching conventions can change some nodal amplitude factors by about 7% for J1 and 5.5% for Mf. Slackwater's harmonic fitter uses IHO corrections unless told otherwise.
+
+Use `"foreman"` for constants fitted with t_tide or UTide, such as Kartverket's, with the site's `latitude`. Its validation matches [`fit`'s](#harmonic-fitting): the predictor throws a `RangeError` beginning with `invalidLatitude` when Foreman's set has no latitude from -90 to 90, or another set has a latitude, `notForemanLine` for the catalog's Sa, S1 or OQ2 (also `SA` and `OO2`), whose lines t_tide names SA_KV, S1_KV and OQ2_KV, and `invalidNodeCorrections` for any other set name. A caller's own definition under one of those names predicts as given. `foremanLines` maps each of Foreman's names that differs from the catalog's to the catalog line he means. `useStation` and `useCurrentStation` take `nodeCorrections: "foreman"` and use the station's own latitude; a subordinate current station uses its reference station's.
 
 ### Tide prediction methods
 
@@ -334,7 +337,7 @@ These options are TypeScript only; the Swift and Kotlin fitters take none of the
 - `dropDependent: true`: leave out a constituent the record can't separate from the names before it, list it in `dropped`, and fit the rest, instead of throwing `rankDeficient`. Pass names in priority order so the weaker of a pair is the one dropped.
 - `confidence: true`: add `amplitudeInterval` and `phaseInterval`, the half-widths of 95% confidence intervals, and `snr`, amplitude squared over its variance, to each constituent. The least-squares covariance of each constituent's cosine and sine coefficients is scaled by the residual's Hann-windowed periodogram, averaged over the constituent's band with UTide's band edges, relative to white noise of the same variance, as T_TIDE and UTide do for colored noise ([Pawlowicz, Beardsley and Lentz 2002](<https://doi.org/10.1016/S0098-3004(02)00013-4>)). White residuals give the ordinary least-squares interval. The intervals are linearized, so they're only reliable where SNR is well above 1. They need more weighted samples than fitted parameters; otherwise `fit` throws `invalidSamples`.
 
-Foreman's corrections and the yearly mode are for comparing a fit with constants an agency published that way. The predictors take only IHO's or Schureman's corrections, evaluated through the span, so constants fitted with Foreman's set or by year predict with a small error.
+Constants fitted with Foreman's set predict with it: pass the predictor the same `nodeCorrections` and `latitude`. The yearly mode is for comparing a fit with constants NOAA published that way. The predictors evaluate f and u through the span, so constants fitted by year predict with a small error.
 
 `selectConstituents` with `robust: true` on 19 years of hourly samples takes about 40 seconds on an Apple M-series Mac.
 
@@ -468,8 +471,9 @@ The IHO, Schureman and Foreman systems compute the same two values per constitue
 - [src/node-corrections/types.ts](src/node-corrections/types.ts) — `NodalCorrection` type (`f` and `u`), `CorrectionFn`, and `Fundamentals` type
 - [src/node-corrections/iho.ts](src/node-corrections/iho.ts) — IHO TWCWG Annex A simplified Fourier series formulas (uses only N, p, p' from astro data). **This is the default.**
 - [src/node-corrections/schureman.ts](src/node-corrections/schureman.ts) — Schureman (1940) exact spherical geometry formulas (uses I, ξ, ν, ν', ν'' from astro data). Kept for backward compatibility.
-- [src/node-corrections/foreman.ts](src/node-corrections/foreman.ts) — Foreman's satellite corrections, as t_tide and UTide use them, built for a latitude by `foreman(latitude)` from [foreman.json](src/node-corrections/foreman.json), which [scripts/gen-foreman.py](scripts/gen-foreman.py) generates. Used by `fit` only.
-- [src/node-corrections/index.ts](src/node-corrections/index.ts) — `resolveFundamentals(name?)` selects IHO (default) or Schureman at runtime
+- [src/node-corrections/foreman.ts](src/node-corrections/foreman.ts) — Foreman's satellite corrections, as t_tide and UTide use them, built for a latitude by `foreman(latitude)` from [foreman.json](src/node-corrections/foreman.json), which [scripts/gen-foreman.py](scripts/gen-foreman.py) generates. [fixtures/foreman-utide.json](../../fixtures/foreman-utide.json) holds UTide's own f and u, which the TypeScript, Swift and Kotlin engines are each checked against.
+- [src/node-corrections/resolve.ts](src/node-corrections/resolve.ts) — `correctionsFor` picks the set for `fit` and the predictors and checks its latitude, and `checkForemanLine` refuses the catalog lines t_tide names differently
+- [src/node-corrections/index.ts](src/node-corrections/index.ts) — `resolveFundamentals(name?)` selects IHO (default) or Schureman by name
 
 ## Design notes
 

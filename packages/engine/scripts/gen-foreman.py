@@ -1,10 +1,12 @@
 """Write src/node-corrections/foreman.json from UTide's copy of Foreman's tables,
-and UTide's own f and u for the test in test/node-corrections/foreman-utide.json.
+and UTide's own f and u in fixtures/foreman-utide.json, which the TypeScript,
+Swift and Kotlin engines are each checked against.
 
     pip install utide==0.4.0
     python3 packages/engine/scripts/gen-foreman.py
     npx prettier --write packages/engine/src/node-corrections/foreman.json \
-      packages/engine/test/node-corrections/foreman-utide.json
+      fixtures/foreman-utide.json
+    npm run build --workspace @slackwater/engine && node fixtures/generate/gen-catalog.mjs
 
 UTide's ut_constants holds t_tide's tables, which come from Foreman (1977,
 revised 2004), "Manual for tidal heights analysis and prediction", IOS Pacific
@@ -134,4 +136,4 @@ for when in ["1995-03-10T06:00", "2006-06-21T00:00", "2024-12-31T18:00"]:
         })
 # Both files are written only once both are computed, so neither runs ahead of the other.
 (engine / "src/node-corrections/foreman.json").write_text(json.dumps(out) + "\n")
-(engine / "test/node-corrections/foreman-utide.json").write_text(json.dumps(reference) + "\n")
+(engine.parent.parent / "fixtures/foreman-utide.json").write_text(json.dumps(reference) + "\n")

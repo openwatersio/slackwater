@@ -5,11 +5,11 @@ import kotlin.math.*
 internal data class NodeCorrection(val f: Double, val uDegrees: Double)
 private fun fromSinCos(s: Double, c: Double) = NodeCorrection(sqrt(s * s + c * c), atan2(s, c) * R2D)
 // To ±180°. For an argument that holds p, u then stays near zero and never wraps.
-private fun wrapDegrees(d: Double) = d - 360 * floor(d / 360 + 0.5)
+internal fun wrapDegrees(d: Double) = d - 360 * floor(d / 360 + 0.5)
 
 // IHO fundamentals: packages/engine/src/node-corrections/iho.ts. [perigeeTurns] is how many turns
 // of p the argument being corrected holds, when it isn't the catalog's.
-internal fun ihoCorrection(name: String, a: Astro, perigeeTurns: Double? = null): NodeCorrection? {
+internal fun ihoCorrection(name: String, a: Astro, perigeeTurns: Double?): NodeCorrection? {
     val n = a["N"] * D2R
     val p = a["p"] * D2R
     val pp = a["pp"] * D2R

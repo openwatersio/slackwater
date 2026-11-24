@@ -54,6 +54,15 @@ public struct Station: Sendable {
         self.init(constituents: inputs, offset: offset, catalog: try Catalog.shared.with(definitions))
     }
 
+    /// Predicts with `nodeCorrections`, and with any `definitions` added to the catalog. Throws
+    /// `NodeCorrectionsError` for an invalid latitude or a line t_tide names differently.
+    public init(constituents inputs: [HarmonicConstituent], offset: Double = 0,
+                definitions: [ConstituentDefinition] = [], nodeCorrections: NodeCorrections) throws {
+        let catalog = try Catalog.shared.with(definitions)
+            .corrected(with: nodeCorrections, names: inputs.map(\.name))
+        self.init(constituents: inputs, offset: offset, catalog: catalog)
+    }
+
     init(constituents inputs: [HarmonicConstituent], offset: Double, catalog cat: Catalog) {
         let d2r = Double.pi / 180
         self.catalog = cat
