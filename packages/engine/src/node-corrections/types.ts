@@ -7,8 +7,7 @@ export interface NodalCorrection {
 
 /**
  * `perigeeTurns` is how many turns of the lunar perigee p the argument being
- * corrected holds, when it isn't the catalog's: a formula written for an
- * argument without p takes them off u.
+ * corrected holds: a formula written for an argument without p takes them off u.
  */
-export type CorrectionFn = (astro: AstroData, perigeeTurns?: number) => NodalCorrection;
+export type CorrectionFn = (astro: AstroData, perigeeTurns: number) => NodalCorrection;
 export type Fundamentals = Record<string, CorrectionFn>;

@@ -1,6 +1,6 @@
 import { d2r, r2d } from "../astronomy/constants.js";
-import type { AstroData } from "../astronomy/index.js";
-import type { Fundamentals, NodalCorrection } from "./types.js";
+import { withoutPerigee } from "./perigee.js";
+import type { Fundamentals } from "./types.js";
 
 const fundamentals: Fundamentals = {
   Mm: (a) => corrMm(d2r * a.N.value, d2r * a.p.value),
@@ -10,8 +10,8 @@ const fundamentals: Fundamentals = {
   J1: (a) => corrJ1(d2r * a.N.value),
   M1B: (a) => corrM1B(d2r * a.N.value, d2r * a.p.value),
   // Annex A's M1 formula is for an argument without p (1 555 556), so u takes off the p the argument holds.
-  M1C: (a, turns = 0) => withoutPerigee(corrM1(d2r * a.N.value, d2r * a.p.value), a, turns),
-  M1: (a, turns = 1) => withoutPerigee(corrM1(d2r * a.N.value, d2r * a.p.value), a, turns),
+  M1C: (a, turns) => withoutPerigee(corrM1(d2r * a.N.value, d2r * a.p.value), a, turns),
+  M1: (a, turns) => withoutPerigee(corrM1(d2r * a.N.value, d2r * a.p.value), a, turns),
   M1A: (a) => corrM1A(d2r * a.N.value, d2r * a.p.value),
   M2: (a) => corrM2(d2r * a.N.value),
   K2: (a) => corrK2(d2r * a.N.value),
@@ -143,16 +143,6 @@ function corrL2(N: number, p: number) {
     0.037 * Math.cos(N);
   return fromSinCos(fsinU, fcosU);
 }
-
-/**
- * u less `turns` of the perigee p, wrapped to ±180°. For an argument that holds p, u then stays
- * near zero and never wraps, so a fractional compound member doesn't jump.
- */
-export function withoutPerigee({ f, u }: NodalCorrection, a: AstroData, turns: number) {
-  return { f, u: wrap(u - turns * a.p.value) };
-}
-
-const wrap = (degrees: number) => degrees - 360 * Math.floor(degrees / 360 + 0.5);
 
 /**
  * Compute f and u from f·sinU / f·cosU form.

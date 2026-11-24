@@ -130,6 +130,9 @@ function defineConstituent({
   coefficients,
   aliases = [],
 }: ConstituentDefinition): Constituent {
+  // Members resolve before the first correction, and never change after.
+  let turns: number | undefined;
+  const perigee = () => (turns ??= perigeeTurns(constituent));
   const constituent: Constituent = {
     name,
     speed,
@@ -150,11 +153,9 @@ function defineConstituent({
 
     correction(astro: AstroData, fundamentals: Fundamentals = iho): NodalCorrection {
       // Fundamentals have their own correction formula
-      if (Object.hasOwn(fundamentals, name))
-        return fundamentals[name](astro, perigeeTurns(constituent));
+      if (Object.hasOwn(fundamentals, name)) return fundamentals[name](astro, perigee());
       for (const alias of constituent.aliases) {
-        if (Object.hasOwn(fundamentals, alias))
-          return fundamentals[alias](astro, perigeeTurns(constituent));
+        if (Object.hasOwn(fundamentals, alias)) return fundamentals[alias](astro, perigee());
       }
 
       // Start with UNITY
