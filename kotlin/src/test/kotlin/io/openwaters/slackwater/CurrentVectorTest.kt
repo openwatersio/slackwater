@@ -5,7 +5,23 @@ import kotlin.math.abs
 import kotlin.test.*
 
 class CurrentVectorTest {
-    @Test fun vectorsMatchSharedFixtureAndPreserveEvents() {
+    @Test fun simultaneousAxisZerosRemainSlackEvents() {
+        val c = listOf(HarmonicConstituent("M2", 1.0, 0.0))
+        val station = CurrentStation(c, minorConstituents = c)
+        val axial = CurrentStation(c)
+        val start = Instant.parse("2026-01-01T00:00:00Z"); val end = start.plusSeconds(3 * 86400)
+        val actual = station.slacks(start, end); val expected = axial.slacks(start, end)
+        assertTrue(expected.isNotEmpty()); assertEquals(expected.size, actual.size)
+        for ((a, b) in actual.zip(expected)) assertTrue(abs(secondsBetween(a.time, b.time)) < 0.5)
+    }
+
+    @Test fun constantCrossCurrentPreventsSlackEvents() {
+        val station = CurrentStation(listOf(HarmonicConstituent("S2", 1.0, 0.0)), minorOffsetKnots = 1.0)
+        val start = Instant.parse("2026-01-01T00:00:00Z")
+        assertTrue(station.slacks(start, start.plusSeconds(86400)).isEmpty())
+    }
+
+    @Test fun vectorsMatchSharedFixtureAndPreserveExtrema() {
         val f = fixture("currents-vector")
         val station = CurrentStation(f.constituents(), f.number("floodDirection"), f.number("ebbDirection"),
             f.number("meanFlow"), f.constituents("minorConstituents"), f.number("minorMeanFlow"), f.number("azimuth"))
@@ -19,7 +35,8 @@ class CurrentVectorTest {
             assertTrue(angularDiff(assertNotNull(p.directionDegrees), e.number("direction")) < 1e-5)
         }
         val axial = CurrentStation(f.constituents(), f.number("floodDirection"), f.number("ebbDirection"), f.number("meanFlow"))
-        assertEquals(axial.events(f.instant("start"), f.instant("end")), station.events(f.instant("start"), f.instant("end")))
+        assertEquals(axial.events(f.instant("start"), f.instant("end")).filter { it.kind != CurrentEventKind.SLACK },
+            station.events(f.instant("start"), f.instant("end")).filter { it.kind != CurrentEventKind.SLACK })
         assertTrue(station.speeds(f.instant("end"), f.instant("start")).isEmpty())
     }
 
@@ -69,6 +86,7 @@ class CurrentVectorTest {
         for (known in listOf(true, false)) {
             val sub = SubordinateCurrentStation(ref, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0,
                 if (known) 30.0 else null, if (known) 225.0 else null)
+            assertTrue(sub.events(from, from.plusSeconds(86400)).any { it.kind == CurrentEventKind.SLACK })
             for (p in sub.speeds(from, from.plusSeconds(86400))) {
                 assertEquals(abs(p.speedKnots), p.magnitudeKnots)
                 assertEquals(if (!known || p.speedKnots == 0.0) null else if (p.speedKnots > 0) 30.0 else 225.0, p.directionDegrees)

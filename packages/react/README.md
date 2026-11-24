@@ -123,7 +123,7 @@ Current readings show full predicted speed and **Set**, the direction water flow
 
 With two-component predictions, Set follows the rotating current; without them, speed is the absolute flood/ebb component and Set uses the published flood/ebb bearings. Between samples, two-component readings interpolate the velocity vectors, including direction changes through north. A zero vector has no Set. Speed readings round to a tenth of a knot; nonzero flow can retain a Set when its displayed speed rounds to 0.0.
 
-The graph, maximum flood/ebb events and slack windows use signed major-axis speed. Slack is a zero of that component; crossing flow can remain. The window threshold does not limit full speed, and slack is not a rotary-current minimum-speed prediction. As in the app, nothing a reader sees or hears says "axis": pills, schedule rows, tiles, pins and the legend read Slack, Slack window and kn. Instantaneous readings do not infer a Slack state from these events.
+The graph and maximum flood/ebb events use signed major-axis speed. Slack windows use full current speed, and a slack event requires the full current vector to reach zero. As in the app, nothing a reader sees or hears says "axis": pills, schedule rows, tiles, pins and the legend read Slack, Slack window and kn. Instantaneous readings do not infer a Slack state from these events.
 
 A tidal current station's page, with the same layout as `<TideStation>`: a `<CurrentScrubber>`, a **Next max** tile with the speed and time of the next maximum flood or ebb above the Moon and Sun tiles, the week's slacks, maxima, and minima with their phase bearings, where the predictions come from, the station's details, and the nearest stations. Main and nearby station credits appear once in the Data sources disclosure at the end of the nearby section. A maximum in the top tenth of its own direction's maxima over the fifteen days either side of the opening day reads "Strong flood" or "Strong ebb", and "Hardest flood" or "Hardest ebb" when nothing in that window runs harder. Stations whose predictions can't be served, such as CHS stations, show the reason instead. Use the API beta from the same release as these components. It must include attribution and license fields on station listings, tide availability flags, and direct lookups for unprefixed CHS records; the published API 1.0.0-beta.4 does not include those additions.
 
@@ -135,7 +135,7 @@ A tidal current station's page, with the same layout as `<TideStation>`: a `<Cur
 | Prop              | Type                | Default | Description                                                        |
 | ----------------- | ------------------- | ------- | ------------------------------------------------------------------ |
 | `id`              | `string`            | —       | Station ID, optionally with a depth bin (e.g. `"noaa/EPT0003@11"`) |
-| `threshold`       | `number`            | `0.5`   | Major-axis speed in knots that sizes the slack windows             |
+| `threshold`       | `number`            | `0.5`   | Full current speed in knots that sizes the slack windows           |
 | `onStationSelect` | `(station) => void` | —       | Called with a nearby station when it is picked                     |
 | `showMap`         | `boolean`           | `true`  | Draw the map below the nearby stations                             |
 | `className`       | `string`            | —       | Extra classes for the outer element                                |
@@ -174,7 +174,7 @@ A tide timeline that scrolls under a fixed reading line. The lead reads the heig
 
 ### `<CurrentScrubber>`
 
-The current timeline: full predicted speed and Set at the selected moment above a signed flood/ebb graph, blue slack windows sized by a speed threshold along the flood/ebb direction and short green strokes at the exact slack instants, a curve threaded by speed, and the component speed and published flood/ebb bearing at each maximum. The lead shows full speed and Set even at slack. Graph event labels identify the flood/ebb component separately. The pill walks through window opening, zero, window closing and maxima, competing with sunrise and sunset. A zero threshold turns windows off while retaining exact slacks. Window edges follow the signed sampled curve. Touching or overlapping windows merge; a continuous window spanning several slacks shows their exact times in green, while an ordinary window shows its opening. Maximum flood and ebb times appear on a separate gray row beneath the green slack times. Without a window, the curve stays yellow. Used by `<CurrentStation>`, and available on its own.
+The current timeline: full predicted speed and Set at the selected moment above a signed flood/ebb graph, blue slack windows sized by a full-speed threshold and short green strokes at the exact slack instants, a curve threaded by speed, and the component speed and published flood/ebb bearing at each maximum. The lead shows full speed and Set even at slack. Graph event labels identify the flood/ebb component separately. The pill walks through window opening, zero, window closing and maxima, competing with sunrise and sunset. A zero threshold turns windows off while retaining exact slacks. Window edges follow sampled full current speed. Touching or overlapping windows merge; a continuous window spanning several slacks shows their exact times in green, while an ordinary window shows its opening. Maximum flood and ebb times appear on a separate gray row beneath the green slack times. Without a window, the curve stays yellow. Used by `<CurrentStation>`, and available on its own.
 
 ```tsx
 <CurrentScrubber
@@ -196,7 +196,7 @@ The current timeline: full predicted speed and Set at the selected moment above 
 | `longitude`  | `number`                 | —                          | Station longitude, for sunrise and sunset                                                                                  |
 | `setFormat`  | `"compass" \| "degrees"` | provider, else `"compass"` | Direction override; otherwise inherits the provider or defaults to compass                                                 |
 | `directions` | `{ flood?, ebb? }`       | `{}`                       | Flood and ebb set in degrees true                                                                                          |
-| `threshold`  | `number`                 | `0.5`                      | Major-axis speed in knots that sizes the slack windows                                                                     |
+| `threshold`  | `number`                 | `0.5`                      | Full current speed in knots that sizes the slack windows                                                                   |
 | `locale`     | `string`                 | reader's locale            | BCP 47 locale for clocks and dates                                                                                         |
 | `now`        | `number`                 | the clock                  | The current instant in ms; pass it to render deterministically, or the browser reads it on mount                           |
 | `selected`   | `number`                 | now                        | The moment in ms the strip opens on, server render included; later changes are ignored                                     |
@@ -210,6 +210,70 @@ When no following high or low is supplied, the scrubber, station card, and widge
 Both scrubbers also take `onSelect(time)`, called once for each new selected moment and again with the current one when a new `onSelect` function is passed, so a stable callback (one from `useCallback`) hears each moment once (while the strip glides open it reports where it lands, now or the nearest moment it can show, not the hours it passes), `moveTo`, an object whose `time` the strip moves to each time a new object is passed, and `onNow(now)`, called when the reader returns to now.
 
 Both scrubbers render on the server. `selected` gives the moment a shared link points at: the server render and the browser both open on it, with its reading, its pills, and no glide in from now, and `onSelect` hears it once. A moment outside the data opens on its nearest end, and one too close to an end of an unbounded strip moves in the browser to the nearest moment that strip can center; a value that isn't a finite number is ignored. Without `now`, the server render claims no present: it draws no now dot, no dimmed past, no Today, Tomorrow, or Yesterday, and no Now pill, and the browser adds them once it reads its own clock. With neither `now` nor `selected`, the server render draws the middle of the supplied data with no reading, and the browser opens on now. Pass `locale` as well, since clocks and dates otherwise follow each runtime's default locale and the server's can differ from the reader's. The server render draws only the stretch around its moment that a strip 720 pixels wide shows, and the browser draws the rest as it mounts, so a week of predictions prerenders in a fraction of the HTML; a wider strip shows empty canvas at its sides until then.
+
+### `<SummaryTiles>`
+
+The tiles `<TideStation>` and `<CurrentStation>` draw under their strip: the station's own number above paired Moon and Sun cards, all three on one row in panes at least 700 px wide. They read the moment you pass as `time`, usually the strip's selection from `onSelect`. Build the number with `rangeTile` or `nextMaxTile`, from predictions you already have:
+
+```tsx
+import { useMemo } from "react";
+import {
+  RangeOutlook,
+  SummaryTiles,
+  rangeTile,
+  swingHeights,
+  useOutlookWeek,
+} from "@slackwater/react";
+
+// `extremes`: the highs and lows the strip draws, in `units`.
+// `fortnightExtremes`: those over `fortnightWindow(openedAt, timezone)`, loaded once,
+// or undefined while they load.
+// `outlookExtremes`: those over `outlookWindow(week, timezone)`, or undefined while they load.
+const swings = useMemo(
+  () => fortnightExtremes && swingHeights(fortnightExtremes),
+  [fortnightExtremes],
+);
+const week = useOutlookWeek(anchor, time, timezone);
+
+<SummaryTiles
+  time={time}
+  timezone="America/Los_Angeles"
+  latitude={47.6}
+  longitude={-122.3}
+  primary={rangeTile(extremes, time, swings, units)}
+  outlook={
+    <RangeOutlook
+      week={week}
+      extremes={outlookExtremes}
+      units={units}
+      time={time}
+      timezone="America/Los_Angeles"
+    />
+  }
+/>;
+```
+
+| Prop        | Type          | Default     | Description                                                                         |
+| ----------- | ------------- | ----------- | ----------------------------------------------------------------------------------- |
+| `time`      | `number`      | —           | The moment in ms the tiles read; without it they read nothing (see below)           |
+| `timezone`  | `string`      | —           | Station IANA time zone                                                              |
+| `latitude`  | `number`      | —           | Station latitude; without a position there is no Sun card                           |
+| `longitude` | `number`      | —           | Station longitude                                                                   |
+| `primary`   | `TileContent` | —           | The station's number, from `rangeTile` or `nextMaxTile`; absent leaves Moon and Sun |
+| `outlook`   | `ReactNode`   | —           | Drawn at the end of the primary tile, such as a `<RangeOutlook>`                    |
+| `locale`    | `string`      | reader's    | BCP 47 locale for clocks                                                            |
+| `className` | `string`      | `mx-4 mt-3` | Classes for the outer element, in place of the station page's margins               |
+
+- `rangeTile(extremes, time, swings, units, locale?)` is the **Range** tile: the swing from the turn at or before `time` to the one after it. To mark a swing in its fortnight's top tenth, pass `swings`, the `swingHeights` of the highs and lows over `fortnightWindow(openedAt, timezone)`. `openedAt` is the moment the page opened, and the window stays fixed while the reader moves the strip, as `<TideStation>` keeps it. Pass `undefined` to leave the swing unranked.
+- `nextMaxTile(events, time, fortnight, timezone, locale?)` is the **Next max** tile: the first maximum flood or ebb after `time`, ranked among the same direction's maxima in `fortnight`, the events over that same `fortnightWindow`.
+- Either tile reads "—" under its label when there is no `time`, or no turn on each side of it, or no maximum after it. It keeps its place, so the tiles never rearrange.
+- `<RangeOutlook>` draws seven bars, one for each day's biggest swing, with the selected day bright. `useOutlookWeek(anchor, time, timezone)` picks its first day, where `anchor` is a station-local midnight, usually the first day of the strip's week:
+  - The week starting at `anchor` holds until `time` reaches its sixth day. The week then starts on that day.
+  - A `time` before the week's first day starts the week four days before it.
+  - With no `time`, the week is `anchor`'s.
+  - Pass the highs and lows over `outlookWindow(week, timezone)`, which reaches a day either side so the end days' swings are complete. Until `extremes` is passed, it draws no bars.
+
+Without `time`, the server render claims no moment. Moon and Sun read "—" with no phase, glyph, sunrise, or daylight. The Range or Next max tile reads "—". `<RangeOutlook>` draws every day alike. Each tile keeps the size it has with a reading, so nothing below moves when the browser passes the moment.
 
 ### `<TideConditions>`
 
@@ -246,7 +310,7 @@ A station's card, after the app's: its name and region, the reading now (height 
 | `distance`  | `number`            | —         | Kilometers away, shown in nautical miles                                                                                                                                               |
 | `href`      | `string`            | —         | Makes the card a link                                                                                                                                                                  |
 | `onSelect`  | `(station) => void` | —         | Called when the card is activated; makes it a button without `href`. With `href`, a plain click calls it in place of following the link, and a modified or middle click opens the link |
-| `threshold` | `number`            | `0.5`     | Major-axis speed in knots that sizes a current's slack windows                                                                                                                         |
+| `threshold` | `number`            | `0.5`     | Full current speed in knots that sizes a current's slack windows                                                                                                                       |
 | `now`       | `number`            | the clock | The current instant in ms; pass it to render deterministically                                                                                                                         |
 | `className` | `string`            | —         | Extra classes for the card                                                                                                                                                             |
 
@@ -369,7 +433,7 @@ Every hook scopes its query key by the source's `cacheKey`. When seeding caches 
 
 `prefetchTideStation(queryClient, baseUrlOrSource, id, { units?, locale?, now? })` fills the station, prediction windows, and Nearby lists for `<TideStation>`. A subordinate station's reference metadata loads separately. `prefetchNearbyStations` fills the lists for `<NearbyStations>`. Pass `dehydrate(queryClient)` to the client and render inside a `<HydrationBoundary>`; both are re-exported from TanStack Query. Both prefetch helpers accept a URL or a `SlackwaterDataSource`; render with an equivalent source and matching units on the client.
 
-A server-rendered `<TideStation>` or `<CurrentStation>` draws its strip at the middle of the week it loads, with no reading, and opens on now in the browser. The page's week, schedule, and tiles still follow the server's clock until the browser renders them. To prerender a reading at a chosen moment, render `<TideScrubber>` or `<CurrentScrubber>` with `selected`.
+A server-rendered `<TideStation>` or `<CurrentStation>` draws its strip at the middle of the week it loads, with no reading, and opens on now in the browser. The page's week, schedule, and tiles still follow the server's clock until the browser renders them. To prerender a reading at a chosen moment, render `<TideScrubber>` or `<CurrentScrubber>` with `selected`, and `<SummaryTiles>` with the same moment as `time`.
 
 The hydrated cache contains data, not the source's methods. Reconstruct the source on the client with the same `cacheKey`. If your framework serializes the cache, use a serializer that preserves `Date` values or revive them before hydration. Plain JSON turns dates into strings and is insufficient for these responses.
 

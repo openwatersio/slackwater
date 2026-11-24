@@ -52,7 +52,10 @@ class CurrentStation @JvmOverloads constructor(
     fun maxima(from: Instant, to: Instant) = events(from, to).filter { it.kind == CurrentEventKind.MAX_FLOOD || it.kind == CurrentEventKind.MAX_EBB }
 
     // Whole UTC days keep event filtering independent of the caller's window (packages/engine/src/currents.ts).
-    fun events(from: Instant, to: Instant): List<CurrentEvent> {
+    fun events(from: Instant, to: Instant): List<CurrentEvent> = events(from, to, false)
+    internal fun axisEventsForReduction(from: Instant, to: Instant): List<CurrentEvent> = events(from, to, true)
+
+    private fun events(from: Instant, to: Instant, axisOnly: Boolean): List<CurrentEvent> {
         if (to < from) return emptyList()
         val first = floor(epochSeconds(from) / 86400).toLong()
         val last = floor(epochSeconds(to) / 86400).toLong()
@@ -64,12 +67,12 @@ class CurrentStation @JvmOverloads constructor(
         for (day in first..last) {
             val begin = instant(day * 86400.0)
             val end = begin.plusSeconds(86400)
-            results += inWindow(begin.minusSeconds(8 * 3600), end.plusSeconds(8 * 3600))
+            results += inWindow(begin.minusSeconds(8 * 3600), end.plusSeconds(8 * 3600), axisOnly)
                 .filter { it.time >= begin && it.time < end && it.time >= from && it.time <= to }
         }
         return results.sortedBy { it.time }.distinctBy { it.time to it.kind }
     }
-    private fun inWindow(from: Instant, to: Instant): List<CurrentEvent> {
+    private fun inWindow(from: Instant, to: Instant, axisOnly: Boolean): List<CurrentEvent> {
         val start = instant(floor(epochSeconds(from) / 600) * 600)
         val endHour = (ceil(epochSeconds(to) / 600) * 600 - epochSeconds(start)) / 3600
         fun provider() = ParamProvider(catalog, harmonic.constituents, offsetKnots, start, endHour)
@@ -84,7 +87,24 @@ class CurrentStation @JvmOverloads constructor(
             CurrentEvent(it.time, it.level, kind,
                 if (flood) floodDirectionDegrees else ebbDirectionDegrees)
         }
-        return maxima + findSlacks(endHour, provider())
+        val slacks = findSlacks(endHour, provider()).mapNotNull { event ->
+            if (axisOnly || minor == null) event else {
+                val hour = (epochSeconds(event.time) - epochSeconds(start)) / 3600
+                val majorAtEvent = provider().params(hour)
+                val minorAtEvent = ParamProvider(catalog, minor.constituents, minor.offsetMetres, start, endHour).params(hour)
+                var lo = hour - 1.0 / 3600; var hi = hour + 1.0 / 3600
+                val initial = evalH(lo, majorAtEvent)
+                repeat(40) {
+                    val mid = (lo + hi) / 2
+                    if ((evalH(mid, majorAtEvent) > 0) == (initial > 0)) lo = mid else hi = mid
+                }
+                val root = (lo + hi) / 2
+                if (abs(evalH(root, minorAtEvent)) < 1e-7)
+                    CurrentEvent(shifted(start, root * 3600), evalH(root, majorAtEvent), CurrentEventKind.SLACK, verifiedZero = true)
+                else null
+            }
+        }
+        return maxima + slacks
     }
 }
 

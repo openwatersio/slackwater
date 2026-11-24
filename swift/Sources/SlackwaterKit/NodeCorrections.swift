@@ -75,8 +75,8 @@ private func corrL2(_ N: Double, _ p: Double) -> (Double, Double) {
 
 /// IHO node correction for a base constituent name, or nil if it has no explicit
 /// fundamental (compound constituents derive theirs from members — see Constituent).
-/// `perigeeTurns` is how many turns of p the argument being corrected holds, when it isn't the catalog's.
-func ihoCorrection(_ name: String, _ a: Astro, perigeeTurns: Double? = nil) -> (f: Double, u: Double)? {
+/// `perigeeTurns` is how many turns of p the argument being corrected holds.
+func ihoCorrection(_ name: String, _ a: Astro, perigeeTurns: Double) -> (f: Double, u: Double)? {
     let N = d2r * a.N, p = d2r * a.p, pp = d2r * a.pp
     let r: (Double, Double)
     switch name {
@@ -89,8 +89,7 @@ func ihoCorrection(_ name: String, _ a: Astro, perigeeTurns: Double? = nil) -> (
     // Annex A's M1 formula is for an argument without p (1 555 556), so u takes off the p the argument holds.
     case "M1C", "M1":
         let m1 = corrM1(N, p)
-        let turns = perigeeTurns ?? (name == "M1" ? 1 : 0)
-        r = (m1.0, wrapDegrees(m1.1 - turns * a.p))
+        r = (m1.0, wrapDegrees(m1.1 - perigeeTurns * a.p))
     case "M1A": r = corrM1A(N, p)
     case "M2": r = corrM2(N)
     case "K2": r = corrK2(N)

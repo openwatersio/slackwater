@@ -138,6 +138,8 @@ export interface CurrentEvent {
   /** Signed knots: positive flood, negative ebb. */
   speed: number;
   kind: CurrentEventKind;
+  /** True when a slack event was verified against both current components. */
+  verifiedZero?: boolean;
   /** Degrees true; absent for slack and when the station has none. */
   direction?: number;
 }

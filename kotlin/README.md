@@ -4,7 +4,7 @@ An offline tide and current engine for Kotlin/JVM and Android. Callers supply st
 
 ## Use from source
 
-Builds use JDK 17, the Kotlin plugin version pinned in [`build.gradle.kts`](build.gradle.kts) and the checked-in Gradle wrapper. The library targets JVM 8 bytecode and uses `java.time.Instant`; Android consumers require `minSdk = 26` because [Instant was added in API 26](https://developer.android.com/reference/java/time/Instant). Android device execution is pending consumer integration testing.
+Builds require a JDK 17 toolchain; Gradle runs on JDK 17 or 25, using the Kotlin plugin version pinned in [`build.gradle.kts`](build.gradle.kts) and the checked-in Gradle wrapper. The library targets JVM 8 bytecode and uses `java.time.Instant`; Android consumers require `minSdk = 26` because [Instant was added in API 26](https://developer.android.com/reference/java/time/Instant). Android device execution is pending consumer integration testing.
 
 This is a source distribution. The dependency below resolves through a composite build; it is not published to Maven Central. Check out the repository at a reviewed full commit SHA and keep that SHA in your application's dependency setup:
 
@@ -98,7 +98,7 @@ val rotary = CurrentStation(major, floodDirectionDegrees = 20.0, ebbDirectionDeg
 val vectors = rotary.speeds(from, to)
 ```
 
-Empty or ineffective minor constituents without mean cross-flow use the one-axis fallback. Without minor data, magnitude is absolute signed speed and direction is the published flood or ebb bearing. Subordinates use their own phase bearings. Zero vectors and vectors without a known azimuth have no direction. Major-axis slack can have nonzero vector magnitude; event detection uses only the major axis. Existing `CurrentPoint(time, speedKnots)` calls default to absolute speed and no direction. A point stores independent fields: `copy` preserves magnitude and direction unless they are supplied explicitly. When changing signed speed, supply the corresponding magnitude and direction too. Consumers compiled against a previous Kotlin artifact must be rebuilt when upgrading; the compatibility checks cover source consumers.
+Empty or ineffective minor constituents without mean cross-flow use the one-axis fallback. Without minor data, magnitude is absolute signed speed and direction is the published flood or ebb bearing. Subordinates use their own phase bearings. Zero vectors and vectors without a known azimuth have no direction. A major-axis crossing with nonzero vector magnitude is not a slack event. Extrema use the major axis; windows use full current speed. Existing `CurrentPoint(time, speedKnots)` calls default to absolute speed and no direction. A point stores independent fields: `copy` preserves magnitude and direction unless they are supplied explicitly. When changing signed speed, supply the corresponding magnitude and direction too. Consumers compiled against a previous Kotlin artifact must be rebuilt when upgrading; the compatibility checks cover source consumers.
 
 All numeric inputs must be finite. Steps must be positive, representable at the requested epoch and at least one nanosecond. Timeline and event searches exceeding the indexed work/result range are rejected. Invalid inputs throw `IllegalArgumentException`. Reversed windows return empty lists. Equal timeline bounds produce the samples from outward snapping; event roots on an exact bracket boundary, and current slacks at a node-correction refresh, are not guaranteed. Steps default to 600 seconds; the start is floored and the end ceiled to the step on the UTC epoch grid. No default time zone enters prediction. Station constructors copy caller collections, and requests have independent calculation state.
 
@@ -150,7 +150,7 @@ val swings = highLow.swingHeights()                  // each rise and fall's hei
 val rank = swings.percentileRank(swings.lastOrNull() ?: 0.0)
 ```
 
-`readCurrent` reads `SLACK` within one second of a slack event and `MAX_FLOOD` or `MAX_EBB` within one second of a maximum, and `MIN_FLOOD` or `MIN_EBB` within one second of a minimum; otherwise the sign of the speed gives `FLOODING` or `EBBING`. `vectorAt` interpolates the full vector through bearings, so a set turning through north stays north and opposing flows cancel. A zero vector has no direction. A point with no `directionDegrees` whose `magnitudeKnots` is `abs(speedKnots)`, as `CurrentPoint(time, speedKnots)` builds, is a one-axis sample: it takes the flood or ebb bearing for its sign, and the two need not be reciprocal. `slackWindowAround` is the span around one slack where the speed stays within the threshold, and `slackRuns` merges the windows that touch. A threshold at or below zero gives no windows.
+`readCurrent` reads `SLACK` within one second of a slack event and `MAX_FLOOD` or `MAX_EBB` within one second of a maximum, and `MIN_FLOOD` or `MIN_EBB` within one second of a minimum; otherwise the sign of the speed gives `FLOODING` or `EBBING`. `vectorAt` interpolates the full vector through bearings, so a set turning through north stays north and opposing flows cancel. A zero vector has no direction. A point with no `directionDegrees` whose `magnitudeKnots` is `abs(speedKnots)`, as `CurrentPoint(time, speedKnots)` builds, is a one-axis sample: it takes the flood or ebb bearing for its sign, and the two need not be reciprocal. `slackWindowAround` returns the full-speed window containing a time, and `slackRuns` merges touching windows. `currentWindows` also returns each window’s `slackTimes`. A slack without a measured window remains a zero-width run; minima do not become slack events. A threshold at or below zero produces only zero-width slack runs.
 
 `readTide` reads `HIGH` or `LOW` at the turn's own height within one second of an extreme, otherwise `RISING` or `FALLING` toward the next extreme, and by the sign of the rate after the last one. `sampledRates()` is a sampled difference over the heights you pass; `Station.rates` is the analytic derivative, and either list can be passed as `rates`. `percentileRank` is null only for an empty list. Readings return null outside the series. Floors and thresholds are yours to choose; only `DEFAULT_SLACK_THRESHOLD_KNOTS` (0.5 kn) ships as a default.
 
@@ -202,7 +202,7 @@ Current events use independent whole-UTC-day searches, then crop to the exact re
 
 ## Develop and verify
 
-From `kotlin/` with JDK 17:
+From `kotlin/` with a JDK 17 toolchain available (CI runs Gradle on JDK 25 and checks the source consumer on JDK 17):
 
 ```sh
 ./gradlew test jacocoTestReport jacocoTestCoverageVerification

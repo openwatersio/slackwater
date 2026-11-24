@@ -6,6 +6,7 @@
 import {
   createCurrentPredictor,
   createTidePredictor,
+  currentWindows,
   flowPeaks,
   peakRank,
   readCurrent,
@@ -131,6 +132,7 @@ writeJSON(join(FIX, "readings.json"), {
     threshold,
     runs,
     windows,
+    currentWindows: currentWindows(vectorTimeline, vectorEvents, threshold),
     readings: vectorReadings,
   },
   scalar: {
@@ -138,6 +140,7 @@ writeJSON(join(FIX, "readings.json"), {
     ebb: scalarDirections.ebb,
     timeline: scalarTimeline.map(({ time, speed }) => ({ time: iso(time), speed })),
     events: scalarEvents.map(({ time, speed, kind }) => ({ time: iso(time), speed, kind })),
+    currentWindows: currentWindows(scalarTimeline, scalarEvents, threshold),
     readings: scalarReadings,
   },
   tide: {

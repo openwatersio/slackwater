@@ -1162,6 +1162,11 @@ function createSpecs(datums: string[]) {
                 "Signed knots along the flood axis: positive flood, negative ebb, including same-sign minima. Slack carries the near-zero crossing residual.",
             },
             kind: { type: "string", enum: ["slack", "maxFlood", "maxEbb", "minFlood", "minEbb"] },
+            verifiedZero: {
+              type: "boolean",
+              description:
+                "True when a slack event was verified against both harmonic current components.",
+            },
             direction: {
               type: "number",
               description:

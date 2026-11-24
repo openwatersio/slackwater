@@ -143,11 +143,7 @@ export default function text(): Formatter {
       const tz = station.timezone;
       currentHeader(prediction);
 
-      // Slack is a zero of the flood/ebb speed; crossing flow can still run. Like the
-      // app's lead, a station that predicts crossing flow shows the full speed beside the
-      // label, so a Slack row shows the water still moving. The station decides, not the
-      // window, so one station always prints the same table. "Speed" stays the flood/ebb
-      // speed, as in the events table.
+      // Rotary currents can retain cross-flow when the flood/ebb component is zero.
       const full = hasCrossingFlow(station);
       const table = new Table({
         head: full
@@ -162,7 +158,7 @@ export default function text(): Formatter {
         table.push([
           date !== lastDate ? date : "",
           formatTime(point.time, tz),
-          Math.abs(point.speed) < 0.05
+          !full && Math.abs(point.speed) < 0.05
             ? chalk.green("Slack")
             : point.speed < 0
               ? chalk.yellow("Ebb")
@@ -191,11 +187,13 @@ export default function text(): Formatter {
     currentSlackWindows(prediction) {
       const { station, threshold, windows } = prediction;
       const tz = station.timezone;
-      currentHeader(prediction, `slack windows: flood/ebb speed below ${threshold} kn`);
+      currentHeader(prediction, `slack windows: full current speed below ${threshold} kn`);
 
       if (!windows.length) {
         console.log(
-          chalk.dim(`No slack windows with flood/ebb speed below ${threshold} kn in this period`),
+          chalk.dim(
+            `No slack windows with full current speed below ${threshold} kn in this period`,
+          ),
         );
         printCredits([station]);
         return;

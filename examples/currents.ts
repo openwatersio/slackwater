@@ -17,7 +17,7 @@ for (const event of events) {
 }
 
 // The signed speed curve, and the windows where |speed| stays under a
-// threshold around a reversal — the transitable water.
+// threshold around reversals and low-speed lulls — the transitable water.
 const { timeline } = await getCurrentTimelinePrediction(options);
 for (const window of slackWindows(timeline, 0.5)) {
   console.log(`slack window ${window.start.toISOString()} – ${window.end.toISOString()}`);

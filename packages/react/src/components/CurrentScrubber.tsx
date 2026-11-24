@@ -6,6 +6,7 @@ import type { CurrentEvent, CurrentTimelineEntry, SetFormat } from "../types.js"
 import {
   EMPTY_MESSAGE,
   currentStops,
+  currentEventsForTimeline,
   formatSpeed,
   formatSet,
   isDotRun,
@@ -51,7 +52,7 @@ export interface CurrentScrubberProps extends Pick<
   longitude: number;
   directions?: Directions;
   setFormat?: SetFormat;
-  /** Major-axis speed threshold for slack windows, in knots. */
+  /** Full-speed threshold for slack windows, in knots. */
   threshold?: number;
   /** BCP 47 locale for clocks and dates; defaults to the reader's. */
   locale?: string;
@@ -329,7 +330,7 @@ export function CurrentScrubber(props: CurrentScrubberProps) {
 
 function CurrentStrip({
   timeline,
-  events,
+  events: suppliedEvents,
   timezone,
   latitude,
   longitude,
@@ -345,6 +346,10 @@ function CurrentStrip({
   moveTo,
   onNow,
 }: CurrentScrubberProps) {
+  const events = useMemo(
+    () => currentEventsForTimeline(timeline, suppliedEvents),
+    [timeline, suppliedEvents],
+  );
   const resolvedSetFormat = useSetFormat(setFormat);
   const flood = directions?.flood;
   const ebb = directions?.ebb;

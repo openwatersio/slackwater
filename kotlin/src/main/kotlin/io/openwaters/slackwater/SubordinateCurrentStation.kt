@@ -43,7 +43,7 @@ class SubordinateCurrentStation(
         var lookAhead = pad
         val limit = pad + reference.phaseSearchLimitSeconds
         while (true) {
-            val events = reference.events(shifted(from, -pad), shifted(to, lookAhead))
+            val events = reference.axisEventsForReduction(shifted(from, -pad), shifted(to, lookAhead))
             val lastMaximum = events.indexOfLast { it.kind == CurrentEventKind.MAX_FLOOD || it.kind == CurrentEventKind.MAX_EBB }
             val needsPhase = slackBeforeFloodOffsetSeconds != slackBeforeEbbOffsetSeconds &&
                 events.drop(lastMaximum + 1).filter { it.kind == CurrentEventKind.SLACK }.any { e ->
