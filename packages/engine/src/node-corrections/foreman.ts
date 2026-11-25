@@ -45,8 +45,8 @@ export function foreman(latitude: number): Fundamentals {
     // Shallow-water products read their main lines again for each sample, so each sum is kept.
     const sums = new WeakMap<AstroData, NodalCorrection>();
     return (a: AstroData) => {
-      let sum = sums.get(a);
-      if (sum) return sum;
+      const kept = sums.get(a);
+      if (kept) return kept;
       let re = 1;
       let im = 0;
       for (const [dp, dN, dpp, phase, ratio, kind] of satellites) {
@@ -55,28 +55,31 @@ export function foreman(latitude: number): Fundamentals {
         re += r * Math.cos(angle);
         im += r * Math.sin(angle);
       }
-      sums.set(a, (sum = { f: Math.hypot(re, im), u: r2d * Math.atan2(im, re) }));
+      const sum = { f: Math.hypot(re, im), u: r2d * Math.atan2(im, re) };
+      sums.set(a, sum);
       return sum;
     };
   };
 
+  // Kept sums are shared, so products read them here and callers get their own copy.
+  const sums: Record<string, (a: AstroData) => NodalCorrection> = {};
   const fundamentals: Fundamentals = {};
   for (const [name, satellites] of Object.entries(table.satellites)) {
-    const correction = main(satellites as Satellite[]);
+    const correction = (sums[name] = main(satellites as Satellite[]));
     // Foreman's NO1 argument holds one turn of p, as the catalog's M1 does.
     fundamentals[name] =
       name === "NO1"
-        ? (a, turns, epoch = a) => withoutPerigee(correction(a), epoch, turns - 1)
-        : correction;
+        ? (a, turns = 1, epoch = a) => withoutPerigee(correction(a), epoch, turns - 1)
+        : (a) => ({ ...correction(a) });
   }
   // t_tide's names for catalog lines, so a constituent by the catalog's name or t_tide's takes them.
   for (const [alias, name] of Object.entries(aliases)) fundamentals[alias] = fundamentals[name];
   for (const [name, members] of Object.entries(table.products))
-    // Only NO1 reads the perigee count, and no product has it, so members get none.
+    // No product has NO1, the one line that reads the perigee count; gen-foreman.py checks it.
     fundamentals[name] = (a: AstroData): NodalCorrection =>
       (members as [string, number][]).reduce(
         ({ f, u }, [member, power]) => {
-          const c = fundamentals[member](a, 0);
+          const c = sums[member](a);
           return { f: f * c.f ** Math.abs(power), u: u + power * c.u };
         },
         { f: 1, u: 0 },

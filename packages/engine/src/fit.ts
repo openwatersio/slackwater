@@ -87,6 +87,24 @@ const BANDS: readonly [number, number][] = [
 // Most frequencies averaged in each band, as UTide caps its Lomb-Scargle grid.
 const BAND_FREQUENCIES = 100;
 
+/**
+ * Throws `notForemanLine` for the catalog's Sa, S1 or OQ2, which are other lines than t_tide's by
+ * those names, so fitting them with Foreman's set would fit a line t_tide doesn't. A caller's own
+ * definition is its own.
+ */
+export function checkForemanLine(
+  name: string,
+  model: Constituent,
+  base: Readonly<Record<string, Constituent>>,
+) {
+  if (
+    Object.hasOwn(foremanLines, model.name) &&
+    Object.hasOwn(base, model.name) &&
+    base[model.name] === model
+  )
+    throw new RangeError(`notForemanLine: ${name} (t_tide's is ${foremanLines[model.name]})`);
+}
+
 /** Fit an offset and caller-selected harmonics. */
 export function fit(
   samples: readonly HarmonicSample[],
@@ -137,15 +155,7 @@ export function fit(
     const model = Object.hasOwn(catalog, name) ? catalog[name] : undefined;
     if (!model) throw new RangeError(`unknownConstituent: ${name}`);
     if (seen.has(model.name)) throw new RangeError(`duplicateConstituent: ${name}`);
-    // The catalog's Sa, S1 and OQ2 are other lines than t_tide's by those names, so fitting them
-    // with Foreman's set would fit a line t_tide doesn't. A caller's own definition is its own.
-    if (
-      nodeCorrections === "foreman" &&
-      Object.hasOwn(foremanLines, model.name) &&
-      Object.hasOwn(base, model.name) &&
-      base[model.name] === model
-    )
-      throw new RangeError(`notForemanLine: ${name} (t_tide's is ${foremanLines[model.name]})`);
+    if (nodeCorrections === "foreman") checkForemanLine(name, model, base);
     seen.add(model.name);
     return { name, model };
   });

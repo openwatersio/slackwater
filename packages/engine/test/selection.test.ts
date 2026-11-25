@@ -183,6 +183,19 @@ describe("selectConstituents", () => {
     expect(
       names([{ name: "Solar1", aliases: ["S1"], speed: 15, coefficients: [1, 1, -1, 0, 0, 0, 0] }]),
     ).toContain("S1");
+    expect(
+      names([{ name: "OO2", speed: 27.3416965, coefficients: [2, -3, 0, 1, 0, 0, -2] }]),
+    ).toContain("OQ2");
+  });
+
+  test("refuses an explicit Sa with Foreman's set, whatever the record drops", () => {
+    expect(() =>
+      selectConstituents(record(1), {
+        nodeCorrections: "foreman",
+        latitude: 59.9,
+        candidates: [{ name: "Sa", comparison: "Z0" }],
+      }),
+    ).toThrow("notForemanLine");
   });
 
   test("throws invalidDefinition for definitions that aren't a list", () => {

@@ -1,6 +1,7 @@
 import { constituentModels } from "./constituents/index.js";
 import { foremanLines } from "./node-corrections/foreman.js";
 import {
+  checkForemanLine,
   checkWeights,
   fit,
   median,
@@ -160,10 +161,16 @@ export function selectConstituents(
     (options.nodeCorrections === "foreman"
       ? foremanCandidates.flatMap(({ name, comparison }) => [
           // Foreman's OQ2, which the shared list leaves out, is the catalog's OQ2_KV.
-          ...(name === "eps2" ? [{ name: "OQ2_KV", comparison: "eps2" }] : []),
+          ...(name === "eps2" ? [{ name: onForemanLine("OQ2"), comparison: "eps2" }] : []),
           { name: onForemanLine(name), comparison: comparison && onForemanLine(comparison) },
         ])
       : foremanCandidates);
+  // An explicit list is checked before selection drops anything, so the answer doesn't depend on the record.
+  if (given && options.nodeCorrections === "foreman")
+    for (const { name } of given) {
+      const model = lookup(name);
+      if (model) checkForemanLine(name, model, base);
+    }
   const spanHours = (active[active.length - 1].time.getTime() - active[0].time.getTime()) / 3600000;
   const separated = (a: number, b: number) => (Math.abs(a - b) * spanHours) / 360 >= rayleigh;
   const steps = Float64Array.from(

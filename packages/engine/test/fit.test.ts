@@ -282,6 +282,13 @@ describe("fit", () => {
     expect(astronomy.calls).toBe(samples.length);
   });
 
+  test("evaluates the astronomy twice a year in yearly mode", () => {
+    const years = new Set(samples.map((s) => s.time.getUTCFullYear()));
+    astronomy.calls = 0;
+    fit(samples, input.basis, { nodal: "yearly" });
+    expect(astronomy.calls).toBe(2 * years.size);
+  });
+
   test("fits values near the largest finite number", () => {
     const result = fit(
       [

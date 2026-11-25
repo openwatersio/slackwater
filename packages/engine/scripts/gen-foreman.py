@@ -8,8 +8,9 @@ and UTide's own f and u for the test in test/node-corrections/foreman-utide.json
 
 UTide's ut_constants holds t_tide's tables, which come from Foreman (1977,
 revised 2004), "Manual for tidal heights analysis and prediction", IOS Pacific
-Marine Science Report 77-10. Constituents are matched to the catalog by name and
-checked by speed. UTide's MIT notice for the tables is in the package's LICENSE.
+Marine Science Report 77-10. Constituents are matched to the catalog by name, or
+by the overrides below where t_tide's name is another line in the catalog, and
+checked by speed and, for main lines, by Doodson numbers. UTide's MIT notice for the tables is in the package's LICENSE.
 The catalog's M1 is the line t_tide calls NO1; foreman.ts gives it NO1's satellites.
 """
 
@@ -52,11 +53,16 @@ def catalog_entry(i):
     return c
 
 
-satellites, products, unmatched = {}, {}, []
+satellites, products, unmatched, taken = {}, {}, [], {}
 for i, name in enumerate(const.name):
     c = catalog_entry(i)
     if name == "Z0":
         continue
+    # Two t_tide lines on one catalog name would leave only the second's table.
+    if c is not None:
+        if c["name"] in taken:
+            raise SystemExit(f"{name} and {taken[c['name']]} both matched {c['name']}")
+        taken[c["name"]] = name
     if math.isnan(const.isat[i]) and math.isnan(const.ishallow[i]):
         # t_tide gives these f = 1 and u = 0, so the catalog's members mustn't correct them.
         if c is None:
@@ -93,6 +99,9 @@ if left_out != expected:
     raise SystemExit(f"unexpected lines left out: {sorted(left_out ^ expected)}")
 if any(m not in satellites for members in products.values() for m, _ in members):
     raise SystemExit("a shallow-water product names a line without its own entry")
+# foreman.ts evaluates products without a perigee count, which only NO1 reads.
+if any(m == "NO1" for members in products.values() for m, _ in members):
+    raise SystemExit("a shallow-water product names NO1, whose correction needs a perigee count")
 
 out = {
     "source": "UTide 0.4.0 ut_constants (t_tide; Foreman 1977, revised 2004)",

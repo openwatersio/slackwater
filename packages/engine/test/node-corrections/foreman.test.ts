@@ -24,10 +24,7 @@ describe("foreman", () => {
   );
 
   it("has UTide's values for every line in the table", () => {
-    // M1 is a catalog name for t_tide's NO1, which UTide doesn't know by that name.
-    const lines = [...Object.keys(table.satellites), ...Object.keys(table.products)].filter(
-      (name) => name !== "M1",
-    );
+    const lines = [...Object.keys(table.satellites), ...Object.keys(table.products)];
     for (const { values } of reference) expect(Object.keys(values).sort()).toEqual(lines.sort());
   });
 
@@ -37,6 +34,21 @@ describe("foreman", () => {
     expect(constituents.M1.correction(a, fundamentals)).toEqual(
       constituents.NO1.correction(a, fundamentals),
     );
+  });
+
+  it("gives each caller its own result, so changing one leaves the next alone", () => {
+    const a = astro(new Date("2024-01-01T00:00:00Z"));
+    const fundamentals = foreman(60);
+    const M4 = fundamentals.M4(a, 0);
+    fundamentals.M2(a, 0).f = 0;
+    expect(fundamentals.M2(a, 0).f).not.toBe(0);
+    expect(fundamentals.M4(a, 0)).toEqual(M4);
+  });
+
+  it("takes NO1's argument to hold one turn of p when no count is given", () => {
+    const a = astro(new Date("2010-05-01T00:00:00Z"));
+    const { NO1 } = foreman(60);
+    expect((NO1 as (astro: unknown) => unknown)(a)).toEqual(NO1(a, 1));
   });
 
   it("gives t_tide's H1 and H2 the corrections of the catalog's alpha2 and M(KS)2", () => {
