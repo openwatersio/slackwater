@@ -95,6 +95,10 @@ describe("vector readings", () => {
       expect(readCurrent(time, tl, [event], {})?.state).not.toBe("Slack");
     }
   });
+  test("slack at a zero endpoint ignores a rotary sample before it", () => {
+    const tl = [point(0, 0.5, 1, 90), point(1, 0, 0)];
+    expect(readCurrent(new Date(t0 + H), tl, [slackAt(t0 + H + 500)], {})?.state).toBe("Slack");
+  });
   test("independently measured vectors retain known bearings through reversal", () => {
     const tl = [
       { ...point(0, -1, 1, 200), magnitudeIsKnown: true },

@@ -14,7 +14,7 @@ function rotaryAt(timeline: CurrentSample[], time: Date): boolean {
   const at = time.getTime();
   let hi = timeline.findIndex((point) => point.time.getTime() >= at);
   if (hi < 0) hi = timeline.length - 1;
-  const lo = hi > 0 && timeline[hi].time.getTime() !== at ? hi - 1 : hi;
+  const lo = hi > 0 && at < timeline[hi].time.getTime() ? hi - 1 : hi;
   return [timeline[lo], timeline[hi]].some(
     (point) =>
       point !== undefined &&
