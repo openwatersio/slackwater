@@ -87,6 +87,7 @@ These gates compare Swift and Kotlin results with fixtures generated from the Ty
 | Tide extremes    | Count, kind, time, and height           | Count and kind exact; `< 60 s`; `< 0.02 m`                                                                    |
 | Readings         | `fixtures/readings.json`                | Times `< 0.5 s`; speeds, heights, and rates `< 1e-6`; directions `< 1e-5°` circular                           |
 | Definitions      | `fixtures/constituent-definitions.json` | Heights and speeds `< 1e-6`; fitted amplitudes `< 1e-6`, phases `< 1e-3°`; rejected definitions by error code |
+| Foreman          | `fixtures/prediction-foreman.json`      | Heights `< 1e-6 m`; extremes count and kind exact, `< 1 s`, `< 1e-6 m`; refused names by error and line       |
 
 ## Physical accuracy
 
@@ -128,6 +129,9 @@ A consumer that gates a range claim on the annual constituent will hide it at ev
 | Area                                                | TypeScript | Swift | Kotlin |
 | --------------------------------------------------- | ---------- | ----- | ------ |
 | Harmonic prediction, extremes, and node corrections | yes        | yes   | yes    |
+| Foreman's node corrections in prediction            | yes        | yes   | yes    |
+| Schureman's node corrections                        | yes        | —     | —      |
+| Fitting with Schureman's or Foreman's corrections   | yes        | —     | —      |
 | Subordinate tide stations                           | yes        | yes   | yes    |
 | Currents, including subordinate reduction           | yes        | yes   | yes    |
 | Extreme ranking against a station's history         | yes        | yes   | yes    |

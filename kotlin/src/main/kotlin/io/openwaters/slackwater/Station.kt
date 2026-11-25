@@ -5,14 +5,16 @@ import java.time.Instant
 /**
  * Offline harmonic tide station; the additive offset is in meters in the caller's datum.
  * [definitions] add constituents to the catalog, or replace catalog entries of the same name;
- * an invalid one throws [ConstituentDefinitionException].
+ * an invalid one throws [ConstituentDefinitionException]. [nodeCorrections] are IHO's by default;
+ * Foreman's throw [NodeCorrectionsException] for an invalid latitude or a line t_tide names differently.
  */
 class Station internal constructor(constituents: List<HarmonicConstituent>, val offsetMetres: Double, internal val catalog: Catalog) {
     @JvmOverloads constructor(
         constituents: List<HarmonicConstituent>,
         offsetMetres: Double = 0.0,
         definitions: List<ConstituentDefinition> = emptyList(),
-    ) : this(constituents, offsetMetres, Catalog.shared.with(definitions))
+        nodeCorrections: NodeCorrections = NodeCorrections.Iho,
+    ) : this(constituents, offsetMetres, Catalog.shared.with(definitions).correctedWith(nodeCorrections, constituents.map { it.name }))
 
     internal val constituents = constituents.toList()
     internal val eventBracketHours = kotlin.math.PI / (2 * D2R *

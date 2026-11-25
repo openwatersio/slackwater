@@ -3,12 +3,12 @@ import astro from "../../src/astronomy/index.js";
 import constituents from "../../src/constituents/index.js";
 import { foreman } from "../../src/node-corrections/index.js";
 import table from "../../src/node-corrections/foreman.json" with { type: "json" };
-import reference from "./foreman-utide.json" with { type: "json" };
+import reference from "../../../../fixtures/foreman-utide.json" with { type: "json" };
 
 const turn = (degrees: number) => degrees - 360 * Math.round(degrees / 360);
 
 describe("foreman", () => {
-  // UTide's own f and u, written by scripts/gen-foreman.py. The two astronomies differ in their
+  // UTide's own f and u, written by scripts/gen-foreman.py and shared with Swift and Kotlin. The two astronomies differ in their
   // polynomials, which leaves about 1e-5 in f and 0.002° in u.
   it.each(reference.map((r) => [r.time, r.latitude, r.values] as const))(
     "matches UTide at %s, latitude %d",
@@ -22,6 +22,22 @@ describe("foreman", () => {
       }
     },
   );
+
+  // Foreman's set changes f and u only. The catalog's arguments are t_tide's except on these lines,
+  // so their phases as t_tide publishes them differ by this much; the docs list them. t_tide's M7 is
+  // 3.5 times M2's argument wrapped to a turn, so it flips between agreeing and 180° with the date.
+  const argumentOffsets: Record<string, number> = { O2: 180 };
+  it("has UTide's arguments on every line but O2 and M7", () => {
+    for (const { time, arguments: v } of reference) {
+      const a = astro(new Date(time));
+      for (const [name, utide] of Object.entries(v)) {
+        const off = Math.abs(
+          turn(constituents[name].value(a) - utide - (argumentOffsets[name] ?? 0)),
+        );
+        expect(name === "M7" ? Math.min(off, 180 - off) : off, name).toBeLessThan(0.01);
+      }
+    }
+  });
 
   it("has UTide's values for every line in the table", () => {
     const lines = [...Object.keys(table.satellites), ...Object.keys(table.products)];

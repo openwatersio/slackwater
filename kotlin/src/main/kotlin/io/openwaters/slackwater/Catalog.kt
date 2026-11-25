@@ -48,7 +48,12 @@ internal data class CatalogEntry(val name: String, val speed: Double, val coeffi
  * definition that replaces an entry leaves the catalog's own compounds on the entry they were
  * built with. Port of defineConstituents in packages/engine/src/constituents/definition.ts.
  */
-internal class Catalog private constructor(private val entries: List<Entry>, private val index: Map<String, Int>) {
+internal class Catalog private constructor(
+    private val entries: List<Entry>,
+    private val index: Map<String, Int>,
+    /** Foreman's corrections in place of IHO's, when the station is corrected with them. */
+    private val foreman: ForemanCorrections? = null,
+) {
     private class Link(val index: Int, val factor: Double)
     private class Entry(
         val name: String,
@@ -130,7 +135,7 @@ internal class Catalog private constructor(private val entries: List<Entry>, pri
             done += i
         }
         for (i in first until entries.size) visit(i, HashSet())
-        val catalog = Catalog(entries, index)
+        val catalog = Catalog(entries, index, foreman)
         // Prediction advances V₀ at the speed, and extremes restart it each day, so they must agree.
         for (i in first until entries.size) {
             if (!(abs(catalog.rate(i) - entries[i].speed) <= 1e-5)) {
@@ -175,13 +180,32 @@ internal class Catalog private constructor(private val entries: List<Entry>, pri
         }
         return e.members.sumOf { it.factor * v0(it.index, a) }
     }
+    /**
+     * This catalog correcting with [corrections]. With Foreman's, a catalog line in [names] that
+     * t_tide knows by another name throws, as the engine's `fit` does; a caller's own definition is its own.
+     */
+    fun correctedWith(corrections: NodeCorrections, names: List<String>): Catalog {
+        if (corrections !is NodeCorrections.Foreman) return this
+        val foreman = ForemanCorrections(corrections.latitude)
+        for (name in names) {
+            // t_tide's H1 and H2 aren't catalog names; they're refused with the line they mean, not dropped.
+            val i = index[name] ?: foremanLines[name]?.let { throw NodeCorrectionsException.NotForemanLine(name, it) } ?: continue
+            val line = foremanLines[entries[i].name]
+            if (line != null && i < shared.entries.size) throw NodeCorrectionsException.NotForemanLine(name, line)
+        }
+        return Catalog(entries, index, foreman)
+    }
+
+    private fun formula(name: String, a: Astro, perigeeTurns: Double): NodeCorrection? =
+        if (foreman != null) foreman.correction(name, a, perigeeTurns) else ihoCorrection(name, a, perigeeTurns)
+
     fun correction(name: String, a: Astro): NodeCorrection {
-        val i = index[name] ?: return ihoCorrection(name, a, 0.0) ?: NodeCorrection(1.0, 0.0)
+        val i = index[name] ?: return formula(name, a, 0.0) ?: NodeCorrection(1.0, 0.0)
         return correction(i, a)
     }
     private fun correction(i: Int, a: Astro): NodeCorrection {
         val e = entries[i]
-        for (name in e.formulaNames) ihoCorrection(name, a, perigeeTurns[i])?.let { return it }
+        for (name in e.formulaNames) formula(name, a, perigeeTurns[i])?.let { return it }
         var f = 1.0
         var u = 0.0
         for (m in e.members) {

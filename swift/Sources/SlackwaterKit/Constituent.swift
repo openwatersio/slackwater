@@ -63,11 +63,21 @@ struct Catalog: Sendable {
     private(set) var index: [String: Int]
     /// Degrees per hour of each Doodson argument, from the engine.
     let argumentRates: [Double]
+    /// Foreman's corrections in place of IHO's, when the station is corrected with them.
+    private(set) var foreman: ForemanCorrections?
     /// Turns of the perigee p in each argument, counted once the members are set.
     private(set) var perigeeTurns: [Double] = []
 
+    private static let url = Bundle.module.url(forResource: "catalog", withExtension: "json")!
+
+    /// Foreman's tables, read from the bundled catalog the first time a station uses them.
+    private static let foremanTable: ForemanTable = {
+        struct File: Decodable { let foreman: ForemanTable }
+        // swiftlint:disable:next force_try
+        return try! JSONDecoder().decode(File.self, from: Data(contentsOf: url)).foreman
+    }()
+
     static let shared: Catalog = {
-        let url = Bundle.module.url(forResource: "catalog", withExtension: "json")!
         // swiftlint:disable:next force_try
         let file = try! JSONDecoder().decode(File.self, from: Data(contentsOf: url))
         var index: [String: Int] = [:]
@@ -86,8 +96,34 @@ struct Catalog: Sendable {
         return catalog
     }()
 
+    /// Entries the bundled catalog defines; a caller's definitions come after them.
+    private static let catalogCount = shared.entries.count
+
     private struct File: Decodable {
         let constituents: [Generated]; let aliases: [String: String]; let argumentRates: [Double]
+    }
+
+    /// This catalog correcting with `corrections`. With Foreman's, a catalog line in `names` that
+    /// t_tide knows by another name throws, as the engine's `fit` does; a caller's own definition is its own.
+    func corrected(with corrections: NodeCorrections, names: [String]) throws -> Catalog {
+        guard case let .foreman(latitude) = corrections else { return self }
+        var catalog = self
+        catalog.foreman = try ForemanCorrections(latitude: latitude, table: Self.foremanTable)
+        for name in names {
+            // t_tide's H1 and H2 aren't catalog names; they're refused with the line they mean, not dropped.
+            guard let i = index[name] else {
+                if let line = Self.foremanTable.lines[name] { throw NodeCorrectionsError.notForemanLine(name, line: line) }
+                continue
+            }
+            guard i < Self.catalogCount, let line = Self.foremanTable.lines[entries[i].name] else { continue }
+            throw NodeCorrectionsError.notForemanLine(name, line: line)
+        }
+        return catalog
+    }
+
+    private func formula(_ name: String, _ a: Astro, perigeeTurns: Double) -> (f: Double, u: Double)? {
+        if let foreman { return foreman.correction(name, a, perigeeTurns: perigeeTurns) }
+        return ihoCorrection(name, a, perigeeTurns: perigeeTurns)
     }
     private struct Generated: Decodable {
         let name: String; let speed: Double; let coefficients: [Int]?; let members: [Member]?
@@ -198,10 +234,10 @@ struct Catalog: Sendable {
         return sum
     }
 
-    /// Node correction (f, u°). IHO fundamental if the constituent has one, else
+    /// Node correction (f, u°). The correction set's formula if the constituent has one, else
     /// combined from members: f = Π f_memberᵃᵇˢ⁽ᶠᵃᶜᵗᵒʳ⁾, u = Σ factor·u_member.
     func correction(_ name: String, _ a: Astro) -> (f: Double, u: Double) {
-        guard let i = index[name] else { return ihoCorrection(name, a, perigeeTurns: 0) ?? (1, 0) }
+        guard let i = index[name] else { return formula(name, a, perigeeTurns: 0) ?? (1, 0) }
         return correction(at: i, a)
     }
 
@@ -219,7 +255,7 @@ struct Catalog: Sendable {
     private func correction(at i: Int, _ a: Astro) -> (f: Double, u: Double) {
         let e = entries[i]
         for name in e.formulaNames {
-            if let fundamental = ihoCorrection(name, a, perigeeTurns: perigeeTurns[i]) { return fundamental }
+            if let fundamental = formula(name, a, perigeeTurns: perigeeTurns[i]) { return fundamental }
         }
         var f = 1.0
         var u = 0.0

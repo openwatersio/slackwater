@@ -167,6 +167,20 @@ export function currentStationUnavailableIn(
 }
 
 /**
+ * Wrap a database tide station in an engine predictor, with the reference station a
+ * subordinate's constants come from, whose latitude Foreman's corrections take.
+ */
+function useTideStation(
+  db: StationReferences,
+  station: Station,
+  distance?: number,
+): StationPredictor {
+  const referenceId = station.offsets?.reference;
+  const reference = referenceId ? (db.byId(referenceId) as Station | undefined) : undefined;
+  return useStation(station, distance, { reference });
+}
+
+/**
  * Wrap a database current station in an engine predictor, resolving the
  * reference station a subordinate reduces from. A station that can't be
  * predicted keeps its record, and its prediction methods throw why.
@@ -226,10 +240,10 @@ export async function getWaterLevelAtTime(options: NearestOptions & StationWater
  * Find the nearest station to the given position.
  */
 export async function nearestStation(options: NearestOptions) {
-  const { nearest } = await loadStations();
-  const data = nearest({ ...options, filter: tideFilter(options.filter) });
+  const db = await loadStations();
+  const data = db.nearest({ ...options, filter: tideFilter(options.filter) });
   if (!data) throw new Error(`No stations found with options: ${JSON.stringify(options)}`);
-  return useStation(...data);
+  return useTideStation(db, ...data);
 }
 
 /**
@@ -237,10 +251,10 @@ export async function nearestStation(options: NearestOptions) {
  * @param limit Maximum number of stations to return (default: 10)
  */
 export async function stationsNear(options: NearOptions) {
-  const { near } = await loadStations();
-  return near({ ...options, filter: tideFilter(options.filter) }).map(([station, distance]) =>
-    useStation(station, distance),
-  );
+  const db = await loadStations();
+  return db
+    .near({ ...options, filter: tideFilter(options.filter) })
+    .map(([station, distance]) => useTideStation(db, station, distance));
 }
 
 /**
@@ -271,7 +285,7 @@ export async function findStation(query: string): Promise<StationPredictor> {
       );
   }
   if (!found) throw new Error(`Station not found: ${query}`);
-  return useStation(found);
+  return useTideStation(db, found);
 }
 
 /**

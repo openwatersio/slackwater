@@ -22,8 +22,11 @@ class CurrentStation @JvmOverloads constructor(
     azimuthDegrees: Double? = null,
     /** Constituents to add to the catalog, or to replace catalog entries of the same name. */
     definitions: List<ConstituentDefinition> = emptyList(),
+    /** IHO's by default; Foreman's take the station's latitude, as for [Station]. */
+    nodeCorrections: NodeCorrections = NodeCorrections.Iho,
 ) {
     private val catalog = Catalog.shared.with(definitions)
+        .correctedWith(nodeCorrections, (constituents + minorConstituents.orEmpty()).map { it.name })
     private val harmonic = Station(constituents, offsetKnots, catalog)
     private val minor = if (minorOffsetKnots != 0.0 || minorConstituents.orEmpty().any { it.amplitude != 0.0 && catalog.speed(it.name) != null })
         Station(minorConstituents.orEmpty(), minorOffsetKnots, catalog) else null

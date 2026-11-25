@@ -1,7 +1,7 @@
 // Generate golden-vector fixtures from the Slackwater JS reference (@slackwater/engine).
 // Slackwater is the oracle: Slackwater (Swift) must match these to the tolerances in the plan.
 // Usage: node fixtures/generate/gen-golden.mjs
-import { astro, constituents, createTidePredictor } from '@slackwater/engine';
+import { astro, constituents, createTidePredictor, foremanLines } from '@slackwater/engine';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -108,6 +108,34 @@ write('extremes-midnight.json', {
   start: iso(midnightStart), end: iso(midnightEnd),
   extremes: createTidePredictor(midnightSet).getExtremesPrediction({ start: midnightStart, end: midnightEnd })
     .map((e) => ({ time: iso(e.time), height: e.level, kind: e.high ? 'high' : 'low' })),
+});
+
+// ---- Task 6: Foreman's nodal corrections ----
+// Every line Foreman's tables give, each with its own amplitude and phase, so a wrong f or u on any
+// one of them shows in the heights, and catalog lines they don't give, which fall back to their
+// members or to no correction, and M1, which takes t_tide's NO1 by alias. UTide's own f and u are in foreman-utide.json.
+const foreman = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'packages', 'engine', 'src', 'node-corrections', 'foreman.json'), 'utf8'));
+const foremanSet = [...Object.keys(foreman.satellites), ...Object.keys(foreman.products), 'M1', 'MSo', 'M1A', 'M1B', 'M1C', '2MN2', '3MS2'].map((name, i) => ({
+  name, amplitude: Number((0.05 + 0.01 * (i % 7)).toFixed(2)), phase: (i * 37) % 360,
+}));
+const foremanStart = new Date('2024-03-10T00:00:00Z');
+const foremanEnd = new Date(foremanStart.getTime() + 48 * 3600e3);
+write('prediction-foreman.json', {
+  note: "Slackwater predictions with Foreman's nodal corrections, at latitudes north and south and either side of the equator, where t_tide holds them 5 degrees off. 48h @ 3600s. Heights in metres.",
+  constituents: foremanSet,
+  start: iso(foremanStart), end: iso(foremanEnd), step: 3600,
+  cases: [59.9, -33.9, 2, -2].map((latitude) => {
+    const predictor = createTidePredictor(foremanSet, { nodeCorrections: 'foreman', latitude });
+    return {
+      latitude,
+      points: predictor.getTimelinePrediction({ start: foremanStart, end: foremanEnd, timeFidelity: 3600 })
+        .map((p) => ({ time: iso(p.time), height: p.level })),
+      extremes: predictor.getExtremesPrediction({ start: foremanStart, end: foremanEnd })
+        .map((e) => ({ time: iso(e.time), height: e.level, kind: e.high ? 'high' : 'low' })),
+    };
+  }),
+  // Names a Foreman station refuses, and the catalog line t_tide means by each.
+  refused: Object.fromEntries(['Sa', 'SA', 'S1', 'OQ2', 'OO2', 'H1', 'H2'].map((name) => [name, foremanLines[constituents[name]?.name ?? name]])),
 });
 
 console.log('done');

@@ -1,5 +1,5 @@
 import harmonics from "./harmonics/index.js";
-import { resolveFundamentals } from "./node-corrections/index.js";
+import { predictionCorrections, type NodeCorrections } from "./node-corrections/resolve.js";
 import { constituentModels } from "./constituents/index.js";
 import type { ConstituentDefinition } from "./constituents/types.js";
 import type { HarmonicConstituent } from "./harmonics/index.js";
@@ -29,10 +29,17 @@ export type * from "./astronomy/index.js";
 export type * from "./constituents/index.js";
 export type * from "./harmonics/index.js";
 export type * from "./node-corrections/index.js";
+export type { NodeCorrections } from "./node-corrections/resolve.js";
 
 export interface TidePredictionOptions {
   offset?: number | false;
-  nodeCorrections?: "iho" | "schureman";
+  /**
+   * Nodal correction formulas, IHO's by default. Foreman's, as t_tide and UTide
+   * apply them, take the site's `latitude` and refuse the catalog's Sa, S1 and OQ2.
+   */
+  nodeCorrections?: NodeCorrections;
+  /** Degrees north, for Foreman's corrections. */
+  latitude?: number;
   prominenceThreshold?: number;
   /** Constituents to add to the catalog, or to replace catalog entries of the same name. */
   definitions?: readonly ConstituentDefinition[];
@@ -66,11 +73,12 @@ export function createTidePredictor(
   constituents: HarmonicConstituent[],
   options: TidePredictionOptions = {},
 ): TidePrediction {
-  const { nodeCorrections, definitions, ...harmonicsOpts } = options;
+  const { nodeCorrections, latitude, definitions, ...harmonicsOpts } = options;
+  const models = constituentModels(definitions);
   const harmonicsOptions = {
     harmonicConstituents: constituents,
-    constituentModels: constituentModels(definitions),
-    fundamentals: resolveFundamentals(nodeCorrections),
+    constituentModels: models,
+    fundamentals: predictionCorrections(nodeCorrections, latitude, constituents, models),
     offset: false as number | false,
     ...harmonicsOpts,
   };

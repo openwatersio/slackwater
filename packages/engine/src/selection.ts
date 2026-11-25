@@ -1,7 +1,6 @@
 import { constituentModels } from "./constituents/index.js";
 import { foremanLines } from "./node-corrections/foreman.js";
 import {
-  checkForemanLine,
   checkWeights,
   fit,
   median,
@@ -9,6 +8,7 @@ import {
   type HarmonicFit,
   type HarmonicSample,
 } from "./fit.js";
+import { checkForemanLine } from "./node-corrections/resolve.js";
 
 export interface Candidate {
   name: string;
@@ -169,7 +169,7 @@ export function selectConstituents(
   if (given && options.nodeCorrections === "foreman")
     for (const { name } of given) {
       const model = lookup(name);
-      if (model) checkForemanLine(name, model, base);
+      if (model) checkForemanLine(name, model);
     }
   const spanHours = (active[active.length - 1].time.getTime() - active[0].time.getTime()) / 3600000;
   const separated = (a: number, b: number) => (Math.abs(a - b) * spanHours) / 360 >= rayleigh;

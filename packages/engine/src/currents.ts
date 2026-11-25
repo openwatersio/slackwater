@@ -1,7 +1,7 @@
 import { d2r } from "./astronomy/constants.js";
 import { constituentModels } from "./constituents/index.js";
 import type { Constituent, ConstituentDefinition } from "./constituents/types.js";
-import { resolveFundamentals } from "./node-corrections/index.js";
+import { predictionCorrections, type NodeCorrections } from "./node-corrections/resolve.js";
 import { findExtremes, findSlacks, evalH } from "./harmonics/extremes.js";
 import { createParamsFactory } from "./harmonics/params.js";
 import { getTimeline } from "./harmonics/index.js";
@@ -54,8 +54,13 @@ export interface CurrentPredictionOptions {
   minorMeanFlow?: number;
   /** Major-axis azimuth in degrees true. Defaults to floodDirection. */
   azimuth?: number;
-  /** Nodal correction fundamentals. Defaults to 'iho'. */
-  nodeCorrections?: "iho" | "schureman";
+  /**
+   * Nodal correction formulas, IHO's by default. Foreman's, as t_tide and UTide
+   * apply them, take the site's `latitude` and refuse the catalog's Sa, S1 and OQ2.
+   */
+  nodeCorrections?: NodeCorrections;
+  /** Degrees north, for Foreman's corrections. */
+  latitude?: number;
   /** Constituents to add to the catalog, or to replace catalog entries of the same name. */
   definitions?: readonly ConstituentDefinition[];
 }
@@ -139,14 +144,20 @@ export function createCurrentPredictor(
     ebbDirection,
     meanFlow = 0,
     nodeCorrections,
+    latitude,
     minorConstituents,
     minorMeanFlow = 0,
     azimuth = floodDirection,
     definitions,
   }: CurrentPredictionOptions,
 ): CurrentPredictor {
-  const fundamentals = resolveFundamentals(nodeCorrections);
   const models = constituentModels(definitions);
+  const fundamentals = predictionCorrections(
+    nodeCorrections,
+    latitude,
+    [...inputs, ...(minorConstituents ?? [])],
+    models,
+  );
   const constituents = prepareConstituents(inputs, meanFlow, models);
   const minor = prepareConstituents(minorConstituents ?? [], minorMeanFlow, models);
   const hasMinor = minor.some((c) => c.amplitude !== 0);

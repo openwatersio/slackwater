@@ -51,7 +51,7 @@ jobs:
           else
             echo 'swift=false' >> "$GITHUB_OUTPUT"
           fi
-          if printf '%s\n' "$changed" | grep -qE '^(fixtures/|packages/engine/|swift/Sources/SlackwaterKit/Resources/|kotlin/src/main/kotlin/io/openwaters/slackwater/CatalogData\.kt$|package(-lock)?\.json$|tsconfig\.json$|tsdown\.config\.js$|\.github/workflows/)'; then
+          if printf '%s\n' "$changed" | grep -qE '^(fixtures/|packages/engine/|swift/Sources/SlackwaterKit/Resources/|kotlin/src/main/kotlin/io/openwaters/slackwater/(Catalog|Foreman)Data\.kt$|package(-lock)?\.json$|tsconfig\.json$|tsdown\.config\.js$|\.github/workflows/)'; then
             echo 'fixtures=true' >> "$GITHUB_OUTPUT"
           else
             echo 'fixtures=false' >> "$GITHUB_OUTPUT"

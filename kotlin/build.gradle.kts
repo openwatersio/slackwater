@@ -26,12 +26,14 @@ tasks.test {
     useJUnitPlatform()
     systemProperty("fixtures", layout.projectDirectory.dir("../fixtures").asFile.absolutePath)
 }
+// The engine and sources jars carry Foreman's tables from UTide, whose notice is in the root LICENSE.
+tasks.withType<Jar>().configureEach { from(layout.projectDirectory.file("../LICENSE")) { into("META-INF") } }
 jacoco { toolVersion = "0.8.13" }
 tasks.jacocoTestReport {
     dependsOn(tasks.test)
     reports { xml.required = true; html.required = true }
     classDirectories.setFrom(sourceSets.main.get().output.asFileTree.matching {
-        exclude("io/openwaters/slackwater/CatalogDataKt.class")
+        exclude("io/openwaters/slackwater/CatalogDataKt.class", "io/openwaters/slackwater/ForemanDataKt.class")
     })
 }
 tasks.jacocoTestCoverageVerification {

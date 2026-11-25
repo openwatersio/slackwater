@@ -2,8 +2,11 @@ import astro, { type AstroData } from "./astronomy/index.js";
 import { constituentModels } from "./constituents/index.js";
 import type { Constituent, ConstituentDefinition } from "./constituents/types.js";
 import type { HarmonicConstituent } from "./harmonics/index.js";
-import { foreman, resolveFundamentals } from "./node-corrections/index.js";
-import { foremanLines } from "./node-corrections/foreman.js";
+import {
+  checkForemanLine,
+  correctionsFor,
+  type NodeCorrections,
+} from "./node-corrections/resolve.js";
 
 export interface HarmonicSample {
   time: Date;
@@ -55,7 +58,7 @@ export interface FitOptions {
    */
   confidence?: boolean;
   /** Nodal correction formulas. Foreman's take the site's `latitude`. Defaults to IHO's. */
-  nodeCorrections?: "iho" | "schureman" | "foreman";
+  nodeCorrections?: NodeCorrections;
   /** Degrees north, for Foreman's corrections. */
   latitude?: number;
   /**
@@ -87,24 +90,6 @@ const BANDS: readonly [number, number][] = [
 // Most frequencies averaged in each band, as UTide caps its Lomb-Scargle grid.
 const BAND_FREQUENCIES = 100;
 
-/**
- * Throws `notForemanLine` for the catalog's Sa, S1 or OQ2, which are other lines than t_tide's by
- * those names, so fitting them with Foreman's set would fit a line t_tide doesn't. A caller's own
- * definition is its own.
- */
-export function checkForemanLine(
-  name: string,
-  model: Constituent,
-  base: Readonly<Record<string, Constituent>>,
-) {
-  if (
-    Object.hasOwn(foremanLines, model.name) &&
-    Object.hasOwn(base, model.name) &&
-    base[model.name] === model
-  )
-    throw new RangeError(`notForemanLine: ${name} (t_tide's is ${foremanLines[model.name]})`);
-}
-
 /** Fit an offset and caller-selected harmonics. */
 export function fit(
   samples: readonly HarmonicSample[],
@@ -120,13 +105,7 @@ export function fit(
     nodal = "exact",
   }: FitOptions = {},
 ): HarmonicFit {
-  if (nodeCorrections !== undefined && !["iho", "schureman", "foreman"].includes(nodeCorrections))
-    throw new RangeError(`invalidNodeCorrections: ${nodeCorrections}`);
-  // Only Foreman's corrections use a latitude, so one given with another set is a mistake.
-  if ((nodeCorrections === "foreman") !== (latitude !== undefined))
-    throw new RangeError("invalidLatitude");
-  const fundamentals =
-    nodeCorrections === "foreman" ? foreman(latitude!) : resolveFundamentals(nodeCorrections);
+  const fundamentals = correctionsFor(nodeCorrections, latitude);
   if (nodal !== "exact" && nodal !== "yearly") throw new RangeError(`invalidNodal: ${nodal}`);
   const count = samples.length;
   if (
@@ -149,13 +128,12 @@ export function fit(
     throw new RangeError("invalidSamples");
 
   const catalog = constituentModels(definitions);
-  const base = constituentModels();
   const seen = new Set<string>();
   let fitted = names.map((name) => {
     const model = Object.hasOwn(catalog, name) ? catalog[name] : undefined;
     if (!model) throw new RangeError(`unknownConstituent: ${name}`);
     if (seen.has(model.name)) throw new RangeError(`duplicateConstituent: ${name}`);
-    if (nodeCorrections === "foreman") checkForemanLine(name, model, base);
+    if (nodeCorrections === "foreman") checkForemanLine(name, model);
     seen.add(model.name);
     return { name, model };
   });

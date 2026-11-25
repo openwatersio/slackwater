@@ -7,6 +7,7 @@ import {
   type TimelinePoint,
 } from "./index.js";
 import type { HarmonicConstituent, ExtremeOffsets } from "./harmonics/index.js";
+import type { NodeCorrections } from "./node-corrections/resolve.js";
 import {
   createCurrentPredictor,
   createSubordinateCurrentPredictor,
@@ -51,8 +52,11 @@ export type StationPredictionOptions = {
   /** Units for returned water levels. Defaults to 'meters'. */
   units?: Units;
 
-  /** Nodal correction fundamentals. Defaults to 'iho'. */
-  nodeCorrections?: "iho" | "schureman";
+  /**
+   * Nodal correction formulas, IHO's by default. Foreman's take the latitude of the station
+   * whose constants are predicted: a subordinate's reference station.
+   */
+  nodeCorrections?: NodeCorrections;
 };
 
 export type StationExtremesOptions = ExtremesInput & StationPredictionOptions;
@@ -87,8 +91,35 @@ export type StationPredictor = Station & {
 export const feetPerMeter = 3.2808399;
 const defaultUnits: Units = "meters";
 
-export function useStation(station: Station, distance?: number): StationPredictor {
+export type UseStationOptions = {
+  /**
+   * The reference station a subordinate's constants come from, named by `offsets.reference`.
+   * Foreman's corrections take its latitude, so they need it for a subordinate.
+   */
+  reference?: Station;
+};
+
+export function useStation(
+  station: Station,
+  distance?: number,
+  { reference }: UseStationOptions = {},
+): StationPredictor {
   const { datums, harmonic_constituents } = station;
+
+  /** The latitude Foreman's corrections take: that of the station the constants belong to. */
+  function foremanLatitude(): number {
+    const referenceId = station.offsets?.reference;
+    if (referenceId == null) return station.latitude;
+    if (!reference)
+      throw new Error(
+        `Station ${station.id} is subordinate to ${referenceId}; pass that station as options.reference for Foreman's corrections`,
+      );
+    if (reference.id !== referenceId)
+      throw new Error(
+        `Station ${station.id} is subordinate to ${referenceId}, not ${reference.id}`,
+      );
+    return reference.latitude;
+  }
 
   // Use station chart datum as the default datum if available
   const defaultDatum =
@@ -131,7 +162,11 @@ export function useStation(station: Station, distance?: number): StationPredicto
     }
 
     return {
-      predictor: createTidePredictor(harmonic_constituents, { offset: base, nodeCorrections }),
+      predictor: createTidePredictor(harmonic_constituents, {
+        offset: base,
+        nodeCorrections,
+        latitude: nodeCorrections === "foreman" ? foremanLatitude() : undefined,
+      }),
       shift: offset - base,
     };
   }
@@ -222,8 +257,11 @@ export type CurrentStation = Station & {
 };
 
 export type CurrentStationPredictionOptions = {
-  /** Nodal correction fundamentals. Defaults to 'iho'. */
-  nodeCorrections?: "iho" | "schureman";
+  /**
+   * Nodal correction formulas, IHO's by default. Foreman's take the latitude of the
+   * station whose constants are predicted: a subordinate's reference station.
+   */
+  nodeCorrections?: NodeCorrections;
 };
 
 export type CurrentStationEventsOptions = TimeSpan & CurrentStationPredictionOptions;
@@ -275,7 +313,7 @@ export function useCurrentStation(
   station: CurrentStation,
   { reference, distance }: UseCurrentStationOptions = {},
 ): CurrentStationPredictor {
-  function harmonic(s: CurrentStation, nodeCorrections?: "iho" | "schureman") {
+  function harmonic(s: CurrentStation, nodeCorrections?: NodeCorrections) {
     if (s.harmonic_constituents.length === 0) return undefined;
     return createCurrentPredictor(s.harmonic_constituents, {
       floodDirection: s.current?.flood_direction,
@@ -285,10 +323,11 @@ export function useCurrentStation(
       minorMeanFlow: s.current?.minor_mean_flow ?? 0,
       azimuth: s.current?.azimuth ?? undefined,
       nodeCorrections,
+      latitude: nodeCorrections === "foreman" ? s.latitude : undefined,
     });
   }
 
-  function getPredictor(nodeCorrections?: "iho" | "schureman"): CurrentPredictor {
+  function getPredictor(nodeCorrections?: NodeCorrections): CurrentPredictor {
     const own = harmonic(station, nodeCorrections);
     if (own) return own;
 
@@ -303,6 +342,11 @@ export function useCurrentStation(
         `Current station ${station.id} is subordinate to ${offsets.reference}; pass that station as options.reference`,
       );
     }
+    // Foreman's corrections take the reference's latitude, so it has to be the station named.
+    if (nodeCorrections === "foreman" && reference.id !== offsets.reference)
+      throw new Error(
+        `Current station ${station.id} is subordinate to ${offsets.reference}, not ${reference.id}`,
+      );
     const ref = harmonic(reference, nodeCorrections);
     if (!ref) {
       throw new Error(`Reference station ${reference.id} has no harmonic constituents`);
