@@ -36,6 +36,15 @@ describe("foreman", () => {
     );
   });
 
+  it("keeps each date's sums apart in one instance", () => {
+    const shared = foreman(60);
+    for (const when of ["2001-03-01T00:00:00Z", "2015-09-01T00:00:00Z"]) {
+      const a = astro(new Date(when));
+      expect(shared.M2(a, 0)).toEqual(foreman(60).M2(a, 0));
+      expect(shared.M4(a, 0)).toEqual(foreman(60).M4(a, 0));
+    }
+  });
+
   it("gives each caller its own result, so changing one leaves the next alone", () => {
     const a = astro(new Date("2024-01-01T00:00:00Z"));
     const fundamentals = foreman(60);
