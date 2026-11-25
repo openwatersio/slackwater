@@ -7,7 +7,8 @@ private struct VectorFixture: Decodable {
     let constituents: [C]; let minorConstituents: [C]
     let meanFlow: Double; let minorMeanFlow: Double
     let floodDirection: Double; let ebbDirection: Double; let azimuth: Double
-    let timeline: [P]
+    let timeline: [P]; let unknownTimeline: [U]
+    struct U: Decodable { let time: String; let speed: Double; let magnitude: Double; let direction: Double?; let magnitudeIsKnown: Bool }
     struct C: Decodable {
         let name: String; let amplitude: Double; let phase: Double
         var harmonic: HarmonicConstituent { HarmonicConstituent(name: name, amplitude: amplitude, phase: phase) }
@@ -30,6 +31,16 @@ private struct VectorFixture: Decodable {
         #expect(abs(point.speed - expected.speed) < 1e-6)
         #expect(abs(point.magnitude - expected.magnitude) < 1e-6)
         #expect(angularDiff(try #require(point.direction), expected.direction) < 1e-5)
+    }
+    let unknown = CurrentStation(constituents: f.constituents.map(\.harmonic), offset: f.meanFlow,
+        minorConstituents: f.minorConstituents.map(\.harmonic), minorMeanFlow: f.minorMeanFlow)
+    let unknownPoints = unknown.speeds(from: from, to: to, step: f.timeFidelity)
+    #expect(unknownPoints.count == f.unknownTimeline.count)
+    for (point, expected) in zip(unknownPoints, f.unknownTimeline) {
+        #expect(abs(point.time.timeIntervalSince(parseISO(expected.time))) < 0.001)
+        #expect(abs(point.speed - expected.speed) < 1e-6)
+        #expect(abs(point.magnitude - expected.magnitude) < 1e-6)
+        #expect(point.direction == expected.direction && point.magnitudeIsKnown == expected.magnitudeIsKnown)
     }
     let axial = CurrentStation(constituents: f.constituents.map(\.harmonic),
         floodDirection: f.floodDirection, ebbDirection: f.ebbDirection, offset: f.meanFlow)
@@ -86,6 +97,14 @@ private struct VectorFixture: Decodable {
     #expect(points.contains { $0.speed < 0 })
     #expect(points.filter { $0.speed < 0 }.allSatisfy { $0.direction == nil })
     #expect(points.filter { $0.speed > 0 }.allSatisfy { $0.direction == 10 })
+}
+
+@Test func predictedVectorWithoutBearingKeepsItsMeasuredMagnitude() throws {
+    let time = Date(timeIntervalSince1970: 1_767_225_600)
+    let station = CurrentStation(constituents: [], offset: 1, minorMeanFlow: 1)
+    let point = try #require(station.speeds(from: time, to: time.addingTimeInterval(3600)).first)
+    #expect(point.magnitudeIsKnown)
+    #expect([point].vector(at: time, flood: 45, ebb: 225)?.direction == nil)
 }
 
 @Test func subordinateCurrentVectorsUseOwnDirections() {

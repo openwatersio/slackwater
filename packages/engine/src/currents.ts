@@ -23,6 +23,8 @@ export interface CurrentPoint {
   speed: number;
   /** Knots; supplied by predictors, optional for caller-synthesized series. */
   magnitude?: number;
+  /** True when magnitude is independently measured and the bearing may be unknown. */
+  magnitudeIsKnown?: boolean;
   /** Degrees true in [0, 360); absent at zero magnitude or when unknown. */
   direction?: number;
 }
@@ -295,7 +297,14 @@ export function createCurrentPredictor(
           magnitude === 0 || azimuth === undefined
             ? undefined
             : wrapDirection(azimuth + Math.atan2(v, speed) / d2r);
-        return { time, hour, speed, magnitude, ...withDirection(direction) };
+        return {
+          time,
+          hour,
+          speed,
+          magnitude,
+          ...(direction === undefined && magnitude > 0 && { magnitudeIsKnown: true }),
+          ...withDirection(direction),
+        };
       });
     },
 
@@ -483,10 +492,17 @@ export interface SlackWindow {
  * Endpoints are interpolated threshold crossings. A window still open at the frame edge ends at the edge.
  */
 export function slackWindows(
-  timeline: Pick<CurrentPoint, "time" | "speed" | "magnitude" | "direction">[],
+  timeline: Pick<CurrentPoint, "time" | "speed" | "magnitude" | "magnitudeIsKnown" | "direction">[],
   threshold: number,
 ): SlackWindow[] {
-  if (timeline.some((p) => p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9)) {
+  if (
+    timeline.some(
+      (p) =>
+        p.magnitude !== undefined &&
+        ((p.magnitudeIsKnown === true && p.magnitude > 0) ||
+          p.magnitude > Math.abs(p.speed) + 1e-9),
+    )
+  ) {
     return slackRuns(timeline, [], threshold);
   }
   if (timeline.length === 0) return [];

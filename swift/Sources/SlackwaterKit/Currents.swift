@@ -59,13 +59,15 @@ func findSlacks(fromHour: Double, toHour: Double, provider: ParamProvider) -> [R
 public struct CurrentPoint: Sendable {
     public let time: Date; public let speed: Double
     public let magnitude: Double
+    /// True when the full current speed is known independently of signed axis speed.
+    public let magnitudeIsKnown: Bool
     /// Degrees true in [0, 360), or nil at zero magnitude or when unknown.
     public let direction: Double?
     // Public init so a consumer can synthesize a series (a derived gate's
     // schematic curve has no harmonic station to predict from).
-    public init(time: Date, speed: Double, magnitude: Double? = nil, direction: Double? = nil) {
+    public init(time: Date, speed: Double, magnitude: Double? = nil, direction: Double? = nil, magnitudeIsKnown: Bool = false) {
         self.time = time; self.speed = speed
-        self.magnitude = magnitude ?? abs(speed); self.direction = direction
+        self.magnitude = magnitude ?? abs(speed); self.magnitudeIsKnown = magnitudeIsKnown; self.direction = direction
     }
 }
 
@@ -181,7 +183,7 @@ public struct CurrentStation: Sendable {
             let direction = azimuth.flatMap { azi in
                 magnitude == 0 || !azi.isFinite ? nil : currentBearing(azi + atan2(v, speed) * 180 / .pi)
             }
-            return CurrentPoint(time: item, speed: speed, magnitude: magnitude, direction: direction)
+            return CurrentPoint(time: item, speed: speed, magnitude: magnitude, direction: direction, magnitudeIsKnown: direction == nil && magnitude > 0)
         }
     }
 

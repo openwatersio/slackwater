@@ -1189,6 +1189,11 @@ function createSpecs(datums: string[]) {
               minimum: 0,
               description: "Current magnitude in knots; absolute speed without minor-axis data",
             },
+            magnitudeIsKnown: {
+              type: "boolean",
+              description:
+                "True when full current speed is known independently of the signed axis speed.",
+            },
             direction: {
               type: "number",
               minimum: 0,

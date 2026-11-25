@@ -83,13 +83,16 @@ data class CurrentVector(
  * A zero sample is a zero vector either way, and reads as one so a vector series can turn through it.
  */
 private val CurrentPoint.knownMagnitude: Double?
-    get() = if (directionDegrees == null && magnitudeKnots == abs(speedKnots) && magnitudeKnots != 0.0) null else magnitudeKnots
+    get() = if (!magnitudeIsKnown && directionDegrees == null && magnitudeKnots == abs(speedKnots) && magnitudeKnots != 0.0) null else magnitudeKnots
+
+private val CurrentPoint.isUnknownVector: Boolean
+    get() = magnitudeIsKnown && directionDegrees == null && magnitudeKnots > 0
 
 private fun vector(magnitude: Double, direction: Double?) = CurrentVector(magnitude, if (magnitude > 1e-9) direction else null)
 
 /**
  * The current vector at `time`, interpolated through bearings; null outside the series. A sample with no direction
- * and a magnitude of `abs(speedKnots)` is one-axis and takes the flood or ebb bearing by its sign.
+ * and a magnitude of `abs(speedKnots)` is one-axis unless `magnitudeIsKnown`; it takes the phase bearing by its sign.
  */
 fun List<CurrentPoint>.vectorAt(time: Instant, floodDirectionDegrees: Double?, ebbDirectionDegrees: Double?): CurrentVector? {
     val speed = speedAt(time) ?: return null
@@ -104,8 +107,13 @@ fun List<CurrentPoint>.vectorAt(time: Instant, floodDirectionDegrees: Double?, e
         val magnitude = p.knownMagnitude ?: return vector(abs(speed), phase)
         return vector(magnitude, p.directionDegrees)
     }
+    if (a.isUnknownVector || b.isUnknownVector) {
+        val am = a.knownMagnitude ?: abs(a.speedKnots)
+        val bm = b.knownMagnitude ?: abs(b.speedKnots)
+        return vector(am + (bm - am) * mix, null)
+    }
     // Scalar phase bearings need not be reciprocal; their reversal must not synthesize crossflow.
-    val axialReversal = a.knownMagnitude == abs(a.speedKnots) && b.knownMagnitude == abs(b.speedKnots) &&
+    val axialReversal = !a.magnitudeIsKnown && !b.magnitudeIsKnown && a.knownMagnitude == abs(a.speedKnots) && b.knownMagnitude == abs(b.speedKnots) &&
         a.speedKnots * b.speedKnots < 0
     val am = a.knownMagnitude
     val bm = b.knownMagnitude
@@ -137,6 +145,14 @@ data class CurrentReading(
     val directionDegrees: Double?,
 )
 
+private fun rotaryAt(points: List<CurrentPoint>, time: Instant): Boolean {
+    val (lo, hi) = points.bracket(time) { it.time } ?: return false
+    val a = points[lo]
+    val b = points[hi]
+    val relevant = if (a.time == time) listOf(a) else if (b.time == time) listOf(b) else listOf(a, b)
+    return relevant.any { (it.magnitudeIsKnown && it.magnitudeKnots > 0) || it.magnitudeKnots > abs(it.speedKnots) + 1e-9 }
+}
+
 /** The lead reading at `time`: slack, maximum or minimum within a second of an event, otherwise the flooding or ebbing phase. */
 fun readCurrent(time: Instant, timeline: List<CurrentPoint>, events: List<CurrentEvent>,
     floodDirectionDegrees: Double?, ebbDirectionDegrees: Double?): CurrentReading? {
@@ -145,7 +161,7 @@ fun readCurrent(time: Instant, timeline: List<CurrentPoint>, events: List<Curren
     val event = events.firstOrNull { it.kind != CurrentEventKind.SLACK && withinOneSecond(it.time, time) }
     val state = when {
         events.any { it.kind == CurrentEventKind.SLACK && withinOneSecond(it.time, time) &&
-            (it.verifiedZero || timeline.none { point -> point.magnitudeKnots > abs(point.speedKnots) + 1e-9 } ||
+            (it.verifiedZero || !rotaryAt(timeline, it.time) ||
                 (timeline.vectorAt(it.time, floodDirectionDegrees, ebbDirectionDegrees)?.magnitudeKnots ?: Double.POSITIVE_INFINITY) < 1e-9) } -> CurrentState.SLACK
         event != null -> when (event.kind) {
             CurrentEventKind.MAX_FLOOD -> CurrentState.MAX_FLOOD
@@ -208,7 +224,7 @@ private fun bandCrossing(a: CurrentPoint, b: CurrentPoint, threshold: Double): I
  * threshold at or below zero.
  */
 fun slackWindowAround(points: List<CurrentPoint>, slack: Instant, thresholdKnots: Double): SlackWindow? {
-    if (points.any { it.magnitudeKnots > abs(it.speedKnots) + 1e-9 }) {
+    if (points.any { (it.magnitudeIsKnown && it.magnitudeKnots > 0) || it.magnitudeKnots > abs(it.speedKnots) + 1e-9 }) {
         return rotaryWindows(points, thresholdKnots).firstOrNull { slack >= it.start && slack <= it.end }
     }
     val n = points.size
@@ -293,8 +309,11 @@ fun currentWindows(points: List<CurrentPoint>, events: List<CurrentEvent>, thres
 fun slackRuns(points: List<CurrentPoint>, events: List<CurrentEvent>, thresholdKnots: Double): List<SlackWindow> {
     val first = points.firstOrNull()?.time ?: return emptyList()
     val last = points.last().time
-    if (points.any { it.magnitudeKnots > abs(it.speedKnots) + 1e-9 }) {
-        val windows = rotaryWindows(points, thresholdKnots).toMutableList()
+    if (points.any { (it.magnitudeIsKnown && it.magnitudeKnots > 0) || it.magnitudeKnots > abs(it.speedKnots) + 1e-9 }) {
+        val extrema = events.filter { it.kind != CurrentEventKind.SLACK && it.time >= first && it.time <= last && !rotaryAt(points, it.time) }
+        val times = extrema.map { it.time }.toSet()
+        val augmented = (points.filter { it.time !in times } + extrema.map { CurrentPoint(it.time, it.speedKnots) }).sortedBy { it.time }
+        val windows = rotaryWindows(augmented, thresholdKnots).toMutableList()
         for (event in events.filter { it.kind == CurrentEventKind.SLACK && it.time >= first && it.time <= last }) {
             if (readCurrent(event.time, points, listOf(event), null, null)?.state == CurrentState.SLACK &&
                 windows.none { event.time >= it.start && event.time <= it.end }) {
