@@ -1,5 +1,27 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.14
+
+### Major Changes
+
+- [#549](https://github.com/openwatersio/slackwater/pull/549) [`ec76a43`](https://github.com/openwatersio/slackwater/commit/ec76a430ee6772901192170df2a3c01c0afcc229) Thanks [@clarkbw](https://github.com/clarkbw)! - Measure current windows against full speed and report slack only when the full current reaches zero. Rotary stations no longer report every flood/ebb-axis crossing as slack. `currentWindows` returns each window and the slack moments it contains.
+
+### Minor Changes
+
+- [#554](https://github.com/openwatersio/slackwater/pull/554) [`835c3a4`](https://github.com/openwatersio/slackwater/commit/835c3a4f17bf03156b41026c4e6e2b7f177af96a) Thanks [@bkeepers](https://github.com/bkeepers)! - `fit` takes `nodeCorrections`: IHO's (the default), Schureman's, or Foreman's satellite corrections at the site's `latitude`, as t_tide and UTide use. With it, a fit can be compared with the constants agencies using Foreman's method publish. With Foreman's set, `fit` refuses the catalog's Sa, S1 and OQ2 (`notForemanLine`), since t_tide's lines by those names are SA_KV, S1_KV and OQ2_KV. The engine exports `foreman(latitude)` and `foremanLines`, the map from Foreman's names to the catalog's.
+
+  `selectConstituents` with Foreman's nodal corrections and no `candidates` takes the lines t_tide fits: SA_KV, S1_KV, alpha2, M(KS)2 and OQ2_KV for Foreman's Sa, S1, H1, H2 and OQ2. A caller's own definition under one of those names, or one of their aliases, keeps its place. The default list is unchanged for IHO and Schureman.
+
+  `fit` takes `nodal: "yearly"`, which takes each year's arguments at January 1 and f and u at July 2, as NOAA analyzes a year of observations. With it, one-year fits can be averaged as NOAA does to publish a station's constants.
+
+### Patch Changes
+
+- [#552](https://github.com/openwatersio/slackwater/pull/552) [`f213d74`](https://github.com/openwatersio/slackwater/commit/f213d7452156267c9f79af1190fb48e6f680e6b2) Thanks [@bkeepers](https://github.com/bkeepers)! - Predictions with the M1 constituent no longer drift out of phase. M1's nodal correction counted the lunar perigee twice, in both the IHO and Schureman sets, and Schureman's M1 also jumped 180° twice in each 8.85-year perigee cycle and had a slightly wrong amplitude factor. A caller's own M1 defined without the perigee in its argument keeps the formula as written.
+
+  At stations with a large M1, tide heights move by up to about 15 cm and slack times in strong passes by up to about 12 minutes, mostly closer to NOAA's published predictions. M1 phases fitted with an earlier engine were fitted against the double-counted correction, so refit them. M1 fitted with Schureman's corrections also had the wrong amplitude factor, so refit its amplitude as well as its phase.
+
+- [#566](https://github.com/openwatersio/slackwater/pull/566) [`4065e13`](https://github.com/openwatersio/slackwater/commit/4065e136d98a579ae5f8ab4ad96bf9fc6070225b) Thanks [@bkeepers](https://github.com/bkeepers)! - NOAA's shallow-water compounds at Anchorage predict with the right phase, in the TypeScript, Swift and Kotlin engines. MLN2S2, 2NMLS6, 2MLNS6, 3MLS6 and 4MLS8 have their own definitions, so they no longer stand for 3MS2, 3MNS6, 4MS6, 2Mnu6 and 3Mnu8, which share their speeds. ML4, MKL2S2, 3ML8, MSK5 and MP1 take their members' phase constants, 3KM5 is built from K1+M2+K2, and RP1 takes psi1's argument. Refit any of these constituents fitted with an earlier engine. A caller's own definition that lists one of the five names as an alias of the line it shared now replaces two catalog entries, and the engine refuses it.
+
 ## 1.0.0-beta.13
 
 ### Minor Changes
