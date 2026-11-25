@@ -155,7 +155,7 @@ Stations predict with IHO's nodal corrections by default. Constants fitted with 
 let station = try Station(constituents: kartverket, nodeCorrections: .foreman(latitude: 59.9))
 ```
 
-`CurrentStation(constituents:…:nodeCorrections:)` takes the same set for both axes, and a `SubordinateTideStation` or current `SubordinateStation` predicts with its reference's. A latitude outside -90 to 90 throws `NodeCorrectionsError.invalidLatitude`. The catalog's Sa, S1 and OQ2, by any of their names, and t_tide's H1 and H2 throw `NodeCorrectionsError.notForemanLine`, since t_tide's lines by those names are SA_KV, S1_KV, OQ2_KV, alpha2 and M(KS)2; a caller's own definition under one of those names predicts as given. The fitter takes IHO's corrections only. `fixtures/foreman-utide.json` holds UTide's own f and u and `fixtures/prediction-foreman.json` the TypeScript engine's predictions, which all three engines check.
+`CurrentStation(constituents:…:nodeCorrections:)` takes the same set for both axes, and a `SubordinateTideStation` or current `SubordinateStation` predicts with its reference's. A latitude outside -90 to 90 throws `NodeCorrectionsError.invalidLatitude`. The catalog's Sa, S1 and OQ2, by any of their names, and t_tide's H1 and H2 throw `NodeCorrectionsError.notForemanLine`, since t_tide's lines by those names are SA_KV, S1_KV, OQ2_KV, alpha2 and M(KS)2; a caller's own definition under one of those names is predicted rather than refused, and under H1 or H2 it takes the corrections of alpha2 or M(KS)2. The fitter takes IHO's corrections only. `fixtures/foreman-utide.json` holds UTide's own f and u and `fixtures/prediction-foreman.json` the TypeScript engine's predictions, which all three engines check.
 
 ## Develop
 
