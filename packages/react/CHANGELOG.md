@@ -1,5 +1,29 @@
 # @neaps/react
 
+## 1.0.0-beta.9
+
+### Major Changes
+
+- [#549](https://github.com/openwatersio/slackwater/pull/549) [`ec76a43`](https://github.com/openwatersio/slackwater/commit/ec76a430ee6772901192170df2a3c01c0afcc229) Thanks [@clarkbw](https://github.com/clarkbw)! - Measure current windows against full speed and report slack only when the full current reaches zero. Rotary stations no longer report every flood/ebb-axis crossing as slack. `currentWindows` returns each window and the slack moments it contains.
+
+### Minor Changes
+
+- [#562](https://github.com/openwatersio/slackwater/pull/562) [`7079ebd`](https://github.com/openwatersio/slackwater/commit/7079ebd2eba1cb18106e835a74367341f2696896) Thanks [@tstotzer](https://github.com/tstotzer)! - Tide widgets accept `caption={false}` for apps that show the station's source credit elsewhere, without leaving a hidden caption as the widget's accessible name.
+
+- [#553](https://github.com/openwatersio/slackwater/pull/553) [`073b41d`](https://github.com/openwatersio/slackwater/commit/073b41dc176be31ac006dacd8d09e651f728e309) Thanks [@clarkbw](https://github.com/clarkbw)! - `<SummaryTiles>` and `<RangeOutlook>` are exported for pages that draw their own strip, with `rangeTile`, `nextMaxTile`, `fortnightWindow`, `outlookWindow`, `useOutlookWeek` and `swingHeights` to fill them from predictions the page already has. `<RangeOutlook>` takes its highs and lows as a prop and loads nothing itself. Without a `time`, the tiles server-render with no reading, at the size they keep once the browser passes the moment.
+
+### Patch Changes
+
+- [#563](https://github.com/openwatersio/slackwater/pull/563) [`735a1bf`](https://github.com/openwatersio/slackwater/commit/735a1bfe0d96073734c83d7de90ae93b9c45c734) Thanks [@clarkbw](https://github.com/clarkbw)! - Station strips, tiles and schedules render faster, on the server and in the browser.
+
+- [#548](https://github.com/openwatersio/slackwater/pull/548) [`475aa98`](https://github.com/openwatersio/slackwater/commit/475aa98108c519039ac888942409dfff66dda85a) Thanks [@tstotzer](https://github.com/tstotzer)! - Scrubber-only apps can leave the unused nearby map and its stylesheet out of their bundles.
+
+- [#563](https://github.com/openwatersio/slackwater/pull/563) [`735a1bf`](https://github.com/openwatersio/slackwater/commit/735a1bfe0d96073734c83d7de90ae93b9c45c734) Thanks [@clarkbw](https://github.com/clarkbw)! - While `<TideStation>`'s week of daily ranges loads, screen readers hear nothing from it, instead of seven days read as unavailable. If the week fails to load, its days are read as unavailable.
+
+- [#563](https://github.com/openwatersio/slackwater/pull/563) [`735a1bf`](https://github.com/openwatersio/slackwater/commit/735a1bfe0d96073734c83d7de90ae93b9c45c734) Thanks [@clarkbw](https://github.com/clarkbw)! - The Range and Next max tiles read "—" where there is no turn on each side of the moment, or no maximum after it, instead of disappearing. This includes `<TideStation>` and `<CurrentStation>` at the ends of their window.
+- Updated dependencies [[`835c3a4`](https://github.com/openwatersio/slackwater/commit/835c3a4f17bf03156b41026c4e6e2b7f177af96a), [`f213d74`](https://github.com/openwatersio/slackwater/commit/f213d7452156267c9f79af1190fb48e6f680e6b2), [`ec76a43`](https://github.com/openwatersio/slackwater/commit/ec76a430ee6772901192170df2a3c01c0afcc229), [`4065e13`](https://github.com/openwatersio/slackwater/commit/4065e136d98a579ae5f8ab4ad96bf9fc6070225b)]:
+  - @slackwater/engine@1.0.0-beta.14
+
 ## 1.0.0-beta.8
 
 ### Minor Changes

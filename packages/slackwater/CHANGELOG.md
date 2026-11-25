@@ -1,5 +1,16 @@
 # neaps
 
+## 1.0.0-beta.8
+
+### Major Changes
+
+- [#549](https://github.com/openwatersio/slackwater/pull/549) [`ec76a43`](https://github.com/openwatersio/slackwater/commit/ec76a430ee6772901192170df2a3c01c0afcc229) Thanks [@clarkbw](https://github.com/clarkbw)! - Measure current windows against full speed and report slack only when the full current reaches zero. Rotary stations no longer report every flood/ebb-axis crossing as slack. `currentWindows` returns each window and the slack moments it contains.
+
+### Patch Changes
+
+- Updated dependencies [[`835c3a4`](https://github.com/openwatersio/slackwater/commit/835c3a4f17bf03156b41026c4e6e2b7f177af96a), [`f213d74`](https://github.com/openwatersio/slackwater/commit/f213d7452156267c9f79af1190fb48e6f680e6b2), [`ec76a43`](https://github.com/openwatersio/slackwater/commit/ec76a430ee6772901192170df2a3c01c0afcc229), [`4065e13`](https://github.com/openwatersio/slackwater/commit/4065e136d98a579ae5f8ab4ad96bf9fc6070225b)]:
+  - @slackwater/engine@1.0.0-beta.14
+
 ## 1.0.0-beta.7
 
 ### Major Changes
