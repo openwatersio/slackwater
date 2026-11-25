@@ -9,7 +9,8 @@ and UTide's own f and u for the test in test/node-corrections/foreman-utide.json
 UTide's ut_constants holds t_tide's tables, which come from Foreman (1977,
 revised 2004), "Manual for tidal heights analysis and prediction", IOS Pacific
 Marine Science Report 77-10. Constituents are matched to the catalog by name and
-checked by speed.
+checked by speed. UTide's MIT notice for the tables is in the package's LICENSE.
+The catalog's M1 is the line t_tide calls NO1; foreman.ts gives it NO1's satellites.
 """
 
 import datetime
@@ -36,22 +37,6 @@ for foreman, ours in {"SIG1": "sigma1", "THE1": "theta1", "GAM2": "gamma2", "H1"
 
 const, sat, shallow = ut_constants.const, ut_constants.sat, ut_constants.shallow
 
-# The tables are copied from UTide, so its notice travels with them, as in the package's LICENSE.
-UTIDE_LICENSE = (
-    "The MIT License (MIT). Copyright (c) 2014 Wesley Bowman. Permission is hereby granted, free of charge, "
-    "to any person obtaining a copy of this software and associated documentation files (the \"Software\"), "
-    "to deal in the Software without restriction, including without limitation the rights to use, copy, modify, "
-    "merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom "
-    "the Software is furnished to do so, subject to the following conditions: The above copyright notice and "
-    "this permission notice shall be included in all copies or substantial portions of the Software. "
-    "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT "
-    "LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO "
-    "EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER "
-    "IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR "
-    "THE USE OR OTHER DEALINGS IN THE SOFTWARE."
-)
-
-
 def catalog_entry(i):
     c = names.get(const.name[i])
     # t_tide's speeds come from its own astronomy, so they agree to about 1e-7 °/h.
@@ -61,7 +46,8 @@ def catalog_entry(i):
     # Both count N′ = −N.
     doodson = const.doodson[i]
     if not np.isnan(doodson).any():
-        if c["coefficients"][:6] != [int(x) for x in doodson]:
+        # A members-only compound has no coefficients of its own, so it can't be a main line.
+        if (c["coefficients"] or [])[:6] != [int(x) for x in doodson]:
             raise SystemExit(f"{const.name[i]} matched {c['name']}, whose coefficients differ")
     return c
 
@@ -100,9 +86,6 @@ for i, name in enumerate(const.name):
             continue
         products[c["name"]] = [[m["name"], f] for m, f in members]
 
-# The catalog's M1 is the 14.4966939 °/h line t_tide calls NO1.
-satellites["M1"] = satellites["NO1"]
-
 # t_tide's ST lines are unnamed shallow-water lines the catalog doesn't hold.
 expected = set()
 left_out = {n for n in unmatched if not re.fullmatch(r"ST\d+", n)}
@@ -113,7 +96,6 @@ if any(m not in satellites for members in products.values() for m, _ in members)
 
 out = {
     "source": "UTide 0.4.0 ut_constants (t_tide; Foreman 1977, revised 2004)",
-    "license": UTIDE_LICENSE,
     "satellites": satellites,
     "products": products,
 }

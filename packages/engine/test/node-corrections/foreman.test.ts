@@ -39,6 +39,13 @@ describe("foreman", () => {
     );
   });
 
+  it("gives t_tide's H1 and H2 the corrections of the catalog's alpha2 and M(KS)2", () => {
+    const fundamentals = foreman(60);
+    expect(fundamentals.H1).toBe(fundamentals.alpha2);
+    expect(fundamentals.H2).toBe(fundamentals["M(KS)2"]);
+    expect(fundamentals.M1).toBe(fundamentals.NO1);
+  });
+
   it("adds p back for an M1 argument without it, at the argument's epoch", () => {
     const a = astro(new Date("2010-05-01T00:00:00Z"));
     const epoch = astro(new Date("2010-01-01T00:00:00Z"));

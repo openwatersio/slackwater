@@ -167,6 +167,35 @@ describe("selectConstituents", () => {
     ).toContain("H1");
   });
 
+  test("keeps a caller's definition that takes a catalog line's alias", () => {
+    const names = (
+      definitions: NonNullable<Parameters<typeof selectConstituents>[1]>["definitions"],
+    ) =>
+      selectConstituents(record(15), {
+        nodeCorrections: "foreman",
+        latitude: 59.9,
+        definitions,
+      }).selection.map((s) => s.name);
+    const coefficients: [number, number, number, number, number, number, number] = [
+      0, 0, 1, 0, 0, 0, 0,
+    ];
+    expect(names([{ name: "SA", speed: 0.0410686, coefficients }])).toContain("Sa");
+    expect(
+      names([{ name: "Solar1", aliases: ["S1"], speed: 15, coefficients: [1, 1, -1, 0, 0, 0, 0] }]),
+    ).toContain("S1");
+  });
+
+  test("throws invalidDefinition for definitions that aren't a list", () => {
+    for (const nodeCorrections of [undefined, "foreman"] as const)
+      expect(() =>
+        selectConstituents(record(15), {
+          nodeCorrections,
+          latitude: nodeCorrections && 59.9,
+          definitions: {} as never,
+        }),
+      ).toThrow(RangeError);
+  });
+
   test("keeps what fifteen days resolve, as Parker's pairs say", () => {
     const { selection } = selectConstituents(record(15));
     const entry = (name: string) => selection.find((s) => s.name === name)!;

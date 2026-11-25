@@ -21,6 +21,8 @@ export {
   type SelectionOptions,
   type SelectionResult,
 } from "./selection.js";
+export { foreman } from "./node-corrections/index.js";
+export { foremanLines } from "./node-corrections/foreman.js";
 export { chsCurrentFit, chsTideFit, projectChsCurrent } from "./chs.js";
 export { default as constituents, defineConstituents } from "./constituents/index.js";
 export type * from "./astronomy/index.js";
