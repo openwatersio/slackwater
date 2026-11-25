@@ -91,6 +91,7 @@ const vectorInputs = {
   ebbDirection: 205,
   azimuth: 350,
 };
+const { floodDirection: _flood, ebbDirection: _ebb, azimuth: _azimuth, ...unknownInputs } = vectorInputs;
 const vectorSpan = { start, end: new Date("2026-06-04T00:00:00Z"), timeFidelity: 10800 };
 writeJSON(join(FIX, "currents-vector.json"), {
   note: "Synthetic minor-axis constants with PUG1741 major harmonics; TS parity over three days, not NOAA vector predictions. Positive minor flow is 90 degrees clockwise from azimuth.",
@@ -101,4 +102,7 @@ writeJSON(join(FIX, "currents-vector.json"), {
   timeline: createCurrentPredictor(vectorInputs.constituents, vectorInputs)
     .getTimelinePrediction(vectorSpan)
     .map(({ time, speed, magnitude, direction }) => ({ time: iso(time), speed, magnitude, direction })),
+  unknownTimeline: createCurrentPredictor(unknownInputs.constituents, unknownInputs)
+    .getTimelinePrediction(vectorSpan)
+    .map(({ time, speed, magnitude, direction, magnitudeIsKnown }) => ({ time: iso(time), speed, magnitude, direction, magnitudeIsKnown }))
 });

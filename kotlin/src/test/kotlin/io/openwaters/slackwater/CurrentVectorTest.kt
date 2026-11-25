@@ -5,6 +5,14 @@ import kotlin.math.abs
 import kotlin.test.*
 
 class CurrentVectorTest {
+    @Test fun predictedVectorWithoutBearingKeepsItsMeasuredMagnitude() {
+        val time = Instant.parse("2026-01-01T00:00:00Z")
+        val point = CurrentStation(emptyList(), offsetKnots = 1.0, minorOffsetKnots = 1.0).speeds(time, time.plusSeconds(3600)).first()
+        assertTrue(point.magnitudeIsKnown)
+        assertNull(listOf(point).vectorAt(time, 45.0, 225.0)?.directionDegrees)
+        assertTrue(point.copy(time, 1.0).magnitudeIsKnown)
+    }
+
     @Test fun simultaneousAxisZerosRemainSlackEvents() {
         val c = listOf(HarmonicConstituent("M2", 1.0, 0.0))
         val station = CurrentStation(c, minorConstituents = c)
@@ -33,6 +41,18 @@ class CurrentVectorTest {
             assertTrue(abs(p.speedKnots - e.number("speed")) < 1e-6)
             assertTrue(abs(p.magnitudeKnots - e.number("magnitude")) < 1e-6)
             assertTrue(angularDiff(assertNotNull(p.directionDegrees), e.number("direction")) < 1e-5)
+        }
+        val unknown = CurrentStation(f.constituents(), offsetKnots = f.number("meanFlow"),
+            minorConstituents = f.constituents("minorConstituents"), minorOffsetKnots = f.number("minorMeanFlow"))
+        val unknownPoints = unknown.speeds(f.instant("start"), f.instant("end"), f.number("timeFidelity"))
+        assertEquals(f.array("unknownTimeline").size, unknownPoints.size)
+        for ((p, row) in unknownPoints.zip(f.array("unknownTimeline"))) {
+            val e = row.obj()
+            assertTrue(abs(secondsBetween(p.time, e.instant("time"))) < 0.001)
+            assertTrue(abs(p.speedKnots - e.number("speed")) < 1e-6)
+            assertTrue(abs(p.magnitudeKnots - e.number("magnitude")) < 1e-6)
+            assertNull(p.directionDegrees)
+            assertTrue(p.magnitudeIsKnown)
         }
         val axial = CurrentStation(f.constituents(), f.number("floodDirection"), f.number("ebbDirection"), f.number("meanFlow"))
         assertEquals(axial.events(f.instant("start"), f.instant("end")).filter { it.kind != CurrentEventKind.SLACK },
