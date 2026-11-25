@@ -196,7 +196,7 @@ describe("StationsMap", () => {
       <StationsMap
         ref={ref}
         mapStyle={style}
-        now={Date.parse("2026-11-02T04:16:16.183Z")}
+        now={Date.parse("2026-11-02T04:12:46.039Z")}
         initialViewState={{ longitude: -122.644, latitude: 48.406, zoom: 11 }}
         focusStation="noaa/PUG1701"
       />,

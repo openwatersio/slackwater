@@ -375,9 +375,9 @@ describe("slackwater currents timeline", () => {
       "1",
     ]);
     expect(stdout).toMatch(/Current\s*│\s*Speed\s*│\s*Full speed\s*│\s*Set/);
-    // Crossing flow shows beside the label: at 00:04Z the flood/ebb speed is -0.008 kn while
-    // the water still runs 0.118 kn toward 196°.
-    expect(stdout).toMatch(/Ebb\s*│\s*0\.0 kn\s*│\s*0\.1 kn\s*│\s*196°T\s*│/);
+    // Crossing flow shows beside the label: at 00:04Z the flood/ebb speed is -0.004 kn while
+    // the water still runs 0.071 kn toward 195°.
+    expect(stdout).toMatch(/Ebb\s*│\s*0\.0 kn\s*│\s*0\.1 kn\s*│\s*195°T\s*│/);
   });
 
   test("gives a station with crossing flow the same table for any window", async () => {

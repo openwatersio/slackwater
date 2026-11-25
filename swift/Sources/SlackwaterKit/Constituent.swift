@@ -63,6 +63,8 @@ struct Catalog: Sendable {
     private(set) var index: [String: Int]
     /// Degrees per hour of each Doodson argument, from the engine.
     let argumentRates: [Double]
+    /// Turns of the perigee p in each argument, counted once the members are set.
+    private(set) var perigeeTurns: [Double] = []
 
     static let shared: Catalog = {
         let url = Bundle.module.url(forResource: "catalog", withExtension: "json")!
@@ -79,7 +81,9 @@ struct Catalog: Sendable {
             index[alias] = index[canonical]!
             entries[index[canonical]!].formulaNames.append(alias)
         }
-        return Catalog(entries: entries, index: index, argumentRates: file.argumentRates)
+        var catalog = Catalog(entries: entries, index: index, argumentRates: file.argumentRates)
+        catalog.countPerigeeTurns()
+        return catalog
     }()
 
     private struct File: Decodable {
@@ -146,6 +150,7 @@ struct Catalog: Sendable {
         for i in first..<catalog.entries.count where !(abs(catalog.rate(i) - catalog.entries[i].speed) <= 1e-5) {
             throw ConstituentDefinitionError.invalidDefinition(catalog.entries[i].name)
         }
+        catalog.countPerigeeTurns()
         return catalog
     }
 
@@ -196,14 +201,25 @@ struct Catalog: Sendable {
     /// Node correction (f, u°). IHO fundamental if the constituent has one, else
     /// combined from members: f = Π f_memberᵃᵇˢ⁽ᶠᵃᶜᵗᵒʳ⁾, u = Σ factor·u_member.
     func correction(_ name: String, _ a: Astro) -> (f: Double, u: Double) {
-        guard let i = index[name] else { return ihoCorrection(name, a) ?? (1, 0) }
+        guard let i = index[name] else { return ihoCorrection(name, a, perigeeTurns: 0) ?? (1, 0) }
         return correction(at: i, a)
+    }
+
+    private mutating func countPerigeeTurns() {
+        perigeeTurns = entries.indices.map(turns(at:))
+    }
+
+    /// Validation leaves every argument coefficients or members.
+    private func turns(at i: Int) -> Double {
+        let e = entries[i]
+        if let c = e.coefficients { return Double(c[3]) }
+        return e.members.reduce(0) { $0 + $1.factor * turns(at: $1.index) }
     }
 
     private func correction(at i: Int, _ a: Astro) -> (f: Double, u: Double) {
         let e = entries[i]
         for name in e.formulaNames {
-            if let fundamental = ihoCorrection(name, a) { return fundamental }
+            if let fundamental = ihoCorrection(name, a, perigeeTurns: perigeeTurns[i]) { return fundamental }
         }
         var f = 1.0
         var u = 0.0

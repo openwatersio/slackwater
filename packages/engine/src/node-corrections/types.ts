@@ -5,5 +5,9 @@ export interface NodalCorrection {
   u: number; // phase correction in degrees
 }
 
-export type CorrectionFn = (astro: AstroData) => NodalCorrection;
+/**
+ * `perigeeTurns` is how many turns of the lunar perigee p the argument being
+ * corrected holds: a formula written for an argument without p takes them off u.
+ */
+export type CorrectionFn = (astro: AstroData, perigeeTurns: number) => NodalCorrection;
 export type Fundamentals = Record<string, CorrectionFn>;

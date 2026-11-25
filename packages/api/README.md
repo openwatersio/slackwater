@@ -202,8 +202,8 @@ curl "http://localhost:3000/currents/events?latitude=48.406&longitude=-122.643&s
   },
   "distance": 0.02,
   "events": [
-    { "time": "2026-06-01T00:04:37.920Z", "speed": 0.0002, "kind": "slack" },
-    { "time": "2026-06-01T03:25:37.661Z", "speed": -5.17, "kind": "maxEbb", "direction": 281.5 }
+    { "time": "2026-06-01T00:03:54.936Z", "speed": 0.00005, "kind": "slack" },
+    { "time": "2026-06-01T03:34:24.114Z", "speed": -5.22, "kind": "maxEbb", "direction": 281.5 }
   ]
 }
 ```

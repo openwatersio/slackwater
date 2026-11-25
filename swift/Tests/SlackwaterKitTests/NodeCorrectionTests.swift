@@ -13,7 +13,8 @@ private struct NodeCorrFixture: Decodable {
     for entry in fixture.entries {
         let a = astro(parseISO(entry.time))
         for (name, expected) in entry.corrections {
-            let got = try #require(ihoCorrection(name, a), "\(name): no IHO correction implemented")
+            let i = try #require(Catalog.shared.index[name], "\(name): not in the catalog")
+            let got = try #require(ihoCorrection(name, a, perigeeTurns: Catalog.shared.perigeeTurns[i]), "\(name): no IHO correction implemented")
             #expect(abs(got.f - expected.f) < 1e-6, "\(name) f at \(entry.time): got \(got.f), want \(expected.f)")
             #expect(angularDiff(got.u, expected.u) < 1e-6, "\(name) u at \(entry.time): got \(got.u), want \(expected.u)")
         }
