@@ -118,6 +118,14 @@ private func seconds(_ date: Date?) -> Double { date?.timeIntervalSince(t0) ?? .
     #expect(currentWindows(points, events: [event], threshold: 0.5).isEmpty)
 }
 
+@Test func unknownVectorRejectsSlackJustOutsideTimeline() throws {
+    let points = [CurrentPoint(time: t0, speed: 1, magnitude: 1, magnitudeIsKnown: true),
+                  CurrentPoint(time: at(H), speed: 1, magnitude: 1, magnitudeIsKnown: true)]
+    for (time, event) in [(t0, slackAt(at(-0.5))), (at(H), slackAt(at(H + 0.5)))] {
+        #expect(try #require(readCurrent(at: time, timeline: points, events: [event], flood: nil, ebb: nil)).state != .slack)
+    }
+}
+
 @Test func independentlyMeasuredVectorsKeepBearingsThroughReversal() throws {
     let points = [CurrentPoint(time: t0, speed: -1, magnitude: 1, direction: 200, magnitudeIsKnown: true),
                   CurrentPoint(time: at(H), speed: 1, magnitude: 1, direction: 45, magnitudeIsKnown: true)]

@@ -83,6 +83,18 @@ describe("vector readings", () => {
     expect(reading).not.toHaveProperty("direction");
     expect(currentWindows(tl, [slack], 0.5)).toEqual([]);
   });
+  test("unknown vectors reject slack just outside the timeline", () => {
+    const tl = [
+      { ...point(0, 1, 1), magnitudeIsKnown: true },
+      { ...point(1, 1, 1), magnitudeIsKnown: true },
+    ];
+    for (const [time, event] of [
+      [new Date(t0), slackAt(t0 - 500)],
+      [new Date(t0 + H), slackAt(t0 + H + 500)],
+    ] as const) {
+      expect(readCurrent(time, tl, [event], {})?.state).not.toBe("Slack");
+    }
+  });
   test("independently measured vectors retain known bearings through reversal", () => {
     const tl = [
       { ...point(0, -1, 1, 200), magnitudeIsKnown: true },

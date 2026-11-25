@@ -178,7 +178,7 @@ const predictor = createCurrentPredictor(constituents, {
   meanFlow: -0.377, // knots, added as a constant term
 });
 
-// Samples: { time, hour, speed, magnitude, direction? }
+// Samples: { time, hour, speed, magnitude, direction?, magnitudeIsKnown? }
 predictor.getTimelinePrediction({ start, end, timeFidelity: 600 });
 
 // Slack and flood/ebb maxima and minima in time order:

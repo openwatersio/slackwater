@@ -23,7 +23,7 @@ export interface CurrentPoint {
   speed: number;
   /** Knots; supplied by predictors, optional for caller-synthesized series. */
   magnitude?: number;
-  /** True when magnitude is independently measured and the bearing may be unknown. */
+  /** Marks an independently known magnitude; rotary predictors set it when the bearing is unavailable. */
   magnitudeIsKnown?: boolean;
   /** Degrees true in [0, 360); absent at zero magnitude or when unknown. */
   direction?: number;

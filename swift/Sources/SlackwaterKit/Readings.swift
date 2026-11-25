@@ -125,9 +125,11 @@ extension Array where Element == CurrentPoint {
 }
 
 private func rotaryAt(_ points: [CurrentPoint], time: Date) -> Bool {
-    guard let pair = bracket(points, at: time, \.time) else { return false }
+    guard let first = points.first, let last = points.last else { return false }
+    let clamped = min(max(time, first.time), last.time)
+    guard let pair = bracket(points, at: clamped, \.time) else { return false }
     let a = points[pair.lo], b = points[pair.hi]
-    let relevant = a.time == time ? [a] : b.time == time ? [b] : [a, b]
+    let relevant = a.time == clamped ? [a] : b.time == clamped ? [b] : [a, b]
     return relevant.contains { ($0.magnitudeIsKnown && $0.magnitude > 0) || $0.magnitude > abs($0.speed) + 1e-9 }
 }
 
