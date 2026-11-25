@@ -151,11 +151,15 @@ function defineConstituent({
       return v;
     },
 
-    correction(astro: AstroData, fundamentals: Fundamentals = iho): NodalCorrection {
+    correction(
+      astro: AstroData,
+      fundamentals: Fundamentals = iho,
+      epoch?: AstroData,
+    ): NodalCorrection {
       // Fundamentals have their own correction formula
-      if (Object.hasOwn(fundamentals, name)) return fundamentals[name](astro, perigee());
+      if (Object.hasOwn(fundamentals, name)) return fundamentals[name](astro, perigee(), epoch);
       for (const alias of constituent.aliases) {
-        if (Object.hasOwn(fundamentals, alias)) return fundamentals[alias](astro, perigee());
+        if (Object.hasOwn(fundamentals, alias)) return fundamentals[alias](astro, perigee(), epoch);
       }
 
       // Start with UNITY
@@ -165,7 +169,7 @@ function defineConstituent({
       // Compound: recurse through members
       // u = Σ factor × u(member), f = Π f(member)^|factor|
       for (const { constituent: member, factor } of constituent.members) {
-        const corr = member.correction(astro, fundamentals);
+        const corr = member.correction(astro, fundamentals, epoch);
         u += factor * corr.u;
         f *= Math.pow(corr.f, Math.abs(factor));
       }

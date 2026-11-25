@@ -13,7 +13,7 @@ const fundamentals: Fundamentals = {
   M2: (a) => ({ f: fM2(a), u: uM2(a) }),
   K2: (a) => ({ f: fK2(a), u: uK2(a) }),
   L2: (a) => ({ f: fL2(a), u: uL2(a) }),
-  M1: (a, turns) => withoutPerigee({ f: fM1(a), u: uM1(a) }, a, turns),
+  M1: (a, turns, epoch = a) => withoutPerigee({ f: fM1(a), u: uM1(a) }, epoch, turns),
   M3: (a) => ({ f: fModd(a, 3), u: uModd(a, 3) }),
 };
 

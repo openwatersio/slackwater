@@ -7,7 +7,13 @@ export interface NodalCorrection {
 
 /**
  * `perigeeTurns` is how many turns of the lunar perigee p the argument being
- * corrected holds: a formula written for an argument without p takes them off u.
+ * corrected holds: a formula written for an argument without p takes them off
+ * u. `epoch` is the astronomy the argument is evaluated at, when not `astro`,
+ * and gives the p taken off.
  */
-export type CorrectionFn = (astro: AstroData, perigeeTurns: number) => NodalCorrection;
+export type CorrectionFn = (
+  astro: AstroData,
+  perigeeTurns: number,
+  epoch?: AstroData,
+) => NodalCorrection;
 export type Fundamentals = Record<string, CorrectionFn>;
