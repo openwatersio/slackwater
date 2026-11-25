@@ -11,7 +11,7 @@ public struct ConstituentDefinition: Sendable, Equatable {
     /// Degrees per hour. It must match the rate of the argument the coefficients or members give.
     public let speed: Double
     /// Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90°, with τ from noon.
-    /// Catalog arguments are Schureman's except for 19 lines whose phase is unsettled
+    /// Catalog arguments are Schureman's except for 17 lines whose phase is unsettled
     /// (slackwater#241). Nil for a compound whose argument is the sum of its members' arguments.
     public let coefficients: [Int]?
     public let aliases: [String]

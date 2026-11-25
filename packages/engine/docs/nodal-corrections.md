@@ -26,7 +26,7 @@ Small errors in these constants and a NaN at exactly J2000 are tracked in [#362]
 
 ## Equilibrium arguments and speeds
 
-Each constituent in `data.json` carries Doodson coefficients on `[τ, s, h, p, N′, p′, 90°]` with N′ = −N. τ is measured from noon, as in Schureman's equilibrium arguments, which NOAA's published phases use. The coefficients give Schureman's arguments for every line except the 19 described below. An IHO extended Doodson number (XDO) converts by taking 5 from D₂ to D₆ and replacing D₇ with 5 − D₇. That shifts the argument by (D₁ + D₇ − 5) × 180°, which is a whole turn for most lines, but not for the 23 where D₁ + D₇ is even, such as S1, M3, S3 and M7. Each of those keeps the phase that matches Schureman: S1's IHO row `1 645 555` converts to Schureman's T, while M3 (`3 555 557`), S3 (`3 825 557`) and M7 (`7 555 557`) take the IHO phase unconverted, which in noon-τ coefficients is a last number of 0. The other 19 keep the converted phase until a source shows otherwise ([#241](https://github.com/openwatersio/slackwater/issues/241)). `V0` is the dot product of the coefficients with the arguments at the prediction's start time.
+Each constituent in `data.json` carries Doodson coefficients on `[τ, s, h, p, N′, p′, 90°]` with N′ = −N. τ is measured from noon, as in Schureman's equilibrium arguments, which NOAA's published phases use. The coefficients give Schureman's arguments for every line except the 17 described below. An IHO extended Doodson number (XDO) converts by taking 5 from D₂ to D₆ and replacing D₇ with 5 − D₇. That shifts the argument by (D₁ + D₇ − 5) × 180°, which is a whole turn for most lines, but not for the 21 where D₁ + D₇ is even, such as S1, M3, S3 and M7. Each of those keeps the phase that matches Schureman: S1's IHO row `1 645 555` converts to Schureman's T, while M3 (`3 555 557`), S3 (`3 825 557`) and M7 (`7 555 557`) take the IHO phase unconverted, which in noon-τ coefficients is a last number of 0. The other 17 keep the converted phase until a source shows otherwise ([#241](https://github.com/openwatersio/slackwater/issues/241)). `V0` is the dot product of the coefficients with the arguments at the prediction's start time.
 
 The phase constants were spot-checked against Schureman's Table 2. That covered K1 (T + h − 90°), O1 (T − 2s + h + 90°), P1, Q1, 2Q1, J1, OO1, L2 (2T − s + 2h − p + 180°), M3, MK3, T2 and R2, and all of them match.
 
@@ -72,7 +72,7 @@ Schureman (§126) also notes that the M1 node factors in general use leave out a
 
 ## Compound constituents
 
-Compound members in `data.json` follow IHO Annex B:
+Compound members in `data.json` follow IHO Annex B, except for NOAA's compounds at Anchorage, which follow NOAA's compositions ([constituent names](constituent-names.md#noaas-shallow-water-compounds)):
 
 1. Parse the name into letters with multipliers, distributing a parenthesised multiplier over the group.
 2. Map each letter to its species: M, S, N, T, R, L, ν and λ are semidiurnal; O, P, Q and J are diurnal; K is K2 or K1.
@@ -82,7 +82,7 @@ MA and MB annual variants take their base M constituent's members, as Annex B sa
 
 Annex B can't express everything the IHO table names. Some names it can't parse, some decompose into members whose speeds don't match the table, and some need S1, P1 or M1 rather than the semidiurnal letter. [#361](https://github.com/openwatersio/slackwater/issues/361) lists them. The members only supply nodal corrections, except for constituents with null `coefficients`, where they also supply `V0`.
 
-The IHO table sets each compound's phase digit directly, and for some compounds it differs from the sum of the members' digits by 90° or 180°. That only matters for station phases produced by software that sums member arguments ([#362](https://github.com/openwatersio/slackwater/issues/362)).
+The IHO table sets each compound's phase digit directly, and for some compounds it differs from the sum of the members' digits by 90° or 180°. That only matters for station phases produced by software that sums member arguments ([#362](https://github.com/openwatersio/slackwater/issues/362)). NOAA's software does, so its Anchorage compounds take the sum of their members' arguments.
 
 ## Checking changes
 

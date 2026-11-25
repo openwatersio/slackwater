@@ -13,7 +13,7 @@ export interface ConstituentDefinition {
   /**
    * Doodson numbers for τ, s, h, p, N′ and p′, then the multiple of 90° in
    * the phase, with τ from noon. Catalog arguments are Schureman's except for
-   * 19 lines whose phase is unsettled (#241). Null for a compound whose
+   * 17 lines whose phase is unsettled (#241). Null for a compound whose
    * argument is the sum of its members' arguments.
    */
   coefficients: Coefficients | null;

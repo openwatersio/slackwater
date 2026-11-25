@@ -271,9 +271,12 @@
   {
     "name": "MP1",
     "speed": 14.0251729,
-    "coefficients": [1, -1, 2, 0, 0, 0, 0],
+    "coefficients": [1, -1, 2, 0, 0, 0, -1],
     "aliases": [],
-    "members": [["M2", 1]]
+    "members": [
+      ["M2", 1],
+      ["P1", -1]
+    ]
   },
   {
     "name": "tau1",
@@ -412,7 +415,7 @@
   {
     "name": "RP1",
     "speed": 15.0821353,
-    "coefficients": [1, 1, 1, 0, 0, -1, 1],
+    "coefficients": [1, 1, 1, 0, 0, -1, -1],
     "aliases": [],
     "members": [
       ["R2", 1],
@@ -572,7 +575,19 @@
     "name": "3MS2",
     "speed": 26.9523127,
     "coefficients": [2, -4, 4, 0, 0, 0, 0],
-    "aliases": ["MLN2S2"]
+    "aliases": []
+  },
+  {
+    "name": "MLN2S2",
+    "speed": 26.9523127,
+    "coefficients": [2, -4, 4, 0, 0, 0, -2],
+    "aliases": [],
+    "members": [
+      ["M2", 1],
+      ["L2", 1],
+      ["N2", 1],
+      ["S2", -2]
+    ]
   },
   {
     "name": "3M2S2",
@@ -800,7 +815,7 @@
   {
     "name": "MKL2S2",
     "speed": 28.5947204,
-    "coefficients": [2, -1, 4, -1, 0, 0, 0],
+    "coefficients": [2, -1, 4, -1, 0, 0, -2],
     "aliases": [],
     "members": [
       ["M2", 1],
@@ -1657,7 +1672,7 @@
   {
     "name": "ML4",
     "speed": 58.5125832,
-    "coefficients": [4, 1, 0, -1, 0, 0, 0],
+    "coefficients": [4, 1, 0, -1, 0, 0, -2],
     "aliases": [],
     "members": [
       ["M2", 1],
@@ -2031,7 +2046,7 @@
   {
     "name": "MSK5",
     "speed": 74.0251729,
-    "coefficients": [5, 3, -2, 0, 0, 0, 0],
+    "coefficients": [5, 3, -2, 0, 0, 0, -1],
     "aliases": [],
     "members": [
       ["M2", 1],
@@ -2042,11 +2057,12 @@
   {
     "name": "3KM5",
     "speed": 74.1073102,
-    "coefficients": [5, 3, 0, 0, 0, 0, 1],
+    "coefficients": [5, 3, 0, 0, 0, 0, -1],
     "aliases": [],
     "members": [
-      ["K1", 3],
-      ["M2", 1]
+      ["K1", 1],
+      ["M2", 1],
+      ["K2", 1]
     ]
   },
   {
@@ -2140,10 +2156,22 @@
     "name": "3MNS6",
     "speed": 85.3920423,
     "coefficients": [6, -3, 2, 1, 0, 0, 0],
-    "aliases": ["2NMLS6"],
+    "aliases": [],
     "members": [
       ["M2", 3],
       ["N2", 1],
+      ["S2", -1]
+    ]
+  },
+  {
+    "name": "2NMLS6",
+    "speed": 85.3920423,
+    "coefficients": [6, -3, 2, 1, 0, 0, -2],
+    "aliases": [],
+    "members": [
+      ["N2", 2],
+      ["M2", 1],
+      ["L2", 1],
       ["S2", -1]
     ]
   },
@@ -2203,9 +2231,21 @@
     "name": "4MS6",
     "speed": 85.936417,
     "coefficients": [6, -2, 2, 0, 0, 0, 0],
-    "aliases": ["2MLNS6"],
+    "aliases": [],
     "members": [
       ["M2", 4],
+      ["S2", -1]
+    ]
+  },
+  {
+    "name": "2MLNS6",
+    "speed": 85.936417,
+    "coefficients": [6, -2, 2, 0, 0, 0, -2],
+    "aliases": [],
+    "members": [
+      ["M2", 2],
+      ["L2", 1],
+      ["N2", 1],
       ["S2", -1]
     ]
   },
@@ -2247,10 +2287,21 @@
     "name": "2Mnu6",
     "speed": 86.4807917,
     "coefficients": [6, -1, 2, -1, 0, 0, 0],
-    "aliases": ["2Mν6", "3MLS6"],
+    "aliases": ["2Mν6"],
     "members": [
       ["M2", 2],
       ["nu2", 1]
+    ]
+  },
+  {
+    "name": "3MLS6",
+    "speed": 86.4807917,
+    "coefficients": [6, -1, 2, -1, 0, 0, -2],
+    "aliases": [],
+    "members": [
+      ["M2", 3],
+      ["L2", 1],
+      ["S2", -1]
     ]
   },
   {
@@ -2812,10 +2863,21 @@
     "name": "3Mnu8",
     "speed": 115.4648959,
     "coefficients": [8, -1, 2, -1, 0, 0, 0],
-    "aliases": ["3Mν8", "4MLS8"],
+    "aliases": ["3Mν8"],
     "members": [
       ["M2", 3],
       ["nu2", 1]
+    ]
+  },
+  {
+    "name": "4MLS8",
+    "speed": 115.4648959,
+    "coefficients": [8, -1, 2, -1, 0, 0, -2],
+    "aliases": [],
+    "members": [
+      ["M2", 4],
+      ["L2", 1],
+      ["S2", -1]
     ]
   },
   {
@@ -2880,7 +2942,7 @@
   {
     "name": "3ML8",
     "speed": 116.4807917,
-    "coefficients": [8, 1, 0, -1, 0, 0, 0],
+    "coefficients": [8, 1, 0, -1, 0, 0, -2],
     "aliases": [],
     "members": [
       ["M2", 3],
