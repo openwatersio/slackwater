@@ -2,6 +2,8 @@
 
 Contributing guidelines for humans and AI agents.
 
+Every change follows the org-wide [rigor rules](https://github.com/openwatersio/.github/blob/main/docs/agents/rigor.md). The first of them: when something fails or looks wrong, find the cause and fix it there instead of working around it.
+
 ## Project Overview
 
 Slackwater is a TypeScript tide and current prediction engine split into multiple `packages/*` in a monorepo:
