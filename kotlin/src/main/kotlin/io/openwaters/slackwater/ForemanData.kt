@@ -47,8 +47,7 @@ internal val foremanSatellites: Map<String, List<ForemanSatellite>> = linkedMapO
     "R2" to listOf<ForemanSatellite>(ForemanSatellite(0.0, 0.0, 2.0, 0.5, 0.2535, 0.0), ForemanSatellite(0.0, -1.0, 2.0, 0.0, 0.0141, 0.0)),
     "K2" to listOf<ForemanSatellite>(ForemanSatellite(-1.0, 0.0, 0.0, 0.75, 0.0024, 2.0), ForemanSatellite(-1.0, -1.0, 0.0, 0.75, 0.0004, 2.0), ForemanSatellite(0.0, 1.0, 0.0, 0.5, 0.0128, 0.0), ForemanSatellite(0.0, -1.0, 0.0, 0.0, 0.298, 0.0), ForemanSatellite(0.0, -2.0, 0.0, 0.0, 0.0324, 0.0)),
     "eta2" to listOf<ForemanSatellite>(ForemanSatellite(0.0, 1.0, 0.0, 0.5, 0.0187, 0.0), ForemanSatellite(0.0, -1.0, 0.0, 0.0, 0.4355, 0.0), ForemanSatellite(0.0, -2.0, 0.0, 0.0, 0.0467, 0.0), ForemanSatellite(1.0, 0.0, 0.0, 0.75, 0.0747, 2.0), ForemanSatellite(1.0, -1.0, 0.0, 0.75, 0.0482, 2.0), ForemanSatellite(1.0, -2.0, 0.0, 0.75, 0.0093, 2.0), ForemanSatellite(2.0, 0.0, 0.0, 0.5, 0.0078, 0.0)),
-    "M3" to listOf<ForemanSatellite>(ForemanSatellite(0.0, 1.0, 0.0, 0.5, 0.0564, 0.0)),
-    "M1" to listOf<ForemanSatellite>(ForemanSatellite(-2.0, 2.0, 0.0, 0.5, 0.0057, 0.0), ForemanSatellite(-2.0, 1.0, 0.0, 0.0, 0.0665, 0.0), ForemanSatellite(-2.0, 0.0, 0.0, 0.0, 0.3596, 0.0), ForemanSatellite(-1.0, 1.0, 0.0, 0.75, 0.0331, 1.0), ForemanSatellite(-1.0, 0.0, 0.0, 0.25, 0.2227, 1.0), ForemanSatellite(-1.0, -1.0, 0.0, 0.75, 0.029, 1.0), ForemanSatellite(0.0, 1.0, 0.0, 0.5, 0.029, 0.0), ForemanSatellite(0.0, -1.0, 0.0, 0.0, 0.2004, 0.0), ForemanSatellite(0.0, -2.0, 0.0, 0.5, 0.0054, 0.0))
+    "M3" to listOf<ForemanSatellite>(ForemanSatellite(0.0, 1.0, 0.0, 0.5, 0.0564, 0.0))
 )
 
 /** Shallow-water lines as products of main lines, each with its power. */

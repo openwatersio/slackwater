@@ -1,4 +1,4 @@
-import astro from "./astronomy/index.js";
+import astro, { type AstroData } from "./astronomy/index.js";
 import { constituentModels } from "./constituents/index.js";
 import type { Constituent, ConstituentDefinition } from "./constituents/types.js";
 import type { HarmonicConstituent } from "./harmonics/index.js";
@@ -141,15 +141,34 @@ export function fit(
 
   // Adapted from https://github.com/openwatersio/tide-database/tree/main/packages/harmonic-analysis.
   // Each year's arguments at January 1 and corrections at July 2, by constituent name.
-  const years = new Map<number, Map<string, { v: number; f: number; u: number }>>();
-  const yearly = (year: number, model: Constituent) => {
-    let terms = years.get(year);
-    if (!terms) years.set(year, (terms = new Map()));
+  const years = new Map<
+    number,
+    {
+      startMs: number;
+      start: AstroData;
+      middle: AstroData;
+      terms: Map<string, { v: number; f: number; u: number }>;
+    }
+  >();
+  const yearOf = (year: number) => {
+    let entry = years.get(year);
+    if (!entry) {
+      const startDate = utcDate(year, 0, 1);
+      entry = {
+        startMs: startDate.getTime(),
+        start: astro(startDate),
+        middle: astro(utcDate(year, 6, 2)),
+        terms: new Map(),
+      };
+      years.set(year, entry);
+    }
+    return entry;
+  };
+  const yearly = ({ start, middle, terms }: ReturnType<typeof yearOf>, model: Constituent) => {
     let term = terms.get(model.name);
     if (!term) {
-      const start = astro(utcDate(year, 0, 1));
       // The p a formula takes off is the argument's, at January 1. Foreman's M1 takes none off.
-      const { f, u } = model.correction(astro(utcDate(year, 6, 2)), fundamentals, start);
+      const { f, u } = model.correction(middle, fundamentals, start);
       terms.set(model.name, (term = { v: model.value(start), f, u }));
     }
     return term;
@@ -164,8 +183,8 @@ export function fit(
         v: model.value(state),
       });
     }
-    const year = time.getUTCFullYear();
-    const hours = (time.getTime() - utcDate(year, 0, 1).getTime()) / 3600000;
+    const year = yearOf(time.getUTCFullYear());
+    const hours = (time.getTime() - year.startMs) / 3600000;
     return (model: Constituent) => {
       const { v, f, u } = yearly(year, model);
       return { v: v + model.speed * hours, f, u };

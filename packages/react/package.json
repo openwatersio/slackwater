@@ -1,6 +1,6 @@
 {
   "name": "@slackwater/react",
-  "version": "1.0.0-beta.8",
+  "version": "1.0.0-beta.9",
   "description": "React components for tide predictions",
   "keywords": [
     "slackwater",
@@ -57,8 +57,8 @@
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",
-    "@slackwater/engine": "^1.0.0-beta.13",
-    "@tanstack/react-query": "^5.107.1",
+    "@slackwater/engine": "^1.0.0-beta.14",
+    "@tanstack/react-query": "^5.108.0",
     "astronomy-engine": "^2.1.19"
   },
   "devDependencies": {
@@ -66,13 +66,13 @@
     "@storybook/react-vite": "^10.6.7",
     "@tailwindcss/vite": "^4.3.5",
     "@testing-library/react": "^16.0.0",
-    "@testing-library/user-event": "^14.6.10",
+    "@testing-library/user-event": "^14.6.12",
     "@types/geojson": "^7946.0.16",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitest/browser-playwright": "^5.0.4",
-    "axe-core": "^4.11.1",
-    "maplibre-gl": "^6.18.0",
+    "axe-core": "^4.14.1",
+    "maplibre-gl": "^6.19.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-map-gl": "^8.1.1",

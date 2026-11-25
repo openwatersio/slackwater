@@ -174,6 +174,113 @@ describe("Base constituent definitions", () => {
     expect(constituents.MP1.speed).toBeCloseTo(14.0251729, 7);
   });
 
+  // NOAA fits Anchorage (9455920) with these compounds, each argument the sum of its
+  // members' arguments, so L2 lends +180°, K1 −90° and P1 +90°.
+  it.each([
+    [
+      "MP1",
+      [
+        ["M2", 1],
+        ["P1", -1],
+      ],
+    ],
+    [
+      "MLN2S2",
+      [
+        ["M2", 1],
+        ["L2", 1],
+        ["N2", 1],
+        ["S2", -2],
+      ],
+    ],
+    [
+      "MKL2S2",
+      [
+        ["M2", 1],
+        ["K2", 1],
+        ["L2", 1],
+        ["S2", -2],
+      ],
+    ],
+    [
+      "ML4",
+      [
+        ["M2", 1],
+        ["L2", 1],
+      ],
+    ],
+    [
+      "MSK5",
+      [
+        ["M2", 1],
+        ["S2", 1],
+        ["K1", 1],
+      ],
+    ],
+    [
+      "3KM5",
+      [
+        ["K1", 1],
+        ["M2", 1],
+        ["K2", 1],
+      ],
+    ],
+    [
+      "2NMLS6",
+      [
+        ["N2", 2],
+        ["M2", 1],
+        ["L2", 1],
+        ["S2", -1],
+      ],
+    ],
+    [
+      "2MLNS6",
+      [
+        ["M2", 2],
+        ["L2", 1],
+        ["N2", 1],
+        ["S2", -1],
+      ],
+    ],
+    [
+      "3MLS6",
+      [
+        ["M2", 3],
+        ["L2", 1],
+        ["S2", -1],
+      ],
+    ],
+    [
+      "4MLS8",
+      [
+        ["M2", 4],
+        ["L2", 1],
+        ["S2", -1],
+      ],
+    ],
+    [
+      "3ML8",
+      [
+        ["M2", 3],
+        ["L2", 1],
+      ],
+    ],
+  ] as const)("builds NOAA's %s from its members' arguments", (name, members) => {
+    const c = constituents[name];
+    expect(c.members.map(({ constituent, factor }) => [constituent.name, factor])).toEqual(members);
+    const sum = members.reduce((v, [m, k]) => v + k * constituents[m].value(testAstro), 0);
+    const turns = (c.value(testAstro) - sum) / 360;
+    expect(turns - Math.round(turns)).toBeCloseTo(0, 9);
+  });
+
+  // NOAA's RP1 is IHO's turned 180°, so its argument is psi1's, not the sum of R2−P1.
+  it("gives NOAA's RP1 psi1's argument in an entry of its own", () => {
+    expect(constituents.RP1).not.toBe(constituents.psi1);
+    expect(constituents.RP1.coefficients).toEqual(constituents.psi1.coefficients);
+    expect(constituents.RP1.correction(testAstro)).toEqual({ f: 1, u: 0 });
+  });
+
   // Long-period compounds with explicit members from data.json
   it.each([
     {
@@ -301,7 +408,6 @@ describe("Compound members", () => {
     "sigma1",
     "Q1",
     "rho1",
-    "MP1",
     "tau1",
     "chi1",
     "phi1",

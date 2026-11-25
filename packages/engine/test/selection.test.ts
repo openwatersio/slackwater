@@ -167,6 +167,48 @@ describe("selectConstituents", () => {
     ).toContain("H1");
   });
 
+  test("keeps a caller's definition that takes a catalog line's alias", () => {
+    const names = (
+      definitions: NonNullable<Parameters<typeof selectConstituents>[1]>["definitions"],
+    ) =>
+      selectConstituents(record(15), {
+        nodeCorrections: "foreman",
+        latitude: 59.9,
+        definitions,
+      }).selection.map((s) => s.name);
+    const coefficients: [number, number, number, number, number, number, number] = [
+      0, 0, 1, 0, 0, 0, 0,
+    ];
+    expect(names([{ name: "SA", speed: 0.0410686, coefficients }])).toContain("Sa");
+    expect(
+      names([{ name: "Solar1", aliases: ["S1"], speed: 15, coefficients: [1, 1, -1, 0, 0, 0, 0] }]),
+    ).toContain("S1");
+    expect(
+      names([{ name: "OO2", speed: 27.3416965, coefficients: [2, -3, 0, 1, 0, 0, -2] }]),
+    ).toContain("OQ2");
+  });
+
+  test("refuses an explicit Sa with Foreman's set, whatever the record drops", () => {
+    expect(() =>
+      selectConstituents(record(1), {
+        nodeCorrections: "foreman",
+        latitude: 59.9,
+        candidates: [{ name: "Sa", comparison: "Z0" }],
+      }),
+    ).toThrow("notForemanLine");
+  });
+
+  test("throws invalidDefinition for definitions that aren't a list", () => {
+    for (const nodeCorrections of [undefined, "foreman"] as const)
+      expect(() =>
+        selectConstituents(record(15), {
+          nodeCorrections,
+          latitude: nodeCorrections && 59.9,
+          definitions: {} as never,
+        }),
+      ).toThrow(RangeError);
+  });
+
   test("keeps what fifteen days resolve, as Parker's pairs say", () => {
     const { selection } = selectConstituents(record(15));
     const entry = (name: string) => selection.find((s) => s.name === name)!;

@@ -90,6 +90,9 @@ private func corrections(_ latitude: Double) throws -> Catalog {
     for name in ["Sa", "Mf", "unknown"] { #expect(catalog.correction(name, a) == (1, 0), "\(name)") }
     // The catalog's M1 is the line t_tide calls NO1.
     #expect(catalog.correction("M1", a) == catalog.correction("NO1", a))
+    // A caller's own H1 or H2 takes the line t_tide means by it.
+    #expect(catalog.correction("H1", a) == catalog.correction("alpha2", a))
+    #expect(catalog.correction("H2", a) == catalog.correction("M(KS)2", a))
 }
 
 @Test(arguments: [Double.nan, 91, -90.5])

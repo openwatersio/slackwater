@@ -77,6 +77,9 @@ class ForemanTest {
         for (name in listOf("Sa", "Mf", "unknown")) assertEquals(NodeCorrection(1.0, 0.0), catalog.correction(name, a), name)
         // The catalog's M1 is the line t_tide calls NO1.
         assertEquals(catalog.correction("NO1", a), catalog.correction("M1", a))
+        // A caller's own H1 or H2 takes the line t_tide means by it.
+        assertEquals(catalog.correction("alpha2", a), catalog.correction("H1", a))
+        assertEquals(catalog.correction("M(KS)2", a), catalog.correction("H2", a))
     }
 
     @Test fun rejectsAnInvalidLatitude() {

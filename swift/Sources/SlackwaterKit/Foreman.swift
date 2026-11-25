@@ -58,12 +58,16 @@ struct ForemanCorrections: Sendable {
         factors = [1, 0.36309 * (1 - 5 * s * s) / s, 2.59808 * s]
     }
 
+    /// Lines the catalog names one way and t_tide another: the catalog's M1 is t_tide's NO1.
+    private static let aliases = ["M1": "NO1", "H1": "alpha2", "H2": "M(KS)2"]
+
     /// f and u for a line Foreman gives, or nil. `perigeeTurns` is as in `ihoCorrection`.
     func correction(_ name: String, _ a: Astro, perigeeTurns: Double) -> (f: Double, u: Double)? {
-        if let satellites = table.satellites[name] {
+        let line = Self.aliases[name] ?? name
+        if let satellites = table.satellites[line] {
             let c = main(satellites, a)
-            // Foreman's M1 (his NO1) argument holds one turn of p, as the catalog's does.
-            guard name == "M1" || name == "NO1" else { return c }
+            // Foreman's NO1 argument holds one turn of p, as the catalog's M1 does.
+            guard line == "NO1" else { return c }
             return (c.f, wrapDegrees(c.u - (perigeeTurns - 1) * a.p))
         }
         guard let members = table.products[name] else { return nil }

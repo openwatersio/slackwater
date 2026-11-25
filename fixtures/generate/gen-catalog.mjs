@@ -48,9 +48,9 @@ export function validateForeman({ satellites, products, lines }, entries) {
   }
   for (const [name, members] of Object.entries(products)) {
     if (!names.has(name)) throw new Error(`Foreman line not in catalog: ${name}`);
-    // M1 and NO1 take a perigee count, which the engines don't pass a product's members.
+    // NO1 takes a perigee count, which the engines don't pass a product's members.
     for (const [member, power] of members) {
-      if (!Object.hasOwn(satellites, member) || member === 'M1' || member === 'NO1' || !Number.isFinite(power)) throw new Error(`invalid product: ${name}`);
+      if (!Object.hasOwn(satellites, member) || member === 'NO1' || !Number.isFinite(power)) throw new Error(`invalid product: ${name}`);
     }
   }
   // Keys are Foreman's names: Sa, S1 and OQ2 are catalog names for other lines, and H1 and H2 aren't

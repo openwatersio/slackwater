@@ -28,6 +28,26 @@ TICON uses some names that aren't in the IHO list, or that mean a different line
 
 3N2 and 3L2 come from the degree-3 part of the tide-generating potential. A lunar line's degree shows in its Doodson digits: subtract the offset of 5 from every digit after the first and add up the coefficients. The total is even for degree-2 terms and odd for degree-3 terms. That gives 1 for 245.555 and 3 for 265.555, against 2 for N2 at 245.655. Degree-3 terms of species 2 are sine terms, so their arguments carry a phase constant of plus or minus 90°. TICON's published phases need +90° for 3N2 and −90° for 3L2. The 3L2 entry has no phase constant yet; see [open phase gaps](#open-phase-gaps).
 
+## NOAA's shallow-water compounds
+
+NOAA publishes 120 constituents for Anchorage (9455920), many of them compounds no other NOAA station uses. NOAA builds each compound's argument as the sum of its members' arguments, so a member's phase constant carries into the compound: L2 lends +180°, K1 −90° and P1 +90°. The compound takes its members' nodal corrections the same way. [Flater's congen notes](https://flaterco.com/files/xtide/congen-1.7.tar.xz) (`congen_input.txt`, the 2018 revision) give NOAA's compositions for this station.
+
+| Name   | Members      | Engine definition                      |
+| ------ | ------------ | -------------------------------------- |
+| MLN2S2 | M2+L2+N2−2S2 | Own entry, on 3MS2's line              |
+| 2NMLS6 | 2N2+M2+L2−S2 | Own entry, on 3MNS6's line             |
+| 2MLNS6 | 2M2+L2+N2−S2 | Own entry, on 4MS6's line              |
+| 3MLS6  | 3M2+L2−S2    | Own entry, on 2Mν6's line              |
+| 4MLS8  | 4M2+L2−S2    | Own entry, on 3Mν8's line              |
+| 3KM5   | K1+M2+K2     | IHO's list has 3K1+M2, about 180° away |
+| RP1    | R2−P1        | psi1's argument: IHO's RP1 turned 180° |
+
+ML4, MKL2S2, 3ML8, MSK5 and MP1 follow the same rule under their own names. RP1 is the exception: its argument is 180° from the sum of R2−P1, as Flater's notes record, and both members have unity nodal corrections in the IHO and Schureman sets.
+
+These definitions come from fitting Anchorage's hourly observations for 2012 to 2016 with NOAA's method, in slackwater-database's calibration against agency constants ([openwatersio/slackwater-database#426](https://github.com/openwatersio/slackwater-database/pull/426)). With them, every one of these compounds fits within 0.4 mm and 0.4° of NOAA's published constants. MP1 departs from congen's notes, which give it J1's nodal correction; with that, MP1 fits 12 mm and 5° from NOAA's constants. JMA's MP1 at Uno fits 100° from its published phase without MP1's −90° phase constant and 10° with it, so JMA builds MP1 the way NOAA does.
+
+NOAA's SIGMA1 at Anchorage fits 7 mm and 5° from NOAA's constants with O1's nodal correction, and within 0.2 mm with O1's correction applied twice. The catalog keeps O1's correction once, under every spelling of sigma1: JMA's sigma1 at Uno fits within 2° of its published phase with it, and slackwater-database matches constituent names without regard to case, so `SIGMA1` can't name a different line from `sigma1`. Anchorage is the only NOAA station that publishes SIGMA1.
+
 ## The MKS2 and 3N2 rows in Table 1
 
 Table 1 of the TICON-4 manual lists MKS2 at 245.555 (28.4350877°/h) and 3N2 at 257.555 (29.0662415°/h). TICON's published constants describe the opposite:

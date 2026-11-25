@@ -18,6 +18,13 @@ export const foremanLines: Readonly<Record<string, string>> = {
   OQ2: "OQ2_KV",
 };
 
+/** Lines the catalog names one way and t_tide another: the catalog's M1 is t_tide's NO1. */
+const aliases: Readonly<Record<string, string>> = {
+  M1: "NO1",
+  H1: "alpha2",
+  H2: "M(KS)2",
+};
+
 /** Changes in p, N and p′, phase in cycles, amplitude ratio, and latitude factor kind. */
 type Satellite = [number, number, number, number, number, number];
 
@@ -34,33 +41,45 @@ export function foreman(latitude: number): Fundamentals {
   const sinLat = Math.sin(d2r * (Math.abs(latitude) < 5 ? (latitude < 0 ? -5 : 5) : latitude));
   const latitudeFactor = [1, (0.36309 * (1 - 5 * sinLat * sinLat)) / sinLat, 2.59808 * sinLat];
 
-  const main = (satellites: Satellite[]) => (a: AstroData) => {
-    let re = 1;
-    let im = 0;
-    for (const [dp, dN, dpp, phase, ratio, kind] of satellites) {
-      const angle = d2r * (dp * a.p.value + dN * a.N.value + dpp * a.pp.value + 360 * phase);
-      const r = ratio * latitudeFactor[kind];
-      re += r * Math.cos(angle);
-      im += r * Math.sin(angle);
-    }
-    return { f: Math.hypot(re, im), u: r2d * Math.atan2(im, re) };
+  const main = (satellites: Satellite[]) => {
+    // Shallow-water products read their main lines again for each sample, so each sum is kept.
+    const sums = new WeakMap<AstroData, NodalCorrection>();
+    return (a: AstroData) => {
+      const kept = sums.get(a);
+      if (kept) return kept;
+      let re = 1;
+      let im = 0;
+      for (const [dp, dN, dpp, phase, ratio, kind] of satellites) {
+        const angle = d2r * (dp * a.p.value + dN * a.N.value + dpp * a.pp.value + 360 * phase);
+        const r = ratio * latitudeFactor[kind];
+        re += r * Math.cos(angle);
+        im += r * Math.sin(angle);
+      }
+      const sum = { f: Math.hypot(re, im), u: r2d * Math.atan2(im, re) };
+      sums.set(a, sum);
+      return sum;
+    };
   };
 
+  // Kept sums are shared, so products read them here and callers get their own copy.
+  const sums: Record<string, (a: AstroData) => NodalCorrection> = {};
   const fundamentals: Fundamentals = {};
   for (const [name, satellites] of Object.entries(table.satellites)) {
-    const correction = main(satellites as Satellite[]);
-    // Foreman's M1 (his NO1) argument holds one turn of p, as the catalog's does.
+    const correction = (sums[name] = main(satellites as Satellite[]));
+    // Foreman's NO1 argument holds one turn of p, as the catalog's M1 does.
     fundamentals[name] =
-      name === "M1" || name === "NO1"
-        ? (a, turns, epoch = a) => withoutPerigee(correction(a), epoch, turns - 1)
-        : correction;
+      name === "NO1"
+        ? (a, turns = 1, epoch = a) => withoutPerigee(correction(a), epoch, turns - 1)
+        : (a) => ({ ...correction(a) });
   }
+  // t_tide's names for catalog lines, so a constituent by the catalog's name or t_tide's takes them.
+  for (const [alias, name] of Object.entries(aliases)) fundamentals[alias] = fundamentals[name];
   for (const [name, members] of Object.entries(table.products))
-    // Only M1 and NO1 read the perigee count, and no product has them, so members get none.
+    // No product has NO1, the one line that reads the perigee count; gen-foreman.py checks it.
     fundamentals[name] = (a: AstroData): NodalCorrection =>
       (members as [string, number][]).reduce(
         ({ f, u }, [member, power]) => {
-          const c = fundamentals[member](a, 0);
+          const c = sums[member](a);
           return { f: f * c.f ** Math.abs(power), u: u + power * c.u };
         },
         { f: 1, u: 0 },

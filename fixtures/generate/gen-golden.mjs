@@ -113,9 +113,9 @@ write('extremes-midnight.json', {
 // ---- Task 6: Foreman's nodal corrections ----
 // Every line Foreman's tables give, each with its own amplitude and phase, so a wrong f or u on any
 // one of them shows in the heights, and catalog lines they don't give, which fall back to their
-// members or to no correction. UTide's own f and u are in foreman-utide.json.
+// members or to no correction, and M1, which takes t_tide's NO1 by alias. UTide's own f and u are in foreman-utide.json.
 const foreman = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'packages', 'engine', 'src', 'node-corrections', 'foreman.json'), 'utf8'));
-const foremanSet = [...Object.keys(foreman.satellites), ...Object.keys(foreman.products), 'MSo', 'M1A', 'M1B', 'M1C', '2MN2', '3MS2'].map((name, i) => ({
+const foremanSet = [...Object.keys(foreman.satellites), ...Object.keys(foreman.products), 'M1', 'MSo', 'M1A', 'M1B', 'M1C', '2MN2', '3MS2'].map((name, i) => ({
   name, amplitude: Number((0.05 + 0.01 * (i % 7)).toFixed(2)), phase: (i * 37) % 360,
 }));
 const foremanStart = new Date('2024-03-10T00:00:00Z');

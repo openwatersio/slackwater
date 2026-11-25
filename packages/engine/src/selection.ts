@@ -8,6 +8,7 @@ import {
   type HarmonicFit,
   type HarmonicSample,
 } from "./fit.js";
+import { checkForemanLine } from "./node-corrections/resolve.js";
 
 export interface Candidate {
   name: string;
@@ -143,24 +144,33 @@ export function selectConstituents(
   samples: readonly HarmonicSample[],
   { candidates: given, rayleigh = 1, minSnr = 2, ...options }: SelectionOptions = {},
 ): SelectionResult {
-  // A caller's own definition keeps its name.
-  const defined = new Set(options.definitions?.map((d) => d.name));
-  const onForemanLine = (name: string) => (defined.has(name) ? name : (foremanLines[name] ?? name));
-  const candidates =
-    given ??
-    (options.nodeCorrections === "foreman"
-      ? foremanCandidates.flatMap(({ name, comparison }) => [
-          // Foreman's OQ2, which the shared list leaves out, is the catalog's OQ2_KV.
-          ...(name === "eps2" ? [{ name: "OQ2_KV", comparison: "eps2" }] : []),
-          { name: onForemanLine(name), comparison: comparison && onForemanLine(comparison) },
-        ])
-      : foremanCandidates);
   checkWeights(options.weights, samples.length);
   // Samples weighted zero are out of the record, so they don't stretch its span.
   const active = samples.filter((_, i) => !options.weights || options.weights[i] > 0);
   if (active.length < 2) throw new RangeError("invalidSamples");
   const catalog = constituentModels(options.definitions);
+  const base = constituentModels();
   const lookup = (name: string) => (Object.hasOwn(catalog, name) ? catalog[name] : undefined);
+  // A caller's own definition keeps its name, whether it holds the name or an alias of the entry.
+  const onForemanLine = (name: string) =>
+    lookup(name) !== (Object.hasOwn(base, name) ? base[name] : undefined)
+      ? name
+      : (foremanLines[name] ?? name);
+  const candidates =
+    given ??
+    (options.nodeCorrections === "foreman"
+      ? foremanCandidates.flatMap(({ name, comparison }) => [
+          // Foreman's OQ2, which the shared list leaves out, is the catalog's OQ2_KV.
+          ...(name === "eps2" ? [{ name: onForemanLine("OQ2"), comparison: "eps2" }] : []),
+          { name: onForemanLine(name), comparison: comparison && onForemanLine(comparison) },
+        ])
+      : foremanCandidates);
+  // An explicit list is checked before selection drops anything, so the answer doesn't depend on the record.
+  if (given && options.nodeCorrections === "foreman")
+    for (const { name } of given) {
+      const model = lookup(name);
+      if (model) checkForemanLine(name, model);
+    }
   const spanHours = (active[active.length - 1].time.getTime() - active[0].time.getTime()) / 3600000;
   const separated = (a: number, b: number) => (Math.abs(a - b) * spanHours) / 360 >= rayleigh;
   const steps = Float64Array.from(

@@ -26,8 +26,8 @@ describe("foreman", () => {
   // Foreman's set changes f and u only. The catalog's arguments are t_tide's except on these lines,
   // so their phases as t_tide publishes them differ by this much; the docs list them. t_tide's M7 is
   // 3.5 times M2's argument wrapped to a turn, so it flips between agreeing and 180° with the date.
-  const argumentOffsets: Record<string, number> = { O2: 180, "3KM5": 180, MSK5: 90 };
-  it("has UTide's arguments on every line but O2, 3KM5, MSK5 and M7", () => {
+  const argumentOffsets: Record<string, number> = { O2: 180 };
+  it("has UTide's arguments on every line but O2 and M7", () => {
     for (const { time, arguments: v } of reference) {
       const a = astro(new Date(time));
       for (const [name, utide] of Object.entries(v)) {
@@ -40,10 +40,7 @@ describe("foreman", () => {
   });
 
   it("has UTide's values for every line in the table", () => {
-    // M1 is a catalog name for t_tide's NO1, which UTide doesn't know by that name.
-    const lines = [...Object.keys(table.satellites), ...Object.keys(table.products)].filter(
-      (name) => name !== "M1",
-    );
+    const lines = [...Object.keys(table.satellites), ...Object.keys(table.products)];
     for (const { values } of reference) expect(Object.keys(values).sort()).toEqual(lines.sort());
   });
 
@@ -53,6 +50,37 @@ describe("foreman", () => {
     expect(constituents.M1.correction(a, fundamentals)).toEqual(
       constituents.NO1.correction(a, fundamentals),
     );
+  });
+
+  it("keeps each date's sums apart in one instance", () => {
+    const shared = foreman(60);
+    for (const when of ["2001-03-01T00:00:00Z", "2015-09-01T00:00:00Z"]) {
+      const a = astro(new Date(when));
+      expect(shared.M2(a, 0)).toEqual(foreman(60).M2(a, 0));
+      expect(shared.M4(a, 0)).toEqual(foreman(60).M4(a, 0));
+    }
+  });
+
+  it("gives each caller its own result, so changing one leaves the next alone", () => {
+    const a = astro(new Date("2024-01-01T00:00:00Z"));
+    const fundamentals = foreman(60);
+    const M4 = fundamentals.M4(a, 0);
+    fundamentals.M2(a, 0).f = 0;
+    expect(fundamentals.M2(a, 0).f).not.toBe(0);
+    expect(fundamentals.M4(a, 0)).toEqual(M4);
+  });
+
+  it("takes NO1's argument to hold one turn of p when no count is given", () => {
+    const a = astro(new Date("2010-05-01T00:00:00Z"));
+    const { NO1 } = foreman(60);
+    expect((NO1 as (astro: unknown) => unknown)(a)).toEqual(NO1(a, 1));
+  });
+
+  it("gives t_tide's H1 and H2 the corrections of the catalog's alpha2 and M(KS)2", () => {
+    const fundamentals = foreman(60);
+    expect(fundamentals.H1).toBe(fundamentals.alpha2);
+    expect(fundamentals.H2).toBe(fundamentals["M(KS)2"]);
+    expect(fundamentals.M1).toBe(fundamentals.NO1);
   });
 
   it("adds p back for an M1 argument without it, at the argument's epoch", () => {

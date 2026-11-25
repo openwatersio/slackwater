@@ -3,31 +3,32 @@ import { useExtremes } from "../hooks/use-extremes.js";
 import type { Extreme, Units } from "../types.js";
 import { dailySwingRanges, outlookWeek, outlookWindow } from "../utils/standing.js";
 import { formatHeight, heightUnit } from "../utils/tide.js";
-import { startOfDay } from "../utils/time.js";
-
-/** A moment, or undefined for none or for a value that isn't a finite number. */
-const moment = (time: number | undefined) =>
-  time !== undefined && Number.isFinite(time) ? time : undefined;
+import { readableMoment, startOfDay } from "../utils/time.js";
 
 /**
  * The station-local midnight the Range tile's seven days start on. The bars
  * keep their week while the moment is in its first five days, so they don't
  * shift under a reader moving there. A moment on the sixth day or later
  * starts the week on its own day, and one before the week starts it four days
- * before the moment's day. With no `time` it is `anchor`, a station-local
- * midnight.
+ * before the moment's day. With no `time` it is the start of `anchor`'s
+ * station-local day; `anchor` may be any moment in that day, but must be a
+ * finite one.
  */
 export function useOutlookWeek(anchor: number, time: number | undefined, timezone: string): number {
-  const [held, setHeld] = useState({ anchor, week: anchor });
-  const at = moment(time);
+  const start = startOfDay(anchor, timezone);
+  const [held, setHeld] = useState({ start, week: start });
+  const at = readableMoment(time);
   const week =
-    held.anchor !== anchor || at === undefined ? anchor : outlookWeek(held.week, at, timezone);
-  if (held.anchor !== anchor || held.week !== week) setHeld({ anchor, week });
+    held.start !== start || at === undefined ? start : outlookWeek(held.week, at, timezone);
+  if (held.start !== start || held.week !== week) setHeld({ start, week });
   return week;
 }
 
+/** For a week that failed to load: one array, so the bars' memo holds across frames. */
+const NONE: Extreme[] = [];
+
 export interface RangeOutlookProps {
-  /** The station-local midnight of the first day, from `useOutlookWeek`. */
+  /** The first day, from `useOutlookWeek`; any moment in it is read as its station-local start. */
   week: number;
   /** Highs and lows over `outlookWindow(week, timezone)`; absent draws no bars yet. */
   extremes?: Extreme[];
@@ -40,7 +41,15 @@ export interface RangeOutlookProps {
 }
 
 /** The Range tile's week: each day's biggest swing as a bar, after the app's range outlook. */
-export function RangeOutlook({ week, extremes, units, time, timezone, locale }: RangeOutlookProps) {
+export function RangeOutlook({
+  week: day,
+  extremes,
+  units,
+  time,
+  timezone,
+  locale,
+}: RangeOutlookProps) {
+  const week = startOfDay(day, timezone);
   const range = outlookWindow(week, timezone);
   const start = Date.parse(range.start);
   const end = Date.parse(range.end);
@@ -49,7 +58,7 @@ export function RangeOutlook({ week, extremes, units, time, timezone, locale }: 
     [extremes, start, end, week, timezone],
   );
   const biggest = Math.max(0.001, ...days.map((d) => d.range ?? 0));
-  const at = moment(time);
+  const at = readableMoment(time);
   const selected = at === undefined ? undefined : startOfDay(at, timezone);
   const weekday = new Intl.DateTimeFormat(locale, { timeZone: timezone, weekday: "narrow" });
   const date = new Intl.DateTimeFormat(locale, {
@@ -64,12 +73,13 @@ export function RangeOutlook({ week, extremes, units, time, timezone, locale }: 
         `${date.format(d.day)}: ${d.range === undefined ? "unavailable" : `${formatHeight(d.range, units, locale)} ${heightUnit(units)}`}`,
     )
     .join("; ");
+  // Until its highs and lows arrive it holds its place and says nothing: there
+  // is no range to speak, and its days may not be the ones it will show.
+  const spoken = extremes
+    ? { role: "img", "aria-label": `Daily tide ranges: ${description}` }
+    : { "aria-hidden": true };
   return (
-    <div
-      className="flex h-[62px] w-[45%] shrink-0 items-end gap-[5px]"
-      role="img"
-      aria-label={`Daily tide ranges: ${description}`}
-    >
+    <div className="flex h-[62px] w-[45%] shrink-0 items-end gap-[5px]" {...spoken}>
       {days.map((d) => (
         <div
           key={d.day}
@@ -112,7 +122,9 @@ export function StationRangeOutlook({
   return (
     <RangeOutlook
       week={week}
-      extremes={predictions.data?.extremes}
+      // A week that never loaded speaks its days as unavailable rather than
+      // staying hidden; a failed refetch keeps the week already drawn.
+      extremes={predictions.data?.extremes ?? (predictions.error ? NONE : undefined)}
       units={predictions.data?.units ?? "meters"}
       time={time}
       timezone={timezone}
