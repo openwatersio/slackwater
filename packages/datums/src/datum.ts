@@ -1,12 +1,10 @@
 import {
+  constituents as catalog,
   createTidePredictor,
   type TidePredictionOptions,
   type HarmonicConstituent,
 } from "@slackwater/engine";
-import {
-  prepareDatumObservations,
-  type PreparedDatumObservations,
-} from "./observations.ts";
+import { prepareDatumObservations, type PreparedDatumObservations } from "./observations.js";
 
 export interface EpochSpec {
   end?: Date;
@@ -19,9 +17,16 @@ export interface Sample {
 }
 
 export type Datums = Record<string, number>;
-export type DatumPredictionOptions = Omit<
+export type DatumPredictionOptions = Omit<TidePredictionOptions, "prominenceThreshold">;
+
+/**
+ * The tide model's options for the observed reduction, which predicts only to
+ * fill gaps: the nodal corrections the constants were fitted under (with
+ * `latitude` for Foreman's) and any constituent definitions they need.
+ */
+export type DatumModelOptions = Pick<
   TidePredictionOptions,
-  "prominenceThreshold"
+  "nodeCorrections" | "latitude" | "definitions"
 >;
 
 export interface TidalDatumsResult {
@@ -33,7 +38,7 @@ export interface TidalDatumsResult {
 /** One full lunar nodal cycle (6798.383 days = 18.6130 years) */
 export const NODAL_CYCLE_DAYS = 6798.383;
 /** M2 angular speed (°/hr) — principal lunar semi-diurnal constituent */
-export const M2_SPEED = 28.9841042;
+export const M2_SPEED = catalog["M2"]!.speed;
 /** Mean tidal day: two M2 cycles (hours) */
 const M2_TIDAL_DAY_HOURS = (360 / M2_SPEED) * 2;
 
@@ -70,10 +75,11 @@ export function resolveEpoch({ end }: EpochSpec): {
   start: Date;
   end: Date;
 } {
-  if (!end) return { start: DATUM_EPOCH.start, end: DATUM_EPOCH.end };
+  // Fresh dates, so a caller changing a result can't move the pinned epoch.
+  if (!end) return { start: new Date(DATUM_EPOCH.start), end: new Date(DATUM_EPOCH.end) };
   const start = new Date(end);
   start.setUTCFullYear(start.getUTCFullYear() - EPOCH_YEARS);
-  return { start, end };
+  return { start, end: new Date(end) };
 }
 
 /**
@@ -101,11 +107,8 @@ function computeDatumsFromExtremes(extremes: Sample[], msl = 0): Datums {
   if (times.length === 0) {
     throw new Error("times array is empty");
   }
-  const firstTime = times[0];
-  const lastTime = times[times.length - 1];
-  if (!firstTime || !lastTime) {
-    throw new Error("times array is empty");
-  }
+  const firstTime = times[0]!;
+  const lastTime = times[times.length - 1]!;
 
   let dayStartTime = firstTime.getTime();
   let idx = 0;
@@ -126,27 +129,15 @@ function computeDatumsFromExtremes(extremes: Sample[], msl = 0): Datums {
       const completeDay = idxStart > 0 && idxEnd < times.length;
 
       for (let i = idxStart; i < idxEnd; i++) {
-        const hPrev = heights[i - 1];
-        const hCurr = heights[i];
-        const hNext = heights[i + 1];
+        // The first and last points have no neighbour to compare with.
+        if (i === 0 || i === heights.length - 1) continue;
+        const hPrev = heights[i - 1]!;
+        const hCurr = heights[i]!;
+        const hNext = heights[i + 1]!;
 
-        if (
-          hCurr !== undefined &&
-          hPrev !== undefined &&
-          hNext !== undefined &&
-          hCurr >= hPrev &&
-          hCurr >= hNext &&
-          (hCurr > hPrev || hCurr > hNext)
-        ) {
+        if (hCurr >= hPrev && hCurr >= hNext && (hCurr > hPrev || hCurr > hNext)) {
           highs.push(hCurr);
-        } else if (
-          hCurr !== undefined &&
-          hPrev !== undefined &&
-          hNext !== undefined &&
-          hCurr <= hPrev &&
-          hCurr <= hNext &&
-          (hCurr < hPrev || hCurr < hNext)
-        ) {
+        } else if (hCurr <= hPrev && hCurr <= hNext && (hCurr < hPrev || hCurr < hNext)) {
           lows.push(hCurr);
           const yr = times[i]!.getUTCFullYear();
           const prevMin = lowestLowByYear.get(yr);
@@ -159,30 +150,18 @@ function computeDatumsFromExtremes(extremes: Sample[], msl = 0): Datums {
       if (completeDay && highs.length > 0) {
         allHighs.push(...highs);
         highs.sort((a, b) => a - b);
-        // higher high
-        const hhVal = highs[highs.length - 1];
-        if (hhVal !== undefined) {
-          higherHighs.push(hhVal);
-        }
+        higherHighs.push(highs[highs.length - 1]!);
       }
 
       if (completeDay && lows.length > 0) {
         allLows.push(...lows);
         lows.sort((a, b) => a - b);
-        // lower low
-        const llVal = lows[0];
-        if (llVal !== undefined) {
-          lowerLows.push(llVal);
-        }
+        lowerLows.push(lows[0]!);
       }
     }
 
-    dayStartTime += tidalDayMs;
-
-    // ensure idx keeps up
-    while (idx < times.length && times[idx]!.getTime() < dayStartTime) {
-      idx++;
-    }
+    // The inner loop already left idx at the first point of the next day.
+    dayStartTime = dayEndTime;
   }
 
   const mhw = mean(allHighs);
@@ -200,9 +179,8 @@ function computeDatumsFromExtremes(extremes: Sample[], msl = 0): Datums {
     MTL: toFixed((mhw + mlw) / 2, 3),
     MLW: toFixed(mlw, 3),
     MLLW: toFixed(mean(lowerLows), 3),
-    // LLWLT (Lower Low Water, Large Tide): mean of the annual lowest low waters.
-    // Meaningful only over a multi-year span; NaN for sub-annual series and
-    // dropped by the caller.
+    // LLWLT (Lower Low Water, Large Tide): mean of the annual lowest low waters. A series that
+    // doesn't start in January averages partial years, whose minima sit high.
     LLWLT: toFixed(mean([...lowestLowByYear.values()]), 3),
     LAT: toFixed(min(heights), 3),
   };
@@ -287,9 +265,7 @@ function computeTLT(
   end: Date,
   tidePredictorOptions: DatumPredictionOptions,
 ): number | undefined {
-  const subset = constituents.filter((c) =>
-    TLT_CONSTITUENTS.has(c.name.toUpperCase()),
-  );
+  const subset = constituents.filter((c) => TLT_CONSTITUENTS.has(c.name.toUpperCase()));
   if (subset.length === 0) return undefined;
   const extremes = datumExtremes(subset, start, end, tidePredictorOptions);
   if (extremes.length === 0) return undefined;
@@ -302,17 +278,12 @@ function computeTLT(
  */
 export function computeDatums(
   constituents: HarmonicConstituent[],
-  epochSpec: EpochSpec,
+  epochSpec: EpochSpec = {},
   tidePredictorOptions: DatumPredictionOptions = {},
 ): TidalDatumsResult {
   const { start, end } = resolveEpoch(epochSpec);
 
-  const extremes = datumExtremes(
-    constituents,
-    start,
-    end,
-    tidePredictorOptions,
-  );
+  const extremes = datumExtremes(constituents, start, end, tidePredictorOptions);
 
   const datums: Datums = {
     ...computeDatumsFromExtremes(extremes),
@@ -321,51 +292,15 @@ export function computeDatums(
   const tlt = computeTLT(constituents, start, end, tidePredictorOptions);
   if (tlt !== undefined) datums["TLT"] = tlt;
 
-  // Drop any datum that came out non-finite (e.g. LLWLT for a sub-annual
-  // synthetic series), so callers never persist NaN.
-  for (const [k, v] of Object.entries(datums)) {
-    if (!Number.isFinite(v)) delete datums[k];
-  }
-
-  return { start, end, datums };
+  return { start, end, datums: finite(datums) };
 }
 
-const HOUR_MS = 60 * 60 * 1000;
-
-/**
- * Parse a GESLA-4 station file into UTC water-level samples.
- *
- * Keeps only rows flagged use-in-analysis (`use_flag === 1`, which already
- * excludes QC spikes/doubtful/missing) and drops the -99.9999 null. Times are
- * converted to UTC using the header's `TIME ZONE HOURS` (expected 0 for GESLA-4,
- * honored defensively).
- */
-export function parseGeslaSamples(text: string): Sample[] {
-  const lines = text.split(/\r?\n/);
-
-  let tzHours = 0;
-  let nullValue = -99.9999; // GESLA-4 default; overridden by the header below
-  for (const line of lines) {
-    if (!line.startsWith("#")) break;
-    const tz = line.match(/^#\s*TIME ZONE HOURS\s+(-?\d+(?:\.\d+)?)/);
-    if (tz) tzHours = parseFloat(tz[1]!);
-    const nv = line.match(/^#\s*NULL VALUE\s+(-?\d+(?:\.\d+)?)/);
-    if (nv) nullValue = parseFloat(nv[1]!);
+/** Drop any datum that came out non-finite, so callers never store NaN. */
+function finite(datums: Datums): Datums {
+  for (const [key, value] of Object.entries(datums)) {
+    if (!Number.isFinite(value)) delete datums[key];
   }
-  const tzMs = tzHours * HOUR_MS;
-
-  const samples: Sample[] = [];
-  for (const line of lines) {
-    if (!line || line.startsWith("#")) continue;
-    const f = line.trim().split(/\s+/);
-    if (f.length < 5 || f[4] !== "1") continue;
-    const level = parseFloat(f[2]!);
-    if (!Number.isFinite(level) || Math.abs(level - nullValue) < 1e-3) continue;
-    const t = Date.parse(`${f[0]!.replaceAll("/", "-")}T${f[1]}Z`);
-    if (!Number.isFinite(t)) continue;
-    samples.push({ time: new Date(t - tzMs), level });
-  }
-  return samples;
+  return datums;
 }
 
 export interface ObservedTidalDatumsResult extends TidalDatumsResult {
@@ -386,21 +321,18 @@ export interface ObservedTidalDatumsResult extends TidalDatumsResult {
 export function computeDatumsFromObservations(
   samples: Sample[],
   constituents: HarmonicConstituent[] = [],
+  modelOptions: DatumModelOptions = {},
 ): ObservedTidalDatumsResult | null {
-  const prepared = prepareDatumObservations(samples, constituents);
+  const prepared = prepareDatumObservations(samples, constituents, modelOptions);
   if (!prepared) return null;
   const observedMSL = mean(prepared.samples.map((p) => p.level));
   const datums = computeDatumsFromExtremes(prepared.samples, observedMSL);
-  if (!Number.isFinite(datums["MHW"]) || !Number.isFinite(datums["MLW"]))
-    return null;
-  for (const [key, value] of Object.entries(datums)) {
-    if (!Number.isFinite(value)) delete datums[key];
-  }
+  if (!Number.isFinite(datums["MHW"]) || !Number.isFinite(datums["MLW"])) return null;
 
   return {
     start: prepared.start,
     end: prepared.end,
-    datums,
+    datums: finite(datums),
     coverage: prepared.coverage,
   };
 }

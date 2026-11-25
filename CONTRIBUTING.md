@@ -12,6 +12,7 @@ Slackwater is a TypeScript tide and current prediction engine split into multipl
 2. **`slackwater`** - User-facing API that wraps the predictor and integrates with `@slackwater/database` for station lookups
 3. **`@slackwater/api`** - HTTP JSON API server built with Express, provides REST endpoints for tide and tidal current predictions with OpenAPI validation
 4. **`@slackwater/cli`** - Command line interface built with Commander, distributed as npm package, Homebrew formula, and standalone SEA binaries
+5. **`@slackwater/datums`** - Tidal datums reduced from harmonic constants over a pinned 19-year epoch, or from observed water levels
 
 ## Critical Architecture Patterns
 
@@ -105,6 +106,10 @@ React current cards and scrubber leads show full predicted speed and Set, the di
 Current event kinds distinguish same-direction lulls (`minFlood` and `minEbb`) from maximum flow. A minimum remains a curve knot, chart mark, schedule row, and commentary stop, but never a next maximum or a maximum used for rankings. The event type comes from signed turning direction, independently of display rounding. Subordinate minima use their signed phase's maximum time and speed adjustments, matching NOAA's published tables; [XTide's comparison](https://flaterco.com/xtide/mincurrents.html#b4) documents the distinction from XTide's minimum-time adjustment rule. Keep the TypeScript, Swift, and Kotlin kinds and their consumers in agreement.
 
 `SlackwaterProvider` supplies a `SlackwaterDataSource` to every hook, map query, and prefetch helper. `data-source.ts` defines the contract and wraps the HTTP client for `baseUrl` consumers; hosts can inject local or precomputed predictions, which still come from the host's data source: React depends on `@slackwater/engine` for its readings but not on the station database or a prediction catalogue. Query keys include the source's stable dataset/revision/access-policy key. Changing that key remounts provider children to discard old placeholders and component-held predictions. Server prefetch and hydration must agree on source identity, units, and Date serialization. The source owns availability and license filtering for listings and direct requests.
+
+### @slackwater/datums Architecture
+
+The datums package (`packages/datums`) reduces tidal datums from harmonic constants (`computeDatums`) or from observed water levels (`computeDatumsFromObservations`, `observedMeanLevel`), with plain `{ time, level }` samples in and a map of datum heights out, and no file or network access. It depends only on `@slackwater/engine`, which it calls for every prediction. Each prediction takes the caller's `nodeCorrections` and `latitude`, including the gap fill in the observed path, because constants predict correctly only under the corrections they were fitted with. The harmonic epoch defaults to the pinned `DATUM_EPOCH`, so the same constants always give the same datums. The reductions are TypeScript only, like `fit`'s analysis options, since they serve station analysis rather than prediction on devices. Choosing a station's chart datum by country and sea stays with the station database. The rules and their reasons are in [packages/datums/README.md](packages/datums/README.md); its known limitations are pinned in `test/limitations.test.ts`.
 
 ### @slackwater/cli Architecture
 

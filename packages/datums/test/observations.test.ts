@@ -1,10 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { createTidePredictor } from "@slackwater/engine";
-import {
-  prepareDatumObservations,
-  observedMeanLevel,
-} from "../observations.ts";
-import type { Sample } from "../datum.ts";
+import { prepareDatumObservations, observedMeanLevel, type Sample } from "../src/index.js";
 
 const constituents = [
   { name: "M2", amplitude: 1, phase: 15 },
@@ -14,13 +10,10 @@ const constituents = [
 const start = Date.UTC(2020, 0, 1);
 const end = Date.UTC(2022, 0, 2);
 const predictor = createTidePredictor(constituents);
-const truth: Sample[] = Array.from(
-  { length: (end - start) / 3600000 },
-  (_, h) => {
-    const time = new Date(start + h * 3600000);
-    return { time, level: 5 + predictor.getWaterLevelAtTime({ time }).level };
-  },
-);
+const truth: Sample[] = Array.from({ length: (end - start) / 3600000 }, (_, h) => {
+  const time = new Date(start + h * 3600000);
+  return { time, level: 5 + predictor.getWaterLevelAtTime({ time }).level };
+});
 
 describe("datum observation preparation", () => {
   test.each([1, 2, 3])(
@@ -43,18 +36,17 @@ describe("datum observation preparation", () => {
       };
       for (let h = 0; h < 8784; h++) {
         if (h >= gap && h < gap + 3) continue;
-        for (const minute of h < gap ? before : after)
-          raw.push(height(h, minute));
+        for (const minute of h < gap ? before : after) raw.push(height(h, minute));
       }
       const result = prepareDatumObservations(raw, cs)!;
       for (let h = gap; h < gap + 3; h++) {
         const profile = h < gap + 2 ? before : after;
         const expected =
-          profile.reduce((sum, minute) => sum + height(h, minute).level, 0) /
-          profile.length;
-        expect(
-          result.samples.find((p) => +p.time === start + h * 3600000)!.level,
-        ).toBeCloseTo(expected, 9);
+          profile.reduce((sum, minute) => sum + height(h, minute).level, 0) / profile.length;
+        expect(result.samples.find((p) => +p.time === start + h * 3600000)!.level).toBeCloseTo(
+          expected,
+          9,
+        );
       }
     },
   );
@@ -104,21 +96,17 @@ describe("datum observation preparation", () => {
     expect(result).not.toBeNull();
     expect(result.coverage.inferredHours).toBeGreaterThan(100);
     const expected = new Map(truth.map((p) => [+p.time, p.level]));
-    for (const p of result.samples)
-      expect(p.level).toBeCloseTo(expected.get(+p.time)!, 9);
+    for (const p of result.samples) expect(p.level).toBeCloseTo(expected.get(+p.time)!, 9);
   });
 
   test.each([1, 2, 3])(
     "reconstructs a bounded %i-hour omission from real surrounding anchors",
     (missing) => {
-      const masked = truth.filter(
-        (_, h) => h % 120 < 24 || h % 120 >= 24 + missing,
-      );
+      const masked = truth.filter((_, h) => h % 120 < 24 || h % 120 >= 24 + missing);
       const result = prepareDatumObservations(masked, constituents)!;
       expect(result).not.toBeNull();
       const expected = new Map(truth.map((p) => [+p.time, p.level]));
-      for (const p of result.samples)
-        expect(p.level).toBeCloseTo(expected.get(+p.time)!, 9);
+      for (const p of result.samples) expect(p.level).toBeCloseTo(expected.get(+p.time)!, 9);
     },
   );
 
@@ -134,8 +122,7 @@ describe("datum observation preparation", () => {
     expect(result.start.getUTCFullYear()).toBe(2020);
     expect(result.end.getUTCFullYear()).toBe(2021);
     const expected = new Map(truth.map((p) => [+p.time, p.level]));
-    for (const p of result.samples)
-      expect(p.level).toBeCloseTo(expected.get(+p.time)!, 9);
+    for (const p of result.samples) expect(p.level).toBeCloseTo(expected.get(+p.time)!, 9);
   });
 
   test("carries a changing observed residual through the gap instead of substituting the tide model", () => {
@@ -146,8 +133,7 @@ describe("datum observation preparation", () => {
     const masked = drifting.filter((_, h) => h % 120 < 24 || h % 120 >= 27);
     const result = prepareDatumObservations(masked, constituents)!;
     const expected = new Map(drifting.map((p) => [+p.time, p.level]));
-    for (const p of result.samples)
-      expect(p.level).toBeCloseTo(expected.get(+p.time)!, 9);
+    for (const p of result.samples) expect(p.level).toBeCloseTo(expected.get(+p.time)!, 9);
   });
 
   test("does not chain inferred points across a longer omission", () => {
@@ -168,8 +154,7 @@ describe("datum observation preparation", () => {
   test("keeps a whole non-leap calendar year and excludes partial months", () => {
     const year = truth.filter(
       (p) =>
-        p.time >= new Date("2021-01-01T00:00:00Z") &&
-        p.time < new Date("2022-01-01T00:00:00Z"),
+        p.time >= new Date("2021-01-01T00:00:00Z") && p.time < new Date("2022-01-01T00:00:00Z"),
     );
     const result = prepareDatumObservations(year, [])!;
     expect(result.start.toISOString()).toBe("2021-01-01T00:00:00.000Z");
@@ -179,10 +164,10 @@ describe("datum observation preparation", () => {
   });
 
   test("chooses the later of equally long continuous periods", () => {
-    const samples = Array.from(
-      { length: (Date.UTC(2024, 0, 1) - start) / 3600000 },
-      (_, h) => ({ time: new Date(start + h * 3600000), level: 5 }),
-    ).filter((p) => [2020, 2022].includes(p.time.getUTCFullYear()));
+    const samples = Array.from({ length: (Date.UTC(2024, 0, 1) - start) / 3600000 }, (_, h) => ({
+      time: new Date(start + h * 3600000),
+      level: 5,
+    })).filter((p) => [2020, 2022].includes(p.time.getUTCFullYear()));
     const result = prepareDatumObservations(samples, [])!;
     expect(result.coverage.months).toBe(12);
     expect(result.start.toISOString()).toBe("2022-01-01T00:00:00.000Z");
@@ -196,11 +181,7 @@ describe("datum observation preparation", () => {
 
   test("ignores invalid observations instead of poisoning the window", () => {
     const result = prepareDatumObservations(
-      [
-        ...truth,
-        { time: new Date(NaN), level: 1 },
-        { time: new Date(start), level: NaN },
-      ],
+      [...truth, { time: new Date(NaN), level: 1 }, { time: new Date(start), level: NaN }],
       [],
     );
     expect(result).not.toBeNull();
@@ -227,9 +208,7 @@ describe("datum observation preparation", () => {
     expect(observedMeanLevel(samples, [])).toBe(7);
   });
   test("refuses an offset when every year omits the same season", () => {
-    const summer = truth.filter(
-      (p) => p.time.getUTCMonth() >= 3 && p.time.getUTCMonth() <= 8,
-    );
+    const summer = truth.filter((p) => p.time.getUTCMonth() >= 3 && p.time.getUTCMonth() <= 8);
     expect(observedMeanLevel(summer, constituents)).toBeUndefined();
   });
 });

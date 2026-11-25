@@ -1,8 +1,5 @@
-import {
-  createTidePredictor,
-  type HarmonicConstituent,
-} from "@slackwater/engine";
-import { resolveEpoch, type Sample } from "./datum.ts";
+import { createTidePredictor, type HarmonicConstituent } from "@slackwater/engine";
+import { resolveEpoch, type DatumModelOptions, type Sample } from "./datum.js";
 
 const HOUR_MS = 3600000;
 // Project eligibility limits, not an equivalence to NOAA's datum epoch.
@@ -25,8 +22,9 @@ export interface PreparedDatumObservations {
 export function prepareDatumObservations(
   samples: Sample[],
   constituents: HarmonicConstituent[],
+  modelOptions: DatumModelOptions = {},
 ): PreparedDatumObservations | null {
-  const prepared = prepareHourlyObservations(samples, constituents);
+  const prepared = prepareHourlyObservations(samples, constituents, modelOptions);
   if (!prepared) return null;
   let runMonths = 0,
     bestMonths = 0,
@@ -75,8 +73,9 @@ export function prepareDatumObservations(
 export function observedMeanLevel(
   samples: Sample[],
   constituents: HarmonicConstituent[] = [],
+  modelOptions: DatumModelOptions = {},
 ): number | undefined {
-  const prepared = prepareHourlyObservations(samples, constituents);
+  const prepared = prepareHourlyObservations(samples, constituents, modelOptions);
   if (!prepared) return undefined;
   const seasons = Array.from({ length: YEAR_MONTHS }, () => [] as number[]);
   for (const month of calendarMonths(prepared))
@@ -84,22 +83,26 @@ export function observedMeanLevel(
       seasons[new Date(month.start * HOUR_MS).getUTCMonth()]!.push(month.mean);
   if (seasons.some((months) => !months.length)) return undefined;
   return (
-    seasons.reduce(
-      (sum, months) => sum + months.reduce((a, b) => a + b, 0) / months.length,
-      0,
-    ) / YEAR_MONTHS
+    seasons.reduce((sum, months) => sum + months.reduce((a, b) => a + b, 0) / months.length, 0) /
+    YEAR_MONTHS
   );
 }
 
 function prepareHourlyObservations(
   samples: Sample[],
   constituents: HarmonicConstituent[],
+  modelOptions: DatumModelOptions,
 ): HourlyPreparation | null {
+  // The constants predict under the corrections they were fitted with, or the gap fill drifts.
+  // Built before any early return, so invalid options fail whether or not the record has gaps.
+  const predictor = constituents.length
+    ? createTidePredictor(constituents, modelOptions)
+    : undefined;
   const hourly = hourlyWindow(samples);
   if (!hourly.length) return null;
   const levels = new Map(hourly.map((p) => [p.hour, p.level]));
   const inferred = new Set<number>();
-  if (!constituents.length) return { hourly, levels, inferred };
+  if (!predictor) return { hourly, levels, inferred };
 
   const gaps: Hourly[][] = [];
   const profiles = new Map<number, number[]>();
@@ -126,21 +129,14 @@ function prepareHourlyObservations(
     const hour = Math.floor(+p.time / HOUR_MS);
     profiles.get(hour)?.push(+p.time - hour * HOUR_MS);
   }
-  const predictor = createTidePredictor(constituents),
-    predictions = new Map<number, number>();
+  const predictions = new Map<number, number>();
   const prediction = (time: number) => {
     if (!predictions.has(time))
-      predictions.set(
-        time,
-        predictor.getWaterLevelAtTime({ time: new Date(time) }).level,
-      );
+      predictions.set(time, predictor.getWaterLevelAtTime({ time: new Date(time) }).level);
     return predictions.get(time)!;
   };
   const binPrediction = (hour: number, profile: number[]) =>
-    profile.reduce(
-      (sum, offset) => sum + prediction(hour * HOUR_MS + offset),
-      0,
-    ) / profile.length;
+    profile.reduce((sum, offset) => sum + prediction(hour * HOUR_MS + offset), 0) / profile.length;
   for (const anchors of gaps) {
     const left = anchors[1]!,
       right = anchors[2]!;
@@ -152,17 +148,14 @@ function prepareHourlyObservations(
         p.level - binPrediction(p.hour, profiles.get(p.hour)!),
       ]),
     );
+    // Four distinct anchor hours never make the system singular; the guard is defensive.
+    // v8 ignore if -- @preserve
     if (!coefficients) continue;
     for (let hour = left.hour + 1; hour < right.hour; hour++) {
       // A missing bin follows its nearer real neighbour's sampling cadence.
-      const profile = profiles.get(
-        hour - left.hour <= right.hour - hour ? left.hour : right.hour,
-      )!;
+      const profile = profiles.get(hour - left.hour <= right.hour - hour ? left.hour : right.hour)!;
       const moments = samplingMoments(hour - left.hour, profile);
-      const residual = coefficients.reduce(
-        (sum, c, degree) => sum + c * moments[degree]!,
-        0,
-      );
+      const residual = coefficients.reduce((sum, c, degree) => sum + c * moments[degree]!, 0);
       const level = binPrediction(hour, profile) + residual;
       if (Number.isFinite(level)) {
         levels.set(hour, level);
@@ -177,8 +170,7 @@ function samplingMoments(hour: number, profile: number[]): number[] {
   const moments = [1, 0, 0, 0];
   for (const offset of profile) {
     const x = hour + offset / HOUR_MS;
-    for (let degree = 1; degree <= 3; degree++)
-      moments[degree]! += x ** degree / profile.length;
+    for (let degree = 1; degree <= 3; degree++) moments[degree]! += x ** degree / profile.length;
   }
   return moments;
 }
@@ -188,21 +180,19 @@ function solveCubic(rows: number[][]): number[] | undefined {
   for (let column = 0; column < 4; column++) {
     let pivot = column;
     for (let row = column + 1; row < 4; row++)
-      if (Math.abs(rows[row]![column]!) > Math.abs(rows[pivot]![column]!))
-        pivot = row;
+      if (Math.abs(rows[row]![column]!) > Math.abs(rows[pivot]![column]!)) pivot = row;
+    // v8 ignore if -- @preserve
     if (rows[pivot]![column] === 0) return undefined;
     [rows[column], rows[pivot]] = [rows[pivot]!, rows[column]!];
     for (let row = column + 1; row < 4; row++) {
       const factor = rows[row]![column]! / rows[column]![column]!;
-      for (let k = column; k <= 4; k++)
-        rows[row]![k]! -= factor * rows[column]![k]!;
+      for (let k = column; k <= 4; k++) rows[row]![k]! -= factor * rows[column]![k]!;
     }
   }
   const coefficients = [0, 0, 0, 0];
   for (let row = 3; row >= 0; row--) {
     let value = rows[row]![4]!;
-    for (let k = row + 1; k < 4; k++)
-      value -= rows[row]![k]! * coefficients[k]!;
+    for (let k = row + 1; k < 4; k++) value -= rows[row]![k]! * coefficients[k]!;
     coefficients[row] = value / rows[row]![row]!;
   }
   return coefficients;
@@ -265,7 +255,5 @@ function monthStart(hour: number): number {
 }
 function shiftMonth(hour: number, months: number): number {
   const time = new Date(hour * HOUR_MS);
-  return (
-    Date.UTC(time.getUTCFullYear(), time.getUTCMonth() + months, 1) / HOUR_MS
-  );
+  return Date.UTC(time.getUTCFullYear(), time.getUTCMonth() + months, 1) / HOUR_MS;
 }

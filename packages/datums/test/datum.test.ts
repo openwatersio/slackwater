@@ -1,11 +1,6 @@
 import { describe, test, expect } from "vitest";
 import { createTidePredictor } from "@slackwater/engine";
-import {
-  computeDatums,
-  computeDatumsFromObservations,
-  parseGeslaSamples,
-  type Sample,
-} from "../datum.js";
+import { computeDatums, computeDatumsFromObservations, type Sample } from "../src/index.js";
 
 describe("computeDatums", () => {
   test.each([0.05, 0.06])(
@@ -42,19 +37,16 @@ describe("computeDatums", () => {
     expect(datums["MLW"]!).toBeGreaterThan(-0.005);
   });
 
-  test.each(["SA", "Sa"])(
-    "includes %s in the theoretical lowest tide subset",
-    (name) => {
-      const { datums } = computeDatums(
-        [
-          { name, amplitude: 0.05, phase: 0 },
-          { name: "M2", amplitude: 0.001, phase: 0 },
-        ],
-        {},
-      );
-      expect(datums["TLT"]).toBe(-0.051);
-    },
-  );
+  test.each(["SA", "Sa"])("includes %s in the theoretical lowest tide subset", (name) => {
+    const { datums } = computeDatums(
+      [
+        { name, amplitude: 0.05, phase: 0 },
+        { name: "M2", amplitude: 0.001, phase: 0 },
+      ],
+      {},
+    );
+    expect(datums["TLT"]).toBe(-0.051);
+  });
 
   test("retains small restricted-subset turns when the complete tide has large turns", () => {
     const { datums } = computeDatums(
@@ -81,10 +73,7 @@ describe("computeDatums", () => {
   });
 
   test("retains days with only one high and one low", () => {
-    const { datums } = computeDatums(
-      [{ name: "M1C", amplitude: 1, phase: 0 }],
-      {},
-    );
+    const { datums } = computeDatums([{ name: "M1C", amplitude: 1, phase: 0 }], {});
     expect(datums["MHW"]).toBe(1.574);
     expect(datums["MLW"]).toBe(-1.574);
     expect(datums["MHHW"]).toBeCloseTo(datums["MHW"]!, 2);
@@ -105,9 +94,7 @@ describe("computeDatumsFromObservations", () => {
     expect(result).not.toBeNull();
     expect(result.datums["MHHW"]).toBeCloseTo(1.5, 1);
     expect(result.datums["MHW"]).toBeCloseTo(1.5, 1);
-    expect(
-      Math.abs(result.datums["MHHW"]! - result.datums["MHW"]!),
-    ).toBeLessThan(0.01);
+    expect(Math.abs(result.datums["MHHW"]! - result.datums["MHW"]!)).toBeLessThan(0.01);
   });
 
   test("declines the whole observed family when only partial seasons are available", () => {
@@ -117,9 +104,7 @@ describe("computeDatumsFromObservations", () => {
       level: Math.sin((h * Math.PI) / 6),
     })).filter((_, h) => h % (24 * 90) < 24 * 45);
     expect(
-      computeDatumsFromObservations(samples, [
-        { name: "S2", amplitude: 1, phase: 0 },
-      ]),
+      computeDatumsFromObservations(samples, [{ name: "S2", amplitude: 1, phase: 0 }]),
     ).toBeNull();
   });
 
@@ -147,8 +132,8 @@ describe("computeDatumsFromObservations", () => {
   test("does not keep incomplete-day means when missing extrema lack reconstruction support", () => {
     const start = Date.UTC(2020, 0, 1);
     const levels = [
-      2, 1.5, 1, 0, -1, -1.5, -2, -1.5, -1, 0, 0.5, 0.75, 1, 0.75, 0.5, 0, -0.5,
-      -0.75, -1, -0.75, -0.5, 0, 1, 1.5,
+      2, 1.5, 1, 0, -1, -1.5, -2, -1.5, -1, 0, 0.5, 0.75, 1, 0.75, 0.5, 0, -0.5, -0.75, -1, -0.75,
+      -0.5, 0, 1, 1.5,
     ];
     const samples = Array.from({ length: 24 * 400 }, (_, h) => ({
       time: new Date(start + h * 3600_000),
@@ -166,28 +151,23 @@ describe("computeDatumsFromObservations", () => {
     expect(computeDatumsFromObservations(samples)).toBeNull();
   });
 
-  test.each([1, 3])(
-    "does not classify gaps in %i-hour observations",
-    (step) => {
-      const start = Date.UTC(2020, 0, 1);
-      const levels = [0, 1, 2, 1, 0, -1, -2, -1];
-      const samples = Array.from({ length: 24 * 400 }, (_, h) => ({
-        time: new Date(start + h * step * 3600_000),
-        level: levels[h % 8]!,
-      })).filter((_, h) => h % 96 < 6 || h % 96 > 26);
-      expect(
-        computeDatumsFromObservations(samples, [
-          { name: "S2", amplitude: 1, phase: 0 },
-        ]),
-      ).toBeNull();
-    },
-  );
+  test.each([1, 3])("does not classify gaps in %i-hour observations", (step) => {
+    const start = Date.UTC(2020, 0, 1);
+    const levels = [0, 1, 2, 1, 0, -1, -2, -1];
+    const samples = Array.from({ length: 24 * 400 }, (_, h) => ({
+      time: new Date(start + h * step * 3600_000),
+      level: levels[h % 8]!,
+    })).filter((_, h) => h % 96 < 6 || h % 96 > 26);
+    expect(
+      computeDatumsFromObservations(samples, [{ name: "S2", amplitude: 1, phase: 0 }]),
+    ).toBeNull();
+  });
 
   test("includes hourly highs and lows on tidal-day boundaries", () => {
     const start = Date.UTC(2020, 0, 1);
     const levels = [
-      2, 1.5, 1, 0, -1, -1.5, -2, -1.5, -1, 0, 0.5, 0.75, 1, 0.75, 0.5, 0, -0.5,
-      -0.75, -1, -0.75, -0.5, 0, 1, 1.5,
+      2, 1.5, 1, 0, -1, -1.5, -2, -1.5, -1, 0, 0.5, 0.75, 1, 0.75, 0.5, 0, -0.5, -0.75, -1, -0.75,
+      -0.5, 0, 1, 1.5,
     ];
     const samples = Array.from({ length: 24 * 400 + 1 }, (_, h) => ({
       time: new Date(start + h * 3600_000),
@@ -232,26 +212,5 @@ describe("computeDatumsFromObservations", () => {
       samples.push({ time: new Date(t0 + h * 3600_000), level: Math.sin(h) });
     }
     expect(computeDatumsFromObservations(samples)).toBeNull();
-  });
-});
-
-describe("parseGeslaSamples", () => {
-  test("keeps use_flag=1 rows, drops nulls/flagged, converts to UTC", () => {
-    const text = [
-      "# SITE NAME Test",
-      "# TIME ZONE HOURS 0",
-      "# NULL VALUE -99.9999",
-      "#",
-      "2020/01/01 00:00:00   1.2300 1 1",
-      "2020/01/01 01:00:00 -99.9999 5 0", // missing -> excluded
-      "2020/01/01 02:00:00   3.4000 3 0", // doubtful -> excluded
-      "2020/01/01 03:00:00   2.1000 1 1",
-    ].join("\n");
-
-    const samples = parseGeslaSamples(text);
-    expect(samples).toHaveLength(2);
-    expect(samples[0]!.level).toBe(1.23);
-    expect(samples[0]!.time.toISOString()).toBe("2020-01-01T00:00:00.000Z");
-    expect(samples[1]!.level).toBe(2.1);
   });
 });
