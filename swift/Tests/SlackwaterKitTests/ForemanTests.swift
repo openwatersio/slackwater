@@ -76,6 +76,32 @@ private func corrections(_ latitude: Double) throws -> Catalog {
     }
 }
 
+// A subordinate predicts from its reference station, so it takes the reference's correction set.
+@Test func foremanSubordinatesFollowTheirReference() throws {
+    let fixture = try loadFixture("prediction-foreman", as: ForemanFixture.self)
+    let (start, end) = (parseISO(fixture.start), parseISO(fixture.end))
+    let tide = try Station(constituents: fixture.harmonics, nodeCorrections: .foreman(latitude: 60))
+    let tideSub = SubordinateTideStation(reference: tide, highTimeOffset: 0, lowTimeOffset: 0, height: .ratio(high: 1, low: 1))
+    let subExtremes = tideSub.extremes(from: start, to: end)
+    #expect(tide.extremes(from: start, to: end).map { [$0.time.timeIntervalSince1970, $0.height] }
+        == subExtremes.map { [$0.time.timeIntervalSince1970, $0.height] })
+    #expect(Station(constituents: fixture.harmonics).extremes(from: start, to: end).map(\.height) != subExtremes.map(\.height))
+
+    let current = try CurrentStation(constituents: fixture.harmonics, floodDirection: 0, ebbDirection: 180,
+                                     nodeCorrections: .foreman(latitude: 60))
+    let currentSub = SubordinateStation(reference: current, slackBeforeFloodOffset: 0, slackBeforeEbbOffset: 0,
+        floodTimeOffset: 0, ebbTimeOffset: 0, floodSpeedRatio: 1, ebbSpeedRatio: 1)
+    let subEvents = currentSub.events(from: start, to: end)
+    // A subordinate finds its own slack, so the reference's flood and ebb maxima are compared.
+    func maxima(_ events: [CurrentEvent]) -> [[Double]] {
+        events.filter { $0.kind == .maxFlood || $0.kind == .maxEbb }.map { [$0.time.timeIntervalSince1970, $0.speed] }
+    }
+    #expect(!maxima(subEvents).isEmpty)
+    #expect(maxima(current.events(from: start, to: end)) == maxima(subEvents))
+    #expect(maxima(CurrentStation(constituents: fixture.harmonics, floodDirection: 0, ebbDirection: 180)
+        .events(from: start, to: end)) != maxima(subEvents))
+}
+
 @Test func foremanHoldsTheLatitudeFiveDegreesFromTheEquator() throws {
     let a = astro(parseISO("2010-05-01T00:00:00Z"))
     func k1(_ latitude: Double) throws -> (f: Double, u: Double) { try corrections(latitude).correction("K1", a) }

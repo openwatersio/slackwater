@@ -49,6 +49,28 @@ class ForemanTest {
         }
     }
 
+    // A subordinate predicts from its reference station, so it takes the reference's correction set.
+    @Test fun subordinatesFollowTheirReference() {
+        val constituents = prediction.constituents()
+        val (start, end) = prediction.instant("start") to prediction.instant("end")
+        val tide = Station(constituents, nodeCorrections = foreman(60.0))
+        val tideSub = SubordinateTideStation(tide, 0.0, 0.0, HeightOffset.Ratio(1.0, 1.0))
+        assertEquals(tide.extremes(start, end).map { it.time to it.heightMetres },
+            tideSub.extremes(start, end).map { it.time to it.heightMetres })
+        assertNotEquals(Station(constituents).extremes(start, end).map { it.heightMetres },
+            tideSub.extremes(start, end).map { it.heightMetres })
+
+        val current = CurrentStation(constituents, 0.0, 180.0, nodeCorrections = foreman(60.0))
+        val currentSub = SubordinateCurrentStation(current, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0)
+        // A subordinate finds its own slack, so the reference's flood and ebb maxima are compared.
+        val maxima = { events: List<CurrentEvent> ->
+            events.filter { it.kind == CurrentEventKind.MAX_FLOOD || it.kind == CurrentEventKind.MAX_EBB }.map { it.time to it.speedKnots } }
+        assertTrue(maxima(currentSub.events(start, end)).isNotEmpty())
+        assertEquals(maxima(current.events(start, end)), maxima(currentSub.events(start, end)))
+        assertNotEquals(maxima(CurrentStation(constituents, 0.0, 180.0).events(start, end)),
+            maxima(currentSub.events(start, end)))
+    }
+
     @Test fun predictsCurrentsOnBothAxes() {
         val case = prediction.array("cases")[0].obj()
         val constituents = prediction.constituents()
