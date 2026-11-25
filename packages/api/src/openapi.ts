@@ -1192,7 +1192,7 @@ function createSpecs(datums: string[]) {
             magnitudeIsKnown: {
               type: "boolean",
               description:
-                "True when full current speed is known independently of the signed axis speed.",
+                "Marks an independently known full speed; predictors set it when a rotary bearing is unavailable. Absence does not imply an unknown speed.",
             },
             direction: {
               type: "number",

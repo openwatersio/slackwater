@@ -103,6 +103,13 @@ class ReadingsTest {
         assertTrue(currentWindows(points, listOf(event), 0.5).isEmpty())
     }
 
+    @Test fun unknownVectorRejectsSlackJustOutsideTimeline() {
+        val points = listOf(CurrentPoint(t0, 1.0, 1.0, null, true), CurrentPoint(at(h), 1.0, 1.0, null, true))
+        for ((time, event) in listOf(t0 to slackAt(at(-0.5)), at(h) to slackAt(at(h + 0.5)))) {
+            assertNotEquals(CurrentState.SLACK, assertNotNull(readCurrent(time, points, listOf(event), null, null)).state)
+        }
+    }
+
     @Test fun independentlyMeasuredVectorsKeepBearingsThroughReversal() {
         val points = listOf(CurrentPoint(t0, -1.0, 1.0, 200.0, true), CurrentPoint(at(h), 1.0, 1.0, 45.0, true))
         val event = slackAt(at(h / 2))

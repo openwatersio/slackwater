@@ -146,10 +146,12 @@ data class CurrentReading(
 )
 
 private fun rotaryAt(points: List<CurrentPoint>, time: Instant): Boolean {
-    val (lo, hi) = points.bracket(time) { it.time } ?: return false
+    val first = points.firstOrNull() ?: return false
+    val clamped = maxOf(first.time, minOf(time, points.last().time))
+    val (lo, hi) = points.bracket(clamped) { it.time } ?: return false
     val a = points[lo]
     val b = points[hi]
-    val relevant = if (a.time == time) listOf(a) else if (b.time == time) listOf(b) else listOf(a, b)
+    val relevant = if (a.time == clamped) listOf(a) else if (b.time == clamped) listOf(b) else listOf(a, b)
     return relevant.any { (it.magnitudeIsKnown && it.magnitudeKnots > 0) || it.magnitudeKnots > abs(it.speedKnots) + 1e-9 }
 }
 
