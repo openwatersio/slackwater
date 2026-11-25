@@ -27,10 +27,18 @@ const longPeriod = [
 ];
 const sets: NodeCorrections[] = ["iho", "schureman"];
 
+// Each synthesis covers the whole epoch, so compute each set once per constituent list.
+const differences = new Map<HarmonicConstituent[], Record<string, number>>();
 function difference(constituents: HarmonicConstituent[], datum: string) {
-  const iho = computeDatums(constituents, {}, { nodeCorrections: "iho" });
-  const schureman = computeDatums(constituents, {}, { nodeCorrections: "schureman" });
-  return schureman.datums[datum]! - iho.datums[datum]!;
+  if (!differences.has(constituents)) {
+    const iho = computeDatums(constituents, {}, { nodeCorrections: "iho" }).datums;
+    const schureman = computeDatums(constituents, {}, { nodeCorrections: "schureman" }).datums;
+    differences.set(
+      constituents,
+      Object.fromEntries(Object.keys(iho).map((key) => [key, schureman[key]! - iho[key]!])),
+    );
+  }
+  return differences.get(constituents)![datum]!;
 }
 
 describe("computeDatums under each set of nodal corrections", () => {
