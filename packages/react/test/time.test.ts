@@ -85,6 +85,23 @@ test("dayLabel", () => {
 });
 
 describe("days", () => {
+  test("clips solar searches at the Almanac boundaries", () => {
+    for (const start of [Date.parse("1949-12-31T00:00:00Z"), Date.parse("2100-12-31T00:00:00Z")]) {
+      expect(() => days(start, start + 48 * H, "UTC", 50, 0)).not.toThrow();
+    }
+  });
+  test("agrees with the former sunrise, sunset and solar noon within a minute", () => {
+    const start = Date.parse("2026-10-10T07:00:00Z");
+    const [day] = days(start, start + H, LA, 48.4, -122.6);
+    for (const [actual, expected] of [
+      [day.sunrise, "2026-10-10T14:23:07.879Z"],
+      [day.sunset, "2026-10-11T01:30:40.899Z"],
+      [solarNoon(start, 48.4, -122.6), "2026-10-10T19:57:18.527Z"],
+    ] as const) {
+      expect(Math.abs(actual! - Date.parse(expected))).toBeLessThan(60_000);
+    }
+    expect(solarNoon(Date.parse("2101-01-01T00:00:00Z"), 50, 0)).toBeUndefined();
+  });
   test("each civil day with its sunrise and sunset", () => {
     const start = Date.parse("2026-10-10T07:00:00Z");
     const list = days(start, start + 48 * H, LA, 48.4, -122.6);
@@ -186,6 +203,6 @@ describe("calendar helpers", () => {
   test("solarNoon is when the sun crosses the meridian", () => {
     // Greenwich: within the equation of time's ±17 minutes of 12:00 UTC.
     const noon = solarNoon(Date.parse("2026-10-15T00:00:00Z"), 51.48, 0);
-    expect(new Date(noon).toISOString()).toMatch(/^2026-10-15T11:4[5-9]/);
+    expect(new Date(noon!).toISOString()).toMatch(/^2026-10-15T11:4[5-9]/);
   });
 });

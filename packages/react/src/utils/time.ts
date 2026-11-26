@@ -1,4 +1,4 @@
-import { Body, Observer, SearchHourAngle, SearchRiseSet } from "astronomy-engine";
+import { sunEvents, sunTransits } from "@openwaters/almanac";
 
 const HOUR = 3_600_000;
 
@@ -36,18 +36,16 @@ function parts(time: number, timeZone: string) {
   };
 }
 
-/** How far inside the Date range's ends a moment must be, so the days searched around it stay readable. */
-export const READABLE_LIMIT_MS = 8.64e15 - 30 * 24 * HOUR;
+/** Almanac's supported UTC interval. */
+export const ASTRONOMY_START = Date.UTC(1950, 0, 1);
+export const ASTRONOMY_END = Date.UTC(2101, 0, 1);
 
 /**
  * A moment the tiles and outlook can read, or undefined for none, for a
- * value that isn't a finite number, or for one at the far ends of the Date
- * range, such as a malformed URL can give.
+ * value outside Almanac's supported interval or a malformed value.
  */
 export function readableMoment(time: number | undefined): number | undefined {
-  return time !== undefined && Number.isFinite(time) && Math.abs(time) <= READABLE_LIMIT_MS
-    ? time
-    : undefined;
+  return time !== undefined && time >= ASTRONOMY_START && time < ASTRONOMY_END ? time : undefined;
 }
 
 /** The zone's offset from UTC at `time`, in ms. */
@@ -162,17 +160,18 @@ export function days(
   latitude: number,
   longitude: number,
 ): Day[] {
-  const observer = new Observer(latitude, longitude, 0);
+  const observer = { latitudeDeg: latitude, longitudeDeg: longitude };
   const result: Day[] = [];
   for (let d = startOfDay(start, timeZone); d < end; d = nextDay(d, timeZone)) {
     const e = nextDay(d, timeZone);
-    const rise = SearchRiseSet(Body.Sun, observer, +1, new Date(d), (e - d) / (24 * HOUR));
-    const set = SearchRiseSet(Body.Sun, observer, -1, new Date(d), (e - d) / (24 * HOUR));
+    const from = Math.max(d, ASTRONOMY_START);
+    const to = Math.min(e, ASTRONOMY_END);
+    const events = from < to ? sunEvents(new Date(from), new Date(to), observer) : [];
     result.push({
       start: d,
       end: e,
-      sunrise: rise && rise.date.getTime() < e ? rise.date.getTime() : undefined,
-      sunset: set && set.date.getTime() < e ? set.date.getTime() : undefined,
+      sunrise: events.find((event) => event.kind === "rise")?.time.getTime(),
+      sunset: events.find((event) => event.kind === "set")?.time.getTime(),
     });
   }
   return result;
@@ -241,7 +240,18 @@ export function weekLabel(anchor: number, now: number, timeZone: string, locale?
 }
 
 /** When the sun crosses the meridian on the day starting at `dayStart`. */
-export function solarNoon(dayStart: number, latitude: number, longitude: number): number {
-  const observer = new Observer(latitude, longitude, 0);
-  return SearchHourAngle(Body.Sun, observer, 0, new Date(dayStart)).time.date.getTime();
+export function solarNoon(
+  dayStart: number,
+  latitude: number,
+  longitude: number,
+): number | undefined {
+  const start = Math.max(dayStart, ASTRONOMY_START);
+  const end = Math.min(dayStart + 26 * HOUR, ASTRONOMY_END);
+  if (start >= end) return undefined;
+  return sunTransits(new Date(start), new Date(end), {
+    latitudeDeg: latitude,
+    longitudeDeg: longitude,
+  })
+    .find((event) => event.kind === "upper")
+    ?.time.getTime();
 }
