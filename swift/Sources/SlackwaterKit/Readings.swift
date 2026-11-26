@@ -77,8 +77,9 @@ extension CurrentPoint {
     /// The magnitude a reading may trust, or nil for a one-axis sample whose set comes from the published bearings.
     /// A zero sample is a zero vector either way, and reads as one so a vector series can turn through it.
     fileprivate var knownMagnitude: Double? {
-        direction == nil && magnitude == abs(speed) && magnitude != 0 ? nil : magnitude
+        !magnitudeIsKnown && direction == nil && magnitude == abs(speed) && magnitude != 0 ? nil : magnitude
     }
+    fileprivate var isUnknownVector: Bool { magnitudeIsKnown && direction == nil && magnitude > 0 }
 }
 
 extension Array where Element == CurrentPoint {
@@ -86,7 +87,7 @@ extension Array where Element == CurrentPoint {
     public func speed(at time: Date) -> Double? { interpolate(self, at: time, \.time, \.speed) }
 
     /// The current vector at `time`, interpolated through bearings; nil outside the series.
-    /// A sample with no direction and a magnitude of `abs(speed)` is one-axis and takes `flood` or `ebb` by its sign.
+    /// A scalar sample with no direction takes `flood` or `ebb` by its sign.
     public func vector(at time: Date, flood: Double?, ebb: Double?) -> CurrentVector? {
         guard let speed = speed(at: time), let pair = bracket(self, at: time, \.time) else { return nil }
         func vector(_ magnitude: Double, _ direction: Double?) -> CurrentVector {
@@ -100,8 +101,12 @@ extension Array where Element == CurrentPoint {
             guard let magnitude = p.knownMagnitude else { return vector(abs(speed), speed >= 0 ? flood : ebb) }
             return vector(magnitude, p.direction)
         }
+        if a.isUnknownVector || b.isUnknownVector {
+            let am = a.knownMagnitude ?? abs(a.speed), bm = b.knownMagnitude ?? abs(b.speed)
+            return vector(am + (bm - am) * mix, nil)
+        }
         // Scalar phase bearings need not be reciprocal; their reversal must not synthesize crossflow.
-        let axialReversal = a.knownMagnitude == abs(a.speed) && b.knownMagnitude == abs(b.speed) && a.speed * b.speed < 0
+        let axialReversal = !a.magnitudeIsKnown && !b.magnitudeIsKnown && a.knownMagnitude == abs(a.speed) && b.knownMagnitude == abs(b.speed) && a.speed * b.speed < 0
         guard let am = a.knownMagnitude, let bm = b.knownMagnitude, !axialReversal else {
             let direction = axialReversal ? ((speed >= 0) == (a.speed >= 0) ? a : b).direction : speed >= 0 ? flood : ebb
             return vector(abs(speed), direction)
@@ -119,15 +124,23 @@ extension Array where Element == CurrentPoint {
     }
 }
 
+private func rotaryAt(_ points: [CurrentPoint], time: Date) -> Bool {
+    guard let first = points.first, let last = points.last else { return false }
+    let clamped = min(max(time, first.time), last.time)
+    guard let pair = bracket(points, at: clamped, \.time) else { return false }
+    let a = points[pair.lo], b = points[pair.hi]
+    let relevant = a.time == clamped ? [a] : b.time == clamped ? [b] : [a, b]
+    return relevant.contains { ($0.magnitudeIsKnown && $0.magnitude > 0) || $0.magnitude > abs($0.speed) + 1e-9 }
+}
+
 /// The lead reading at `time`: slack or extremum within a second of an event, otherwise the flooding or ebbing phase.
 public func readCurrent(at time: Date, timeline: [CurrentPoint], events: [CurrentEvent],
                         flood: Double?, ebb: Double?) -> CurrentReading? {
     guard let speed = timeline.speed(at: time),
           let vector = timeline.vector(at: time, flood: flood, ebb: ebb) else { return nil }
     let state: CurrentState
-    let rotary = timeline.contains { $0.magnitude > abs($0.speed) + 1e-9 }
     if events.contains(where: { $0.kind == .slack && withinOneSecond($0.time, time) &&
-        ($0.verifiedZero || !rotary || (timeline.vector(at: $0.time, flood: flood, ebb: ebb)?.magnitude ?? .infinity) < 1e-9) }) {
+        ($0.verifiedZero || !rotaryAt(timeline, time: $0.time) || (timeline.vector(at: $0.time, flood: flood, ebb: ebb)?.magnitude ?? .infinity) < 1e-9) }) {
         state = .slack
     } else if let event = events.first(where: { $0.kind != .slack && withinOneSecond($0.time, time) }) {
         switch event.kind {
@@ -170,7 +183,7 @@ private func bandCrossing(_ a: CurrentPoint, _ b: CurrentPoint, threshold: Doubl
 /// The workable window around a slack: where full current speed stays within `threshold`, clamped to the series and widened to hold the slack.
 /// Nil for a slack outside the series, between two out-of-band samples of one sign, or at a threshold at or below zero.
 public func slackWindow(_ points: [CurrentPoint], around slack: Date, threshold: Double) -> SlackWindow? {
-    if points.contains(where: { $0.magnitude > abs($0.speed) + 1e-9 }) {
+    if points.contains(where: { ($0.magnitudeIsKnown && $0.magnitude > 0) || $0.magnitude > abs($0.speed) + 1e-9 }) {
         return rotaryWindows(points, threshold: threshold).first { $0.start <= slack && slack <= $0.end }
     }
     guard threshold > 0, let first = points.first, let last = points.last,
@@ -265,8 +278,11 @@ public func currentWindows(_ points: [CurrentPoint], events: [CurrentEvent], thr
 /// Windows around slack events and qualifying minima, merged into runs; a slack with no window stays an exact instant.
 public func slackRuns(_ points: [CurrentPoint], events: [CurrentEvent], threshold: Double) -> [SlackWindow] {
     guard let first = points.first?.time, let last = points.last?.time else { return [] }
-    if points.contains(where: { $0.magnitude > abs($0.speed) + 1e-9 }) {
-        var windows = rotaryWindows(points, threshold: threshold)
+    if points.contains(where: { ($0.magnitudeIsKnown && $0.magnitude > 0) || $0.magnitude > abs($0.speed) + 1e-9 }) {
+        let extrema = events.filter { $0.kind != .slack && $0.time >= first && $0.time <= last && !rotaryAt(points, time: $0.time) }
+        let times = Set(extrema.map(\.time))
+        let augmented = (points.filter { !times.contains($0.time) } + extrema.map { CurrentPoint(time: $0.time, speed: $0.speed) }).sorted { $0.time < $1.time }
+        var windows = rotaryWindows(augmented, threshold: threshold)
         for event in events where event.kind == .slack && event.time >= first && event.time <= last {
             if readCurrent(at: event.time, timeline: points, events: [event], flood: nil, ebb: nil)?.state == .slack &&
                 !windows.contains(where: { $0.start <= event.time && event.time <= $0.end }) {

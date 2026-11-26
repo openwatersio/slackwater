@@ -44,5 +44,11 @@
     "packages/cli",
     "packages/react",
     "packages/datums"
-  ]
+  ],
+  "overrides": {
+    "npm-run-all": {
+      "minimatch": "^4.2.5"
+    },
+    "glob": "^14.0.2"
+  }
 }

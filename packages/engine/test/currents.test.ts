@@ -58,6 +58,19 @@ test("a constant cross-current prevents zero-current slack events", () => {
   ).toEqual([]);
 });
 
+test("a predicted vector without a bearing keeps its measured magnitude", () => {
+  const station = createCurrentPredictor([], { meanFlow: 1, minorMeanFlow: 1 });
+  const start = new Date("2026-01-01T00:00:00Z");
+  const point = station.getTimelinePrediction({
+    start,
+    end: new Date(start.getTime() + 3600000),
+    timeFidelity: 600,
+  })[0];
+  expect(point.magnitude).toBeCloseTo(Math.SQRT2);
+  expect(point.magnitudeIsKnown).toBe(true);
+  expect(point.direction).toBeUndefined();
+});
+
 test("a rotating prediction retains simultaneous zero-current slack events", () => {
   const c = [{ name: "M2", amplitude: 1, phase: 0 }];
   const station = createCurrentPredictor(c, { minorConstituents: c });
@@ -459,6 +472,15 @@ describe("slackWindows", () => {
     time: new Date(hours(h)),
     hour: h,
     speed,
+  });
+
+  test("does not invent a window when a measured vector has unknown direction", () => {
+    const timeline = [
+      { ...sample(0, -1), magnitude: 1, magnitudeIsKnown: true },
+      { ...sample(0.5, 0), magnitude: 1, magnitudeIsKnown: true },
+      { ...sample(1, 1), magnitude: 1, magnitudeIsKnown: true },
+    ];
+    expect(slackWindows(timeline, 0.5)).toEqual([]);
   });
 
   test("interpolates the band crossings around a reversal", () => {

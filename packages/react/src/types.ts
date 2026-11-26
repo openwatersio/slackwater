@@ -150,6 +150,8 @@ export interface CurrentTimelineEntry {
   speed: number;
   /** Knots; absent from older API servers. */
   magnitude?: number;
+  /** True when full speed is known independently of the signed axis speed. */
+  magnitudeIsKnown?: boolean;
   /** Vector bearing, or the published phase bearing without minor data; degrees true in [0, 360). Absent at zero magnitude or when unknown. */
   direction?: number;
 }

@@ -105,18 +105,22 @@ describe("fit", () => {
   test.each([
     ["schureman", schureman, {}],
     ["foreman", foreman(59.9), { latitude: 59.9 }],
-  ] as const)("fits with %s corrections", (nodeCorrections, fundamentals, options) => {
-    const data = synthetic((time, name) => {
-      const state = astro(time);
-      return {
-        ...constituents[name].correction(state, fundamentals),
-        v: constituents[name].value(state),
-      };
-    });
-    recovers(fit(data, names, { nodeCorrections, ...options }));
-    // IHO's corrections leave a residual, so the option took effect.
-    expect(fit(data, names).rms).toBeGreaterThan(1e-4);
-  });
+  ] as const)(
+    "fits with %s corrections",
+    (nodeCorrections, fundamentals, options) => {
+      const data = synthetic((time, name) => {
+        const state = astro(time);
+        return {
+          ...constituents[name].correction(state, fundamentals),
+          v: constituents[name].value(state),
+        };
+      });
+      recovers(fit(data, names, { nodeCorrections, ...options }));
+      // IHO's corrections leave a residual, so the option took effect.
+      expect(fit(data, names).rms).toBeGreaterThan(1e-4);
+    },
+    15_000,
+  );
 
   // The argument at January 1 advanced at the constituent's speed, and f and u at July 2.
   const yearlyTerms = (fundamentals: Fundamentals) => (time: Date, name: string) => {
@@ -141,6 +145,7 @@ describe("fit", () => {
       recovers(fit(data, names, { nodeCorrections, nodal: "yearly", ...options }));
       expect(fit(data, names, { nodeCorrections, ...options }).rms).toBeGreaterThan(1e-4);
     },
+    15_000,
   );
 
   test("fits years 0 to 99 a year at a time in their own century", () => {

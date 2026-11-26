@@ -70,6 +70,65 @@ class ReadingsTest {
         assertNull(rates.rateAt(at(h + 0.001)))
     }
 
+    @Test fun explicitlyMeasuredMagnitudeKeepsUnknownDirection() {
+        val point = CurrentPoint(time = t0, speedKnots = 1.0, magnitudeKnots = 1.0, directionDegrees = null, magnitudeIsKnown = true)
+        assertEquals(CurrentVector(1.0, null), listOf(point).vectorAt(t0, 45.0, 225.0))
+    }
+
+    @Test fun unknownVectorDirectionDoesNotInventSlackOrAComfortWindow() {
+        val points = listOf(CurrentPoint(t0, -1.0, 1.0, null, true), CurrentPoint(at(h), 1.0, 1.0, null, true))
+        val event = CurrentEvent(at(h / 2), 0.0, CurrentEventKind.SLACK)
+        val reading = assertNotNull(readCurrent(event.time, points, listOf(event), 45.0, 225.0))
+        assertNotEquals(CurrentState.SLACK, reading.state)
+        assertEquals(1.0, reading.magnitudeKnots)
+        assertNull(reading.directionDegrees)
+        assertTrue(currentWindows(points, listOf(event), 0.5).isEmpty())
+    }
+
+    @Test fun measuredLowSpeedWithUnknownBearingStillFormsAWindow() {
+        val points = listOf(CurrentPoint(t0, -0.2, 0.3, null, true), CurrentPoint(at(h), 0.2, 0.4, null, true))
+        val event = CurrentEvent(at(h / 2), 0.0, CurrentEventKind.SLACK)
+        val windows = currentWindows(points, listOf(event), 0.5)
+        assertEquals(1, windows.size)
+        assertTrue(windows.single().slackTimes.isEmpty())
+    }
+
+    @Test fun mixedScalarAndUnknownVectorDoNotInventSlack() {
+        val points = listOf(CurrentPoint(t0, -1.0), CurrentPoint(at(h), 1.0, 1.0, null, true))
+        val event = CurrentEvent(at(h / 2), 0.0, CurrentEventKind.SLACK)
+        val reading = assertNotNull(readCurrent(event.time, points, listOf(event), 45.0, 225.0))
+        assertNotEquals(CurrentState.SLACK, reading.state)
+        assertEquals(1.0, reading.magnitudeKnots)
+        assertNull(reading.directionDegrees)
+        assertTrue(currentWindows(points, listOf(event), 0.5).isEmpty())
+    }
+
+    @Test fun unknownVectorRejectsSlackJustOutsideTimeline() {
+        val points = listOf(CurrentPoint(t0, 1.0, 1.0, null, true), CurrentPoint(at(h), 1.0, 1.0, null, true))
+        for ((time, event) in listOf(t0 to slackAt(at(-0.5)), at(h) to slackAt(at(h + 0.5)))) {
+            assertNotEquals(CurrentState.SLACK, assertNotNull(readCurrent(time, points, listOf(event), null, null)).state)
+        }
+    }
+
+    @Test fun independentlyMeasuredVectorsKeepBearingsThroughReversal() {
+        val points = listOf(CurrentPoint(t0, -1.0, 1.0, 200.0, true), CurrentPoint(at(h), 1.0, 1.0, 45.0, true))
+        val event = slackAt(at(h / 2))
+        val reading = assertNotNull(readCurrent(event.time, points, listOf(event), null, null))
+        assertNotEquals(CurrentState.SLACK, reading.state)
+        assertTrue(reading.magnitudeKnots > 0.2)
+    }
+
+    @Test fun distantUnknownBearingPreservesScalarEvents() {
+        val points = listOf(CurrentPoint(t0, 1.0), CurrentPoint(at(h), 1.0), CurrentPoint(at(2 * h), -1.0),
+            CurrentPoint(at(4 * h), 1.0, 1.0, null, true))
+        val minimum = CurrentEvent(at(h / 2), 0.2, CurrentEventKind.MIN_FLOOD)
+        val slack = slackAt(at(1.6 * h))
+        assertEquals(CurrentState.SLACK, readCurrent(slack.time, points, listOf(slack), null, null)?.state)
+        val windows = currentWindows(points, listOf(minimum, slack), 0.5)
+        assertTrue(windows.any { it.start <= minimum.time && minimum.time <= it.end })
+        assertTrue(windows.any { slack.time in it.slackTimes })
+    }
+
     @Test fun vectorsInterpolateThroughBearings() {
         // Through north rather than turning south.
         val north = assertNotNull(listOf(point(0.0, 1.0, 1.0, 350.0), point(1.0, 1.0, 1.0, 10.0)).vectorAt(at(h / 2), null, null))

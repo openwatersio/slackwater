@@ -298,5 +298,157 @@
       "magnitude": 2.757243120381142,
       "direction": 335.9719000826169
     }
+  ],
+  "unknownTimeline": [
+    {
+      "time": "2026-06-01T00:00:00.000Z",
+      "speed": 3.4737240497355435,
+      "magnitude": 3.478282178818769,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-01T03:00:00.000Z",
+      "speed": 0.7842200274591821,
+      "magnitude": 1.0602075868155676,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-01T06:00:00.000Z",
+      "speed": -0.5487496986343716,
+      "magnitude": 0.6062925799382819,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-01T09:00:00.000Z",
+      "speed": -0.023087103763860195,
+      "magnitude": 0.7602108992100769,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-01T12:00:00.000Z",
+      "speed": 0.2505375143193622,
+      "magnitude": 0.6630949032359426,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-01T15:00:00.000Z",
+      "speed": -1.7100545988454325,
+      "magnitude": 1.723216722642879,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-01T18:00:00.000Z",
+      "speed": -1.4858180625293138,
+      "magnitude": 1.4872149293665167,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-01T21:00:00.000Z",
+      "speed": 0.9812119009704727,
+      "magnitude": 1.204335700421018,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-02T00:00:00.000Z",
+      "speed": 3.4242839820686544,
+      "magnitude": 3.4510473713784546,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-02T03:00:00.000Z",
+      "speed": 1.4583551746282433,
+      "magnitude": 1.5652127721442377,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-02T06:00:00.000Z",
+      "speed": -0.3025967624904869,
+      "magnitude": 0.5788427357128701,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-02T09:00:00.000Z",
+      "speed": -0.1013063696552316,
+      "magnitude": 0.6017835398192761,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-02T12:00:00.000Z",
+      "speed": 0.24308672905437953,
+      "magnitude": 0.8714447183483668,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-02T15:00:00.000Z",
+      "speed": -1.4450747756298032,
+      "magnitude": 1.445194718856766,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-02T18:00:00.000Z",
+      "speed": -1.7921889358221852,
+      "magnitude": 1.8119174975707315,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-02T21:00:00.000Z",
+      "speed": 0.2461072152551914,
+      "magnitude": 0.5388601712876976,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-03T00:00:00.000Z",
+      "speed": 3.137731366617772,
+      "magnitude": 3.195130373405749,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-03T03:00:00.000Z",
+      "speed": 2.2427152861811654,
+      "magnitude": 2.2675285294505008,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-03T06:00:00.000Z",
+      "speed": 0.016915212894360376,
+      "magnitude": 0.6427873669099006,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-03T09:00:00.000Z",
+      "speed": -0.1456860935859582,
+      "magnitude": 0.3763197065628627,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-03T12:00:00.000Z",
+      "speed": 0.2411616217609073,
+      "magnitude": 0.9944605669404503,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-03T15:00:00.000Z",
+      "speed": -1.0250594589608633,
+      "magnitude": 1.0538694585555437,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-03T18:00:00.000Z",
+      "speed": -1.9595174193737772,
+      "magnitude": 1.9935120438153098,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-03T21:00:00.000Z",
+      "speed": -0.3895195905316537,
+      "magnitude": 0.4387157108273168,
+      "magnitudeIsKnown": true
+    },
+    {
+      "time": "2026-06-04T00:00:00.000Z",
+      "speed": 2.675013755029587,
+      "magnitude": 2.757243120381142,
+      "magnitudeIsKnown": true
+    }
   ]
 }
