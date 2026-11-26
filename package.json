@@ -43,5 +43,11 @@
     "packages/api",
     "packages/cli",
     "packages/react"
-  ]
+  ],
+  "overrides": {
+    "npm-run-all": {
+      "minimatch": "^4.2.5"
+    },
+    "glob": "^14.0.2"
+  }
 }
