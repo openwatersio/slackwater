@@ -55,10 +55,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v7.1.0
         with:
           # SEA binary build uses `node --build-sea` (needs Node 25.5+).
           # On 26 (Current, LTS-track) rather than 25, which is now EOL.
@@ -105,7 +105,7 @@ jobs:
         run: Compress-Archive -Path packages/cli/dist/slackwater.exe, packages/cli/dist/LICENSE, packages/cli/dist/NOTICE -DestinationPath packages/cli/slackwater-${{ matrix.target }}.zip
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: slackwater-${{ matrix.target }}
           path: packages/cli/slackwater-${{ matrix.target }}.*
@@ -120,7 +120,7 @@ jobs:
       contents: write
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.2
         with:
           path: artifacts
 
@@ -131,13 +131,13 @@ jobs:
           cat ../checksums.txt
 
       - name: Upload checksums artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: checksums
           path: checksums.txt
 
       - name: Upload binaries and checksums to release
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@v3.0.4
         with:
           tag_name: ${{ needs.resolve-tag.outputs.tag }}
           files: |
@@ -153,7 +153,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
 
       - name: Generate formula
         env:
