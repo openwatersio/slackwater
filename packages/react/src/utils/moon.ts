@@ -1,5 +1,9 @@
-import { moonApsides as findMoonApsides, moonIllumination } from "@openwaters/almanac";
-import { ASTRONOMY_END, ASTRONOMY_START } from "./time.js";
+import {
+  DEFAULT_SUPPORTED_END,
+  DEFAULT_SUPPORTED_START,
+  moonApsides as findMoonApsides,
+  moonIllumination,
+} from "@openwaters/almanac";
 
 const DAY = 86_400_000;
 const SYNODIC_DAYS = 29.53;
@@ -32,8 +36,8 @@ export function moonPhaseName(phase: number): string {
 /** The perigee and apogee nearest `around` within fifteen days either side. */
 export function moonApsides(around: number): { perigee?: number; apogee?: number } {
   const found: { perigee?: number; apogee?: number } = {};
-  const start = Math.max(around - 15 * DAY, ASTRONOMY_START);
-  const end = Math.min(around + 15 * DAY + 1, ASTRONOMY_END);
+  const start = Math.max(around - 15 * DAY, DEFAULT_SUPPORTED_START);
+  const end = Math.min(around + 15 * DAY + 1, DEFAULT_SUPPORTED_END);
   if (start >= end) return found;
   for (const apsis of findMoonApsides(new Date(start), new Date(end))) {
     const t = apsis.time.getTime();
