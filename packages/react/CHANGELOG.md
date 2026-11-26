@@ -1,5 +1,19 @@
 # @neaps/react
 
+## 1.0.0-beta.10
+
+### Major Changes
+
+- [#575](https://github.com/openwatersio/slackwater/pull/575) [`9c251dc`](https://github.com/openwatersio/slackwater/commit/9c251dcc177c918356da0093b2951a206b020692) Thanks [@clarkbw](https://github.com/clarkbw)! - Use Almanac for Sun and Moon readings. These readings support January 1, 1950 through December 31, 2100 UTC.
+
+### Patch Changes
+
+- [#574](https://github.com/openwatersio/slackwater/pull/574) [`c09a889`](https://github.com/openwatersio/slackwater/commit/c09a8898cf4beae7deed63c65a5f2d45bc189971) Thanks [@clarkbw](https://github.com/clarkbw)! - Install the React package without map dependencies when using components that do not display a map.
+
+- [#569](https://github.com/openwatersio/slackwater/pull/569) [`07b0eed`](https://github.com/openwatersio/slackwater/commit/07b0eed902565b63deb1707b66ad6e6350102a5a) Thanks [@clarkbw](https://github.com/clarkbw)! - Preserve measured current speed when the direction is unknown, without inventing slack or a comfort window.
+- Updated dependencies [[`e0a65bf`](https://github.com/openwatersio/slackwater/commit/e0a65bf8ac0ad05b03c62c30cc01372772f5e47d), [`e0a65bf`](https://github.com/openwatersio/slackwater/commit/e0a65bf8ac0ad05b03c62c30cc01372772f5e47d), [`07b0eed`](https://github.com/openwatersio/slackwater/commit/07b0eed902565b63deb1707b66ad6e6350102a5a)]:
+  - @slackwater/engine@1.0.0-beta.15
+
 ## 1.0.0-beta.9
 
 ### Major Changes
