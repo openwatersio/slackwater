@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { createTidePredictor } from "@slackwater/engine";
-import { prepareDatumObservations, observedMeanLevel, type Sample } from "../src/index.js";
+import {
+  computeDatumsFromObservations,
+  prepareDatumObservations,
+  observedMeanLevel,
+  type Sample,
+} from "../src/index.js";
 
 const constituents = [
   { name: "M2", amplitude: 1, phase: 15 },
@@ -136,9 +141,96 @@ describe("datum observation preparation", () => {
     for (const p of result.samples) expect(p.level).toBeCloseTo(expected.get(+p.time)!, 9);
   });
 
-  test("does not chain inferred points across a longer omission", () => {
+  test("fills a seven-hour omission from the prediction and observed residual", () => {
+    const drifting = truth.map((p, h) => ({ ...p, level: p.level + 0.1 * Math.sin(h / 500) }));
+    const masked = drifting.filter((_, h) => h % 120 < 24 || h % 120 >= 31);
+    const result = prepareDatumObservations(masked, constituents)!;
+    expect(result.coverage.months).toBe(24);
+    const observed = new Set(masked.map((p) => +p.time));
+    expect(result.coverage.inferredHours).toBe(
+      result.samples.filter((p) => !observed.has(+p.time)).length,
+    );
+    expect(result.coverage.inferredHours).toBeGreaterThan(1000);
+    const expected = new Map(drifting.map((p) => [+p.time, p.level]));
+    for (const p of result.samples) expect(p.level).toBeCloseTo(expected.get(+p.time)!, 3);
+  });
+
+  test("gives the gapless record's datums with seven hours missing every five days", () => {
     const masked = truth.filter((_, h) => h % 120 < 24 || h % 120 >= 31);
-    expect(prepareDatumObservations(masked, constituents)).toBeNull();
+    const filled = computeDatumsFromObservations(masked, constituents)!;
+    const full = computeDatumsFromObservations(truth, constituents)!;
+    expect(filled.coverage.inferredHours).toBeGreaterThan(1000);
+    for (const [name, level] of Object.entries(full.datums))
+      expect(filled.datums[name]).toBeCloseTo(level!, 2);
+  });
+
+  const stepped = (step: number) =>
+    truth
+      .map((p) => ({ ...p, level: p.level + (p.time >= new Date("2021-06-10T07:00Z") ? step : 0) }))
+      .filter(
+        (p) => p.time < new Date("2021-06-10T00:00Z") || p.time >= new Date("2021-06-10T07:00Z"),
+      );
+
+  test("does not bridge a gauge zero shift hidden in a seven-hour omission", () => {
+    const result = prepareDatumObservations(stepped(0.5), constituents)!;
+    expect(result.coverage.months).toBe(12);
+    expect(result.start.toISOString()).toBe("2020-06-01T00:00:00.000Z");
+    expect(result.coverage.inferredHours).toBe(0);
+  });
+
+  test.each([
+    [0.09, 24],
+    [0.11, 12],
+  ])(
+    "fills a seven-hour omission across a %f m level change only within the limit",
+    (step, months) => {
+      expect(prepareDatumObservations(stepped(step), constituents)!.coverage.months).toBe(months);
+    },
+  );
+
+  test("does not count curve-fitted hours against the monthly fill limit", () => {
+    // Three missing hours a day is 93 hours a month, all bridged by the cubic.
+    const masked = truth.filter((_, h) => h % 24 < 10 || h % 24 >= 13);
+    expect(prepareDatumObservations(masked, constituents)!.coverage.months).toBe(24);
+  });
+
+  test("does not chain fills across a lone real hour", () => {
+    // Two 23-hour gaps around one real hour make a 47-hour outage every 30 days.
+    const lone = truth.filter((_, h) => h % 720 < 24 || h % 720 === 47 || h % 720 >= 71);
+    expect(prepareDatumObservations(lone, constituents)).toBeNull();
+    // With two real hours on each side, each 23-hour gap fills on its own.
+    const pair = truth.filter(
+      (_, h) => h % 720 < 24 || h % 720 === 47 || h % 720 === 48 || h % 720 >= 72,
+    );
+    expect(prepareDatumObservations(pair, constituents)!.coverage.months).toBe(24);
+  });
+
+  test("does not fill an omission of a day or more", () => {
+    const day = truth.filter((_, h) => h % 2000 < 24 || h % 2000 >= 48);
+    expect(prepareDatumObservations(day, constituents)).toBeNull();
+    const underDay = truth.filter((_, h) => h % 2000 < 24 || h % 2000 >= 47);
+    expect(prepareDatumObservations(underDay, constituents)!.coverage.months).toBe(24);
+  });
+
+  test.each([
+    [72, 24],
+    [73, 12],
+  ])("counts a month with %i prediction-filled hours toward %i months", (hours, months) => {
+    // In March 2021: gaps of 23, 23, and 22 or 23 hours, plus one of 4 too long for the cubic.
+    const missing = (t: Date) => {
+      const day = t.getUTCDate(),
+        hour = t.getUTCHours();
+      return (
+        (day === 3 && hour < 23) ||
+        (day === 10 && hour < 23) ||
+        (day === 17 && hour < hours - 50) ||
+        (day === 25 && hour >= 10 && hour < 14)
+      );
+    };
+    const masked = truth.filter(
+      (p) => !(p.time.getUTCFullYear() === 2021 && p.time.getUTCMonth() === 2 && missing(p.time)),
+    );
+    expect(prepareDatumObservations(masked, constituents)!.coverage.months).toBe(months);
   });
 
   test("does not bridge long gaps or stitch separate partial seasons into an epoch", () => {
@@ -174,7 +266,7 @@ describe("datum observation preparation", () => {
     expect(result.end.toISOString()).toBe("2023-01-01T00:00:00.000Z");
   });
 
-  test("rejects five-hour anchor separation rather than inventing its missing tides", () => {
+  test("rejects four missing hours every day, over the monthly fill limit", () => {
     const masked = truth.filter((_, h) => h % 24 < 7 || h % 24 > 10);
     expect(prepareDatumObservations(masked, constituents)).toBeNull();
   });

@@ -113,7 +113,7 @@ describe("observed preparation", () => {
 
   test("leaves a gap unfilled when the model predicts no finite level", () => {
     const gappy = complete.filter((_, h) => h !== 40);
-    expect(prepareDatumObservations(gappy, [{ name: "M2", amplitude: NaN, phase: 0 }])).toBeNull();
+    expect(prepareDatumObservations(gappy, [{ name: "M2", amplitude: 1, phase: NaN }])).toBeNull();
   });
 
   test("leaves out a datum that comes out non-finite", () => {

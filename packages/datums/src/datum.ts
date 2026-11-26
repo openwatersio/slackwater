@@ -231,13 +231,16 @@ export function computeDatums(
 ): TidalDatumsResult {
   const { start, end } = resolveEpoch(epochSpec);
   const { offset, ...options } = tidePredictorOptions;
-  if (typeof offset === "number" && !Number.isFinite(offset))
-    throw new RangeError("invalidOffset: offset must be finite");
   const { ignored, duplicates, find } = resolveConstituents(constituents, options.definitions);
   // The engine would add both waves while an amplitude formula can read only one.
   if (duplicates.length) throw new RangeError(`duplicateConstituent: ${duplicates.join(", ")}`);
-  // A Z0 constant is a datum offset, not a tide: shift every datum by it, like `offset`.
+  // A Z0 constant is a datum offset, not a tide: shift every datum by it, like `offset`, so the
+  // map stays in one frame.
   const z0 = find("Z0");
+  const shift =
+    (typeof offset === "number" ? offset : 0) +
+    (z0 ? z0.amplitude * Math.cos((z0.phase * Math.PI) / 180) : 0);
+  if (!Number.isFinite(shift)) throw new RangeError("invalidOffset: offset and Z0 must be finite");
   const tide = constituents.filter((constituent) => constituent !== z0);
 
   // The engine gets the constants as given, so it refuses what it refuses. A display
@@ -255,10 +258,6 @@ export function computeDatums(
   const tlt = theoreticalLowestTide(find);
   if (tlt !== undefined) datums["TLT"] = tlt;
 
-  // Shift every datum by the same amount, so the map stays in one frame.
-  const shift =
-    (typeof offset === "number" ? offset : 0) +
-    (z0 ? z0.amplitude * Math.cos((z0.phase * Math.PI) / 180) : 0);
   return {
     start,
     end,

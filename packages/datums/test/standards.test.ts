@@ -305,9 +305,23 @@ describe("observed datums", () => {
     );
   });
 
-  test("fill no gap from a Z0 constant alone", () => {
+  test.each([
+    ["a Z0 constant alone", [{ name: "Z0", amplitude: 0, phase: 0 }]],
+    [
+      "two Z0 constants",
+      [
+        { name: "Z0", amplitude: 0, phase: 0 },
+        { name: "Z0", amplitude: 1, phase: 0 },
+      ],
+    ],
+    ["a tide of zero amplitude", [{ name: "M2", amplitude: 0, phase: 0 }]],
+    ["only a long-period tide", [{ name: "Sa", amplitude: 0.1, phase: 0 }]],
+  ])("fill no gap from %s", (_, model) => {
     const gappy = hourly(start, 8760, cosine).filter((_, h) => h % 12 !== 0);
-    expect(prepareDatumObservations(gappy, [{ name: "Z0", amplitude: 0, phase: 0 }])).toBeNull();
+    expect(prepareDatumObservations(gappy, model)).toBeNull();
+    // A 23-hour gap filled from a flat model would flatten the tides inside it.
+    const outage = hourly(start, 8760, cosine).filter((_, h) => h % 200 < 100 || h % 200 >= 123);
+    expect(prepareDatumObservations(outage, model)).toBeNull();
   });
 
   test("report unknown constituent names and use no model when none is known", () => {
@@ -480,6 +494,9 @@ describe("frames and names", () => {
 
   test("refuse an offset that is not finite, and leave out a datum the shift overflows", () => {
     expect(() => computeDatums(tide, {}, { offset: Infinity })).toThrow("invalidOffset");
+    expect(() => computeDatums([...tide, { name: "Z0", amplitude: NaN, phase: 0 }])).toThrow(
+      "invalidOffset",
+    );
     expect(computeDatums(tide, {}, { offset: 1e306 }).datums).toEqual({});
   });
 
@@ -516,10 +533,24 @@ describe("observed edge cases", () => {
     expect(first["MHW"]).toBe(2);
   });
 
-  test("refuse a gap whose anchors were sampled almost together", () => {
+  test("weight a repeated sample once in its hourly mean", () => {
+    const year = hourly(start, 8760, cosine);
+    const sixMinutes = Array.from({ length: 10 }, (_, k) => ({
+      time: new Date(start + 5 * HOUR + k * 360_000),
+      level: k / 10,
+    }));
+    const samples = [...year.filter((_, h) => h !== 5), ...sixMinutes, ...sixMinutes.slice(0, 5)];
+    expect(prepareDatumObservations(samples, [])!.samples[5]!.level).toBeCloseTo(0.45, 9);
+  });
+
+  test("fill a gap whose anchors were sampled almost together from its edges, not the cubic", () => {
     const samples = hourly(start, 8760, cosine).filter((_, h) => h !== 40);
     samples[38] = { time: new Date(start + 39 * HOUR - 1), level: 0 };
-    const result = prepareDatumObservations(samples, [{ name: "S2", amplitude: 1, phase: 0 }]);
-    expect(result).toBeNull();
+    const result = prepareDatumObservations(samples, [{ name: "S2", amplitude: 1, phase: 0 }])!;
+    expect(result.coverage.inferredHours).toBe(1);
+    expect(Math.abs(result.samples[40]!.level)).toBeLessThanOrEqual(1);
+    // Without two real hours after it, the gap stays open and January is incomplete.
+    const unedged = samples.filter((p) => +p.time !== start + 42 * HOUR);
+    expect(prepareDatumObservations(unedged, [{ name: "S2", amplitude: 1, phase: 0 }])).toBeNull();
   });
 });

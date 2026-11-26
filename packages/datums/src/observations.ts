@@ -12,8 +12,17 @@ import {
 import { FIT_SEARCH_HALF_WINDOW_MS, tabulateTurns, type TideTurn } from "./tabulate.js";
 
 const HOUR_MS = 3600000;
-// Project eligibility limits, not an equivalence to NOAA's datum epoch.
+// The longest gap, and the furthest anchor beyond it, that the cubic fill bridges.
 const MAX_BRACKET_HOURS = 4;
+// A longer gap takes the prediction plus a residual interpolated between its edges. IOC Manuals
+// and Guides 14 vol. II §5.1.1 recommends filling only gaps under 24 hours; NOAA fills up to
+// 3 days (NOS CO-OPS 2 §2.6).
+const MAX_FILL_HOURS = 23;
+// Our limit on a month's prediction-filled hours, NOAA's 3-day gap limit taken as a monthly total.
+const MAX_MONTH_FILL_HOURS = 72;
+// Our stand-in for NOAA's condition that a fill matches the gauge and no weather intervenes: a
+// larger change in residual across the gap means a surge or a gauge zero shift.
+const MAX_FILL_RESIDUAL_CHANGE_M = 0.1;
 const YEAR_MONTHS = 12;
 
 // Anchors whose sampling instants are closer than this make the gap's cubic ill-conditioned.
@@ -36,7 +45,11 @@ interface CalendarMonth {
 }
 
 export interface PreparedDatumObservations {
-  /** Hourly heights over the window, measured or filled. */
+  /**
+   * Hourly heights over the window, measured or filled, each stamped at the start of its hour.
+   * A height is the mean of the hour's samples, so it stands for their mean instant, about :27
+   * for 6-minute data.
+   */
   samples: Sample[];
   start: Date;
   /** Exclusive: the instant after the window's last hour. */
@@ -236,42 +249,54 @@ function prepareHourlyObservations(
   constituents: HarmonicConstituent[],
   modelOptions: DatumModelOptions,
 ): HourlyPreparation | null {
-  const { known, ignored, find } = resolveConstituents(constituents, modelOptions.definitions);
+  const { tidal, ignored } = resolveConstituents(constituents, modelOptions.definitions);
   // The constants predict under the corrections they were fitted with, or the gap fill drifts.
   // The engine gets the constants as given, so it refuses what it refuses, and builds before
   // any early return, so invalid options fail whether or not the record has gaps.
   const model = createTidePredictor(constituents, modelOptions);
-  // A Z0 constant alone predicts no tide, so it can't fill a missing high or low.
-  const predictor = known.some((constituent) => constituent !== find("Z0")) ? model : undefined;
-  const hourly = hourlyBins(samples);
+  // A model with no daily or faster tide would fill a gap with a nearly straight line.
+  const predictor = tidal ? model : undefined;
+  const distinct = distinctInstants(samples, -Infinity, Infinity);
+  const hourly = hourlyBins(distinct);
   if (!hourly.length) return null;
   const levels = new Map(hourly.map((p) => [p.hour, p.level]));
   const instants = new Map(hourly.map((p) => [p.hour, p.at]));
   const inferred = new Map<number, number>();
-  if (!predictor) return { hourly, levels, instants, inferred, ignored };
+  const unfilled = { hourly, levels, instants, inferred, ignored };
+  if (!predictor) return unfilled;
 
   const gaps: Hourly[][] = [];
+  const spans: [Hourly, Hourly][] = [];
   const profiles = new Map<number, number[]>();
-  for (let i = 1; i < hourly.length - 2; i++) {
-    const anchors = hourly.slice(i - 1, i + 3),
-      left = anchors[1]!,
-      right = anchors[2]!;
+  // Two real hours in a row on each side, so a lone reading inside an outage can't join two fills.
+  const edged = (before?: Hourly, left?: Hourly, right?: Hourly, after?: Hourly) =>
+    before?.hour === left!.hour - 1 && after?.hour === right!.hour + 1;
+  for (let i = 0; i < hourly.length - 1; i++) {
+    const before = hourly[i - 1],
+      left = hourly[i]!,
+      right = hourly[i + 1]!,
+      after = hourly[i + 2];
     const separation = right.hour - left.hour;
+    if (separation <= 1 || separation > MAX_FILL_HOURS + 1) continue;
     if (
-      separation <= 1 ||
-      separation > MAX_BRACKET_HOURS ||
-      left.hour - anchors[0]!.hour > MAX_BRACKET_HOURS ||
-      anchors[3]!.hour - right.hour > MAX_BRACKET_HOURS
-    )
-      continue;
-    gaps.push(anchors);
-    for (const p of anchors) profiles.set(p.hour, []);
+      before &&
+      after &&
+      separation <= MAX_BRACKET_HOURS &&
+      left.hour - before.hour <= MAX_BRACKET_HOURS &&
+      after.hour - right.hour <= MAX_BRACKET_HOURS
+    ) {
+      gaps.push([before, left, right, after]);
+      for (const p of [before, left, right, after]) profiles.set(p.hour, []);
+    } else if (edged(before, left, right, after)) {
+      spans.push([left, right]);
+      profiles.set(left.hour, []);
+      profiles.set(right.hour, []);
+    }
   }
-  if (!gaps.length) return { hourly, levels, instants, inferred, ignored };
+  if (!gaps.length && !spans.length) return unfilled;
   // Compare averaged measurements with averaged predictions at the same sample
   // instants. Retain sampling profiles only for the real anchors around gaps.
-  for (const p of samples) {
-    if (!Number.isFinite(+p.time) || !Number.isFinite(p.level)) continue;
+  for (const p of distinct) {
     const hour = Math.floor(+p.time / HOUR_MS);
     profiles.get(hour)?.push(+p.time - hour * HOUR_MS);
   }
@@ -289,8 +314,10 @@ function prepareHourlyObservations(
     const positions = anchors.map(
       (p) => p.hour - left.hour + mean(profiles.get(p.hour)!) / HOUR_MS,
     );
-    if (positions.some((x, k) => k > 0 && x - positions[k - 1]! < MIN_ANCHOR_SPACING_HOURS))
+    if (positions.some((x, k) => k > 0 && x - positions[k - 1]! < MIN_ANCHOR_SPACING_HOURS)) {
+      if (edged(...(anchors as [Hourly, Hourly, Hourly, Hourly]))) spans.push([left, right]);
       continue;
+    }
     // A bin residual is an average at its sampling instants, not a point at
     // the integer hour. Fit those averages so changing cadence cannot shift it.
     const coefficients = solveCubic(
@@ -315,6 +342,32 @@ function prepareHourlyObservations(
           prediction(instant) + coefficients.reduce((sum, c, degree) => sum + c * x ** degree, 0),
         );
       }
+    }
+  }
+  // The residual is an average at each edge bin's sampling instants, so it sits at their mean.
+  const residualAt = (p: Hourly) => ({
+    x: p.hour + mean(profiles.get(p.hour)!) / HOUR_MS,
+    residual: p.level - binPrediction(p.hour, profiles.get(p.hour)!),
+  });
+  // A month whose spans hold more hours than the cap stays incomplete whichever of them fill, so
+  // count them first and skip predicting for it.
+  const spanHours = new Map<number, number>();
+  for (const [left, right] of spans)
+    for (let hour = left.hour + 1; hour < right.hour; hour++)
+      spanHours.set(monthStart(hour), (spanHours.get(monthStart(hour)) ?? 0) + 1);
+  for (const [left, right] of spans) {
+    const a = residualAt(left),
+      b = residualAt(right);
+    if (!(Math.abs(b.residual - a.residual) <= MAX_FILL_RESIDUAL_CHANGE_M)) continue;
+    const residual = (x: number) =>
+      a.residual + ((x - a.x) / (b.x - a.x)) * (b.residual - a.residual);
+    for (let hour = left.hour + 1; hour < right.hour; hour++) {
+      if (spanHours.get(monthStart(hour))! > MAX_MONTH_FILL_HOURS) continue;
+      const profile = profiles.get(hour - left.hour <= right.hour - hour ? left.hour : right.hour)!;
+      const instant = hour * HOUR_MS + mean(profile);
+      levels.set(hour, binPrediction(hour, profile) + residual(instant / HOUR_MS));
+      instants.set(hour, instant);
+      inferred.set(hour, prediction(instant) + residual(instant / HOUR_MS));
     }
   }
   return { hourly, levels, instants, inferred, ignored };
@@ -392,11 +445,10 @@ function calendarMonths({ hourly, levels }: HourlyPreparation): CalendarMonth[] 
   return months;
 }
 
-/** Finite samples averaged into UTC hourly bins, in time order. */
-function hourlyBins(samples: Sample[]): Hourly[] {
+/** Distinct finite samples, in time order, averaged into UTC hourly bins. */
+function hourlyBins(samples: readonly Sample[]): Hourly[] {
   const buckets = new Map<number, { sum: number; time: number; n: number }>();
   for (const p of samples) {
-    if (!Number.isFinite(+p.time) || !Number.isFinite(p.level)) continue;
     const hour = Math.floor(+p.time / HOUR_MS),
       bucket = buckets.get(hour) ?? { sum: 0, time: 0, n: 0 };
     bucket.sum += p.level;

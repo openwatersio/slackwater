@@ -24,7 +24,7 @@ const PAD_HOURS = 96;
 // A high and the neighbouring low closer than either bound are not a tide (Hicks 1980).
 const MIN_TURN_SEPARATION_MS = 2 * HOUR_MS;
 const MIN_TURN_RANGE = 0.03;
-// Centimetre-rounded heights 3 cm apart differ by 0.03 give or take float noise; count them as 3 cm.
+// Heights 3 cm apart can differ by a hair under 0.03 in floating point; count them as 3 cm.
 const RANGE_TOLERANCE = 1e-9;
 // Below this sampling interval a turn's height comes from a cubic fit, above it from the
 // extreme observation within ±30 minutes.
@@ -313,7 +313,6 @@ export function exhl(values: readonly number[]): number[] {
 export function diur(times: readonly number[], values: readonly number[], start: number): number[] {
   const n = times.length;
   const marked = new Set<number>();
-  // The index of the most extreme tide in [t1, t2], or -1 when there is none.
   // The first index whose time is at or after `time`, or n; the times are sorted.
   const from = (time: number) => {
     let lo = 0;
@@ -325,6 +324,7 @@ export function diur(times: readonly number[], values: readonly number[], start:
     }
     return lo;
   };
+  // The index of the most extreme tide in [t1, t2], or -1 when there is none.
   const most = (t1: number, t2: number) => {
     let index = -1;
     for (let i = from(t1); i < n && times[i]! <= t2; i++)

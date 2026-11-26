@@ -12,12 +12,18 @@ export interface ResolvedConstituents {
   ignored: string[];
   /** Names given for a constituent already given, which the engine adds as a second wave. */
   duplicates: string[];
+  /** Whether any known constituent is a diurnal or faster tide with a finite, nonzero amplitude. */
+  tidal: boolean;
   /**
    * The constants for the constituent the engine knows by `name`, through any alias or
    * definition, so "SA" finds Sa and a definition that takes the name "M2" finds its own entry.
    */
   find(name: string): HarmonicConstituent | undefined;
 }
+
+// The slowest diurnal constituent, 2Q1, runs at 12.85°/h; anything slower can't shape a tide
+// within a day.
+const MIN_TIDAL_SPEED = 12;
 
 /** Sort constants into the ones the engine predicts and the names it skips, as the engine does. */
 export function resolveConstituents(
@@ -44,6 +50,12 @@ export function resolveConstituents(
     known,
     ignored,
     duplicates,
+    tidal: known.some(
+      (c) =>
+        model(c.name)!.speed >= MIN_TIDAL_SPEED &&
+        Number.isFinite(c.amplitude) &&
+        c.amplitude !== 0,
+    ),
     find: (name) => {
       const entry = model(name);
       return entry && byModel.get(entry);
