@@ -55,7 +55,7 @@ describe("datum observation preparation", () => {
     const result = prepareDatumObservations(partial, constituents)!;
     expect(result.coverage.months).toBe(12);
     expect(result.start.toISOString()).toBe("2020-06-01T00:00:00.000Z");
-    expect(result.end.toISOString()).toBe("2021-05-31T23:00:00.000Z");
+    expect(result.end.toISOString()).toBe("2021-06-01T00:00:00.000Z");
   });
 
   test("compares six-minute bin means with mean predictions when filling missing hours", () => {
@@ -120,7 +120,7 @@ describe("datum observation preparation", () => {
     });
     const result = prepareDatumObservations(sampled, constituents)!;
     expect(result.start.getUTCFullYear()).toBe(2020);
-    expect(result.end.getUTCFullYear()).toBe(2021);
+    expect(result.end.toISOString()).toBe("2022-01-01T00:00:00.000Z");
     const expected = new Map(truth.map((p) => [+p.time, p.level]));
     for (const p of result.samples) expect(p.level).toBeCloseTo(expected.get(+p.time)!, 9);
   });
@@ -158,7 +158,7 @@ describe("datum observation preparation", () => {
     );
     const result = prepareDatumObservations(year, [])!;
     expect(result.start.toISOString()).toBe("2021-01-01T00:00:00.000Z");
-    expect(result.end.toISOString()).toBe("2021-12-31T23:00:00.000Z");
+    expect(result.end.toISOString()).toBe("2022-01-01T00:00:00.000Z");
     expect(result.coverage.months).toBe(12);
     expect(result.samples).toHaveLength(8760);
   });
@@ -171,7 +171,7 @@ describe("datum observation preparation", () => {
     const result = prepareDatumObservations(samples, [])!;
     expect(result.coverage.months).toBe(12);
     expect(result.start.toISOString()).toBe("2022-01-01T00:00:00.000Z");
-    expect(result.end.toISOString()).toBe("2022-12-31T23:00:00.000Z");
+    expect(result.end.toISOString()).toBe("2023-01-01T00:00:00.000Z");
   });
 
   test("rejects five-hour anchor separation rather than inventing its missing tides", () => {

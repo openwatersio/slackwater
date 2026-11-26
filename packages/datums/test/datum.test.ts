@@ -124,7 +124,7 @@ describe("computeDatumsFromObservations", () => {
     });
     const result = computeDatumsFromObservations(samples, constituents)!;
     expect(result.start.getUTCFullYear()).toBe(2020);
-    expect(result.end.getUTCFullYear()).toBe(2021);
+    expect(result.end.toISOString()).toBe("2022-01-01T00:00:00.000Z");
     expect(result.datums["MHW"]).toBeCloseTo(6, 2);
     expect(result.datums["MLW"]).toBeCloseTo(4, 2);
   });

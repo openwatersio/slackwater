@@ -1,10 +1,12 @@
 import {
   constituents as catalog,
   createTidePredictor,
+  type Extreme,
   type TidePredictionOptions,
   type HarmonicConstituent,
 } from "@slackwater/engine";
-import { prepareDatumObservations, type PreparedDatumObservations } from "./observations.js";
+import { resolveConstituents } from "./constituents.js";
+import { theoreticalLowestTide } from "./tlt.js";
 
 export interface EpochSpec {
   end?: Date;
@@ -31,8 +33,11 @@ export type DatumModelOptions = Pick<
 
 export interface TidalDatumsResult {
   start: Date;
+  /** Exclusive: the instant after the period's last hour. */
   end: Date;
   datums: Datums;
+  /** Constituent names the engine doesn't know, left out of every calculation. */
+  ignoredConstituents: string[];
 }
 
 /** One full lunar nodal cycle (6798.383 days = 18.6130 years) */
@@ -41,6 +46,7 @@ export const NODAL_CYCLE_DAYS = 6798.383;
 export const M2_SPEED = catalog["M2"]!.speed;
 /** Mean tidal day: two M2 cycles (hours) */
 const M2_TIDAL_DAY_HOURS = (360 / M2_SPEED) * 2;
+export const TIDAL_DAY_MS = M2_TIDAL_DAY_HOURS * 60 * 60 * 1000;
 
 /**
  * Pinned datum epoch: 19 full calendar years (2007–2025), the smallest
@@ -56,10 +62,15 @@ const M2_TIDAL_DAY_HOURS = (360 / M2_SPEED) * 2;
  * Same convention as NOAA's National Tidal Datum Epoch and CHS (both 19 y).
  * Bump deliberately (and regenerate the data) — roughly once a decade.
  */
-export const DATUM_EPOCH = {
-  start: new Date("2007-01-01T00:00:00Z"),
-  end: new Date("2026-01-01T00:00:00Z"),
-} as const;
+export const DATUM_EPOCH: { readonly start: Date; readonly end: Date } = Object.freeze({
+  // Getters, so changing a returned date can't move the pinned epoch.
+  get start() {
+    return new Date("2007-01-01T00:00:00Z");
+  },
+  get end() {
+    return new Date("2026-01-01T00:00:00Z");
+  },
+});
 
 const EPOCH_YEARS = 19;
 
@@ -75,32 +86,35 @@ export function resolveEpoch({ end }: EpochSpec): {
   start: Date;
   end: Date;
 } {
-  // Fresh dates, so a caller changing a result can't move the pinned epoch.
-  if (!end) return { start: new Date(DATUM_EPOCH.start), end: new Date(DATUM_EPOCH.end) };
-  const start = new Date(end);
-  start.setUTCFullYear(start.getUTCFullYear() - EPOCH_YEARS);
-  return { start, end: new Date(end) };
+  if (end && !Number.isFinite(+end)) throw new RangeError("invalidEpoch: end is not a valid date");
+  if (!end) return { start: DATUM_EPOCH.start, end: DATUM_EPOCH.end };
+  return { start: yearsBefore(end, EPOCH_YEARS), end: new Date(end) };
+}
+
+/** The same instant `years` earlier, with 29 February falling on the 28th of a common year. */
+function yearsBefore(date: Date, years: number): Date {
+  const year = date.getUTCFullYear() - years;
+  const month = date.getUTCMonth();
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const start = new Date(date);
+  start.setUTCFullYear(year, month, Math.min(date.getUTCDate(), lastDay));
+  return start;
 }
 
 /**
- * Core helper: given a regular timeline of {time, level}, compute datums.
- *
- * `msl` is the mean sea level to report (mean of all hourly heights, per NOAA
- * CO-OPS handbook §3.1). It only sets the returned MSL field; every other datum
- * stays in the input series' native frame. Synthetic (constituent) callers leave
- * it 0; observed callers pass the mean of the hourly series.
+ * Means of a predicted tide's turning points over [start, end), before rounding, in the
+ * constants' frame (MSL = 0). MHW and MLW average every high and low on a complete tidal day,
+ * MHHW and MLLW one per complete day. LLWLT and HHWLT follow the Canadian Tidal Manual §5.7:
+ * the mean of each calendar year's lowest low or highest high, over complete years only.
  */
-function computeDatumsFromExtremes(extremes: Sample[], msl = 0): Datums {
+function harmonicMeans(extremes: Extreme[], start: Date, end: Date): Datums {
   const allHighs: number[] = [];
   const allLows: number[] = [];
   const higherHighs: number[] = [];
   const lowerLows: number[] = [];
-  // Lowest low water observed in each calendar year, keyed by UTC year. Averaged
-  // into LLWLT (Canada's Lower Low Water, Large Tide — the mean of the annual
-  // lowest low waters over the analysis period).
   const lowestLowByYear = new Map<number, number>();
+  const highestHighByYear = new Map<number, number>();
 
-  const tidalDayMs = M2_TIDAL_DAY_HOURS * 60 * 60 * 1000;
   const times = extremes.map((pt) => pt.time);
   const heights = extremes.map((pt) => pt.level);
 
@@ -114,7 +128,7 @@ function computeDatumsFromExtremes(extremes: Sample[], msl = 0): Datums {
   let idx = 0;
 
   while (dayStartTime < lastTime.getTime()) {
-    const dayEndTime = dayStartTime + tidalDayMs;
+    const dayEndTime = dayStartTime + TIDAL_DAY_MS;
 
     const idxStart = idx;
     while (idx < times.length && times[idx]!.getTime() < dayEndTime) {
@@ -129,34 +143,26 @@ function computeDatumsFromExtremes(extremes: Sample[], msl = 0): Datums {
       const completeDay = idxStart > 0 && idxEnd < times.length;
 
       for (let i = idxStart; i < idxEnd; i++) {
-        // The first and last points have no neighbour to compare with.
-        if (i === 0 || i === heights.length - 1) continue;
-        const hPrev = heights[i - 1]!;
-        const hCurr = heights[i]!;
-        const hNext = heights[i + 1]!;
-
-        if (hCurr >= hPrev && hCurr >= hNext && (hCurr > hPrev || hCurr > hNext)) {
+        const { high, level: hCurr } = extremes[i]!;
+        const year = times[i]!.getUTCFullYear();
+        if (high) {
           highs.push(hCurr);
-        } else if (hCurr <= hPrev && hCurr <= hNext && (hCurr < hPrev || hCurr < hNext)) {
+          if (hCurr > (highestHighByYear.get(year) ?? -Infinity))
+            highestHighByYear.set(year, hCurr);
+        } else {
           lows.push(hCurr);
-          const yr = times[i]!.getUTCFullYear();
-          const prevMin = lowestLowByYear.get(yr);
-          if (prevMin === undefined || hCurr < prevMin) {
-            lowestLowByYear.set(yr, hCurr);
-          }
+          if (hCurr < (lowestLowByYear.get(year) ?? Infinity)) lowestLowByYear.set(year, hCurr);
         }
       }
 
       if (completeDay && highs.length > 0) {
         allHighs.push(...highs);
-        highs.sort((a, b) => a - b);
-        higherHighs.push(highs[highs.length - 1]!);
+        higherHighs.push(max(highs));
       }
 
       if (completeDay && lows.length > 0) {
         allLows.push(...lows);
-        lows.sort((a, b) => a - b);
-        lowerLows.push(lows[0]!);
+        lowerLows.push(min(lows));
       }
     }
 
@@ -164,117 +170,59 @@ function computeDatumsFromExtremes(extremes: Sample[], msl = 0): Datums {
     dayStartTime = dayEndTime;
   }
 
+  const years = completeYears(start, end);
   const mhw = mean(allHighs);
   const mlw = mean(allLows);
 
   return {
-    // max/min loop instead of Math.max(...heights): observed series have 100k+
-    // points and the spread overflows the call stack.
-    HAT: toFixed(max(heights), 3),
-    MHHW: toFixed(mean(higherHighs), 3),
-    MHW: toFixed(mhw, 3),
-    // MSL = mean of hourly heights (NOAA CO-OPS handbook §3.1). 0 for synthetic
-    // constituent series; the observed mean for real water-level series.
-    MSL: toFixed(msl, 3),
-    MTL: toFixed((mhw + mlw) / 2, 3),
-    MLW: toFixed(mlw, 3),
-    MLLW: toFixed(mean(lowerLows), 3),
-    // LLWLT (Lower Low Water, Large Tide): mean of the annual lowest low waters. A series that
-    // doesn't start in January averages partial years, whose minima sit high.
-    LLWLT: toFixed(mean([...lowestLowByYear.values()]), 3),
-    LAT: toFixed(min(heights), 3),
+    // max/min loop instead of Math.max(...heights): long series overflow the call stack.
+    HAT: max(heights),
+    HHWLT: mean(years.map((year) => highestHighByYear.get(year)!)),
+    MHHW: mean(higherHighs),
+    MHW: mhw,
+    MSL: 0,
+    MTL: (mhw + mlw) / 2,
+    MLW: mlw,
+    MLLW: mean(lowerLows),
+    LLWLT: mean(years.map((year) => lowestLowByYear.get(year)!)),
+    LAT: min(heights),
   };
 }
 
+/** The calendar years that lie wholly inside [start, end). */
+function completeYears(start: Date, end: Date): number[] {
+  const years: number[] = [];
+  const first =
+    start.getTime() === Date.UTC(start.getUTCFullYear(), 0, 1)
+      ? start.getUTCFullYear()
+      : start.getUTCFullYear() + 1;
+  for (let year = first; Date.UTC(year + 1, 0, 1) <= end.getTime(); year++) years.push(year);
+  return years;
+}
+
 /**
- * Amplitude-derived low/high datums, in the constituent frame (MSL = 0). These
- * are functions of the constituent amplitudes rather than the extremes series,
- * so the caller shifts them into the observed gauge frame the same way it does
- * HAT/LAT.
+ * Amplitude-derived low/high datums, in the constituent frame (MSL = 0), for constituents
+ * keyed by the engine's names. Omitted without M2, where they would collapse to MSL.
  *
- * - MHWS/MLWS: Mean High/Low Water Springs, the classic Admiralty approximation
- *   MSL ± (H_M2 + H_S2).
- * - ISLW: Indian Spring Low Water, MSL − (H_M2 + H_S2 + H_K1 + H_O1). Stored
- *   under the national labels NLLW (Japan, "Nearly Lowest Low Water") and ALLW
- *   (South Korea, "Approximate Lowest Low Water"), which share this definition.
- * - TLT: China's Theoretical Lowest Tide (理论最低潮面 / theoretical depth
- *   datum). Approximated as the astronomical minimum of the tide predicted from
- *   the 13 constituents the Vladimirsky method uses. This is NOT the official
- *   Vladimirsky tabular calculation, so expect cm-level differences from
- *   published Chinese values — it captures the theoretical-lowest intent by
- *   restricting the constituent set relative to LAT.
+ * - MHWS/MLWS: Mean High/Low Water Springs, the Admiralty approximation MSL ± (H_M2 + H_S2).
+ * - ISLW: Indian Spring Low Water, MSL − (H_M2 + H_S2 + H_K1 + H_O1). Stored under the
+ *   national labels NLLW (Japan, "Nearly Lowest Low Water") and ALLW (South Korea,
+ *   "Approximate Lowest Low Water"), which share this definition.
  */
-const TLT_CONSTITUENTS = new Set([
-  "M2",
-  "S2",
-  "N2",
-  "K2",
-  "K1",
-  "O1",
-  "P1",
-  "Q1",
-  "M4",
-  "MS4",
-  "M6",
-  "SA",
-  "SSA",
-]);
-
-function amplitudeDatums(constituents: HarmonicConstituent[]): Datums {
-  const amp = new Map<string, number>();
-  for (const c of constituents) amp.set(c.name, c.amplitude);
-  // Without M2 the approximations would collapse to MSL; omit them instead
-  // (mirrors computeTLT returning undefined on an empty subset).
-  if (!amp.has("M2")) return {};
-  const a = (name: string) => amp.get(name) ?? 0;
-
+function amplitudeDatums(find: (name: string) => HarmonicConstituent | undefined): Datums {
+  if (!find("M2")) return {};
+  const a = (name: string) => find(name)?.amplitude ?? 0;
   const springs = a("M2") + a("S2");
-  const islw = a("M2") + a("S2") + a("K1") + a("O1");
-
-  return {
-    MHWS: toFixed(springs, 3),
-    MLWS: toFixed(-springs, 3),
-    // ISLW value, exposed under both national labels (same construct).
-    NLLW: toFixed(-islw, 3),
-    ALLW: toFixed(-islw, 3),
-  };
-}
-
-function datumExtremes(
-  constituents: HarmonicConstituent[],
-  start: Date,
-  end: Date,
-  options: DatumPredictionOptions,
-): Sample[] {
-  // A display prominence threshold selects highs and lows by amplitude and biases their means.
-  return createTidePredictor(constituents, {
-    ...options,
-    prominenceThreshold: 0,
-  }).getExtremesPrediction({ start, end });
-}
-
-/**
- * China's Theoretical Lowest Tide, computed as the astronomical minimum of the
- * tide synthesized from the Vladimirsky 13-constituent subset over the epoch, in
- * the constituent frame (MSL = 0). Returns undefined when none of the subset
- * constituents are present.
- */
-function computeTLT(
-  constituents: HarmonicConstituent[],
-  start: Date,
-  end: Date,
-  tidePredictorOptions: DatumPredictionOptions,
-): number | undefined {
-  const subset = constituents.filter((c) => TLT_CONSTITUENTS.has(c.name.toUpperCase()));
-  if (subset.length === 0) return undefined;
-  const extremes = datumExtremes(subset, start, end, tidePredictorOptions);
-  if (extremes.length === 0) return undefined;
-  return toFixed(min(extremes.map((e) => e.level)), 3);
+  const islw = springs + a("K1") + a("O1");
+  return { MHWS: springs, MLWS: -springs, NLLW: -islw, ALLW: -islw };
 }
 
 /**
  * Use @slackwater/engine to synthesize a multi-year tidal timeline
  * for a given set of constituents, and compute tidal datums from it.
+ *
+ * Every datum is relative to MSL, or to the gauge zero when `offset` gives MSL's height above
+ * it. Constituent names the engine doesn't know are left out and listed in the result.
  */
 export function computeDatums(
   constituents: HarmonicConstituent[],
@@ -282,59 +230,51 @@ export function computeDatums(
   tidePredictorOptions: DatumPredictionOptions = {},
 ): TidalDatumsResult {
   const { start, end } = resolveEpoch(epochSpec);
+  const { offset, ...options } = tidePredictorOptions;
+  if (typeof offset === "number" && !Number.isFinite(offset))
+    throw new RangeError("invalidOffset: offset must be finite");
+  const { ignored, duplicates, find } = resolveConstituents(constituents, options.definitions);
+  // The engine would add both waves while an amplitude formula can read only one.
+  if (duplicates.length) throw new RangeError(`duplicateConstituent: ${duplicates.join(", ")}`);
+  // A Z0 constant is a datum offset, not a tide: shift every datum by it, like `offset`.
+  const z0 = find("Z0");
+  const tide = constituents.filter((constituent) => constituent !== z0);
 
-  const extremes = datumExtremes(constituents, start, end, tidePredictorOptions);
+  // The engine gets the constants as given, so it refuses what it refuses. A display
+  // prominence threshold selects highs and lows by amplitude and biases their means.
+  const extremes = createTidePredictor(tide, {
+    ...options,
+    offset: false,
+    prominenceThreshold: 0,
+  })
+    .getExtremesPrediction({ start, end })
+    // The engine widens a search to its 10-minute grid; keep only the epoch's own turns.
+    .filter((extreme) => extreme.time >= start && extreme.time < end);
 
-  const datums: Datums = {
-    ...computeDatumsFromExtremes(extremes),
-    ...amplitudeDatums(constituents),
-  };
-  const tlt = computeTLT(constituents, start, end, tidePredictorOptions);
+  const datums: Datums = { ...harmonicMeans(extremes, start, end), ...amplitudeDatums(find) };
+  const tlt = theoreticalLowestTide(find);
   if (tlt !== undefined) datums["TLT"] = tlt;
 
-  return { start, end, datums: finite(datums) };
-}
-
-/** Drop any datum that came out non-finite, so callers never store NaN. */
-function finite(datums: Datums): Datums {
-  for (const [key, value] of Object.entries(datums)) {
-    if (!Number.isFinite(value)) delete datums[key];
-  }
-  return datums;
-}
-
-export interface ObservedTidalDatumsResult extends TidalDatumsResult {
-  coverage: PreparedDatumObservations["coverage"];
-}
-
-/**
- * Derive tidal datums directly from observed water-level samples (NOAA CO-OPS
- * "first reduction", Computational Techniques for Tidal Datums Handbook §3.1).
- *
- * Reduces one continuous window of whole years after bounded
- * model-assisted gap reconstruction. This is a first reduction over the returned
- * period, without a control-station correction to the 19-year epoch. HAT/LAT
- * here are observed extremes; source importers use harmonic astronomical bounds.
- *
- * Returns null when the windowed record is too short/sparse to be meaningful.
- */
-export function computeDatumsFromObservations(
-  samples: Sample[],
-  constituents: HarmonicConstituent[] = [],
-  modelOptions: DatumModelOptions = {},
-): ObservedTidalDatumsResult | null {
-  const prepared = prepareDatumObservations(samples, constituents, modelOptions);
-  if (!prepared) return null;
-  const observedMSL = mean(prepared.samples.map((p) => p.level));
-  const datums = computeDatumsFromExtremes(prepared.samples, observedMSL);
-  if (!Number.isFinite(datums["MHW"]) || !Number.isFinite(datums["MLW"])) return null;
-
+  // Shift every datum by the same amount, so the map stays in one frame.
+  const shift =
+    (typeof offset === "number" ? offset : 0) +
+    (z0 ? z0.amplitude * Math.cos((z0.phase * Math.PI) / 180) : 0);
   return {
-    start: prepared.start,
-    end: prepared.end,
-    datums: finite(datums),
-    coverage: prepared.coverage,
+    start,
+    end,
+    datums: rounded(datums, shift),
+    ignoredConstituents: ignored,
   };
+}
+
+/** Round to the millimetre after `shift`, dropping any datum that came out non-finite. */
+export function rounded(datums: Datums, shift = 0): Datums {
+  const result: Datums = {};
+  for (const [key, value] of Object.entries(datums)) {
+    const height = toFixed(value + shift, 3);
+    if (Number.isFinite(height)) result[key] = height;
+  }
+  return result;
 }
 
 export function toFixed(num: number, digits: number) {

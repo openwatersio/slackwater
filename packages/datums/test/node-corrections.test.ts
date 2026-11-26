@@ -99,7 +99,11 @@ describe("computeDatums under each set of nodal corrections", () => {
 });
 
 describe("observed datums under each set of nodal corrections", () => {
-  const constituents = [{ name: "M2", amplitude: 1, phase: 15 }, ...diurnal, ...longPeriod];
+  const constituents = [
+    ...diurnal,
+    ...longPeriod.filter((c) => c.name !== "M2"),
+    { name: "M2", amplitude: 1, phase: 15 },
+  ];
   const start = Date.UTC(2020, 0, 1);
   const end = Date.UTC(2022, 0, 1);
   const options = { nodeCorrections: "schureman" } as const;

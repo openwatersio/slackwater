@@ -8,6 +8,7 @@ import {
   toFixed,
   type Sample,
 } from "../src/index.js";
+import { rounded } from "../src/datum.js";
 
 describe("computeDatums", () => {
   test("refuses constants that predict no turning points", () => {
@@ -43,13 +44,16 @@ describe("computeDatums", () => {
     expect(datums["MLW"]).toBeCloseTo(-1, 2);
   });
 
-  test("supplies no TLT when its constituents have no turning points", () => {
+  test("takes TLT from the Vladimirsky constituents only", () => {
     const { datums } = computeDatums([
       { name: "L2", amplitude: 1, phase: 0 },
       { name: "M2", amplitude: 0, phase: 0 },
     ]);
     expect(datums["LAT"]).toBeLessThan(-0.5);
-    expect(datums).not.toHaveProperty("TLT");
+    expect(datums["TLT"]).toBe(0);
+    expect(computeDatums([{ name: "L2", amplitude: 1, phase: 0 }]).datums).not.toHaveProperty(
+      "TLT",
+    );
   });
 
   test("omits the amplitude datums without M2", () => {
@@ -112,11 +116,8 @@ describe("observed preparation", () => {
     expect(prepareDatumObservations(gappy, [{ name: "M2", amplitude: NaN, phase: 0 }])).toBeNull();
   });
 
-  test("leaves out a datum whose sum overflows", () => {
-    const huge = complete.map((p, h) => ({ ...p, level: 3e304 + 1e303 * tide(h) }));
-    const { datums } = computeDatumsFromObservations(huge)!;
-    expect(datums).not.toHaveProperty("MSL");
-    expect(datums["MHW"]! / 3.1e304).toBeCloseTo(1, 9);
+  test("leaves out a datum that comes out non-finite", () => {
+    expect(rounded({ MHW: 1.23456, MSL: Infinity, MTL: NaN }, 1)).toEqual({ MHW: 2.235 });
   });
 });
 
