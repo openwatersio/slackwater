@@ -1,11 +1,5 @@
-import {
-  ApsisKind,
-  Body,
-  Illumination,
-  MoonPhase,
-  NextLunarApsis,
-  SearchLunarApsis,
-} from "astronomy-engine";
+import { moonApsides as findMoonApsides, moonIllumination } from "@openwaters/almanac";
+import { ASTRONOMY_END, ASTRONOMY_START } from "./time.js";
 
 const DAY = 86_400_000;
 const SYNODIC_DAYS = 29.53;
@@ -19,12 +13,7 @@ export interface MoonState {
 }
 
 export function moonAt(time: number): MoonState {
-  const phase = MoonPhase(new Date(time)) / 360;
-  return {
-    phase,
-    fraction: Illumination(Body.Moon, new Date(time)).phase_fraction,
-    waxing: phase < 0.5,
-  };
+  return moonIllumination(new Date(time));
 }
 
 /** The app's eight names: new and full hold 1.7 days either side, the quarters 1.4. */
@@ -43,13 +32,12 @@ export function moonPhaseName(phase: number): string {
 /** The perigee and apogee nearest `around` within fifteen days either side. */
 export function moonApsides(around: number): { perigee?: number; apogee?: number } {
   const found: { perigee?: number; apogee?: number } = {};
-  for (
-    let apsis = SearchLunarApsis(new Date(around - 15 * DAY));
-    apsis.time.date.getTime() <= around + 15 * DAY;
-    apsis = NextLunarApsis(apsis)
-  ) {
-    const t = apsis.time.date.getTime();
-    const key = apsis.kind === ApsisKind.Pericenter ? "perigee" : "apogee";
+  const start = Math.max(around - 15 * DAY, ASTRONOMY_START);
+  const end = Math.min(around + 15 * DAY + 1, ASTRONOMY_END);
+  if (start >= end) return found;
+  for (const apsis of findMoonApsides(new Date(start), new Date(end))) {
+    const t = apsis.time.getTime();
+    const key = apsis.kind;
     const held = found[key];
     if (held === undefined || Math.abs(t - around) < Math.abs(held - around)) found[key] = t;
   }

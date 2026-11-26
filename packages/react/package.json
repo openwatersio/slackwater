@@ -63,9 +63,9 @@
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",
+    "@openwaters/almanac": "^0.13.0",
     "@slackwater/engine": "^1.0.0-beta.14",
-    "@tanstack/react-query": "^5.108.0",
-    "astronomy-engine": "^2.1.19"
+    "@tanstack/react-query": "^5.108.0"
   },
   "devDependencies": {
     "@storybook/react": "^10.6.7",

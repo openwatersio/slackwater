@@ -106,6 +106,8 @@ A tide station's page, after the app's tide detail screen:
 
 Heights are above the station's chart datum, which the page names. A station whose `datums` don't include its chart datum, such as `noaa/8519024`, reads about mean sea level, so the page names no datum and marks nothing at 0. The page loads a window from 96 hours before to 180 hours after the start of the week in the station's time zone, and moves it when a date is picked, when Now is chosen, or when the page is shown again two or more days later. Stations whose predictions can't be served, such as the CHS ports, show the reason instead.
 
+Sun and Moon readings support times from January 1, 1950, inclusive, to January 1, 2101, exclusive, in UTC. Outside that interval the astronomical readings are unavailable. Searches near either boundary use only the supported portion of the interval.
+
 ```tsx
 <TideStation id="noaa/9447130" />
 ```

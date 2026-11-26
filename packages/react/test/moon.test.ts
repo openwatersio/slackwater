@@ -63,6 +63,15 @@ describe("moonTideLabel", () => {
 });
 
 describe("moonAt", () => {
+  test.each([
+    ["2024-10-17T11:26:00Z", 0.499974449, 0.999798916],
+    ["2026-06-21T12:00:00Z", 0.236304321, 0.458314248],
+    ["2026-12-21T12:00:00Z", 0.399805501, 0.902978903],
+  ])("agrees with the former moon readings at %s", (date, phase, fraction) => {
+    const moon = moonAt(Date.parse(date));
+    expect(Math.abs(moon.phase - phase)).toBeLessThan(0.0001);
+    expect(Math.abs(moon.fraction - fraction)).toBeLessThan(0.0001);
+  });
   test("the full moon of 2024-10-17 is half way through the month and fully lit", () => {
     const moon = moonAt(Date.parse("2024-10-17T11:26:00Z"));
     expect(moon.phase).toBeCloseTo(0.5, 3);
@@ -78,6 +87,11 @@ describe("moonAt", () => {
 });
 
 describe("moonApsides", () => {
+  test("clips the search at the supported date boundaries", () => {
+    for (const at of [Date.parse("1950-01-01T00:00:00Z"), Date.parse("2100-12-31T23:59:59Z")]) {
+      expect(() => moonApsides(at)).not.toThrow();
+    }
+  });
   test("the perigee and apogee nearest the time", () => {
     // The closest perigee of 2024, and the apogees either side of it on Oct 2 and Oct 29.
     const within = (t: number | undefined, iso: string) =>

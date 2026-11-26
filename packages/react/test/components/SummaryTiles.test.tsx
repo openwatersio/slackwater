@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { renderToString } from "react-dom/server";
-import { READABLE_LIMIT_MS } from "../../src/utils/time.js";
 import { MoonGlyph, SummaryTiles } from "../../src/components/SummaryTiles.js";
 
 const TZ = "America/Los_Angeles";
@@ -175,14 +174,35 @@ describe("SummaryTiles", () => {
     }
   });
 
-  test("a time just inside the limit still reads, at either end of the Date range", () => {
-    for (const time of [READABLE_LIMIT_MS, -READABLE_LIMIT_MS, 8e15]) {
+  test("the supported interval reads at both ends", () => {
+    for (const time of [Date.parse("1950-01-01T00:00:00Z"), Date.parse("2100-12-31T23:59:59Z")]) {
       const { container, unmount } = render(
         <SummaryTiles time={time} timezone="UTC" latitude={50} longitude={0} className="" />,
       );
       const [moon, sun] = tiles(container);
       expect(moon, String(time)).toMatch(/^Moon(?!—)/);
       expect(sun, String(time)).toMatch(/^Sun/);
+      unmount();
+    }
+  });
+
+  test.each([
+    ["1950-01-01T00:00:00Z", "America/Los_Angeles"],
+    ["2100-12-31T23:59:59Z", "Pacific/Auckland"],
+  ])("reads %s when the local day crosses a boundary", (date, timezone) => {
+    const { container, unmount } = render(
+      <SummaryTiles time={Date.parse(date)} timezone={timezone} latitude={48} longitude={-123} />,
+    );
+    expect(tiles(container)[0]).toMatch(/^Moon(?!—)/);
+    unmount();
+  });
+
+  test("a time outside the supported interval reads as no moment", () => {
+    for (const time of [Date.parse("1949-12-31T23:59:59Z"), Date.parse("2101-01-01T00:00:00Z")]) {
+      const { container, unmount } = render(
+        <SummaryTiles time={time} timezone="UTC" latitude={50} longitude={0} />,
+      );
+      expect(tiles(container)).toEqual(["Moon—", "Sun—"]);
       unmount();
     }
   });
