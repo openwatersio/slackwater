@@ -137,4 +137,4 @@ Every prediction, in both the harmonic and the observed paths, uses the correcti
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT, except the high and low water tabulation (`src/tabulate.ts`), which is ported from NOAA CO-OPS's Tidal Analysis Datum Calculator. That code is in the public domain in the United States; elsewhere the U.S. Department of Commerce grants a royalty-free, nonexclusive license to use, copy and create derivative works of it. Both notices are in [LICENSE](LICENSE).

@@ -19,7 +19,7 @@
     "url": "git+https://github.com/openwatersio/slackwater.git",
     "directory": "packages/datums"
   },
-  "license": "MIT",
+  "license": "MIT AND LicenseRef-NOAA-TADC",
   "author": "Brandon Keepers <brandon@openwaters.io>",
   "type": "module",
   "main": "dist/index.js",
