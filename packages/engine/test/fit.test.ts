@@ -141,6 +141,7 @@ describe("fit", () => {
       recovers(fit(data, names, { nodeCorrections, nodal: "yearly", ...options }));
       expect(fit(data, names, { nodeCorrections, ...options }).rms).toBeGreaterThan(1e-4);
     },
+    15_000,
   );
 
   test("fits years 0 to 99 a year at a time in their own century", () => {

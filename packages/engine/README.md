@@ -183,7 +183,7 @@ const predictor = createCurrentPredictor(constituents, {
   meanFlow: -0.377, // knots, added as a constant term
 });
 
-// Samples: { time, hour, speed, magnitude, direction? }
+// Samples: { time, hour, speed, magnitude, direction?, magnitudeIsKnown? }
 predictor.getTimelinePrediction({ start, end, timeFidelity: 600 });
 
 // Slack and flood/ebb maxima and minima in time order:
@@ -197,7 +197,7 @@ For two-dimensional predictions, pass `minorConstituents` (NOAA `minorAmplitude`
 
 `createCurrentPredictor` also takes `nodeCorrections` and `definitions`, as `createTidePredictor` does.
 
-Empty minor arrays, unknown constituent names, and zero minor amplitudes without mean cross-flow use the one-axis fallback. Without minor-axis data, every timeline point has `magnitude: abs(speed)` and the published flood or ebb direction for its sign. Subordinates use their own phase directions. A zero vector has no direction; a vector whose azimuth is unknown also has no direction. In a rotary current, a major-axis crossing can have nonzero magnitude and direction, so it is not a slack event. Extrema describe the major axis; slack windows use full speed. The `CurrentPoint` type permits caller-synthesized points without `magnitude`; engine timelines always supply it.
+Empty minor arrays, unknown constituent names, and zero minor amplitudes without mean cross-flow use the one-axis fallback. Without minor-axis data, every timeline point has `magnitude: abs(speed)` and the published flood or ebb direction for its sign. Subordinates use their own phase directions. A zero vector has no direction; a vector whose azimuth is unknown also has no direction. In a rotary current, a major-axis crossing can have nonzero magnitude and direction, so it is not a slack event. Extrema describe the major axis; slack windows use full speed. The `CurrentPoint` type permits caller-synthesized points without `magnitude`; engine timelines always supply it. For a measured full speed with an unknown direction, set `magnitudeIsKnown: true` so readings preserve the measured speed and do not invent slack at a signed-axis crossing.
 
 ```ts
 const rotary = createCurrentPredictor(constituents, {

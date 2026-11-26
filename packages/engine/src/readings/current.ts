@@ -2,7 +2,26 @@ import type { CurrentEvent, CurrentEventKind, CurrentPoint, SlackWindow } from "
 import { bandCrossing, interpolate } from "./series.js";
 
 /** The fields of a timeline sample that a reading needs. */
-export type CurrentSample = Pick<CurrentPoint, "time" | "speed" | "magnitude" | "direction">;
+export type CurrentSample = Pick<
+  CurrentPoint,
+  "time" | "speed" | "magnitude" | "magnitudeIsKnown" | "direction"
+>;
+
+const isUnknownVector = (point: CurrentSample): boolean =>
+  point.magnitudeIsKnown === true && point.direction === undefined && (point.magnitude ?? 0) > 0;
+
+function rotaryAt(timeline: CurrentSample[], time: Date): boolean {
+  const at = time.getTime();
+  let hi = timeline.findIndex((point) => point.time.getTime() >= at);
+  if (hi < 0) hi = timeline.length - 1;
+  const lo = hi > 0 && at < timeline[hi].time.getTime() ? hi - 1 : hi;
+  return [timeline[lo], timeline[hi]].some(
+    (point) =>
+      point !== undefined &&
+      ((point.magnitudeIsKnown === true && (point.magnitude ?? 0) > 0) ||
+        (point.magnitude !== undefined && point.magnitude > Math.abs(point.speed) + 1e-9)),
+  );
+}
 
 /** Flood and ebb set in degrees true, as a station publishes them. */
 export interface Directions {
@@ -93,9 +112,18 @@ export function vectorAt(
       p.magnitude === undefined ? (speed >= 0 ? directions.flood : directions.ebb) : p.direction;
     return { magnitude, ...(magnitude > 1e-9 && direction !== undefined && { direction }) };
   }
+  if (isUnknownVector(a) || isUnknownVector(b)) {
+    const am = a.magnitude ?? Math.abs(a.speed);
+    const bm = b.magnitude ?? Math.abs(b.speed);
+    return { magnitude: am + (bm - am) * mix };
+  }
   // Scalar phase bearings need not be reciprocal; their reversal must not synthesize crossflow.
   const axialReversal =
-    a.magnitude === Math.abs(a.speed) && b.magnitude === Math.abs(b.speed) && a.speed * b.speed < 0;
+    !a.magnitudeIsKnown &&
+    !b.magnitudeIsKnown &&
+    a.magnitude === Math.abs(a.speed) &&
+    b.magnitude === Math.abs(b.speed) &&
+    a.speed * b.speed < 0;
   if (a.magnitude === undefined || b.magnitude === undefined || axialReversal) {
     const magnitude = Math.abs(speed);
     const direction = axialReversal
@@ -135,16 +163,13 @@ export function readCurrent(
   const vector = vectorAt(timeline, time, directions);
   if (speed === undefined || vector === undefined) return undefined;
   const near = (e: CurrentEvent) => Math.abs(e.time.getTime() - time.getTime()) <= 1000;
-  const rotary = timeline.some(
-    (p) => p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9,
-  );
   if (
     events.some(
       (e) =>
         e.kind === "slack" &&
         near(e) &&
         (e.verifiedZero ||
-          !rotary ||
+          !rotaryAt(timeline, e.time) ||
           (vectorAt(timeline, e.time, directions)?.magnitude ?? Infinity) < 1e-9),
     )
   ) {
@@ -182,7 +207,13 @@ export function slackWindowAround(
   slack: Date,
   threshold: number,
 ): SlackWindow | undefined {
-  if (timeline.some((p) => p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9)) {
+  if (
+    timeline.some(
+      (p) =>
+        (p.magnitudeIsKnown === true && (p.magnitude ?? 0) > 0) ||
+        (p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9),
+    )
+  ) {
     return rotaryWindows(timeline, threshold).find((w) => w.start <= slack && slack <= w.end);
   }
   const n = timeline.length;
@@ -297,8 +328,26 @@ export function slackRuns(
   events: CurrentEvent[],
   threshold: number,
 ): SlackWindow[] {
-  if (timeline.some((p) => p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9)) {
-    const windows = rotaryWindows(timeline, threshold);
+  if (
+    timeline.some(
+      (p) =>
+        (p.magnitudeIsKnown === true && (p.magnitude ?? 0) > 0) ||
+        (p.magnitude !== undefined && p.magnitude > Math.abs(p.speed) + 1e-9),
+    )
+  ) {
+    const extrema = events.filter(
+      (event) =>
+        event.kind !== "slack" &&
+        event.time >= timeline[0].time &&
+        event.time <= timeline[timeline.length - 1].time &&
+        !rotaryAt(timeline, event.time),
+    );
+    const times = new Set(extrema.map((event) => event.time.getTime()));
+    const augmented = [
+      ...timeline.filter((point) => !times.has(point.time.getTime())),
+      ...extrema.map((event) => ({ time: event.time, speed: event.speed })),
+    ].sort((a, b) => a.time.getTime() - b.time.getTime());
+    const windows = rotaryWindows(augmented, threshold);
     const first = timeline[0].time;
     const last = timeline[timeline.length - 1].time;
     for (const event of events) {

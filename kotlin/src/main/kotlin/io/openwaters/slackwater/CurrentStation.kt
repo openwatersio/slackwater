@@ -47,7 +47,7 @@ class CurrentStation @JvmOverloads constructor(
                 val magnitude = hypot(speed, v)
                 // NOAA's positive minor axis is clockwise from the major axis (https://tidesandcurrents.noaa.gov/publications/techrpt21.pdf, p. 37).
                 val bearing = if (magnitude == 0.0 || azimuth == null) null else wrap(azimuth + atan2(v, speed) / D2R)
-                CurrentPoint(point.time, speed, magnitude, bearing)
+                CurrentPoint(point.time, speed, magnitude, bearing, magnitudeIsKnown = bearing == null && magnitude > 0)
             }
         }
     }

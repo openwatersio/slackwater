@@ -212,7 +212,7 @@ curl "http://localhost:3000/currents/events?latitude=48.406&longitude=-122.643&s
 
 ### GET /currents/timeline
 
-Get current samples every 10 minutes for the nearest current station. Returns `timeline: [{ time, hour, speed, magnitude, direction? }]` in place of `events`. `speed` is signed major-axis velocity; `magnitude` is nonnegative knots and `direction` is degrees true when known. Direction is absent at zero magnitude. Without minor-axis station data, magnitude is absolute speed and direction is the published flood or ebb bearing. Flood, ebb and slack events use the major axis even when minor-axis data is available. A subordinate station's timeline is a curve drawn through its predicted events, not a harmonic sum.
+Get current samples every 10 minutes for the nearest current station. Returns `timeline: [{ time, hour, speed, magnitude, direction?, magnitudeIsKnown? }]` in place of `events`. `speed` is signed major-axis velocity; `magnitude` is nonnegative knots and `direction` is degrees true when known. Direction is absent at zero magnitude or when its bearing is unknown. `magnitudeIsKnown` identifies independently known full speed, including rotary predictions without a bearing; clients must preserve it and use a compatible engine when interpreting the samples. Without minor-axis station data, magnitude is absolute speed and direction is the published flood or ebb bearing. Flood, ebb and slack events use the major axis even when minor-axis data is available. A subordinate station's timeline is a curve drawn through its predicted events, not a harmonic sum.
 
 **Query Parameters:** Same as `/currents/events`
 

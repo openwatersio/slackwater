@@ -50,6 +50,79 @@ describe("vector readings", () => {
     const reading = readCurrent(new Date(t0), tl, [slackAt(t0)], { flood: 0, ebb: 180 })!;
     expect(reading).toMatchObject({ state: "Flooding", speed: 0, magnitude: 2, direction: 90 });
   });
+  test("unknown vector direction does not invent slack or a comfort window", () => {
+    const tl = [
+      { ...point(0, -1, 1), magnitudeIsKnown: true },
+      { ...point(1, 1, 1), magnitudeIsKnown: true },
+    ];
+    const slack = slackAt(t0 + H / 2);
+    const reading = readCurrent(slack.time, tl, [slack], { flood: 45, ebb: 225 })!;
+    expect(reading.state).not.toBe("Slack");
+    expect(reading.magnitude).toBe(1);
+    expect(reading).not.toHaveProperty("direction");
+    expect(currentWindows(tl, [slack], 0.5)).toEqual([]);
+  });
+  test("measured low speed with an unknown bearing still forms a window", () => {
+    const tl = [
+      { ...point(0, -0.2, 0.3), magnitudeIsKnown: true },
+      { ...point(1, 0.2, 0.4), magnitudeIsKnown: true },
+    ];
+    const windows = currentWindows(tl, [slackAt(t0 + H / 2)], 0.5);
+    expect(windows).toHaveLength(1);
+    expect(windows[0].slackTimes).toEqual([]);
+  });
+  test("mixed scalar and unknown vector do not invent slack", () => {
+    const tl = [
+      { time: new Date(t0), speed: -1 },
+      { ...point(1, 1, 1), magnitudeIsKnown: true },
+    ];
+    const slack = slackAt(t0 + H / 2);
+    const reading = readCurrent(slack.time, tl, [slack], { flood: 45, ebb: 225 })!;
+    expect(reading.state).not.toBe("Slack");
+    expect(reading.magnitude).toBe(1);
+    expect(reading).not.toHaveProperty("direction");
+    expect(currentWindows(tl, [slack], 0.5)).toEqual([]);
+  });
+  test("unknown vectors reject slack just outside the timeline", () => {
+    const tl = [
+      { ...point(0, 1, 1), magnitudeIsKnown: true },
+      { ...point(1, 1, 1), magnitudeIsKnown: true },
+    ];
+    for (const [time, event] of [
+      [new Date(t0), slackAt(t0 - 500)],
+      [new Date(t0 + H), slackAt(t0 + H + 500)],
+    ] as const) {
+      expect(readCurrent(time, tl, [event], {})?.state).not.toBe("Slack");
+    }
+  });
+  test("slack at a zero endpoint ignores a rotary sample before it", () => {
+    const tl = [point(0, 0.5, 1, 90), point(1, 0, 0)];
+    expect(readCurrent(new Date(t0 + H), tl, [slackAt(t0 + H + 500)], {})?.state).toBe("Slack");
+  });
+  test("independently measured vectors retain known bearings through reversal", () => {
+    const tl = [
+      { ...point(0, -1, 1, 200), magnitudeIsKnown: true },
+      { ...point(1, 1, 1, 45), magnitudeIsKnown: true },
+    ];
+    const slack = slackAt(t0 + H / 2);
+    const reading = readCurrent(slack.time, tl, [slack], {})!;
+    expect(reading.state).not.toBe("Slack");
+    expect(reading.magnitude).toBeGreaterThan(0.2);
+  });
+  test("a distant unknown bearing preserves scalar extrema and slack", () => {
+    const tl = [
+      { time: new Date(t0), speed: 1 },
+      { time: new Date(t0 + H), speed: 1 },
+      { time: new Date(t0 + 2 * H), speed: -1 },
+      { ...point(4, 1, 1), magnitudeIsKnown: true },
+    ];
+    const minimum = { time: new Date(t0 + H / 2), speed: 0.2, kind: "minFlood" as const };
+    const slack = slackAt(t0 + 1.6 * H);
+    expect(readCurrent(slack.time, tl, [slack], {})?.state).toBe("Slack");
+    const windows = currentWindows(tl, [minimum, slack], 0.5);
+    expect(windows.some((w) => w.start <= minimum.time && minimum.time <= w.end)).toBe(true);
+    expect(windows.some((w) => w.slackTimes.includes(slack.time))).toBe(true);
+  });
   test("interpolates vectors through north rather than turning south", () => {
     const reading = readCurrent(
       new Date(t0 + H / 2),

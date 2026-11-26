@@ -80,6 +80,73 @@ private func seconds(_ date: Date?) -> Double { date?.timeIntervalSince(t0) ?? .
     #expect([CurrentPoint]().vector(at: t0, flood: nil, ebb: nil) == nil)
 }
 
+@Test func explicitlyMeasuredMagnitudeKeepsUnknownDirection() throws {
+    let point = CurrentPoint(time: t0, speed: 1, magnitude: 1, direction: nil, magnitudeIsKnown: true)
+    let vector = try #require([point].vector(at: t0, flood: 45, ebb: 225))
+    #expect(vector.magnitude == 1)
+    #expect(vector.direction == nil)
+}
+
+@Test func unknownVectorDirectionDoesNotInventSlackOrAComfortWindow() throws {
+    let points = [CurrentPoint(time: t0, speed: -1, magnitude: 1, magnitudeIsKnown: true),
+                  CurrentPoint(time: at(H), speed: 1, magnitude: 1, magnitudeIsKnown: true)]
+    let event = CurrentEvent(time: at(H / 2), speed: 0, kind: .slack)
+    let reading = try #require(readCurrent(at: event.time, timeline: points, events: [event], flood: 45, ebb: 225))
+    #expect(reading.state != .slack)
+    #expect(reading.magnitude == 1)
+    #expect(reading.direction == nil)
+    #expect(currentWindows(points, events: [event], threshold: 0.5).isEmpty)
+}
+
+@Test func measuredLowSpeedWithUnknownBearingStillFormsAWindow() {
+    let points = [CurrentPoint(time: t0, speed: -0.2, magnitude: 0.3, magnitudeIsKnown: true),
+                  CurrentPoint(time: at(H), speed: 0.2, magnitude: 0.4, magnitudeIsKnown: true)]
+    let event = CurrentEvent(time: at(H / 2), speed: 0, kind: .slack)
+    let windows = currentWindows(points, events: [event], threshold: 0.5)
+    #expect(windows.count == 1)
+    #expect(windows.first?.slackTimes.isEmpty == true)
+}
+
+@Test func mixedScalarAndUnknownVectorDoNotInventSlack() throws {
+    let points = [CurrentPoint(time: t0, speed: -1),
+                  CurrentPoint(time: at(H), speed: 1, magnitude: 1, magnitudeIsKnown: true)]
+    let event = CurrentEvent(time: at(H / 2), speed: 0, kind: .slack)
+    let reading = try #require(readCurrent(at: event.time, timeline: points, events: [event], flood: 45, ebb: 225))
+    #expect(reading.state != .slack)
+    #expect(reading.magnitude == 1)
+    #expect(reading.direction == nil)
+    #expect(currentWindows(points, events: [event], threshold: 0.5).isEmpty)
+}
+
+@Test func unknownVectorRejectsSlackJustOutsideTimeline() throws {
+    let points = [CurrentPoint(time: t0, speed: 1, magnitude: 1, magnitudeIsKnown: true),
+                  CurrentPoint(time: at(H), speed: 1, magnitude: 1, magnitudeIsKnown: true)]
+    for (time, event) in [(t0, slackAt(at(-0.5))), (at(H), slackAt(at(H + 0.5)))] {
+        #expect(try #require(readCurrent(at: time, timeline: points, events: [event], flood: nil, ebb: nil)).state != .slack)
+    }
+}
+
+@Test func independentlyMeasuredVectorsKeepBearingsThroughReversal() throws {
+    let points = [CurrentPoint(time: t0, speed: -1, magnitude: 1, direction: 200, magnitudeIsKnown: true),
+                  CurrentPoint(time: at(H), speed: 1, magnitude: 1, direction: 45, magnitudeIsKnown: true)]
+    let event = slackAt(at(H / 2))
+    let reading = try #require(readCurrent(at: event.time, timeline: points, events: [event], flood: nil, ebb: nil))
+    #expect(reading.state != .slack)
+    #expect(reading.magnitude > 0.2)
+}
+
+@Test func distantUnknownBearingPreservesScalarEvents() {
+    let points = [CurrentPoint(time: t0, speed: 1), CurrentPoint(time: at(H), speed: 1),
+                  CurrentPoint(time: at(2 * H), speed: -1),
+                  CurrentPoint(time: at(4 * H), speed: 1, magnitude: 1, magnitudeIsKnown: true)]
+    let minimum = CurrentEvent(time: at(H / 2), speed: 0.2, kind: .minFlood)
+    let slack = slackAt(at(1.6 * H))
+    #expect(readCurrent(at: slack.time, timeline: points, events: [slack], flood: nil, ebb: nil)?.state == .slack)
+    let windows = currentWindows(points, events: [minimum, slack], threshold: 0.5)
+    #expect(windows.contains { $0.start <= minimum.time && minimum.time <= $0.end })
+    #expect(windows.contains { $0.slackTimes.contains(slack.time) })
+}
+
 @Test func oneAxisSamplesKeepNonreciprocalBearings() throws {
     for sign in [1.0, -1.0] {
         // Engine one-axis points carry their bearing; caller-built ones take the published set.

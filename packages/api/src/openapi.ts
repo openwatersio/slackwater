@@ -1189,6 +1189,11 @@ function createSpecs(datums: string[]) {
               minimum: 0,
               description: "Current magnitude in knots; absolute speed without minor-axis data",
             },
+            magnitudeIsKnown: {
+              type: "boolean",
+              description:
+                "Marks an independently known full speed; predictors set it when a rotary bearing is unavailable. Absence does not imply an unknown speed.",
+            },
             direction: {
               type: "number",
               minimum: 0,
