@@ -13,9 +13,9 @@ jobs:
     env:
       MISE_ENABLE_TOOLS: swift
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
 
-      - uses: jdx/mise-action@v5
+      - uses: jdx/mise-action@v5.3.0
         with:
           version: "2026.9.11"
           install_args: swift
