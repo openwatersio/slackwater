@@ -98,7 +98,7 @@ Each TICON station is fitted to the GESLA-4 file named by its `tide_gauge_name`,
 
 You can fetch a single station without downloading the whole archive. The mirror honors HTTP `Range` requests, so you can read the zip's central directory and then that one entry. The archive is larger than 4 GB, so you need to find the central directory through the ZIP64 end records, then inflate the entry's raw deflate stream. Python's `zipfile` does all of this over any seekable file object whose `read` issues range requests. Send a `User-Agent` like curl's, because the mirror rejects Python's default one.
 
-Parse the file as `parseGeslaSamples()` in `packages/datums/datum.ts` does:
+Parse the file as `parseGeslaSamples()` in slackwater-database (`packages/datums/datum.ts`) does:
 
 - Keep rows whose fifth column (use in analysis) is `1`.
 - Drop the header's `NULL VALUE`.
