@@ -1,4 +1,9 @@
-import { sunEvents, sunTransits } from "@openwaters/almanac";
+import {
+  DEFAULT_SUPPORTED_END,
+  DEFAULT_SUPPORTED_START,
+  sunEvents,
+  sunTransits,
+} from "@openwaters/almanac";
 
 const HOUR = 3_600_000;
 
@@ -36,16 +41,14 @@ function parts(time: number, timeZone: string) {
   };
 }
 
-/** Almanac's supported UTC interval. */
-export const ASTRONOMY_START = Date.UTC(1950, 0, 1);
-export const ASTRONOMY_END = Date.UTC(2101, 0, 1);
-
 /**
  * A moment the tiles and outlook can read, or undefined for none, for a
  * value outside Almanac's supported interval or a malformed value.
  */
 export function readableMoment(time: number | undefined): number | undefined {
-  return time !== undefined && time >= ASTRONOMY_START && time < ASTRONOMY_END ? time : undefined;
+  return time !== undefined && time >= DEFAULT_SUPPORTED_START && time < DEFAULT_SUPPORTED_END
+    ? time
+    : undefined;
 }
 
 /** The zone's offset from UTC at `time`, in ms. */
@@ -164,8 +167,8 @@ export function days(
   const result: Day[] = [];
   for (let d = startOfDay(start, timeZone); d < end; d = nextDay(d, timeZone)) {
     const e = nextDay(d, timeZone);
-    const from = Math.max(d, ASTRONOMY_START);
-    const to = Math.min(e, ASTRONOMY_END);
+    const from = Math.max(d, DEFAULT_SUPPORTED_START);
+    const to = Math.min(e, DEFAULT_SUPPORTED_END);
     const events = from < to ? sunEvents(new Date(from), new Date(to), observer) : [];
     result.push({
       start: d,
@@ -245,8 +248,8 @@ export function solarNoon(
   latitude: number,
   longitude: number,
 ): number | undefined {
-  const start = Math.max(dayStart, ASTRONOMY_START);
-  const end = Math.min(dayStart + 26 * HOUR, ASTRONOMY_END);
+  const start = Math.max(dayStart, DEFAULT_SUPPORTED_START);
+  const end = Math.min(dayStart + 26 * HOUR, DEFAULT_SUPPORTED_END);
   if (start >= end) return undefined;
   return sunTransits(new Date(start), new Date(end), {
     latitudeDeg: latitude,
