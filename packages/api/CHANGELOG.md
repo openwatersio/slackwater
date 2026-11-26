@@ -1,5 +1,13 @@
 # @neaps/api
 
+## 1.0.0-beta.9
+
+### Patch Changes
+
+- [#569](https://github.com/openwatersio/slackwater/pull/569) [`07b0eed`](https://github.com/openwatersio/slackwater/commit/07b0eed902565b63deb1707b66ad6e6350102a5a) Thanks [@clarkbw](https://github.com/clarkbw)! - Preserve measured current speed when the direction is unknown, without inventing slack or a comfort window.
+- Updated dependencies [[`5aafb60`](https://github.com/openwatersio/slackwater/commit/5aafb60302c263c606fbce102b40f9beeb57556c)]:
+  - slackwater@1.0.0-beta.9
+
 ## 1.0.0-beta.8
 
 ### Major Changes

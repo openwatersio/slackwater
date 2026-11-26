@@ -1,5 +1,16 @@
 # neaps
 
+## 1.0.0-beta.9
+
+### Minor Changes
+
+- [#564](https://github.com/openwatersio/slackwater/pull/564) [`5aafb60`](https://github.com/openwatersio/slackwater/commit/5aafb60302c263c606fbce102b40f9beeb57556c) Thanks [@bkeepers](https://github.com/bkeepers)! - Tide stations found with `findStation`, `nearestStation` and `stationsNear` can predict with Foreman's nodal corrections when given `nodeCorrections: "foreman"`. The latitude is that of the station their constants come from, which for a subordinate is its reference station.
+
+### Patch Changes
+
+- Updated dependencies [[`e0a65bf`](https://github.com/openwatersio/slackwater/commit/e0a65bf8ac0ad05b03c62c30cc01372772f5e47d), [`e0a65bf`](https://github.com/openwatersio/slackwater/commit/e0a65bf8ac0ad05b03c62c30cc01372772f5e47d), [`07b0eed`](https://github.com/openwatersio/slackwater/commit/07b0eed902565b63deb1707b66ad6e6350102a5a)]:
+  - @slackwater/engine@1.0.0-beta.15
+
 ## 1.0.0-beta.8
 
 ### Major Changes

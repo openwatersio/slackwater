@@ -1,6 +1,6 @@
 {
   "name": "@slackwater/datums",
-  "version": "0.0.0",
+  "version": "0.1.0-beta.0",
   "description": "Tidal datums from harmonic constants or observed water levels",
   "keywords": [
     "slackwater",
@@ -37,6 +37,6 @@
     "prepack": "npm run build"
   },
   "dependencies": {
-    "@slackwater/engine": "^1.0.0-beta.14"
+    "@slackwater/engine": "^1.0.0-beta.15"
   }
 }

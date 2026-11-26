@@ -1,5 +1,17 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.15
+
+### Minor Changes
+
+- [#564](https://github.com/openwatersio/slackwater/pull/564) [`e0a65bf`](https://github.com/openwatersio/slackwater/commit/e0a65bf8ac0ad05b03c62c30cc01372772f5e47d) Thanks [@bkeepers](https://github.com/bkeepers)! - Predict with Foreman's nodal corrections, so constants fitted with t_tide or UTide, such as Kartverket's, predict the way they were fitted. `createTidePredictor` and `createCurrentPredictor` take `nodeCorrections: "foreman"` with the site's `latitude`, and `useStation` and `useCurrentStation` use the latitude of the station the constants belong to. As `fit` does, the predictors refuse names t_tide gives other lines, Sa, S1 and OQ2, and refuse its H1 and H2 rather than drop them. Phases t_tide publishes for O2 and M7 are on other arguments than the engine's.
+
+- [#564](https://github.com/openwatersio/slackwater/pull/564) [`e0a65bf`](https://github.com/openwatersio/slackwater/commit/e0a65bf8ac0ad05b03c62c30cc01372772f5e47d) Thanks [@bkeepers](https://github.com/bkeepers)! - The predictors check `nodeCorrections` as `fit` does. An unknown set throws a `RangeError` beginning with `invalidNodeCorrections`, and a `latitude` given without Foreman's set throws `invalidLatitude`. A null or empty set still means IHO's.
+
+### Patch Changes
+
+- [#569](https://github.com/openwatersio/slackwater/pull/569) [`07b0eed`](https://github.com/openwatersio/slackwater/commit/07b0eed902565b63deb1707b66ad6e6350102a5a) Thanks [@clarkbw](https://github.com/clarkbw)! - Preserve measured current speed when the direction is unknown, without inventing slack or a comfort window.
+
 ## 1.0.0-beta.14
 
 ### Major Changes

@@ -1,0 +1,12 @@
+# @slackwater/datums
+
+## 0.1.0-beta.0
+
+### Minor Changes
+
+- [#570](https://github.com/openwatersio/slackwater/pull/570) [`02d36af`](https://github.com/openwatersio/slackwater/commit/02d36aff574426b25f5cdd2336f0fa601185810d) Thanks [@bkeepers](https://github.com/bkeepers)! - Compute tidal datums from harmonic constants or from observed water levels with the new `@slackwater/datums` package: mean high and low waters, mean sea level, the astronomical tide bounds over a pinned 19-year epoch, Canada's Large Tide levels, China's Theoretical Lowest Tide by GB 12327-2022, and the spring and Indian Spring low waters. Observed high and low waters are tabulated after NOAA's Tidal Analysis Datum Calculator, and every prediction takes the nodal corrections the constants were fitted under.
+
+### Patch Changes
+
+- Updated dependencies [[`e0a65bf`](https://github.com/openwatersio/slackwater/commit/e0a65bf8ac0ad05b03c62c30cc01372772f5e47d), [`e0a65bf`](https://github.com/openwatersio/slackwater/commit/e0a65bf8ac0ad05b03c62c30cc01372772f5e47d), [`07b0eed`](https://github.com/openwatersio/slackwater/commit/07b0eed902565b63deb1707b66ad6e6350102a5a)]:
+  - @slackwater/engine@1.0.0-beta.15
