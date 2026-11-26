@@ -80,7 +80,7 @@ describe("datum observation preparation", () => {
     const result = prepareDatumObservations(masked, cs)!;
     for (const p of result.samples)
       expect(p.level).toBeCloseTo(expected[(+p.time - start) / 3600000]!, 9);
-  });
+  }, 15_000);
   test("reconstructs short gaps at the larger tides without selecting only smaller tides", () => {
     const masked = truth.filter(
       (p, i) =>

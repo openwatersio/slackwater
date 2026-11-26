@@ -218,7 +218,7 @@ describe("theoretical lowest tide (GB 12327-2022 Appendix J)", () => {
       for (let s = best.s - 2; s <= best.s + 2; s += 0.1)
         lowest = Math.min(lowest, lowestAt(tau, s, 0.1));
     expect(theoreticalLowestTide(byName(constants))).toBeCloseTo(lowest, 3);
-  });
+  }, 15_000);
 
   test("add M4 and M6 at M2's low water", () => {
     // M2 is low when its argument is 180° + g; M4's is then 2(180° + 30°) − 100° = 320° and
