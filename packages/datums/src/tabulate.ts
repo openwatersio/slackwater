@@ -313,8 +313,17 @@ export function exhl(values: readonly number[]): number[] {
 export function diur(times: readonly number[], values: readonly number[], start: number): number[] {
   const n = times.length;
   const marked = new Set<number>();
-  // The first index whose time is at or after `time`, or n; the times are sorted.
+  // Picks keep the filtered turns' order, and where turns are close, as in a record with
+  // almost no tide, two picks can land out of time order. TADC scans every tide, so the
+  // searches below scan too unless the times are sorted, where they agree with a scan.
+  const sorted = times.every((time, i) => i === 0 || times[i - 1]! <= time);
+  // The first index whose time is at or after `time`, in list order, or n.
   const from = (time: number) => {
+    if (!sorted) {
+      let i = 0;
+      while (i < n && times[i]! < time) i++;
+      return i;
+    }
     let lo = 0;
     let hi = n;
     while (lo < hi) {
@@ -324,14 +333,21 @@ export function diur(times: readonly number[], values: readonly number[], start:
     }
     return lo;
   };
-  // The index of the most extreme tide in [t1, t2], or -1 when there is none.
+  // The index of the most extreme tide in [t1, t2], the first of equals, or -1 when there is none.
   const most = (t1: number, t2: number) => {
     let index = -1;
-    for (let i = from(t1); i < n && times[i]! <= t2; i++)
-      if (index < 0 || values[i]! > values[index]!) index = i;
+    for (let i = sorted ? from(t1) : 0; i < n; i++) {
+      const time = times[i]!;
+      if (time > t2) {
+        if (sorted) break;
+        continue;
+      }
+      if (time >= t1 && (index < 0 || values[i]! > values[index]!)) index = i;
+    }
     return index;
   };
-  // The index of the tide nearest `time`, which always lies after the first tide.
+  // The tide nearest `time` as TADC's walk finds it: the first in list order at or after it,
+  // or the one listed before that if nearer. With the times sorted, that is the nearest tide.
   const near = (time: number) => {
     const i = Math.min(from(time), n - 1);
     return i > 0 && time - times[i - 1]! < times[i]! - time ? i - 1 : i;
@@ -339,17 +355,29 @@ export function diur(times: readonly number[], values: readonly number[], start:
 
   let tide1 = Math.max(most(start, start + DIURNAL_FIRST_SEARCH_MS), 0);
   let point1 = times[tide1]!;
+  // TADC loops forever on a state it has had before, marking nothing new.
+  const seen = new Set<string>();
   while (tide1 < n - 1) {
+    const state = `${point1},${tide1}`;
+    if (seen.has(state)) break;
+    seen.add(state);
     let index = near(point1 + DIURNAL_STEP_MS);
     if (times[index] === point1) index = Math.min(index + 1, n - 1);
     const point2 = times[index]!;
     index = near(point2 + DIURNAL_STEP_MS);
     if (times[index] === point2) index = Math.min(index + 1, n - 1);
     const point3 = times[index]!;
-    // At the last tide the step can't advance; TADC would loop.
-    if (point2 <= point1) break;
-    // The window always holds point2, so a tide is always found.
+    // At the last tide the step can't advance; TADC would loop. Out of time order, a step can
+    // go back, and TADC goes on from there.
+    if (point2 === point1) break;
+    // With the times sorted, the window holds point2, so a tide is found. Out of order, it can
+    // be empty, and the step marks nothing and keeps its tide. TADC's Python reads the missing
+    // tide as the last one, which sets timeC to halfway to the end of the record.
     const tide2 = most(point1 + (point2 - point1) / 2, point2 + (point3 - point2) / 2);
+    if (tide2 < 0) {
+      point1 = point2;
+      continue;
+    }
     const timeC = times[tide1]! + (times[tide2]! - times[tide1]!) / 2;
     // Uneven steps can put timeC before point1, leaving no tide to mark; TADC's Python reads
     // that as the last tide and marks it.
