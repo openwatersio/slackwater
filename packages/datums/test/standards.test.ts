@@ -10,7 +10,8 @@ import {
 } from "../src/index.js";
 import { resolveConstituents } from "../src/constituents.js";
 import { theoreticalLowestTide, tideTypes } from "../src/tlt.js";
-import { checkTides, diur, exhl, pick } from "../src/tabulate.js";
+import { checkTides, diur, exhl, pick, tabulateTurns } from "../src/tabulate.js";
+import alpena from "./fixtures/alpena-2022-05.json";
 import { merge } from "../src/observations.js";
 
 const HOUR = 3600000;
@@ -404,6 +405,48 @@ describe("TADC's edge cases", () => {
 
   test("stop DIUR when a step can't advance past the last tide", () => {
     expect(diur(at([23, 56, 85, 98, 108]), [3, 1, 3, 1, 1], 0)).toEqual([0, 1, 2]);
+  });
+
+  // The marks expected in the next two tests are those of a hand transcription of TADC's DIUR
+  // (tides.py at 04836aa, lines 95-212) for the same tides.
+  test("search every tide when two picks land out of time order", () => {
+    // One high a tidal day, and on the fourth a smaller one picked 36 minutes before it, as
+    // at a gauge with almost no tide.
+    const times = at([12, 36.8, 61.7, 86.5, 85.9, 111.4, 136.2, 161, 185.9]);
+    const values = [1, 1.1, 1, 1.1, 0.4, 1, 1.1, 1, 1.1];
+    expect(diur(times, values, 0)).toEqual([0, 1, 2, 3, 5, 6, 7]);
+  });
+
+  test("go on from a DIUR step that goes back in time", () => {
+    expect(diur(at([2.9, 11.4, 8.6, 8.6, 78.9]), [0.1, 4.4, 0.1, 2.6, 3.9], 0)).toEqual([1]);
+  });
+
+  test("mark nothing for a DIUR step whose window holds no tide", () => {
+    // From 12 h the steps reach 37 h and then go back to 9 h, so the window, from 24.5 h to
+    // 23 h, is empty. TADC's Python reads the missing tide as the last one, at 200 h, and so
+    // marks the tide at 12 h for that step and goes on from there.
+    expect(diur(at([12, 37, 9, 200]), [5, 1, 1, 7], 0)).toEqual([]);
+  });
+
+  test("stop DIUR on returning to a step it has taken, where TADC loops", () => {
+    expect(diur(at([46, 98, 106, 37, 85, 52, 89, 40]), [2, 4, 2, 4, 2, 4, 4, 5], 0)).toEqual([7]);
+  });
+
+  test("tabulate a gauge with almost no tide whose picks land out of time order", () => {
+    // Six days at Alpena, Lake Huron, where two lows on 21 May are picked at 22:24 and 21:48.
+    const start = Date.parse(alpena.start);
+    const samples = (rows: number[][]) =>
+      rows.map(([minutes, level]) => ({ time: new Date(start + minutes! * 60000), level: level! }));
+    const turns = tabulateTurns(samples(alpena.hourly), samples(alpena.observations));
+    const lows = turns.filter((turn) => !turn.high);
+    const times = lows.map((turn) => +turn.time);
+    expect(times.some((time, i) => i > 0 && time < times[i - 1]!)).toBe(true);
+    // A transcription of TADC's DIUR marks the same highs and lows from these picks, but for
+    // the last low, which it marks for a step whose window falls before it.
+    const marked = (high: boolean) =>
+      turns.filter((turn) => turn.high === high).flatMap((turn, i) => (turn.higher ? [i] : []));
+    expect(marked(true)).toEqual([0, 1, 4, 6]);
+    expect(marked(false)).toEqual([0, 2]);
   });
 
   test("mark nothing for a DIUR step whose window falls before it", () => {
