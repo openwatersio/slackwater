@@ -1,0 +1,17 @@
+{
+  "note": "Synthetic astronomy from packages/engine/test/node-corrections/schureman.test.ts. Expected factors and phases follow NOAA Special Publication 98. K2 was recalculated from equations 235, 234 and 71 for a tighter tolerance. M1 removes one turn of p for the catalog argument.",
+  "astronomy": { "i": 5, "I": 6, "omega": 3, "nu": 4, "nup": 4, "nupp": 2, "P": 14, "p": 10, "xi": 4 },
+  "corrections": {
+    "Mm": { "f": 0.999051998091, "u": 0 },
+    "Mf": { "f": 4.00426673883, "u": -8 },
+    "O1": { "f": 2.00076050158, "u": 4 },
+    "J1": { "f": 2.0119685329, "u": -4 },
+    "OO1": { "f": 8.01402871709, "u": -12 },
+    "M2": { "f": 0.999694287563, "u": 0 },
+    "K1": { "f": 1.23843964182, "u": -4 },
+    "L2": { "f": 0.98517860327, "u": -0.449812364499 },
+    "K2": { "f": 1.097716364965, "u": -4 },
+    "M1": { "f": 3.90452969083, "u": -2.90845827699 },
+    "M3": { "f": 0.999541466395, "u": 0 }
+  }
+}

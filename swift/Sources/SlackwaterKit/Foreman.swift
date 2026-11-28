@@ -10,6 +10,8 @@ private let r2d = 180 / Double.pi
 public enum NodeCorrections: Sendable, Equatable {
     /// IHO's, the default.
     case iho
+    /// Schureman’s spherical-geometry corrections.
+    case schureman
     /// Foreman's satellite corrections, as t_tide and UTide apply them, for constants fitted that
     /// way, at the site's latitude in degrees north. The catalog's Sa, S1 and OQ2 are other lines
     /// than t_tide's by those names, so a station that lists them is refused.

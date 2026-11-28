@@ -7,6 +7,9 @@ sealed class NodeCorrections {
     /** IHO's, the default. */
     object Iho : NodeCorrections()
 
+    /** Schureman’s spherical-geometry corrections. */
+    object Schureman : NodeCorrections()
+
     /**
      * Foreman's satellite corrections, as t_tide and UTide apply them, for constants fitted that
      * way. [latitude] is the site's, in degrees north. The catalog's Sa, S1 and OQ2 are other

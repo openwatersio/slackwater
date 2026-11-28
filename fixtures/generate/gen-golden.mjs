@@ -138,4 +138,27 @@ write('prediction-foreman.json', {
   refused: Object.fromEntries(['Sa', 'SA', 'S1', 'OQ2', 'OO2', 'H1', 'H2'].map((name) => [name, foremanLines[constituents[name]?.name ?? name]])),
 });
 
+// Include every Schureman fundamental, a constituent with no such formula, and
+// NOAA's SIGMA1, whose corrections come from its custom compound definition.
+const schuremanSet = ['Mm', 'Mf', 'O1', 'K1', 'J1', 'OO1', 'M2', 'K2', 'L2', 'M1', 'M3', 'M4', 'M1A', 'SIGMA1']
+  .map((name, i) => ({ name, amplitude: 0.04 + 0.01 * i, phase: (i * 47) % 360 }));
+const definitions = [{
+  name: 'SIGMA1', speed: 12.9271398, coefficients: [1, -3, 2, 0, 0, 0, 1],
+  members: [{ name: 'O1', factor: 2 }],
+}];
+const schuremanPredictor = createTidePredictor(schuremanSet, {
+  nodeCorrections: 'schureman',
+  definitions: definitions.map((line) => ({ ...line, aliases: [], members: line.members.map(({ name, factor }) => [name, factor]) })),
+});
+write('prediction-schureman.json', {
+  note: 'TypeScript single-instant water levels in metres with Schureman nodal corrections and a custom SIGMA1 definition.',
+  constituents: schuremanSet,
+  definitions,
+  points: TIMES.map((t) => {
+    const time = new Date(t);
+    const point = schuremanPredictor.getWaterLevelAtTime({ time });
+    return { time: iso(point.time), height: point.level };
+  }),
+});
+
 console.log('done');

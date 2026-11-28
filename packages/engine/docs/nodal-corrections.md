@@ -2,7 +2,7 @@
 
 A harmonic prediction sums constituents of the form `f · H · cos(V0 + ω·t + u − G)`. `H` and `G` come from the station. `V0` (the equilibrium argument), `ω` (the speed), `f` (the nodal amplitude factor) and `u` (the nodal phase correction) come from the engine. This note covers where the engine gets those, what was checked, and where the known gaps are.
 
-The TypeScript code is in `src/astronomy`, `src/constituents` and `src/node-corrections`. The Swift port mirrors it in `Astronomy.swift`, `Constituent.swift`, `NodeCorrections.swift` and `Foreman.swift`, with the constituent table and Foreman's tables generated into `Resources/catalog.json`. The Kotlin port has the same files, with the tables generated into `CatalogData.kt` and `ForemanData.kt`.
+The TypeScript code is in `src/astronomy`, `src/constituents` and `src/node-corrections`. The Swift port mirrors it in `Astronomy.swift`, `Constituent.swift`, `NodeCorrections.swift`, `Schureman.swift` and `Foreman.swift`, with the constituent table and Foreman's tables generated into `Resources/catalog.json`. The Kotlin port has the same files, with the tables generated into `CatalogData.kt` and `ForemanData.kt`.
 
 ## Astronomical arguments
 
@@ -38,7 +38,7 @@ The IHO list gives eight constituents an alphabetical XDO but no numerical one, 
 
 ## Nodal corrections
 
-The engine has three correction sets, selected with `nodeCorrections`. The TypeScript predictors and `fit` take any of the three. The Swift and Kotlin engines predict with IHO's or Foreman's, and fit with IHO's.
+The engine has three correction sets, selected with `nodeCorrections`. The TypeScript predictors and `fit` take any of the three. The Swift and Kotlin engines predict with IHO's, Schureman's or Foreman's, and fit with IHO's.
 
 The IHO set (`iho.ts`) is the default. It uses the Fourier series in Annex A of the IHO TWCWG constituent list ([local copy](../../../docs/TWCWG_Constituent_list.md)). Every coefficient in `iho.ts` was checked against the published PDF. The fundamentals with their own formulas are Mm, Mf, O1, K1, J1, M1, M1A, M1B, M1C, M2, K2, M3, L2, gamma2, alpha2, delta2, xi2 and eta2. Annex A gives Mm `u = 0` and no sine term, and the engine follows that.
 
