@@ -2,6 +2,8 @@ import { describe, test, expect } from "vitest";
 import { loadStations } from "@slackwater/database";
 import { useStation, useCurrentStation } from "../src/station.js";
 import { createTidePredictor } from "../src/index.js";
+import { createCurrentPredictor } from "../src/currents.js";
+import type { ConstituentDefinition } from "../src/constituents/types.js";
 import mockConstituents from "./_mocks/constituents.js";
 import { loadFixture, type FixtureEvent } from "./_mocks/currents-catalog.js";
 import type { Station, StationPredictor, CurrentStation } from "../src/station.js";
@@ -30,7 +32,63 @@ const baseStation: Station = {
   harmonic_constituents: mockConstituents,
 };
 
+const sigmaDefinition: ConstituentDefinition = {
+  name: "SIGMA1",
+  speed: 12.9271398,
+  coefficients: [1, -3, 2, 0, 0, 0, 1],
+  members: [["O1", 2]],
+};
+const sourceHarmonics = [{ name: "SIGMA1", amplitude: 0.4, phase: 15 }];
+
 describe("useStation", () => {
+  test("uses the station's corrections and definitions unless the caller overrides the formulas", () => {
+    const station = useStation({
+      ...baseStation,
+      harmonic_constituents: sourceHarmonics,
+      node_corrections: "schureman",
+      constituent_definitions: [sigmaDefinition],
+    });
+    const start = new Date("2026-06-01T00:00:00Z");
+    const end = new Date("2026-06-02T00:00:00Z");
+    const predictor = createTidePredictor(sourceHarmonics, {
+      offset: 0,
+      nodeCorrections: "schureman",
+      definitions: [sigmaDefinition],
+    });
+    expect(station.getWaterLevelAtTime({ time: start, datum: "MSL" }).level).toBe(
+      predictor.getWaterLevelAtTime({ time: start }).level,
+    );
+    expect(station.getTimelinePrediction({ start, end, datum: "MSL" }).timeline).toEqual(
+      predictor.getTimelinePrediction({ start, end }),
+    );
+    expect(station.getExtremesPrediction({ start, end, datum: "MSL" }).extremes).toEqual(
+      predictor.getExtremesPrediction({ start, end }),
+    );
+    const subordinate = useStation(
+      {
+        ...baseStation,
+        id: "test/subordinate",
+        type: "subordinate",
+        harmonic_constituents: sourceHarmonics,
+        offsets: { reference: station.id, time: { high: 0, low: 0 } },
+      },
+      undefined,
+      { reference: station },
+    );
+    expect(subordinate.getWaterLevelAtTime({ time: start, datum: "MSL" }).level).toBe(
+      predictor.getWaterLevelAtTime({ time: start }).level,
+    );
+    expect(
+      station.getWaterLevelAtTime({ time: start, datum: "MSL", nodeCorrections: "iho" }).level,
+    ).toBe(
+      createTidePredictor(sourceHarmonics, {
+        offset: 0,
+        nodeCorrections: "iho",
+        definitions: [sigmaDefinition],
+      }).getWaterLevelAtTime({ time: start }).level,
+    );
+  });
+
   describe("nodeCorrections", () => {
     const station = findStation("noaa/8722588");
     const corrections = ["iho", "schureman"] as const;
@@ -139,6 +197,26 @@ describe("useStation", () => {
       expect(sub(-10).getWaterLevelAtTime({ time, datum: "MSL" }).level).toBe(
         useStation(reference).getWaterLevelAtTime({ time, datum: "MSL" }).level,
       );
+    });
+
+    test("uses the reference latitude carried by a database subordinate", () => {
+      const level = (latitude: number) =>
+        useStation({
+          ...baseStation,
+          type: "subordinate",
+          latitude,
+          harmonic_constituents: harmonics,
+          offsets: { reference: "test/reference", time: { high: 0, low: 0 } },
+          node_corrections: "foreman",
+          node_corrections_latitude: 59.9,
+        }).getWaterLevelAtTime({ time, datum: "MSL" }).level;
+      const expected = createTidePredictor(harmonics, {
+        offset: 0,
+        nodeCorrections: "foreman",
+        latitude: 59.9,
+      }).getWaterLevelAtTime({ time }).level;
+      expect(level(10)).toBe(expected);
+      expect(level(-10)).toBe(expected);
     });
 
     test("refuse the catalog's S1", () => {
@@ -507,6 +585,42 @@ describe("useCurrentStation", () => {
     chart_datum: undefined,
     current: { flood_direction: 45, ebb_direction: 225, mean_flow: 0.1 },
   };
+
+  test("uses source corrections and definitions for both axes and a subordinate's reference", () => {
+    const reference: CurrentStation = {
+      ...baseCurrentStation,
+      harmonic_constituents: sourceHarmonics,
+      current: { minor_constituents: sourceHarmonics, azimuth: 45 },
+      node_corrections: "schureman",
+      constituent_definitions: [sigmaDefinition],
+    };
+    const model = useCurrentStation(reference);
+    const options = { start, end };
+    const expected = createCurrentPredictor(sourceHarmonics, {
+      nodeCorrections: "schureman",
+      definitions: [sigmaDefinition],
+      minorConstituents: sourceHarmonics,
+      azimuth: 45,
+    });
+    expect(model.getTimelinePrediction(options).timeline).toEqual(
+      expected.getTimelinePrediction(options),
+    );
+    const subordinate = useCurrentStation(
+      {
+        ...baseCurrentStation,
+        id: "test/subordinate-current",
+        harmonic_constituents: [],
+        current: { offsets: { reference: reference.id } },
+      },
+      { reference },
+    );
+    expect(subordinate.getEventsPrediction(options).events).toEqual(
+      subordinate.getEventsPrediction({ ...options, nodeCorrections: "schureman" }).events,
+    );
+    expect(subordinate.getEventsPrediction(options).events).not.toEqual(
+      subordinate.getEventsPrediction({ ...options, nodeCorrections: "iho" }).events,
+    );
+  });
 
   describe("harmonic stations", () => {
     // PUG1716 is a NOAA type-S station that carries its own harcon: it must
