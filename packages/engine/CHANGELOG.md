@@ -1,5 +1,11 @@
 # @neaps/tide-predictor
 
+## 1.0.0-beta.16
+
+### Patch Changes
+
+- [#512](https://github.com/openwatersio/slackwater/pull/512) [`3361a3d`](https://github.com/openwatersio/slackwater/commit/3361a3de4f8ad98fe1f0b6e6d1d07eb047434e81) Thanks [@yo-devloper](https://github.com/yo-devloper)! - Place `slackWindows` edges correctly when the current reverses and crosses the threshold within one sample step. The edge now comes from the signed speed, as in `slackWindowAround`, instead of landing late or early.
+
 ## 1.0.0-beta.15
 
 ### Minor Changes
