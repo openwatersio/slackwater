@@ -113,17 +113,15 @@ export function useStation(
 ): StationPredictor {
   const { datums, harmonic_constituents } = station;
   const referenceId = station.offsets?.reference;
-  const model = reference?.id === referenceId ? reference : undefined;
+  const modelReference = referenceId == null ? undefined : reference;
 
   /** The latitude Foreman's corrections take: that of the station the constants belong to. */
   function foremanLatitude(): number {
     if (referenceId == null) return station.node_corrections_latitude ?? station.latitude;
-    if (reference && !model)
-      throw new Error(
-        `Station ${station.id} is subordinate to ${referenceId}, not ${reference.id}`,
-      );
     const latitude =
-      station.node_corrections_latitude ?? model?.node_corrections_latitude ?? model?.latitude;
+      station.node_corrections_latitude ??
+      modelReference?.node_corrections_latitude ??
+      modelReference?.latitude;
     if (latitude === undefined)
       throw new Error(
         `Station ${station.id} is subordinate to ${referenceId}; pass that station as options.reference for Foreman's corrections`,
@@ -158,7 +156,16 @@ export function useStation(
   }
 
   function getPredictor({ datum = defaultDatum, nodeCorrections }: StationPredictionOptions = {}) {
-    const corrections = nodeCorrections ?? station.node_corrections ?? model?.node_corrections;
+    if (modelReference && modelReference.id !== referenceId)
+      throw new Error(
+        `Station ${station.id} is subordinate to ${referenceId}, not ${modelReference.id}`,
+      );
+    const hasMetadata =
+      station.node_corrections != null ||
+      station.constituent_definitions != null ||
+      station.node_corrections_latitude != null;
+    const metadata = hasMetadata ? station : (modelReference ?? station);
+    const corrections = nodeCorrections === undefined ? metadata.node_corrections : nodeCorrections;
     const offset = datum ? mslAbove(datum) : 0;
 
     // NOAA ratio offsets multiply the height above chart datum, so shift to `datum` after them.
@@ -177,7 +184,7 @@ export function useStation(
         offset: base,
         nodeCorrections: corrections,
         latitude: corrections === "foreman" ? foremanLatitude() : undefined,
-        definitions: station.constituent_definitions ?? model?.constituent_definitions,
+        definitions: metadata.constituent_definitions,
       }),
       shift: offset - base,
     };
@@ -356,11 +363,7 @@ export function useCurrentStation(
         `Current station ${station.id} is subordinate to ${offsets.reference}; pass that station as options.reference`,
       );
     }
-    // Foreman's corrections take the reference's latitude, so it has to be the station named.
-    if (
-      (nodeCorrections ?? reference.node_corrections) === "foreman" &&
-      reference.id !== offsets.reference
-    )
+    if (reference.id !== offsets.reference)
       throw new Error(
         `Current station ${station.id} is subordinate to ${offsets.reference}, not ${reference.id}`,
       );

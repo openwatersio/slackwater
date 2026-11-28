@@ -87,6 +87,11 @@ describe("useStation", () => {
         definitions: [sigmaDefinition],
       }).getWaterLevelAtTime({ time: start }).level,
     );
+    expect(
+      station.getWaterLevelAtTime({ time: start, datum: "MSL", nodeCorrections: null! }).level,
+    ).toBe(
+      station.getWaterLevelAtTime({ time: start, datum: "MSL", nodeCorrections: "iho" }).level,
+    );
   });
 
   describe("nodeCorrections", () => {
@@ -193,6 +198,9 @@ describe("useStation", () => {
       expect(() => level(sub(-10, { ...reference, id: "test/other" }))).toThrow(
         "subordinate to test/station, not test/other",
       );
+      expect(() =>
+        sub(-10, { ...reference, id: "test/other" }).getWaterLevelAtTime({ time, datum: "MSL" }),
+      ).toThrow("subordinate to test/station, not test/other");
       // IHO's corrections don't need the reference.
       expect(sub(-10).getWaterLevelAtTime({ time, datum: "MSL" }).level).toBe(
         useStation(reference).getWaterLevelAtTime({ time, datum: "MSL" }).level,
@@ -620,6 +628,17 @@ describe("useCurrentStation", () => {
     expect(subordinate.getEventsPrediction(options).events).not.toEqual(
       subordinate.getEventsPrediction({ ...options, nodeCorrections: "iho" }).events,
     );
+    const wrongReference = useCurrentStation(
+      {
+        ...baseCurrentStation,
+        harmonic_constituents: [],
+        current: { offsets: { reference: "test/other" } },
+      },
+      { reference },
+    );
+    expect(() => wrongReference.getEventsPrediction(options)).toThrow(
+      "subordinate to test/other, not test/current",
+    );
   });
 
   describe("harmonic stations", () => {
@@ -733,7 +752,7 @@ describe("useCurrentStation", () => {
         {
           ...baseCurrentStation,
           harmonic_constituents: [],
-          current: { offsets: { reference: "test/reference" } },
+          current: { offsets: { reference: baseCurrentStation.id } },
         },
         { reference: baseCurrentStation },
       );
@@ -814,7 +833,7 @@ describe("useCurrentStation", () => {
         {
           ...baseCurrentStation,
           harmonic_constituents: [],
-          current: { offsets: { reference: "test/reference" } },
+          current: { offsets: { reference: baseCurrentStation.id } },
         },
         { reference: { ...baseCurrentStation, harmonic_constituents: [] } },
       );

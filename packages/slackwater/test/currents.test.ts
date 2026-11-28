@@ -164,6 +164,12 @@ describe("findCurrentStation", () => {
       meanFlow: station.current?.mean_flow,
       floodDirection: station.current?.flood_direction,
       ebbDirection: station.current?.ebb_direction,
+      nodeCorrections: station.node_corrections,
+      latitude:
+        station.node_corrections === "foreman"
+          ? (station.node_corrections_latitude ?? station.latitude)
+          : undefined,
+      definitions: station.constituent_definitions,
     });
     expect(station.getTimelinePrediction(span).timeline.map((p) => p.speed)).toEqual(
       scalar.getTimelinePrediction(span).map((p) => p.speed),
