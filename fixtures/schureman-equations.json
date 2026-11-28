@@ -1,5 +1,5 @@
 {
-  "note": "Synthetic astronomy from packages/engine/test/node-corrections/schureman.test.ts. Expected factors and phases follow NOAA Special Publication 98. K2 was recalculated from equations 235, 234 and 71 for a tighter tolerance. M1 removes one turn of p for the catalog argument.",
+  "note": "Synthetic astronomy and reference values adapted from the original TypeScript Schureman tests. K2 uses NOAA Special Publication 98, printed pp. 25 and 46, with the mean in equation 234 evaluated using equation 71 and the fixture angles. M1 removes one turn of p for the catalog argument.",
   "astronomy": { "i": 5, "I": 6, "omega": 3, "nu": 4, "nup": 4, "nupp": 2, "P": 14, "p": 10, "xi": 4 },
   "corrections": {
     "Mm": { "f": 0.999051998091, "u": 0 },
