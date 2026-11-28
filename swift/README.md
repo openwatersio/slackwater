@@ -149,7 +149,7 @@ A definition that shares a name or alias with a catalog entry replaces that entr
 
 ### Nodal corrections
 
-Stations predict with IHO's nodal corrections by default. Constants fitted with t_tide or UTide, such as Kartverket's, predict with Foreman's satellite corrections at the site's latitude in degrees north, as [`@slackwater/engine`](../packages/engine/README.md#tide-prediction-object) does:
+Stations predict with IHO's nodal corrections by default. Pass `.schureman` for constants analyzed with Schureman's formulas. Constants fitted with t_tide or UTide, such as Kartverket's, predict with Foreman's satellite corrections at the site's latitude in degrees north, as [`@slackwater/engine`](../packages/engine/README.md#tide-prediction-object) does:
 
 ```swift
 let station = try Station(constituents: kartverket, nodeCorrections: .foreman(latitude: 59.9))

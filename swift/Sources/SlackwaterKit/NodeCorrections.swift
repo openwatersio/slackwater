@@ -1,6 +1,6 @@
 // Slackwater — MIT. Node corrections (IHO scheme).
 // Faithful port of @slackwater/engine src/node-corrections/iho.ts — the default
-// scheme the predictor uses. (Schureman is intentionally not ported: nothing uses it.)
+// scheme the predictor uses.
 // f is dimensionless; u is in degrees.
 import Foundation
 

@@ -51,8 +51,7 @@ internal data class CatalogEntry(val name: String, val speed: Double, val coeffi
 internal class Catalog private constructor(
     private val entries: List<Entry>,
     private val index: Map<String, Int>,
-    /** Foreman's corrections in place of IHO's, when the station is corrected with them. */
-    private val foreman: ForemanCorrections? = null,
+    private val formula: (String, Astro, Double) -> NodeCorrection? = ::ihoCorrection,
 ) {
     private class Link(val index: Int, val factor: Double)
     private class Entry(
@@ -135,7 +134,7 @@ internal class Catalog private constructor(
             done += i
         }
         for (i in first until entries.size) visit(i, HashSet())
-        val catalog = Catalog(entries, index, foreman)
+        val catalog = Catalog(entries, index, formula)
         // Prediction advances V₀ at the speed, and extremes restart it each day, so they must agree.
         for (i in first until entries.size) {
             if (!(abs(catalog.rate(i) - entries[i].speed) <= 1e-5)) {
@@ -185,19 +184,19 @@ internal class Catalog private constructor(
      * t_tide knows by another name throws, as the engine's `fit` does; a caller's own definition is its own.
      */
     fun correctedWith(corrections: NodeCorrections, names: List<String>): Catalog {
-        if (corrections !is NodeCorrections.Foreman) return this
-        val foreman = ForemanCorrections(corrections.latitude)
+        val foreman = when (corrections) {
+            NodeCorrections.Iho -> return if (formula == ::ihoCorrection) this else Catalog(entries, index)
+            NodeCorrections.Schureman -> return Catalog(entries, index, ::schuremanCorrection)
+            is NodeCorrections.Foreman -> ForemanCorrections(corrections.latitude)
+        }
         for (name in names) {
             // t_tide's H1 and H2 aren't catalog names; they're refused with the line they mean, not dropped.
             val i = index[name] ?: foremanLines[name]?.let { throw NodeCorrectionsException.NotForemanLine(name, it) } ?: continue
             val line = foremanLines[entries[i].name]
             if (line != null && i < shared.entries.size) throw NodeCorrectionsException.NotForemanLine(name, line)
         }
-        return Catalog(entries, index, foreman)
+        return Catalog(entries, index, foreman::correction)
     }
-
-    private fun formula(name: String, a: Astro, perigeeTurns: Double): NodeCorrection? =
-        if (foreman != null) foreman.correction(name, a, perigeeTurns) else ihoCorrection(name, a, perigeeTurns)
 
     fun correction(name: String, a: Astro): NodeCorrection {
         val i = index[name] ?: return formula(name, a, 0.0) ?: NodeCorrection(1.0, 0.0)

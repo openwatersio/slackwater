@@ -130,7 +130,7 @@ A consumer that gates a range claim on the annual constituent will hide it at ev
 | --------------------------------------------------- | ---------- | ----- | ------ |
 | Harmonic prediction, extremes, and node corrections | yes        | yes   | yes    |
 | Foreman's node corrections in prediction            | yes        | yes   | yes    |
-| Schureman's node corrections                        | yes        | —     | —      |
+| Schureman's node corrections in prediction          | yes        | yes   | yes    |
 | Fitting with Schureman's or Foreman's corrections   | yes        | —     | —      |
 | Subordinate tide stations                           | yes        | yes   | yes    |
 | Currents, including subordinate reduction           | yes        | yes   | yes    |

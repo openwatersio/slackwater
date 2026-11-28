@@ -102,7 +102,7 @@ Empty or ineffective minor constituents without mean cross-flow use the one-axis
 
 All numeric inputs must be finite. Steps must be positive, representable at the requested epoch and at least one nanosecond. Timeline and event searches exceeding the indexed work/result range are rejected. Invalid inputs throw `IllegalArgumentException`. Reversed windows return empty lists. Equal timeline bounds produce the samples from outward snapping; event roots on an exact bracket boundary, and current slacks at a node-correction refresh, are not guaranteed. Steps default to 600 seconds; the start is floored and the end ceiled to the step on the UTC epoch grid. No default time zone enters prediction. Station constructors copy caller collections, and requests have independent calculation state.
 
-Unknown names and zero amplitudes contribute nothing. Astronomy returns null for an unknown name. IHO and [Foreman](#nodal-corrections) node corrections are supported. `ChsTideFit` and `ChsCurrentFit` carry the CHS tide and current fit recipes shared with TypeScript and Swift, `ChsCurrentFit.STAMP` identifies the current recipe, and `ChsCurrentFit.project` makes a current gate's `HarmonicSample` series. The stamp is checked against `fixtures/chs-current-golden.json` and changes when a change moves the golden gate's predicted velocity by 1e-4 kn or more, a slack or peak by 30 seconds or more, or a peak's speed by 0.001 kn or more. Schureman, station lookup, datum resolution, derived slack and publication tooling are outside this port; CHS stations are resolved by the separate [IWLS module](#iwls-fetching).
+Unknown names and zero amplitudes contribute nothing. Astronomy returns null for an unknown name. IHO, Schureman, and Foreman [nodal corrections](#nodal-corrections) are supported. `ChsTideFit` and `ChsCurrentFit` carry the CHS tide and current fit recipes shared with TypeScript and Swift, `ChsCurrentFit.STAMP` identifies the current recipe, and `ChsCurrentFit.project` makes a current gate's `HarmonicSample` series. The stamp is checked against `fixtures/chs-current-golden.json` and changes when a change moves the golden gate's predicted velocity by 1e-4 kn or more, a slack or peak by 30 seconds or more, or a peak's speed by 0.001 kn or more. Station lookup, datum resolution, derived slack and publication tooling are outside this port. CHS stations are resolved by the separate [IWLS module](#iwls-fetching).
 
 ## Fit
 
@@ -132,7 +132,7 @@ A definition that shares a name or alias with a catalog entry replaces that entr
 
 ## Nodal corrections
 
-Stations predict with IHO's nodal corrections by default. Constants fitted with t_tide or UTide, such as Kartverket's, predict with Foreman's satellite corrections at the site's latitude in degrees north, as [`@slackwater/engine`](../packages/engine/README.md#tide-prediction-object) does:
+Stations predict with IHO's nodal corrections by default. Pass `NodeCorrections.Schureman` for constants analyzed with Schureman's formulas. Constants fitted with t_tide or UTide, such as Kartverket's, predict with Foreman's satellite corrections at the site's latitude in degrees north, as [`@slackwater/engine`](../packages/engine/README.md#tide-prediction-object) does:
 
 ```kotlin
 val station = Station(kartverket, nodeCorrections = NodeCorrections.Foreman(59.9))
