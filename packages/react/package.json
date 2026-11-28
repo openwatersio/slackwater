@@ -65,16 +65,16 @@
     "@noble/hashes": "^2.4.0",
     "@openwaters/almanac": "^0.14.0",
     "@slackwater/engine": "^1.0.0-beta.15",
-    "@tanstack/react-query": "^5.108.0"
+    "@tanstack/react-query": "^5.108.4"
   },
   "devDependencies": {
     "@storybook/react": "^10.6.7",
     "@storybook/react-vite": "^10.6.7",
     "@tailwindcss/vite": "^4.3.5",
     "@testing-library/react": "^16.0.0",
-    "@testing-library/user-event": "^14.6.12",
+    "@testing-library/user-event": "^14.6.13",
     "@types/geojson": "^7946.0.16",
-    "@types/react": "^19.0.0",
+    "@types/react": "^19.3.2",
     "@types/react-dom": "^19.0.0",
     "@vitest/browser-playwright": "^5.0.4",
     "axe-core": "^4.14.1",
