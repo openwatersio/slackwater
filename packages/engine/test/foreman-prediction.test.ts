@@ -176,6 +176,36 @@ describe("Foreman's nodal corrections in prediction", () => {
     );
   });
 
+  test.each([
+    { entry: "S1", name: "S1" },
+    { entry: "Sa", name: "SA" },
+    { entry: "OQ2", name: "OO2" },
+    { entry: "S1", name: "customS1", aliases: ["S1"] },
+  ])(
+    "refuses a copy of the incompatible catalog line $entry named $name",
+    ({ entry, name, aliases }) => {
+      const { speed, coefficients } = constituents[entry];
+      expect(() =>
+        createTidePredictor([{ name, amplitude: 0.1, phase: 0 }], {
+          nodeCorrections: "foreman",
+          latitude,
+          definitions: [{ name, speed, coefficients, aliases }],
+        }),
+      ).toThrow(`notForemanLine: ${name}`);
+    },
+  );
+
+  test("rejects missing coefficient positions in caller definitions", () => {
+    const { speed, coefficients } = constituents.S1;
+    const sparse = coefficients!.slice() as typeof coefficients;
+    Reflect.deleteProperty(sparse!, 6);
+    expect(() =>
+      createTidePredictor([{ name: "S1", amplitude: 0.1, phase: 0 }], {
+        definitions: [{ name: "S1", speed, coefficients: sparse }],
+      }),
+    ).toThrow("invalidDefinition: S1");
+  });
+
   test("skips names the catalog doesn't know, as with other sets", () => {
     const options = { nodeCorrections: "foreman", latitude } as const;
     const harmonics = [{ name: "H3", amplitude: 0.1, phase: 0 }];

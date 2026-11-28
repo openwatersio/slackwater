@@ -28,6 +28,8 @@ Subordinate tide height corrections are either a ratio applied to the reference 
 
 Subordinate current time adjustments are seconds in all low-level engines (`SubordinateCurrentOptions` and the Swift initializer). NOAA and the station database publish them in minutes; the TypeScript station layer converts. A TypeScript event's per-day search covers whole UTC days with an 8-hour margin, so an event list never depends on the requested window.
 
+The TypeScript station helpers read the database's `node_corrections`, `node_corrections_latitude` and `constituent_definitions` when available. Swift and Kotlin clients pass the same values from their database readers when constructing harmonic tide and current predictors. A subordinate's model follows the station that supplies the harmonic constants. Foreman's corrections use that station's latitude.
+
 ## Public API correspondence
 
 | Capability                   | TypeScript                                                         | Swift                                                                                | Kotlin                                                          |

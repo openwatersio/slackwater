@@ -27,15 +27,17 @@ export function correctionsFor(
 /**
  * Refuse a catalog line t_tide knows by another name. The catalog's Sa, S1 and OQ2 are
  * other lines than t_tide's by those names, so correcting them with Foreman's set would
- * use a line t_tide doesn't. A caller's own definition is its own.
+ * use a line t_tide doesn't. Predictors also refuse copies of those arguments.
  */
-export function checkForemanLine(name: string, model: Constituent): void {
+export function checkForemanLine(name: string, model: Constituent, checkArgument = false): void {
+  const catalog =
+    base[model.name] ?? base[name] ?? model.aliases.map((alias) => base[alias]).find(Boolean);
+  if (!catalog || !Object.hasOwn(foremanLines, catalog.name)) return;
   if (
-    Object.hasOwn(foremanLines, model.name) &&
-    Object.hasOwn(base, model.name) &&
-    base[model.name] === model
+    catalog === model ||
+    (checkArgument && catalog.coefficients?.every((value, i) => value === model.coefficients?.[i]))
   )
-    throw new RangeError(`notForemanLine: ${name} (t_tide's is ${foremanLines[model.name]})`);
+    throw new RangeError(`notForemanLine: ${name} (t_tide's is ${foremanLines[catalog.name]})`);
 }
 
 /**
@@ -54,7 +56,7 @@ export function predictionCorrections(
   // A predictor reports constituents that aren't an array itself.
   if (nodeCorrections === "foreman" && Array.isArray(constituents))
     for (const { name } of constituents) {
-      if (Object.hasOwn(models, name)) checkForemanLine(name, models[name]);
+      if (Object.hasOwn(models, name)) checkForemanLine(name, models[name], true);
       else if (Object.hasOwn(foremanLines, name))
         throw new RangeError(`notForemanLine: ${name} (t_tide's is ${foremanLines[name]})`);
     }

@@ -17,6 +17,12 @@ export function defineConstituents(
     throw new RangeError("invalidDefinition: definitions must be an array");
   // No prototype, so names such as "constructor" or "__proto__" are plain keys.
   const registry: Record<string, Constituent> = Object.assign(Object.create(null), base);
+  const namesByEntry = new Map<Constituent, string[]>();
+  for (const [name, entry] of Object.entries(base)) {
+    const names = namesByEntry.get(entry);
+    if (names) names.push(name);
+    else namesByEntry.set(entry, [name]);
+  }
   // Predictors add datum offsets and mean flows as a Z0 term, so Z0 must stay a constant.
   const offset = Object.hasOwn(registry, "Z0") ? registry.Z0 : undefined;
   const built = new Set<Constituent>();
@@ -37,11 +43,12 @@ export function defineConstituents(
     if (offset && replaced.has(offset)) {
       throw new RangeError(`invalidDefinition: ${constituent.name} (Z0 carries offsets)`);
     }
-    for (const key of Object.keys(registry)) {
-      if (!replaced.has(registry[key])) continue;
-      registry[key] = constituent;
-      // Known by the replaced entry's names, so "MF" still finds Mf's correction formula.
-      if (!keys.has(key)) constituent.aliases.push(key);
+    for (const entry of replaced) {
+      for (const key of namesByEntry.get(entry) ?? []) {
+        registry[key] = constituent;
+        // Known by the replaced entry's names, so "MF" still finds Mf's correction formula.
+        if (!keys.has(key)) constituent.aliases.push(key);
+      }
     }
     for (const key of keys) registry[key] = constituent;
     built.add(constituent);
@@ -112,7 +119,7 @@ function validate(definition: ConstituentDefinition) {
     (coefficients === null ||
       (Array.isArray(coefficients) &&
         coefficients.length === 7 &&
-        coefficients.every(Number.isInteger))) &&
+        Array.from(coefficients).every(Number.isInteger))) &&
     Array.isArray(aliases) &&
     aliases.every((alias) => typeof alias === "string" && alias !== "") &&
     Array.isArray(members) &&
