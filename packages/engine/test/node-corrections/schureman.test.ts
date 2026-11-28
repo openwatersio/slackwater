@@ -8,12 +8,14 @@ import constituents from "../../src/constituents/index.js";
 // The turns of the perigee p in the catalog's argument for the line.
 const turns = (name: string) => constituents[name]!.coefficients![3];
 
-const testItems = Object.fromEntries(
-  Object.entries(reference.astronomy).map(([name, value]) => [name, { value }]),
-) as AstroData;
-
 const sampleTime = new Date("2019-10-04T10:15:40.010Z");
 const testAstro = astro(sampleTime);
+const testItems: AstroData = {
+  ...testAstro,
+  ...Object.fromEntries(
+    Object.entries(reference.astronomy).map(([name, value]) => [name, { value, speed: 0 }]),
+  ),
+};
 
 describe("schuremanFundamentals", () => {
   it.each(Object.keys(fundamentals))("%s: produces f > 0 and finite u", (name) => {
@@ -34,7 +36,11 @@ describe("schuremanFundamentals", () => {
 
   it("M1: f / f(O1) is 1/Qa, which eq 197 gives as (2.310 + 1.435 cos 2P)^½ at mean I", () => {
     for (const P of [0, 30, 60, 90, 135]) {
-      const a = { ...testItems, I: { value: 23.45 }, P: { value: P } } as AstroData;
+      const a: AstroData = {
+        ...testItems,
+        I: { ...testItems.I, value: 23.45 },
+        P: { ...testItems.P, value: P },
+      };
       const ratio = fundamentals.M1(a, turns("M1")).f / fundamentals.O1(a, turns("O1")).f;
       expect(ratio ** 2).toBeCloseTo(2.31 + 1.435 * Math.cos((2 * P * Math.PI) / 180), 2);
     }
